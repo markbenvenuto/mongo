@@ -28,6 +28,7 @@
 #include "mongo/util/processinfo.h"
 #include "mongo/util/progress_meter.h"
 #include "mongo/util/startup_test.h"
+#include "mongo/dtrace/probes.h"
 
 namespace mongo {
 
@@ -152,6 +153,8 @@ namespace {
     }
 
     /*static*/ int MongoFile::_flushAll( bool sync ) {
+        MONGODB_DATA_FILE_FSYNC_START(sync);
+
         if ( ! sync ) {
             int num = 0;
             LockMongoFilesShared lk;
@@ -185,6 +188,8 @@ namespace {
         for ( size_t i = 0; i < thingsToFlush.size(); i++ ) {
             thingsToFlush[i]->flush();
         }
+
+        MONGODB_DATA_FILE_FSYNC_DONE();
 
         return thingsToFlush.size();
     }

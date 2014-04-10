@@ -88,6 +88,7 @@
 #include "mongo/util/goodies.h"
 #include "mongo/util/mongoutils/str.h"
 #include "mongo/util/time_support.h"
+#include "mongo/dtrace/probes.h"
 
 namespace mongo {
     
@@ -613,6 +614,10 @@ namespace mongo {
         UpdateExecutor executor(&request, &op.debug());
         uassertStatusOK(executor.prepare());
 
+        if(MONGODB_UPDATE_START_ENABLED()) {
+            MONGODB_UPDATE_START(ns.toString().c_str(), flags, query.toString().c_str(), toupdate.toString().c_str(), true);
+        }
+
         Lock::DBWrite lk(ns.ns());
 
         // if this ever moves to outside of lock, need to adjust check
@@ -626,6 +631,8 @@ namespace mongo {
 
         // for getlasterror
         lastError.getSafe()->recordUpdate( res.existing , res.numMatched , res.upserted );
+
+        MONGODB_UPDATE_DONE();
     }
 
     void receivedDelete(Message& m, CurOp& op) {
@@ -646,6 +653,10 @@ namespace mongo {
 
         op.debug().query = pattern;
         op.setQuery(pattern);
+
+        if(MONGODB_DELETE_START_ENABLED()) {
+            MONGODB_DELETE_START(ns.toString().c_str(), flags, pattern.toString().c_str(), true);
+        }
 
         PageFaultRetryableSection s;
         while ( 1 ) {
@@ -674,6 +685,8 @@ namespace mongo {
                 e.touch();
             }
         }
+
+        MONGODB_DELETE_DONE();
     }
 
     QueryResult* emptyMoreResult(long long);
@@ -690,6 +703,8 @@ namespace mongo {
         curop.debug().ns = ns;
         curop.debug().ntoreturn = ntoreturn;
         curop.debug().cursorid = cursorid;
+
+        MONGODB_GET_MORE_START(ns, ntoreturn, cursorid);
 
         shared_ptr<AssertionException> ex;
         scoped_ptr<Timer> timer;
@@ -773,6 +788,7 @@ namespace mongo {
             break;
         };
 
+
         if (ex) {
             BSONObjBuilder err;
             ex->getInfo().append( err );
@@ -783,8 +799,13 @@ namespace mongo {
             replyToQuery(ResultFlag_ErrSet, m, dbresponse, errObj);
             curop.debug().responseLength = dbresponse.response->header()->dataLen();
             curop.debug().nreturned = 1;
+
+            MONGODB_GET_MORE_DONE(1);
+
             return ok;
         }
+
+        MONGODB_GET_MORE_DONE(msgdata->nReturned);
 
         Message *resp = new Message();
         resp->setData(msgdata, true);
@@ -891,6 +912,10 @@ namespace mongo {
             uassertStatusOK(status);
         }
 
+        if(MONGODB_INSERT_START_ENABLED()) {
+            MONGODB_INSERT_START((char*)ns, 0, multi[0].toString().c_str(), true);
+        }
+
         PageFaultRetryableSection s;
         while ( true ) {
             try {
@@ -913,6 +938,9 @@ namespace mongo {
                     globalOpCounters.incInsertInWriteLock(1);
                     op.debug().ninserted = 1;
                 }
+
+                MONGODB_INSERT_DONE();
+
                 return;
             }
             catch ( PageFaultException& e ) {

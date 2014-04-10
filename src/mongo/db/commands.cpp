@@ -35,7 +35,8 @@
 #include "mongo/db/jsobj.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/server_parameters.h"
-
+#include "mongo/dtrace/probes.h"
+ 
 namespace mongo {
 
     map<string,Command*> * Command::_commandsByBestName;
@@ -209,6 +210,7 @@ namespace mongo {
         BSONObj tmp = result.asTempObj();
         if (!status.isOK() && !tmp.hasField("code")) {
             result.append("code", status.code());
+            MONGODB_COMMAND_DONE(status.code());
         }
         return status.isOK();
     }
@@ -218,8 +220,10 @@ namespace mongo {
         bool have_ok = tmp.hasField("ok");
         bool have_errmsg = tmp.hasField("errmsg");
 
-        if (!have_ok)
+        if (!have_ok) {
             result.append( "ok" , ok ? 1.0 : 0.0 );
+            MONGODB_COMMAND_DONE(ok);
+        }
 
         if (!ok && !have_errmsg) {
             result.append("errmsg", errmsg);

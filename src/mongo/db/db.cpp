@@ -95,6 +95,7 @@
 #include "mongo/util/startup_test.h"
 #include "mongo/util/text.h"
 #include "mongo/util/version_reporting.h"
+#include "mongo/dtrace/probes.h"
 
 #if !defined(_WIN32)
 # include <sys/file.h>
@@ -197,6 +198,8 @@ namespace mongo {
                     break;
                 }
 
+                MONGODB_MESSAGE_HANDLER_START(m.header()->id, m.dataSize(), m.header()->responseTo, m.operation());
+
                 lastError.startRequest( m , le );
 
                 DbResponse dbresponse;
@@ -207,6 +210,8 @@ namespace mongo {
                     log() << "ClockSkewException - shutting down" << endl;
                     exitCleanly( EXIT_CLOCK_SKEW );
                 }
+
+                MONGODB_MESSAGE_HANDLER_DONE();
 
                 if ( dbresponse.response ) {
                     port->reply(m, *dbresponse.response, dbresponse.responseTo);

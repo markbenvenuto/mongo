@@ -77,6 +77,7 @@
 #include "mongo/util/fail_point_service.h"
 #include "mongo/util/lruishmap.h"
 #include "mongo/util/md5.hpp"
+#include "mongo/dtrace/probes.h"
 
 namespace mongo {
 
@@ -1477,6 +1478,7 @@ namespace mongo {
         Status status = _checkAuthorization(c, &client, dbname, cmdObj, fromRepl);
         if (!status.isOK()) {
             appendCommandStatus(result, status);
+
             return;
         }
 
@@ -1590,7 +1592,7 @@ namespace mongo {
         }
 
         appendCommandStatus(result, retval, errmsg);
-        
+
         // For commands from mongos, append some info to help getLastError(w) work.
         if (theReplSet) {
             // Detect mongos connections by looking for setShardVersion to have been run previously
@@ -1655,6 +1657,10 @@ namespace mongo {
 
         Command * c = e.type() ? Command::findCommand( e.fieldName() ) : 0;
 
+        if (MONGODB_COMMAND_START_ENABLED()) {
+            MONGODB_COMMAND_START(ns, e.fieldName(), jsobj.toString().c_str());
+        }
+
         if ( c ) {
             Command::execCommand(c, client, queryOptions, ns, jsobj, anObjBuilder, fromRepl);
         }
@@ -1665,6 +1671,7 @@ namespace mongo {
             anObjBuilder.append("code", ErrorCodes::CommandNotFound);
             anObjBuilder.append("bad cmd" , _cmdobj );
         }
+
 
         BSONObj x = anObjBuilder.done();
         b.appendBuf(x.objdata(), x.objsize());

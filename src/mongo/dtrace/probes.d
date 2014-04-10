@@ -3,7 +3,7 @@
  *
  * Inspired by:
  * ./maria/trunk/include/probes_mysql.d.base
- * ./src/backend/utils/probes.d
+ * ./postgres/src/backend/utils/probes.d
  *
  * SQL Server Trace - http://technet.microsoft.com/en-us/library/ms175481.aspx
  * SQL Server Extended Events
@@ -15,20 +15,26 @@
  * - Structs vs simple types - Solaris io provider uses structs for instance
  * - How to handle bson? Convert to string is the best option
  */
+#define string char*
+
 provider mongodb {
     /* Network Events */
     probe connection_start();
     probe connection_done();
 
+    /* Message */
+    probe message_handler_start(int32_t request_id, int32_t length, int32_t resonse_to, int32_t op_code);
+    probe message_handler_done();
+
     /* Commands */
     probe command_start(string collection, string command, string document);
-    probe command_end(int32_t code);
+    probe command_done(int32_t code);
 
     /* These model our network layer
      * Need to think how not to confuse users
      * Add Legacy Flag */
     probe insert_start(string collection, int32_t flags, string documents, int8_t legacy);
-    probe insert_end();
+    probe insert_done();
 
     probe update_start(string collection, int32_t flags, string select, string update, int8_t legacy);
     probe update_done();
@@ -40,7 +46,7 @@ provider mongodb {
     probe query_done(int64_t cursor_id, int32_t flags, int32_t start, int32_t count);
 
     probe get_more_start(string collection, int32_t limit, int64_t cursor_id);
-    probe get_more_done();
+    probe get_more_done(int32_t returned);
 
     /* Write Commands */
     probe write_commands_start(string collection, int32_t count);
@@ -48,6 +54,7 @@ provider mongodb {
 
     /* Cache */
     probe cache_hit();
+    probe cache_miss2();
     probe cache_miss();
     probe cache_insert();
     probe cache_remove();
@@ -68,15 +75,12 @@ provider mongodb {
     probe journal_write_start();
     probe journal_write_done();
 
-    probe data_file_fsync_start();
+    probe data_file_fsync_start(int8_t flags);
     probe data_file_fsync_done();
     /* Records when we allocate a new database file */
     probe file_allocate(string name, int64_t size);
 
     probe sort_spill();
-
-    /*  OP_REPLY, OP_GETMORE, etc */
-    probe network_op_start(int op);
 };
 
 #pragma D attributes Evolving/Evolving/Common provider mongodb provider
