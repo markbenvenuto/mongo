@@ -29,6 +29,7 @@ using namespace std;
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/lasterror.h"
 #include "mongo/util/stacktrace.h"
+#include "mongo/dtrace/probes.h"
 
 namespace mongo {
 
@@ -165,6 +166,7 @@ namespace mongo {
 
     NOINLINE_DECL void uasserted(int msgid, const char *msg) {
         assertionCount.condrollover( ++assertionCount.user );
+        MONGODB_UASSERT(msgid, msg);
         LOG(1) << "User Assertion: " << msgid << ":" << msg << endl;
         setLastError(msgid,msg);
         throw UserException(msgid, msg);

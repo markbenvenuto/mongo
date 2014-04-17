@@ -153,7 +153,7 @@ namespace {
     }
 
     /*static*/ int MongoFile::_flushAll( bool sync ) {
-        MONGODB_DATA_FILE_FSYNC_START(sync);
+        MONGODB_DATA_FILES_FSYNC_START(sync);
 
         if ( ! sync ) {
             int num = 0;
@@ -186,10 +186,13 @@ namespace {
         }
 
         for ( size_t i = 0; i < thingsToFlush.size(); i++ ) {
+            MONGODB_DATA_FILE_FSYNC_START(sync);
+
             thingsToFlush[i]->flush();
+            MONGODB_DATA_FILE_FSYNC_DONE();
         }
 
-        MONGODB_DATA_FILE_FSYNC_DONE();
+        MONGODB_DATA_FILES_FSYNC_DONE();
 
         return thingsToFlush.size();
     }

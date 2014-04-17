@@ -55,6 +55,7 @@
 #include "mongo/util/net/listen.h" // getelapsedtimemillis
 #include "mongo/util/progress_meter.h"
 #include "mongo/util/timer.h"
+#include "mongo/dtrace/probes.h"
 
 using namespace mongoutils;
 
@@ -345,6 +346,8 @@ namespace mongo {
         void preallocateFile(boost::filesystem::path p, unsigned long long len) {
             if( exists(p) ) 
                 return;
+
+            MONGODB_FILE_ALLOCATE_START(p.string().c_str(), len);
             
             log() << "preallocating a journal file " << p.string() << endl;
 
@@ -368,6 +371,9 @@ namespace mongo {
             }
             verify( loc == len );
             f.fsync();
+
+            MONGODB_FILE_ALLOCATE_DONE(p.string().c_str(), len);
+
         }
 
         const int NUM_PREALLOC_FILES = 3;
@@ -729,6 +735,9 @@ namespace mongo {
         }
         void Journal::journal(const JSectHeader& h, const AlignedBuilder& uncompressed) {
             RACECHECK
+
+            MONGO_FILE_JOURNAL_WRITE_START(uncompressed.len());
+             
             static AlignedBuilder b(32*1024*1024);
             /* buffer to journal will be
                JSectHeader
@@ -781,6 +790,9 @@ namespace mongo {
                 verify( w <= L );
                 stats.curr->_journaledBytes += L;
                 _curLogFile->synchronousAppend((const void *) b.buf(), L);
+                
+                MONGO_FILE_JOURNAL_WRITE_START(L);
+
                 _rotate();
             }
             catch(std::exception& e) {

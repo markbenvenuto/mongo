@@ -19,8 +19,8 @@
 
 provider mongodb {
     /* Network Events */
-    probe connection_start();
-    probe connection_done();
+    probe connection_start(uint32_t connection_number);
+    probe connection_done(uint32_t connection_number);
 
     /* Message */
     probe message_handler_start(int32_t request_id, int32_t length, int32_t resonse_to, int32_t op_code);
@@ -54,7 +54,6 @@ provider mongodb {
 
     /* Cache */
     probe cache_hit();
-    probe cache_miss2();
     probe cache_miss();
     probe cache_insert();
     probe cache_remove();
@@ -68,17 +67,20 @@ provider mongodb {
     probe qlock_release(int8_t type);
 
     /* Exceptions & Asserts ?? */
-    probe uassert();
-    probe fassert();
+    probe uassert(int32_t id, string msg);
 
     /* File stuff */
-    probe journal_write_start();
-    probe journal_write_done();
+    probe journal_write_start(uint32_t len);
+    probe journal_write_done(uint32_t len);
 
+    probe data_files_fsync_start(int8_t flags);
+    probe data_files_fsync_done();
     probe data_file_fsync_start(int8_t flags);
     probe data_file_fsync_done();
+
     /* Records when we allocate a new database file */
-    probe file_allocate(string name, int64_t size);
+    probe file_allocate_start(string name, int64_t size);
+    probe file_allocate_done(string name, int64_t size);
 
     probe sort_spill();
 };
