@@ -441,6 +441,11 @@ add_option("experimental-decimal-support",
     nargs='?',
 )
 
+add_option( "ninja",
+    help="ninja support",
+    nargs=0,
+    default=False)
+
 def find_mongo_custom_variables():
     files = []
     for path in sys.path:
@@ -1189,7 +1194,7 @@ if get_option('build-fast-and-loose') == "on" and \
     env.Decider('MD5-timestamp')
     env.SetOption('max_drift', 1)
 
-if has_option('mute'):
+if has_option('mute') and not has_option('ninja'):
     env.Append( CCCOMSTR = "Compiling $TARGET" )
     env.Append( CXXCOMSTR = env["CCCOMSTR"] )
     env.Append( SHCCCOMSTR = "Compiling $TARGET" )
@@ -2544,6 +2549,12 @@ def add_version_to_distsrc(env, archive):
 env.AddDistSrcCallback(add_version_to_distsrc)
 
 env['SERVER_DIST_BASENAME'] = env.subst('mongodb-%s-$MONGO_DISTNAME' % (getSystemInstallName()))
+
+if has_option('ninja'):
+    import scons_to_ninja
+    scons_to_ninja.GenerateNinjaFile(
+        env, dest_file='build.ninja')
+    print "Using Ninja mode"
 
 module_sconscripts = moduleconfig.get_module_sconscripts(mongo_modules)
 

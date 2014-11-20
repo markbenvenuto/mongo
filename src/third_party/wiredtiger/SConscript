@@ -25,15 +25,15 @@ if debugBuild:
 # Enable optional rich logging
 env.Append(CPPDEFINES=["HAVE_VERBOSE"])
 
-conf = Configure(env)
-if conf.CheckFunc("fallocate"):
-        env.Append(CPPDEFINES=[
-                "HAVE_FALLOCATE"
-    ])
-if conf.CheckFunc("sync_file_range"):
-        env.Append(CPPDEFINES=[
-                "HAVE_SYNC_FILE_RANGE"
-    ])
+#conf = Configure(env)
+#if conf.CheckFunc("fallocate"):
+        #env.Append(CPPDEFINES=[
+                #"HAVE_FALLOCATE"
+    #])
+#if conf.CheckFunc("sync_file_range"):
+        #env.Append(CPPDEFINES=[
+                #"HAVE_SYNC_FILE_RANGE"
+    #])
 
 if conf.CheckCHeader('x86intrin.h'):
         env.Append(CPPDEFINES=[
