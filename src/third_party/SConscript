@@ -6,6 +6,7 @@ Import("wiredtiger")
 snappySuffix = '-1.1.2'
 zlibSuffix = '-1.2.8'
 pcreSuffix = "-8.37"
+icuSuffix  = "-55.1"
 
 thirdPartyIncludePathList = [
     ('s2', '#/src/third_party/s2'),
@@ -39,6 +40,10 @@ if not use_system_version_of_library('v8'):
 if not use_system_version_of_library('stemmer'):
     thirdPartyIncludePathList.append(
         ('stemmer', '#/src/third_party/libstemmer_c/include'))
+
+if not use_system_version_of_library('icu'):
+    thirdPartyIncludePathList.append(
+        ('icu', '#/src/third_party/icu' + pcreSuffix))    
 
 # Note that the wiredtiger header is generated, so
 # we want to look for it in the build directory not
@@ -97,6 +102,25 @@ pcreEnv.Library(
         'shim_pcrecpp.cc',
     ])
 
+if use_system_version_of_library("icu"):
+    icuEnv = env.Clone(
+        SYSLIBDEPS=[
+            env['LIBDEPS_ICU_SYSLIBDEP']
+        ])
+else:
+    icuEnv = env.Clone()
+    icuEnv.InjectThirdPartyIncludePaths(libraries=['icu'])
+    icuEnv.SConscript('icu' + icuSuffix + '/SConscript', exports={ 'env' : icuEnv })
+    icuEnv = icuEnv.Clone(
+        LIBDEPS=[
+            'icu' + icuSuffix + '/icu',
+        ])
+
+icuEnv.Library(
+    target="shim_icu",
+    source=[
+        'shim_icu.cpp',
+    ])
 
 boostEnv = env
 if use_system_version_of_library("boost"):
