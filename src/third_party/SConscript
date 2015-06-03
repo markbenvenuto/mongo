@@ -41,9 +41,13 @@ if not use_system_version_of_library('stemmer'):
     thirdPartyIncludePathList.append(
         ('stemmer', '#/src/third_party/libstemmer_c/include'))
 
-if not use_system_version_of_library('icu'):
+if not use_system_version_of_library('icu'): # AC: not sure about this
     thirdPartyIncludePathList.append(
-        ('icu', '#/src/third_party/icu' + pcreSuffix))    
+        ('icu-uc', '#/src/third_party/icu' + icuSuffix + '/source/common/unicode'))
+    thirdPartyIncludePathList.append(
+        ('icu-i18n', '#/src/third_party/icu' + icuSuffix + '/source/i18n/unicode'))
+    thirdPartyIncludePathList.append(
+        ('icu-io', '#/src/third_party/icu' + icuSuffix + '/source/io/unicode'))
 
 # Note that the wiredtiger header is generated, so
 # we want to look for it in the build directory not
@@ -102,6 +106,7 @@ pcreEnv.Library(
         'shim_pcrecpp.cc',
     ])
 
+
 if use_system_version_of_library("icu"):
     icuEnv = env.Clone(
         SYSLIBDEPS=[
@@ -113,7 +118,10 @@ else:
     icuEnv.SConscript('icu' + icuSuffix + '/SConscript', exports={ 'env' : icuEnv })
     icuEnv = icuEnv.Clone(
         LIBDEPS=[
-            'icu' + icuSuffix + '/icu',
+            'icu' + icuSuffix + '/icu-uc',
+            'icu' + icuSuffix + '/icu-stubdata',
+            'icu' + icuSuffix + '/icu-i18n',
+            'icu' + icuSuffix + '/icu-io',
         ])
 
 icuEnv.Library(
@@ -121,6 +129,7 @@ icuEnv.Library(
     source=[
         'shim_icu.cpp',
     ])
+
 
 boostEnv = env
 if use_system_version_of_library("boost"):

@@ -26,6 +26,7 @@ env.Library('base',
             ],
             LIBDEPS=['$BUILD_DIR/mongo/util/quick_exit',
                      '$BUILD_DIR/third_party/murmurhash3/murmurhash3',
+                     '$BUILD_DIR/third_party/shim_icu'
             ])
 
 env.CppUnitTest('base_test',
