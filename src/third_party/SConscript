@@ -41,13 +41,13 @@ if not use_system_version_of_library('stemmer'):
     thirdPartyIncludePathList.append(
         ('stemmer', '#/src/third_party/libstemmer_c/include'))
 
-if not use_system_version_of_library('icu'): # AC: not sure about this
+if not use_system_version_of_library('icu'):
     thirdPartyIncludePathList.append(
-        ('icu-uc', '#/src/third_party/icu' + icuSuffix + '/source/common/unicode'))
+        ('icu', '#/src/third_party/icu' + icuSuffix + '/source/common'))
     thirdPartyIncludePathList.append(
-        ('icu-i18n', '#/src/third_party/icu' + icuSuffix + '/source/i18n/unicode'))
+        ('icu', '#/src/third_party/icu' + icuSuffix + '/source/i18n'))
     thirdPartyIncludePathList.append(
-        ('icu-io', '#/src/third_party/icu' + icuSuffix + '/source/io/unicode'))
+        ('icu', '#/src/third_party/icu' + icuSuffix + '/source/io'))
 
 # Note that the wiredtiger header is generated, so
 # we want to look for it in the build directory not
@@ -119,7 +119,7 @@ else:
     icuEnv = icuEnv.Clone(
         LIBDEPS=[
             'icu' + icuSuffix + '/icu-uc',
-            'icu' + icuSuffix + '/icu-stubdata',
+            'icu' + icuSuffix + '/icu-data', # 'icu' + icuSuffix + '/icu-stubdata',
             'icu' + icuSuffix + '/icu-i18n',
             'icu' + icuSuffix + '/icu-io',
         ])
