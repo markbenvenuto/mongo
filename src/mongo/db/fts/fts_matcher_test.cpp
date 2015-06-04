@@ -28,6 +28,8 @@
 *    it in the license file.
 */
 
+#include <unicode/ustring.h>
+
 #include "mongo/platform/basic.h"
 
 #include "mongo/db/fts/fts_matcher.h"
@@ -58,6 +60,18 @@ namespace mongo {
         }
 
         TEST( FTSMatcher, Phrase1 ) {
+
+            // AC: Temporary ICU test
+            U_STRING_DECL(upper, "СКОЛЬКО ТЕБЕ ЛЕТ?", 17);
+            U_STRING_DECL(lower, "Сколько тебе лет?", 17);
+            U_STRING_DECL(wrong_lower, "теблтеб тебе теб?", 17);
+
+            ASSERT(u_strcasecmp(upper, lower, 0) == 0);
+            ASSERT_FALSE((u_strcasecmp(lower, wrong_lower, 0) == 0));
+
+            // End temporary ICU testt
+
+
             FTSQuery q;
             ASSERT_OK( q.parse( "foo \"table top\"", "english", false, TEXT_INDEX_VERSION_2 ) );
             FTSMatcher m( q,

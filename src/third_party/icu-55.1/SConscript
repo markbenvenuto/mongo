@@ -1,8 +1,7 @@
 Import("env")
 
 env = env.Clone()
-env.Append(CPPDEFINES=[ "USING_ICU_NAMESPACE=0", 
-                        "U_CHARSET_ISUTF8=1", 
+env.Append(CPPDEFINES=[ "U_CHARSET_ISUTF8=1", 
                         "U_NO_DEFAULT_INCLUDE_UTF_HEADERS=1",
                         "U_STATIC_IMPLEMENTATION=1"],
            CPPPATH=["source/common"])
@@ -83,10 +82,23 @@ uc_files = ["source/common/errorcode.cpp", "source/common/putil.cpp", "source/co
 
 uc_env.Library(target="icu-uc", source=uc_files)
 
+# libicudata.a (ICU data)
+data_env = env.Clone()
+
+if env.TargetOSIs('osx'):
+    platform_macro = "OSX"
+elif env.TargetOSIs('linux'):
+    platform_macro = "LINUX"
+
+if env.TargetOSIs('osx') or env.TargetOSIs('linux'):
+    data_env.Command("icudt_dat.S", "icudt55l_dat.S", "cpp -D" + platform_macro + " $SOURCE $TARGET")
+    data_env.Library(target="icu-data", source=["icudt_dat.S"])
+else:
+    data_env.Library(target="icu-data", source=["source/stubdata/stubdata.c"])
 
 # libicustubdata.a (Stub data library, for preventing undefined symbol error)
-stubdata_env = env.Clone()
-stubdata_env.Library(target="icu-stubdata", source=["source/stubdata/stubdata.c"])
+# stubdata_env = env.Clone()
+# stubdata_env.Library(target="icu-stubdata", source=["source/stubdata/stubdata.c"])
 
 
 # libicui18n.a library (Internationalization)
