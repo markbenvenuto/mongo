@@ -32,8 +32,21 @@
 
 #include "mongo/platform/basic.h"
 
+#include "mongo/util/text.h"
+
 #include "mongo/db/fts/fts_matcher.h"
 #include "mongo/unittest/unittest.h"
+
+#ifdef MSC_VER
+// Microsoft VS 2013 does not handle UTF-8 strings in char literal strings, error C4566
+// The Microsoft compiler can be tricked into using UTF-8 strings as follows:
+// 1. The file has a UTF-8 BOM
+// 2. The string literal is a wide character string literal (ie, prefixed with L)
+// at this point.
+#define UTF8(x) toUtf8String(L##x)
+#else
+#define UTF8(x) x
+#endif
 
 namespace mongo {
     namespace fts {
@@ -62,9 +75,9 @@ namespace mongo {
         TEST( FTSMatcher, Phrase1 ) {
 
             // AC: Temporary ICU test
-            U_STRING_DECL(upper, "СКОЛЬКО ТЕБЕ ЛЕТ?", 17);
-            U_STRING_DECL(lower, "Сколько тебе лет?", 17);
-            U_STRING_DECL(wrong_lower, "теблтеб тебе теб?", 17);
+            U_STRING_DECL(upper, UTF8("СКОЛЬКО ТЕБЕ ЛЕТ?"), 17);
+            U_STRING_DECL(lower, UTF8("Сколько тебе лет?"), 17);
+            U_STRING_DECL(wrong_lower, UTF8("теблтеб тебе теб?"), 17);
 
             ASSERT(u_strcasecmp(upper, lower, 0) == 0);
             ASSERT_FALSE((u_strcasecmp(lower, wrong_lower, 0) == 0));

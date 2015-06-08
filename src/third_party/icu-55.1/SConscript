@@ -90,10 +90,12 @@ if env.TargetOSIs('osx'):
 elif env.TargetOSIs('linux'):
     platform_macro = "LINUX"
 
-if env.TargetOSIs('osx') or env.TargetOSIs('linux'):
+if not env.TargetOSIs('windows'):
     data_env.Command("icudt_dat.S", "icudt55l_dat.S", "cpp -D" + platform_macro + " $SOURCE $TARGET")
     data_env.Library(target="icu-data", source=["icudt_dat.S"])
 else:
+    # Generate the stubdata library and link to it, rather than the static data
+    # On these platforms, ICU data must be loaded through a shared library or DAT file
     data_env.Library(target="icu-data", source=["source/stubdata/stubdata.c"])
 
 # libicustubdata.a (Stub data library, for preventing undefined symbol error)
