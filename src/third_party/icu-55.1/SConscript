@@ -90,6 +90,7 @@ if env.TargetOSIs('osx'):
 elif env.TargetOSIs('linux'):
     platform_macro = "LINUX"
 
+<<<<<<< HEAD
 if not env.TargetOSIs('windows'):
     data_env.Command("icudt_dat.S", "icudt55l_dat.S", "cpp -D" + platform_macro + " $SOURCE $TARGET")
     data_env.Library(target="icu-data", source=["icudt_dat.S"])

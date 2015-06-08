@@ -79,6 +79,7 @@ namespace mongo {
             U_STRING_DECL(lower, UTF8("Сколько тебе лет?"), 17);
             U_STRING_DECL(wrong_lower, UTF8("теблтеб тебе теб?"), 17);
 
+
             ASSERT(u_strcasecmp(upper, lower, 0) == 0);
             ASSERT_FALSE((u_strcasecmp(lower, wrong_lower, 0) == 0));
 
