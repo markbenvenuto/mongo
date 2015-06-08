@@ -54,24 +54,26 @@ namespace mongo {
         HRSRC res;
         void *res_data;
 
-        res = FindResource(g_hInstance, MAKEINTRESOURCE(ICU_DATA_RES), RT_RCDATA);
-        if (!res)
+        res = FindResource(NULL, MAKEINTRESOURCE(ICU_DATA_RES), RT_RCDATA);
+        if (!res) {
             printf("Failed to load resource (1).\n")
-            return;
+            return Status::OK();
+        }
         res_handle = LoadResource(NULL, res);
-        if (!res_handle)
+        if (!res_handle) {
             printf("Failed to load resource (2).\n")
-            return;
+            return Status::OK();
+        }
         res_data = LockResource(res_handle);
 
         UErrorCode icu_err = U_ZERO_ERROR;
 
         // Set the ICU data 
-        udata_setCommonData(res_data, &icu_err)
+        udata_setCommonData(res_data, &icu_err);
 
         if(err != U_ZERO_ERROR) {
             printf("Failed to load resource (3).\n");
-            return;
+            return Status::OK();
         }
 
     #else 
