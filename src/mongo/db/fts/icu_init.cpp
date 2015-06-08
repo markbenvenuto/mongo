@@ -76,6 +76,9 @@ namespace mongo {
             return Status::OK();
         }
 
+        DWORD res_size = SizeofResource(NULL, res);
+        printf("Successfully loaded %d bytes of data from data.res\n", res_size);
+
     #else 
         // Data library is statically linked by default on non-Windows platforms
         // TODO: There might be slightly different behavior when using system ICU
