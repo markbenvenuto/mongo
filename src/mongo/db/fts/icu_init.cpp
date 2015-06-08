@@ -56,12 +56,12 @@ namespace mongo {
 
         res = FindResource(NULL, MAKEINTRESOURCE(ICU_DATA_RES), RT_RCDATA);
         if (!res) {
-            printf("Failed to load resource (1).\n")
+            printf("Failed to load resource (1).\n");
             return Status::OK();
         }
         res_handle = LoadResource(NULL, res);
         if (!res_handle) {
-            printf("Failed to load resource (2).\n")
+            printf("Failed to load resource (2).\n");
             return Status::OK();
         }
         res_data = LockResource(res_handle);
@@ -71,7 +71,7 @@ namespace mongo {
         // Set the ICU data 
         udata_setCommonData(res_data, &icu_err);
 
-        if(err != U_ZERO_ERROR) {
+        if(icu_err != U_ZERO_ERROR) {
             printf("Failed to load resource (3).\n");
             return Status::OK();
         }
