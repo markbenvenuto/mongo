@@ -1,1 +1,2 @@
+#define ICU_DATA_RES 300
 ICU_DATA_RES RCDATA "source/data/in/icudt55l.dat"
