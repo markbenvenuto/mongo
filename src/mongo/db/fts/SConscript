@@ -86,6 +86,7 @@ env.CppUnitTest( "fts_spec_test", "fts_spec_test.cpp",
 env.CppUnitTest( "fts_language_test", "fts_language_test.cpp",
                  LIBDEPS=["base"] )
 
+env.Append(CPPDEFINES=["U_STATIC_IMPLEMENTATION"])
 env.CppUnitTest( "fts_matcher_test", "fts_matcher_test.cpp",
                  LIBDEPS=["base"] )
 

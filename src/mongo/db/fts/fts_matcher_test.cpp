@@ -92,7 +92,7 @@ namespace mongo {
 
             ASSERT(upper.caseCompare(lower, U_FOLD_CASE_DEFAULT) == 0);
             ASSERT_FALSE(lower.caseCompare(wrong_lower, U_FOLD_CASE_DEFAULT) == 0);
-            ASSERT_FALSE(strcasecmp("¿CUÁNTOS AÑOS TIENES TÚ?", "¿Cuántos años tienes tú?") == 0);
+            ASSERT_FALSE(strcasecmp(UTF8("¿CUÁNTOS AÑOS TIENES TÚ?"), UTF8("¿Cuántos años tienes tú?")) == 0);
 
             // End temporary ICU test
 
