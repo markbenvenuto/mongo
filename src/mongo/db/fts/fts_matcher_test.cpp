@@ -1,4 +1,4 @@
-// fts_matcher_test.cpp
+﻿// fts_matcher_test.cpp
 
 /**
 *    Copyright (C) 2012 10gen Inc.
@@ -79,12 +79,10 @@ namespace mongo {
             U_STRING_DECL(lower, UTF8("Сколько тебе лет?"), 17);
             U_STRING_DECL(wrong_lower, UTF8("теблтеб тебе теб?"), 17);
 
-
             ASSERT(u_strcasecmp(upper, lower, 0) == 0);
             ASSERT_FALSE((u_strcasecmp(lower, wrong_lower, 0) == 0));
 
-            // End temporary ICU testt
-
+            // End temporary ICU test
 
             FTSQuery q;
             ASSERT_OK( q.parse( "foo \"table top\"", "english", false, TEXT_INDEX_VERSION_2 ) );

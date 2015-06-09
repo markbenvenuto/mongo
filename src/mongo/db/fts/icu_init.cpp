@@ -1,4 +1,4 @@
-/**
+﻿/**
  *    Copyright (C) 2015 MongoDB Inc.
  *
  *    This program is free software: you can redistribute it and/or  modify
@@ -71,13 +71,10 @@ namespace mongo {
         // Set the ICU data 
         udata_setCommonData(res_data, &icu_err);
 
-        if(icu_err != U_ZERO_ERROR) {
-            printf("Failed to load resource (3).\n");
-            return Status::OK();
+        if(icu_err != U_ZERO_ERROR){
+            printf("Failed to load ICU data (%d)\n", icu_err); 
+			return Status::OK();
         }
-
-        DWORD res_size = SizeofResource(NULL, res);
-        printf("Successfully loaded %d bytes of data from data.res\n", res_size);
 
     #else 
         // Data library is statically linked by default on non-Windows platforms
