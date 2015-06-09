@@ -28,7 +28,8 @@
 *    it in the license file.
 */
 
-#include <unicode/ustring.h>
+#include <unicode/uchar.h>
+#include <unicode/unistr.h>
 
 #include "mongo/platform/basic.h"
 
@@ -75,12 +76,23 @@ namespace mongo {
         TEST( FTSMatcher, Phrase1 ) {
 
             // AC: Temporary ICU test
+
+            /*
             U_STRING_DECL(upper, UTF8("СКОЛЬКО ТЕБЕ ЛЕТ?"), 17);
             U_STRING_DECL(lower, UTF8("Сколько тебе лет?"), 17);
             U_STRING_DECL(wrong_lower, UTF8("теблтеб тебе теб?"), 17);
 
             ASSERT(u_strcasecmp(upper, lower, 0) == 0);
             ASSERT_FALSE((u_strcasecmp(lower, wrong_lower, 0) == 0));
+            */
+
+            UnicodeString upper = UTF8("¿CUÁNTOS AÑOS TIENES TÚ?");
+            UnicodeString lower = UTF8("¿Cuántos años tienes tú?");
+            UnicodeString wrong_lower = UTF8("¿Cuantos anos tienes tu?");
+
+            ASSERT(upper.caseCompare(lower, U_FOLD_CASE_DEFAULT) == 0);
+            ASSERT_FALSE(lower.caseCompare(wrong_lower, U_FOLD_CASE_DEFAULT) == 0);
+            ASSERT_FALSE(strcasecmp("¿CUÁNTOS AÑOS TIENES TÚ?", "¿Cuántos años tienes tú?") == 0);
 
             // End temporary ICU test
 
