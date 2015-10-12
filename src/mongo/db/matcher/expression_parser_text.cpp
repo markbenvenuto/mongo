@@ -60,11 +60,7 @@ StatusWithMatchExpression expressionParserTextCallbackReal(const BSONObj& queryO
                                              "$language requires a string value");
         }
         language = languageElt.String();
-        Status status = fts::FTSLanguage::make(language, fts::TEXT_INDEX_VERSION_2).getStatus();
-        if (!status.isOK()) {
-            return StatusWithMatchExpression(ErrorCodes::BadValue,
-                                             "$language specifies unsupported language");
-        }
+        // NOTE: language parameter is validated during FTSQueryParse when we have the index spec
     }
     string query = queryObj["$search"].String();
 
