@@ -15,10 +15,14 @@ env.Library('crypto_tom',
 env.Library('crypto_openssl',
            ['crypto_openssl.cpp'])
 
-env.Library('scramauth',
+scramEnv = env.Clone()
+scramEnv.InjectThirdPartyIncludePaths(libraries=['libsodium'])
+scramEnv.Library('scramauth',
             ['mechanism_scram.cpp'],
             LIBDEPS=['$BUILD_DIR/mongo/base',
-                     'crypto_${MONGO_CRYPTO}'])
+                     'crypto_${MONGO_CRYPTO}',
+                     '$BUILD_DIR/third_party/shim_libsodium',
+                     ])
 
 env.CppUnitTest('crypto_test',
                 ['crypto_test.cpp'],

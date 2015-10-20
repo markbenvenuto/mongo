@@ -35,6 +35,7 @@
 #include "mongo/crypto/crypto.h"
 #include "mongo/platform/random.h"
 #include "mongo/util/base64.h"
+#include "sodium/utils.h"
 
 namespace mongo {
 namespace scram {
@@ -222,7 +223,10 @@ bool verifyServerSignature(const unsigned char saltedPassword[hashSize],
 
     std::string encodedServerSignature =
         base64::encode(reinterpret_cast<char*>(serverSignature), sizeof(serverSignature));
-    return (receivedServerSignature == encodedServerSignature);
+    if( encodedServerSignature.size() != receivedServerSignature.size()) {
+        return false;
+    }
+    return sodium_memcmp(receivedServerSignature.c_str(), encodedServerSignature.c_str(), encodedServerSignature.size());
 }
 
 }  // namespace scram

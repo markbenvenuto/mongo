@@ -235,6 +235,7 @@ sodium_hex2bin(unsigned char * const bin, const size_t bin_maxlen,
     return ret;
 }
 
+#if 0
 int
 _sodium_alloc_init(void)
 {
@@ -579,3 +580,4 @@ sodium_increment(unsigned char *n, const size_t nlen)
         n[i] = (unsigned char) c;
     }
 }
+#endif
