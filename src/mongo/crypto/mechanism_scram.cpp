@@ -226,7 +226,7 @@ bool verifyServerSignature(const unsigned char saltedPassword[hashSize],
     if( encodedServerSignature.size() != receivedServerSignature.size()) {
         return false;
     }
-    return sodium_memcmp(receivedServerSignature.c_str(), encodedServerSignature.c_str(), encodedServerSignature.size());
+    return sodium_memcmp(receivedServerSignature.c_str(), encodedServerSignature.c_str(), encodedServerSignature.size()) == 0;
 }
 
 }  // namespace scram
