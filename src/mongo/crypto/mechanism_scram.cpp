@@ -36,6 +36,8 @@
 #include "mongo/platform/random.h"
 #include "mongo/util/base64.h"
 
+extern "C" int timingsafe_bcmp(const void *b1, const void *b2, size_t n);
+
 namespace mongo {
 namespace scram {
 
@@ -219,10 +221,12 @@ bool verifyServerSignature(const unsigned char saltedPassword[hashSize],
                              authMessage.size(),
                              serverSignature,
                              &hashLen));
-
     std::string encodedServerSignature =
         base64::encode(reinterpret_cast<char*>(serverSignature), sizeof(serverSignature));
-    return (receivedServerSignature == encodedServerSignature);
+    if( encodedServerSignature.size() != receivedServerSignature.size()) {
+        return false;
+    }
+    return timingsafe_bcmp(receivedServerSignature.c_str(), encodedServerSignature.c_str(), encodedServerSignature.size()) == 0;
 }
 
 }  // namespace scram

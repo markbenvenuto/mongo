@@ -16,7 +16,8 @@ env.Library('crypto_openssl',
            ['crypto_openssl.cpp'])
 
 env.Library('scramauth',
-            ['mechanism_scram.cpp'],
+            ['mechanism_scram.cpp',
+             'timingsafe_bcmp.c'],
             LIBDEPS=['$BUILD_DIR/mongo/base',
                      'crypto_${MONGO_CRYPTO}'])
 
