@@ -9,6 +9,10 @@
 
 #include "MurmurHash3.h"
 
+#include "mongo/base/data_type.h"
+#include "mongo/base/data_view.h"
+#include "mongo/platform/endian.h"
+
 //-----------------------------------------------------------------------------
 // Platform-specific functions and macros
 
@@ -48,18 +52,76 @@ inline uint64_t rotl64 ( uint64_t x, int8_t r )
 
 #endif // !defined(_MSC_VER)
 
+namespace mongo {
+template <typename T>
+struct NativeToLittleEndian {
+    NativeToLittleEndian() {}
+    NativeToLittleEndian(T t) : value(t) {}
+    T value;
+
+    operator T() const {
+        return value;
+    }
+};
+
+
+template <typename T>
+struct DataType::Handler<NativeToLittleEndian<T>> {
+    static void unsafeLoad(NativeToLittleEndian<T>* t, const char* ptr, size_t* advanced) {
+        if (t) {
+            DataType::unsafeLoad(&t->value, ptr, advanced);
+
+            t->value = endian::nativeToLittle(t->value);
+        } else {
+            DataType::unsafeLoad(decltype(&t->value){nullptr}, ptr, advanced);
+        }
+    }
+
+    static Status load(NativeToLittleEndian<T>* t,
+                       const char* ptr,
+                       size_t length,
+                       size_t* advanced,
+                       std::ptrdiff_t debug_offset) {
+        if (t) {
+            Status x = DataType::load(&t->value, ptr, length, advanced, debug_offset);
+
+            if (x.isOK()) {
+                t->value = endian::nativeToLittle(t->value);
+            }
+
+            return x;
+        } else {
+            return DataType::load(
+                decltype(&t->value){nullptr}, ptr, length, advanced, debug_offset);
+        }
+    }
+
+    static NativeToLittleEndian<T> defaultConstruct() {
+        return DataType::defaultConstruct<T>();
+    }
+};
+
+}
+
 //-----------------------------------------------------------------------------
 // Block read - if your platform needs to do endian-swapping or can only
 // handle aligned reads, do the conversion here
 
 FORCE_INLINE inline uint32_t getblock ( const uint32_t * p, int i )
 {
-  return p[i];
+  // Convert the value from native to little endian
+  // DO NOT USE -> (le -> native) return mongo::ConstDataView(reinterpret_cast<const char*>(p)).read<mongo::LittleEndian<uint32_t>>(i * sizeof(uint32_t));
+  //return mongo::endian::nativeToLittle(p[i]);
+  return mongo::ConstDataView(reinterpret_cast<const char*>(p)).read<mongo::NativeToLittleEndian<uint32_t>>(i * sizeof(uint32_t));
 }
 
 FORCE_INLINE inline uint64_t getblock ( const uint64_t * p, int i )
 {
-  return p[i];
+  // Convert the value from native to little endian
+  // TODO: handle unaligned reads on platforms like Sparc
+  // DO NOT USE -> (le -> native)  return mongo::ConstDataView(reinterpret_cast<const char*>(p)).read<mongo::LittleEndian<uint64_t>>(i * sizeof(uint64_t));
+  //return mongo::endian::nativeToLittle(p[i]);
+  return mongo::ConstDataView(reinterpret_cast<const char*>(p)).read<mongo::NativeToLittleEndian<uint64_t>>(i * sizeof(uint64_t));
 }
 
 //-----------------------------------------------------------------------------
@@ -244,10 +306,10 @@ void MurmurHash3_x86_128 ( const void * key, const int len,
   h1 += h2; h1 += h3; h1 += h4;
   h2 += h1; h3 += h1; h4 += h1;
 
-  ((uint32_t*)out)[0] = h1;
-  ((uint32_t*)out)[1] = h2;
-  ((uint32_t*)out)[2] = h3;
-  ((uint32_t*)out)[3] = h4;
+  ((uint32_t*)out)[0] = mongo::endian::littleToNative(h1);
+  ((uint32_t*)out)[1] = mongo::endian::littleToNative(h2);
+  ((uint32_t*)out)[2] = mongo::endian::littleToNative(h3);
+  ((uint32_t*)out)[3] = mongo::endian::littleToNative(h4);
 }
 
 //-----------------------------------------------------------------------------
@@ -327,8 +389,8 @@ void MurmurHash3_x64_128 ( const void * key, const int len,
   h1 += h2;
   h2 += h1;
 
-  ((uint64_t*)out)[0] = h1;
-  ((uint64_t*)out)[1] = h2;
+  ((uint64_t*)out)[0] = mongo::endian::littleToNative(h1);
+  ((uint64_t*)out)[1] = mongo::endian::littleToNative(h2);
 }
 
 //-----------------------------------------------------------------------------
