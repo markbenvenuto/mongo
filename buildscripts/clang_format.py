@@ -275,39 +275,46 @@ class ClangFormat(object):
 
         return False
 
-    def lint(self, file_name):
+    def _lint(self, file_name, print_diff):
         """Check the specified file has the correct format
         """
-        with open(file_name, 'r') as original_text:
+        with open(file_name, 'rb') as original_text:
             original_file = original_text.read()
 
         # Get formatted file as clang-format would format the file
         formatted_file = callo([self.path, "--style=file", file_name])
 
         if original_file != formatted_file:
+            print ("Failed..............")
+            if print_diff:
+                original_lines = original_file.splitlines()
+                formatted_lines = formatted_file.splitlines()
+                result = difflib.unified_diff(original_lines, formatted_lines)
 
-            original_lines = original_file.splitlines()
-            formatted_lines = formatted_file.splitlines()
-            result = difflib.unified_diff(original_lines, formatted_lines)
-
-            # Take a lock to ensure diffs do not get mixed
-            with self.print_lock:
-                print("ERROR: Found diff for " + file_name)
-                print("To fix formatting errors, run %s --style=file -i %s" %
-                        (self.path, file_name))
-                for line in result:
-                    print(line.rstrip())
+                # Take a lock to ensure diffs do not get mixed when printed to the screen
+                with self.print_lock:
+                    print ("%d vs %d" % (len(original_lines), len(formatted_lines)))
+                    print("ERROR: Found diff for " + file_name)
+                    print("To fix formatting errors, run %s --style=file -i %s" %
+                            (self.path, file_name))
+                    for line in result:
+                        print(line.rstrip())
 
             return False
 
         return True
 
+    def lint(self, file_name):
+        """Check the specified file has the correct format
+        """
+        return self._lint(file_name, True)
+
     def format(self, file_name):
         """Update the format of the specified file
         """
-
-        # Update the file with clang-format
-        return not subprocess.call([self.path, "--style=file", "-i", file_name])
+        if not self._lint(file_name, False):
+            # Update the file with clang-format
+            return not subprocess.call([self.path, "--style=file", "-i", file_name])
 
 
 def parallel_process(items, func):
