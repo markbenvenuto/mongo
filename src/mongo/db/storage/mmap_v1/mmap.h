@@ -44,6 +44,11 @@ typedef int HANDLE;
 extern const size_t g_minOSPageSizeBytes;
 void minOSPageSizeBytesTest(size_t minOSPageSizeBytes);  // lame-o
 
+// Originally disks had a sector size of 512 bytes, after Advanced Format disks were deploy (2011), 
+// the default minimium size became 4096.
+// The direct io size is based on the physical disk sector, not the VM page size.
+const size_t g_minDirectIOSizeBytes = 4096;
+
 // call this if syncing data fails
 void dataSyncFailedHandler();
 
