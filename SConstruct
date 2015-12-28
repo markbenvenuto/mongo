@@ -305,7 +305,7 @@ add_option('use-system-wiredtiger',
     nargs=0,
 )
 
-boost_choices = ['1.56']
+boost_choices = ['1.60']
 add_option('internal-boost',
     choices=boost_choices,
     default=boost_choices[0],
@@ -1758,6 +1758,10 @@ def doConfigure(myenv):
         # Warn about redundant moves, such as moving a local variable in a return that is different
         # than the return type.
         AddToCXXFLAGSIfSupported(myenv, "-Wredundant-move")
+
+        # Warn about redundant moves, such as moving a local variable in a return that is different
+        # than the return type.
+        AddToCXXFLAGSIfSupported(myenv, "-Wno-maybe-uninitialized")
 
     # Check if we need to disable null-conversion warnings
     if myenv.ToolchainIs('clang'):
