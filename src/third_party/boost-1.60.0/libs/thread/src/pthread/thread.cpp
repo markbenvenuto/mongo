@@ -115,6 +115,7 @@ namespace boost
                 }
             }
 
+#if defined BOOST_THREAD_PATCH // MONGODB HACK - prevent ASAN leak
             struct  delete_current_thread_tls_key_on_dlclose_t
             {
                 delete_current_thread_tls_key_on_dlclose_t()
@@ -130,6 +131,7 @@ namespace boost
                 }
             };
             delete_current_thread_tls_key_on_dlclose_t delete_current_thread_tls_key_on_dlclose;
+#endif
 
             void create_current_thread_tls_key()
             {
