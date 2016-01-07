@@ -1,7 +1,6 @@
 import md5
 import subprocess
 import SCons.Action
-
 def default_variant_dir_generator(target, source, env, for_signature):
 
     if env.GetOption('cache') != None:
@@ -98,3 +97,17 @@ def default_buildinfo_environment_data():
 # env['MONGO_BUILDINFO_ENVIRONMENT_DATA'] = empty_buildinfo_environment_data()
 def empty_buildinfo_environment_data():
     return ()
+
+# Strip the binaries if asked
+def strip_binaries_optionally(env):
+    if SCons.Script.GetOption('strip-tests') == 'off':
+        return
+
+    if env.ToolchainIs('GCC', 'clang'):
+        if env.TargetOSIs('solaris'):
+            env.Append(LINKFLAGS=["-Wl,-s"])
+        else:
+            env.Append(LINKFLAGS=["-Wl,-S"])
+    else:
+        # Disable the PDB Generator in Windows
+        env["_PDB"] = None

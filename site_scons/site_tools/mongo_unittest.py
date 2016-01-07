@@ -1,6 +1,6 @@
 """Pseudo-builders for building and registering unit tests.
 """
-import SCons.Defaults
+from mongo_scons_utils import strip_binaries_optionally
 
 def exists(env):
     return True
@@ -33,9 +33,7 @@ def build_cpp_unit_test(env, target, source, **kwargs):
     kwargs['LIBDEPS'] = libdeps
 
     env = env.Clone()
-
-    if SCons.Script.GetOption('strip-tests') == 'on' and env.ToolchainIs('GCC', 'clang'):
-            env.Append(LINKFLAGS=["-Wl,-S"])
+    strip_binaries_optionally(env)
 
     result = env.Program(target, source, **kwargs)
     env.RegisterUnitTest(result[0])

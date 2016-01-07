@@ -1,6 +1,6 @@
 """Pseudo-builders for building and registering integration tests.
 """
-import SCons.Defaults
+from mongo_scons_utils import strip_binaries_optionally
 
 def exists(env):
     return True
@@ -34,8 +34,7 @@ def build_cpp_integration_test(env, target, source, **kwargs):
 
     env = env.Clone()
 
-    if SCons.Script.GetOption('strip-tests') == 'on' and env.ToolchainIs('GCC', 'clang'):
-            env.Append(LINKFLAGS=["-Wl,-S"])
+    strip_binaries_optionally(env)
 
     result = env.Program(target, source, **kwargs)
     env.RegisterIntegrationTest(result[0])

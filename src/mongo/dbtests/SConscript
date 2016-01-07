@@ -1,4 +1,5 @@
 # -*- mode: python; -*-
+from mongo_scons_utils import strip_binaries_optionally
 
 Import("env")
 Import("get_option")
@@ -56,8 +57,8 @@ env.Library(
 
 env = env.Clone()
 
-if get_option('strip-tests') == 'on' and env.ToolchainIs('GCC', 'clang'):
-    env.Append(LINKFLAGS=["-Wl,-S"])
+if not env.TargetOSIs('windows'):
+    strip_binaries_optionally(env)
 
 dbtest = env.Program(
     target="dbtest",

@@ -1306,14 +1306,6 @@ elif env.TargetOSIs('windows'):
     # /Z7 debug info goes into each individual .obj file -- no .pdb created 
     env.Append( CCFLAGS= ["/Z7", "/errorReport:none"] )
 
-    # /DEBUG will tell the linker to create a .pdb file
-    # which WinDbg and Visual Studio will use to resolve
-    # symbols if you want to debug a release-mode image.
-    # Note that this means we can't do parallel links in the build.
-    #
-    # Please also note that this has nothing to do with _DEBUG or optimization.
-    env.Append( LINKFLAGS=["/DEBUG"] )
-
     # /MD:  use the multithreaded, DLL version of the run-time library (MSVCRT.lib/MSVCR###.DLL)
     # /MT:  use the multithreaded, static version of the run-time library (LIBCMT.lib)
     # /MDd: Defines _DEBUG, _MT, _DLL, and uses MSVCRTD.lib/MSVCRD###.DLL
