@@ -463,7 +463,7 @@ tasks:
           set -o verbose
 
           rm -rf ${install_directory|/data/mongo-install-directory}
-          ${scons|scons} ${compile_flags|} --use-new-tools all dist dist-debugsymbols distsrc-${ext|tgz} ${msi_target|}
+          ${scons|scons} --strip-tests=on ${compile_flags|} --use-new-tools all dist dist-debugsymbols distsrc-${ext|tgz} ${msi_target|}
 
           ${gitvars} git describe | ${python|python} buildscripts/generate_compile_expansions.py | tee compile_expansions.yml
 
@@ -4635,7 +4635,7 @@ buildvariants:
     push_bucket: downloads.mongodb.org
     push_name: sunos5
     push_arch: x86_64
-    compile_flags: CC=/opt/mongodbtoolchain/bin/gcc CXX=/opt/mongodbtoolchain/bin/g++ -j$(kstat cpu | sort -u | grep -c "^module") --release CCFLAGS="-m64" LINKFLAGS="-m64 -static-libstdc++ -static-libgcc" OBJCOPY=/opt/mongodbtoolchain/bin/objcopy
+    compile_flags: CC=/opt/mongodbtoolchain/bin/gcc CXX=/opt/mongodbtoolchain/bin/g++ -j$(kstat cpu | sort -u | grep -c "^module") --release CCFLAGS="-m64" LINKFLAGS="-m64 -static-libstdc++ -static-libgcc" OBJCOPY=/opt/mongodbtoolchain/bin/objcopy --strip-tests=off
     num_jobs_available: $(kstat cpu | sort -u | grep -c "^module")
   tasks:
   - name: compile

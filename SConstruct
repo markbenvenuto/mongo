@@ -288,6 +288,11 @@ add_option('smokeauth',
     nargs=0,
 )
 
+add_option('strip-tests',
+    default="off",
+    help='on means linker will generate stripped test binaries to save space'
+)
+
 add_option('use-sasl-client',
     help='Support SASL authentication in the client library',
     nargs=0,

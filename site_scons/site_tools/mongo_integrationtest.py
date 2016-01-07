@@ -1,5 +1,6 @@
 """Pseudo-builders for building and registering integration tests.
 """
+import SCons.Defaults
 
 def exists(env):
     return True
@@ -30,6 +31,11 @@ def build_cpp_integration_test(env, target, source, **kwargs):
         libdeps.append( '$BUILD_DIR/mongo/unittest/unittest_crutch' )
 
     kwargs['LIBDEPS'] = libdeps
+
+    env = env.Clone()
+
+    if SCons.Script.GetOption('strip-tests') == 'on' and env.ToolchainIs('GCC', 'clang'):
+            env.Append(LINKFLAGS=["-Wl,-S"])
 
     result = env.Program(target, source, **kwargs)
     env.RegisterIntegrationTest(result[0])
