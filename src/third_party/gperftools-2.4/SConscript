@@ -81,6 +81,8 @@ if has_option('use-cpu-profiler'):
 
 env = conf.Finish()
 
+env.Append(CPPPATH=["build_" + env["TARGET_OS"] + "_" + env["TARGET_ARCH"]])
+
 env.Append( CPPDEFINES=[ "NO_TCMALLOC_SAMPLES", "NO_HEAP_CHECK"] )
 
 # The build system doesn't define NDEBUG globally for historical reasons, however, TCMalloc
@@ -90,11 +92,6 @@ env.Append( CPPDEFINES=[ "NO_TCMALLOC_SAMPLES", "NO_HEAP_CHECK"] )
 # src/system-alloc.cc for more details.
 if not debugBuild:
     env.Append( CPPDEFINES=["NDEBUG"] )
-
-if env.TargetOSIs('osx'):
-    env.Prepend(CPPPATH=["build_darwin"])
-elif env.TargetOSIs('linux'):
-    env.Prepend(CPPPATH=["build_linux"])
 
 env.Prepend( CPPPATH=["src/"] )
 
