@@ -419,10 +419,12 @@ class Repo(object):
     def __init__(self, path):
         self.path = path
 
-       # Get candidate files
-        self.candidate_files = self._get_candidate_files()
+        self.files_match = re.compile('\\.(h|cpp)$')
 
         self.root = self._get_root()
+
+        # Get candidate files
+        self.candidate_files = self._get_candidate_files()
 
     def _callgito(self, args):
         """Call git for this repository
@@ -479,16 +481,34 @@ class Repo(object):
         """
         gito = self._callgito(["ls-files"])
 
+        file_list = [line.rstrip() for line in gito.splitlines()]
+
         # This allows us to pick all the interesting files
         # in the mongo and mongo-enterprise repos
-        file_list = [line.rstrip()
-                for line in gito.splitlines() if "src" in line and not "src/third_party" in line]
-
-        files_match = re.compile('\\.(h|cpp)$')
-
-        file_list = [a for a in file_list if files_match.search(a)]
+        file_list = [a for a in file_list if self._is_candidate_file(a)]
 
         return file_list
+
+    def _is_candidate_file(self, filename):
+        """Is this a file a candidate for clang-format processing
+        """
+        if "src/third_party" in filename:
+            return False
+
+        if "src/" in filename and self.files_match.search(filename):
+            return True
+
+        return False
+
+    def get_glob_candidate_files(self):
+        """Get a list of files from the filesystem instead of git
+        """
+        files = os.path.join(self.root, "src/**")
+
+        candidates = expand_file_string(files)
+        candidates = [a for a in candidates if self._is_candidate_file(a)]
+
+        return candidates
 
 
 def expand_file_string(glob_pattern):
@@ -496,18 +516,31 @@ def expand_file_string(glob_pattern):
     """
     return [os.path.abspath(f) for f in globstar.iglob(glob_pattern)]
 
-def get_files_to_check(files):
+def get_files_to_check(files, use_glob_only=False):
     """Filter the specified list of files to check down to the actual
-        list of files that need to be checked."""
+        list of files that need to be checked.
+
+        use_glob_only means not to check against git for a list of files
+        but instead only use a glob of the file system. This works best
+        for Evergreen and patches that are applied locally but were not
+        committed. It allows us to handle added and deleted files.
+    """
     candidates = []
 
-    # Get a list of candidate_files
-    candidates = [expand_file_string(f) for f in files]
-    candidates = list(itertools.chain.from_iterable(candidates))
+    if files:
+        # Get a list of candidate_files
+        candidates = [expand_file_string(f) for f in files]
+        candidates = list(itertools.chain.from_iterable(candidates))
 
     repos = get_repos()
 
-    valid_files = list(itertools.chain.from_iterable([r.get_candidates(candidates) for r in repos]))
+    if use_glob_only:
+        if not files:
+            # Use are hard coded glob if a user did not specify one
+            candidates = list(itertools.chain.from_iterable([r.get_glob_candidate_files() for r in repos]))
+        valid_files = candidates
+    else:
+        valid_files = list(itertools.chain.from_iterable([r.get_candidates(candidates) for r in repos]))
 
     return valid_files
 
@@ -557,10 +590,10 @@ def lint_patch(clang_format, infile):
     if files:
         _lint_files(clang_format, files)
 
-def lint(clang_format, glob):
+def lint(clang_format, glob, use_glob_only=True):
     """Lint files command entry point
     """
-    files = get_files_to_check(glob)
+    files = get_files_to_check(glob, use_glob_only)
 
     _lint_files(clang_format, files)
 

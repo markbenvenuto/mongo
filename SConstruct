@@ -2458,7 +2458,7 @@ checkErrorCodes()
 
 def doLint( env , target , source ):
     import buildscripts.clang_format
-    if not buildscripts.clang_format.lint(None, []):
+    if not buildscripts.clang_format.lint(None, [], True):
         raise Exception("clang-format lint errors")
 
     import buildscripts.lint
