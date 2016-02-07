@@ -1732,6 +1732,25 @@ def doConfigure(myenv):
 
 env = doConfigure( env )
 
+# Support incremental linking under Windows, must run after doConfigure
+if debugBuild and windows:
+    def ProgramIncrementallyLinked(env, program, sources, **args):
+        # From: http://scons.org/wiki/MsvcIncrementalLinking
+        # Hack: Precious binary
+        #
+        # By default, SCons will delete the files before re-building them.
+        # This prevents incremental linking from working because it relies
+        # on timestamps. Therefore, we must prevent SCons from deleting the
+        # the build products. This is achieved by making them as "Precious".
+        #
+        program = env.ProgramOriginal(program, [sources], **args)
+        env.Precious(program)
+        return program
+
+    # do not delete the exe since it breaks incremental linking
+    env['BUILDERS']['ProgramOriginal'] = env['BUILDERS']['Program']
+    env['BUILDERS']['Program'] = ProgramIncrementallyLinked
+
 env['PDB'] = '${TARGET.base}.pdb'
 
 enforce_glibc = linux and releaseBuild and not has_option("no-glibc-check")
