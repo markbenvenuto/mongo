@@ -177,7 +177,7 @@ for tup in env['MONGO_BUILDINFO_ENVIRONMENT_DATA']:
     def wrapInQuotes(val):
         return '"{0}"'.format(val)
     buildInfoInitializer.append(
-        'std::make_tuple({0})'.format(', '.join(
+        'BuildInfoTuple({0})'.format(', '.join(
             (
                 wrapInQuotes(tup[0]),
                 wrapInQuotes(env.subst(tup[1])),
