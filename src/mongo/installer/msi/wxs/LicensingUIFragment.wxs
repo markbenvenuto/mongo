@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+	<Fragment>
+
+    <?if $(var.Edition) = Enterprise ?>
+      <WixVariable Id="WixUILicenseRtf" Value="$(var.EnterpriseBase)\distsrc\LICENSE.rtf" />
+    <?else ?>
+      <WixVariable Id="WixUILicenseRtf" Value="$(var.ProjectDir)GNU-AGPL-3.0.rtf" />
+    <?endif ?>
+
+  </Fragment>
+</Wix>
+

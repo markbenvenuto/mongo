@@ -12,9 +12,6 @@
                Description="!(wix.ProductName)"
                Level="1"
                ConfigurableDirectory="INSTALLLOCATION">
-        <?if $(var.Edition) = Enterprise or $(var.Edition) = SSL ?>
-          <MergeRef Id="m_vcredist"/>
-        <?endif?>
         <ComponentGroupRef Id="cg_License" />
         <Feature Id="Server"
                  Title ="Server"

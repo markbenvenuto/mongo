@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
+    xmlns:bal="http://schemas.microsoft.com/wix/BalExtension"
+    >
+    <Bundle 
+        Name="!(wix.ProductName) Bundle" 
+        Manufacturer="MongoDB" 
+        Version="$(var.MongoDBVersion)" 
+        UpgradeCode="$(var.BundleUpgradeCode)" >
+
+        <BootstrapperApplicationRef Id="WixStandardBootstrapperApplication.RtfLargeLicense">
+            <!-- SuppresOptionsUI means we hide the install directory button and defer installation
+            directory chose to the MSI -->
+            <!-- TODO: set a good LogoFile -->
+            <bal:WixStandardBootstrapperApplication
+            LicenseFile="D:\mongo\buildscripts\packaging\msi\GNU-AGPL-3.0.rtf"
+            LogoFile="D:\mongo\buildscripts\packaging\msi\Dialog.bmp"
+            SuppressOptionsUI="yes"
+            ShowVersion="yes"
+            />
+    </BootstrapperApplicationRef> 
+        <Chain>
+            <PackageGroupRef Id="VCRedist140"/>
+            <RollbackBoundary />
+            <MsiPackage Id="MainPackage" SourceFile="d:\mongo\build\myvar1\msi\mongodb-win32-x86_64-3.3.1-245-ge7885ed.msi" Vital="yes" 
+                DisplayInternalUI="yes"
+                ForcePerMachine="yes"                
+                />
+        </Chain>
+    </Bundle>
+            <Fragment>
+        <Property Id="UCRTINSTALLED">
+            <DirectorySearch Id="UCRTSystemSearch" Path="[WindowsFolder]System32" Depth="0">
+                <FileSearch Id="UCRTFileSearch" Name="ucrtbase.dll" MinVersion="10.0.10240.16389" />
+            </DirectorySearch>
+        </Property>
+            <PackageGroup Id="VCRedist140">
+            <ExePackage Id="vc120" 
+                Cache="yes"
+                PerMachine="yes"
+                Permanent="yes"
+                Vital="yes"
+                Compressed="yes"
+                SourceFile="C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\redist\1033\vcredist_x64.exe"
+                Name="vcredist_x64.exe"
+                InstallCommand="/quiet /norestart"
+                InstallCondition="NOT UCRTINSTALLED"
+                Protocol="burn"
+                />
+        </PackageGroup>
+        </Fragment>
+</Wix>

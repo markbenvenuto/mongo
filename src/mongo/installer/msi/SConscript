@@ -12,14 +12,11 @@ env['WIXHEAT'] = r'$WIXPATH\heat.exe'
 env['WIXCANDLE'] = r'$WIXPATH\candle.exe'
 env['WIXLIGHT'] = r'$WIXPATH\light.exe'
 env['WIXUIEXT'] = r'$WIXPATH\WixUIExtension.dll'
-env['MERGEMODULESBASEPATH'] = os.environ.get('MERGEMODULESBASEPATH')
-if env['MERGEMODULESBASEPATH'] == None and os.environ.get('ProgramFiles(x86)') != None:
-    env['MERGEMODULESBASEPATH'] = (os.environ.get('ProgramFiles(x86)') +
-            r"\Common Files\Merge Modules")
 
 sourcesList = [ "BinaryFragment.wxs",
             "FeatureFragment.wxs",
             "LicensingFragment.wxs",
+            "LicensingUIFragment.wxs",
             "UIFragment.wxs",
             ]
 
@@ -108,12 +105,9 @@ env.Command(objects,
             ' -dBinarySource=' + buildDir + r'\mongo'
             ' -dToolBinarySource=' + toolBuildDir +
             ' -dEnterpriseToolBinarySource=' + enterpriseToolBuildDir +
-            ' -dMergeModulesBasePath="$MERGEMODULESBASEPATH"'
             ' -dEdition=' + msi_edition +
             ' -d"ProductId=*\"'
             ' -dUpgradeCode=' + upgrade_code +
-            ' -dClientSource=' + buildDir + r'\client_build'
-            r' -dClientHeaderSource=${INSTALL_DIR}\include\mongo'
             ' -dConfiguration=Release'
             ' -dOutDir=' + buildDir + r'\msi'
             ' -dPlatform=' + msi_platform +
@@ -143,10 +137,57 @@ if 'enterprise' in env['MONGO_MODULES']:
     env.Depends(pre_msi_cmd, "#" + enterpriseToolBuildDir + "/mongodecrypt.exe")
 
 msi = "$BUILD_DIR/msi/${SERVER_DIST_BASENAME}.msi"
-env.Command(msi,
-            pre_msi,
-            r'$PYTHON buildscripts\msitrim.py ${SOURCES} ${TARGET}')
-env.AlwaysBuild(msi)
+#env.Command(msi,
+            #pre_msi,
+            #r'$PYTHON buildscripts\msitrim.py ${SOURCES} ${TARGET}')
+#env.AlwaysBuild(msi)
 
-env.Alias( "msi" , msi )
+sourcesList = [
+            "Bundle.wxs",
+            ]
+
+sources = ["wxs/" + file for file in sourcesList]
+objects = ["$BUILD_DIR/msi/" + file.replace(".wxs", ".wixobj") for file in sourcesList]
+
+# candle: compile .wxs files into .wixobjs
+env.Command(objects,
+            sources + [msi],
+            '"$WIXCANDLE" -wx'
+            # cannot have anything other than x.x.x.x in version string.
+            # we should choose a fourth version number that reflects pre-ness.
+            ' -dMongoDBMajorVersion=' + major_version +
+            ' -dMongoDBVersion=' + full_version +
+            ' -dLicenseSource=distsrc'
+            r' -dEnterpriseBase=' + enterprisebase + '\\'
+            ' -dBinarySource=' + buildDir + r'\mongo'
+            ' -dEnterpriseToolBinarySource=' + enterpriseToolBuildDir +
+            ' -dEdition=' + msi_edition +
+            ' -d"ProductId=*\"'
+            ' -dBundleUpgradeCode=' + upgrade_code +
+            ' -dConfiguration=Release'
+            ' -dOutDir=' + buildDir + r'\msi'
+            r' -dProjectDir=buildscripts\packaging\msi\\'
+            ' -dProjectName=MongoDB'
+            ' -dTargetDir=' + buildDir + r'\msi'
+            ' -dTargetExt=.exe'
+            ' -dTargetFileName=${SERVER_ARCHIVE}'
+            ' -out ' + buildDir + r'\msi\\'
+            ' -arch ' + msi_platform +
+            ' -ext "$WIXUIEXT"'
+            ' $SOURCES')
+
+sourcesList = [
+            "Bundle.wxs",
+            "LicensingUIFragment.wxs",
+            ]
+objects = ["$BUILD_DIR/msi/" + file.replace(".wxs", ".wixobj") for file in sourcesList]
+#light: link .objs into an msi
+burn_exe = "$BUILD_DIR/msi/${SERVER_DIST_BASENAME}.exe"
+burn_exe_cmd = env.Command(burn_exe,
+            objects,
+            '"$WIXLIGHT" -out ${TARGET} -wx -cultures:null -sice:ICE82 '
+            ' -ext "$WIXUIEXT"'
+            ' ${SOURCES}')
+
+env.Alias( "msi", burn_exe )
 

@@ -7,7 +7,7 @@
            Manufacturer="MongoDB" 
            UpgradeCode="$(var.UpgradeCode)">
 
-    <Package InstallerVersion="200" Compressed="yes" />
+    <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine"/>
     <WixVariable Id="ProductName" Value="MongoDB $(var.MongoDBVersion)" />
     <WixVariable Id="ProductMajorName" Value="MongoDB $(var.MongoDBMajorVersion)" />
     <WixVariable Id="InstallFolder" Value="$(var.MongoDBMajorVersion)"/>
