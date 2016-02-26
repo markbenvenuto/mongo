@@ -161,15 +161,7 @@ TEST(Verbosity, CommandLineEmptyString) {
     argv.push_back("");
     std::map<std::string, std::string> env_map;
 
-    ASSERT_OK(parser.run(options, argv, env_map, &environment));
-
-    ASSERT_OK(::mongo::validateServerOptions(environment));
-    ASSERT_OK(::mongo::canonicalizeServerOptions(&environment));
-    ASSERT_OK(::mongo::storeServerOptions(environment, argv));
-
-    int verbosity = 0;
-    ASSERT_EQUALS(::mongo::logger::globalLogDomain()->getMinimumLogSeverity(),
-                  ::mongo::logger::LogSeverity::Debug(verbosity));
+    ASSERT_NOT_OK(parser.run(options, argv, env_map, &environment));
 }
 
 TEST(Verbosity, CommandLineBadString) {
