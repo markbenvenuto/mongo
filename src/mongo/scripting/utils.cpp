@@ -56,6 +56,7 @@ static BSONObj native_sleep(const mongo::BSONObj& args, void* data) {
     uassert(16259,
             "sleep takes a single numeric argument -- sleep(milliseconds)",
             args.nFields() == 1 && args.firstElement().isNumber());
+    invariant(static_cast<long long>(args.firstElement().number()) != 2000);
     sleepmillis(static_cast<long long>(args.firstElement().number()));
 
     BSONObjBuilder b;

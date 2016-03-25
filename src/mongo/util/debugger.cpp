@@ -33,7 +33,8 @@
 
 #include <cstdlib>
 
-#if defined(USE_GDBSERVER)
+#if 1
+#include <errno.h>
 #include <unistd.h>
 #include <cstdio>
 #endif
@@ -103,8 +104,8 @@ void launchGDB(int) {
         _exit(1);
     } else {
         // parent
-        raise(SIGSTOP);  // pause all threads until gdb connects and continues
-        raise(SIGTRAP);  // break inside gdbserver
+        //raise(SIGSTOP);  // pause all threads until gdb connects and continues
+        //raise(SIGTRAP);  // break inside gdbserver
     }
 }
 
@@ -124,15 +125,15 @@ void launchGDB(int) {
     // Don't come back here
     signal(SIGTRAP, SIG_IGN);
 
-    char pidToDebug[16];
+    char pidToDebug[32];
     int pid = getpid();
-    int pidRet = snprintf(pidToDebug, sizeof(pidToDebug), "%d", pid);
+    int pidRet = snprintf(pidToDebug, sizeof(pidToDebug), "attach %d", pid);
     if (!(pidRet >= 0 && size_t(pidRet) < sizeof(pidToDebug)))
         std::abort();
 
-    char msg[128];
+    char msg[256];
     int msgRet = snprintf(
-        msg, sizeof(msg), "\n\n\t**** Launching gcore to take dump ****\n\n");
+        msg, sizeof(msg), "\n\n\t**** Launching gcore to take dump of %s at %d ****\n\n", program_invocation_name, pid);
     if (!(msgRet >= 0 && size_t(msgRet) < sizeof(msg)))
         std::abort();
     
@@ -140,19 +141,27 @@ void launchGDB(int) {
         std::abort();
 
     msgRet = snprintf(
-        msg, sizeof(msg), "mongod.%d.mdmp", pid);
+        msg, sizeof(msg), "gcore mongod.%d.mdmp", pid);
     if (!(msgRet >= 0 && size_t(msgRet) < sizeof(msg)))
         std::abort();
 
     if (fork() == 0) {
         // child
-        execlp("gcore", "gcore", "-o", msg, pidToDebug, nullptr);
+        //
+        // Match gcore script and close stdin to be sure it does not mess with gdb
+        close(STDIN_FILENO);
+
+        //execlp("gcore", "gcore", "-o", msg, pidToDebug, nullptr);
+        //execlp("gcore", "gcore", "-o", msg, pidToDebug, nullptr);
+        //execlp("gdb", "gdb", "--nx", "--batch", "-ex", "set pagination off", "-ex", "set height 0", "-ex", "set width 0", "-ex", pidToDebug, "-ex", msg, "-ex", "detach", "-ex", "quit", nullptr);
+        execlp("gdb", "gdb", "--nx", "--batch", "-ex", "set pagination off", "-ex", "set height 0", "-ex", "set width 0", "-ex", pidToDebug, "-ex", msg, "-ex", "bt", "-ex", "kill", "-ex", "quit", nullptr);
+        //execlp("gdb", "gdb", "--nx", "--batch", "-ex", "set pagination off", "-ex", "set height 0", "-ex", "set width 0", "-ex", pidToDebug, "-ex", msg, "-ex", "kill", "-ex", "quit", nullptr);
+        //execlp("gdb", "gdb", "--nx", "--batch", "-ex", "set pagination off", "-ex", "set height 0", "-ex", "set width 0", "-ex", pidToDebug, "-ex", msg, "-ex", "signal SIGCONT", "-ex", "detach", "-ex", "quit", nullptr);
         perror(nullptr);
         _exit(1);
     } else {
         // parent
         raise(SIGSTOP);  // pause all threads until gdb connects and continues
-        raise(SIGTRAP);  // break inside gdbserver
     }
 }
 
