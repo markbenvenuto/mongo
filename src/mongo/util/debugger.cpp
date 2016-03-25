@@ -112,6 +112,54 @@ void setupSIGTRAPforGDB() {
     if (!(signal(SIGTRAP, launchGDB) != SIG_ERR))
         std::abort();
 }
+#elif 1
+/* Magic gcore trampoline
+* Do not call directly!call setupSIGTRAPforGDB()
+* Assumptions:
+*1) gdbserver is on your path
+* 2) You have run "handle SIGSTOP noprint" in gdb
+* 3) serverGlobalParams.port + 2000 is free
+*/
+void launchGDB(int) {
+    // Don't come back here
+    signal(SIGTRAP, SIG_IGN);
+
+    char pidToDebug[16];
+    int pid = getpid();
+    int pidRet = snprintf(pidToDebug, sizeof(pidToDebug), "%d", pid);
+    if (!(pidRet >= 0 && size_t(pidRet) < sizeof(pidToDebug)))
+        std::abort();
+
+    char msg[128];
+    int msgRet = snprintf(
+        msg, sizeof(msg), "\n\n\t**** Launching gcore to take dump ****\n\n");
+    if (!(msgRet >= 0 && size_t(msgRet) < sizeof(msg)))
+        std::abort();
+    
+    if (!(write(STDERR_FILENO, msg, msgRet) == msgRet))
+        std::abort();
+
+    msgRet = snprintf(
+        msg, sizeof(msg), "mongod.%d.mdmp", pid);
+    if (!(msgRet >= 0 && size_t(msgRet) < sizeof(msg)))
+        std::abort();
+
+    if (fork() == 0) {
+        // child
+        execlp("gcore", "gcore", "-o", msg, pidToDebug, nullptr);
+        perror(nullptr);
+        _exit(1);
+    } else {
+        // parent
+        raise(SIGSTOP);  // pause all threads until gdb connects and continues
+        raise(SIGTRAP);  // break inside gdbserver
+    }
+}
+
+void setupSIGTRAPforGDB() {
+    if (!(signal(SIGTRAP, launchGDB) != SIG_ERR))
+        std::abort();
+}
 #else
 void setupSIGTRAPforGDB() {}
 #endif
