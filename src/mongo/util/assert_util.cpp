@@ -160,7 +160,6 @@ NOINLINE_DECL void invariantOKFailed(const char* expr,
                                      unsigned line) {
     log() << "Invariant failure: " << expr << " resulted in status " << status << " at " << file
           << ' ' << dec << line;
-    logContext();
     breakpoint();
     log() << "\n\n***aborting after invariant() failure\n\n" << endl;
     quickExit(EXIT_ABRUPT);
