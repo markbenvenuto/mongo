@@ -24,6 +24,9 @@
 #include <unistd.h>
 
 #elif defined(XP_UNIX)
+#include "mozilla/XorShift128PlusRNG.h"
+#include <mutex>
+#include <fcntl.h>
 
 #include <algorithm>
 #include <errno.h>
@@ -429,18 +432,61 @@ DeallocateMappedContent(void* p, size_t length)
 
 #elif defined(XP_UNIX)
 
+
+static uint64_t
+GenerateSeed()
+{
+    uint64_t seed = 0;
+
+#if defined(XP_WIN)
+    MOZ_ALWAYS_TRUE(RtlGenRandom(&seed, sizeof(seed)));
+#elif defined(HAVE_ARC4RANDOM)
+    seed = (static_cast<uint64_t>(arc4random()) << 32) | arc4random();
+#elif defined(XP_UNIX)
+    int fd = open("/dev/urandom", O_RDONLY);
+    if (fd >= 0) {
+        read(fd, static_cast<void*>(&seed), sizeof(seed));
+        close(fd);
+    }
+#else
+# error "Platform needs to implement GenerateSeed()"
+#endif
+
+    // Also mix in PRMJ_Now() in case we couldn't read random bits from the OS.
+    return seed ^ PRMJ_Now();
+}
+
+mozilla::Maybe<mozilla::non_crypto::XorShift128PlusRNG> randomNumberGenerator;
+
+void
+GenerateXorShift128PlusSeed(mozilla::Array<uint64_t, 2>& seed)
+{
+    // XorShift128PlusRNG must be initialized with a non-zero seed.
+    do {
+        seed[0] = GenerateSeed();
+        seed[1] = GenerateSeed();
+    } while (seed[0] == 0 && seed[1] == 0);
+}
+
+std::mutex randomMutex;
+
 void
 InitMemorySubsystem()
 {
-    if (pageSize == 0)
+    if (pageSize == 0) {
         pageSize = allocGranularity = size_t(sysconf(_SC_PAGESIZE));
+    
+    mozilla::Array<uint64_t, 2> seed;
+    GenerateXorShift128PlusSeed(seed);
+    randomNumberGenerator.emplace(seed[0], seed[1]);
+    }
 }
 
 static inline void*
 MapMemoryAt(void* desired, size_t length, int prot = PROT_READ | PROT_WRITE,
             int flags = MAP_PRIVATE | MAP_ANON, int fd = -1, off_t offset = 0)
 {
-#if defined(__ia64__) || (defined(__sparc64__) && defined(__NetBSD__)) || defined(SOLARIS)
+#if 1
     MOZ_ASSERT(0xffff800000000000ULL & (uintptr_t(desired) + length - 1) == 0);
 #endif
     void* region = mmap(desired, length, prot, flags, fd, offset);
@@ -463,7 +509,7 @@ static inline void*
 MapMemory(size_t length, int prot = PROT_READ | PROT_WRITE,
           int flags = MAP_PRIVATE | MAP_ANON, int fd = -1, off_t offset = 0)
 {
-#if defined(__ia64__) || (defined(__sparc64__) && defined(__NetBSD__)) || defined(SOLARIS)
+#if 1
     /*
      * The JS engine assumes that all allocated pointers have their high 17 bits clear,
      * which ia64's mmap doesn't support directly. However, we can emulate it by passing
@@ -477,9 +523,46 @@ MapMemory(size_t length, int prot = PROT_READ | PROT_WRITE,
      *
      * See Bug 589735 for more information.
      */
-    void* region = mmap((void*)0x0000070000000000, length, prot, flags, fd, offset);
-    if (region == MAP_FAILED)
-        return nullptr;
+     uint64_t val;
+     {
+        std::lock_guard<std::mutex> lock(randomMutex);
+
+        int i = 10;
+        
+        while (val < 0x0000070000000000 && i-- > 0)
+            val = randomNumberGenerator->next();
+
+        if (val < 0x0000070000000000)
+            return nullptr;
+     }
+
+    // tweak our pointer to make sure it aligned to the page boundary
+    void* chosen = (void*)(val & ~0xffff800000000000ULL & ~(allocGranularity - 1));
+    void* region = nullptr;
+
+    // Try a few times to find a free space to mmap the request
+    int i = 5;
+    while (i-- > 0) {
+        region = mmap(chosen, length, prot, flags, fd, offset);
+     
+        if (region == MAP_FAILED)
+            return nullptr;
+     
+        if ((0xffff800000000000ULL & (uintptr_t(region) + length - 1)) != 0) {
+
+            // Unmap the previous segment we just allocated, if the unmap fails, bail
+            if (munmap(region, length)) {
+                MOZ_ASSERT(errno == ENOMEM);
+                return nullptr;
+            }
+
+            region = nullptr;
+            continue;
+        } else { 
+            break;
+        }
+    }
+
     /*
      * If the allocated memory doesn't have its upper 17 bits clear, consider it
      * as out of memory.
