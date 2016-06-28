@@ -509,3 +509,36 @@ env.CppUnitTest(
     LIBDEPS=[
         '$BUILD_DIR/mongo/base',
     ])
+
+env.Library(
+    target='client_metadata',
+    source=[
+        'client_metadata.cpp',
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/base',
+        'processinfo',
+    ],
+)
+
+env.CppUnitTest(
+    target='client_metadata_test',
+    source=[
+        'client_metadata_test.cpp',
+    ],
+    LIBDEPS=[
+        'client_metadata',
+    ]
+)
+
+env.Library(
+    target='client_metadata_decorations',
+    source=[
+        'client_metadata_decorations.cpp',
+    ],
+    LIBDEPS=[
+        'client_metadata',
+        '$BUILD_DIR/mongo/db/service_context',
+    ],
+)
+

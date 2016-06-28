@@ -42,6 +42,7 @@
 #include "mongo/s/grid.h"
 #include "mongo/s/sharding_egress_metadata_hook.h"
 #include "mongo/util/net/hostandport.h"
+#include "mongo/util/stacktrace.h"
 
 namespace mongo {
 
@@ -53,6 +54,7 @@ Status ShardingEgressMetadataHook::writeRequestMetadata(bool shardedConnection,
                                                         const StringData target,
                                                         BSONObjBuilder* metadataBob) {
     try {
+        // printStackTrace();
         audit::writeImpersonatedUsersToMetadata(metadataBob);
         if (!shardedConnection) {
             return Status::OK();
@@ -67,6 +69,7 @@ Status ShardingEgressMetadataHook::writeRequestMetadata(bool shardedConnection,
 Status ShardingEgressMetadataHook::writeRequestMetadata(const HostAndPort& target,
                                                         BSONObjBuilder* metadataBob) {
     try {
+        // printStackTrace();
         audit::writeImpersonatedUsersToMetadata(metadataBob);
         rpc::ConfigServerMetadata(_getConfigServerOpTime()).writeToMetadata(metadataBob);
         return Status::OK();

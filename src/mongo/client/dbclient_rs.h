@@ -59,6 +59,7 @@ public:
      * connections. */
     DBClientReplicaSet(const std::string& name,
                        const std::vector<HostAndPort>& servers,
+                       StringData applicationName,
                        double so_timeout = 0);
     virtual ~DBClientReplicaSet();
 
@@ -295,6 +296,7 @@ private:
     ReplicaSetMonitorPtr _getMonitor() const;
 
     std::string _setName;
+    std::string _applicationName;
 
     HostAndPort _masterHost;
     std::unique_ptr<DBClientConnection> _master;

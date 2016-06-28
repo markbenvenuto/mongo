@@ -161,6 +161,7 @@ env.Library(
         'authentication',
         'connection_string',
         'read_preference',
+        '$BUILD_DIR/mongo/util/client_metadata',
     ],
 )
 

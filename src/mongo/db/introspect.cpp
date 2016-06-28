@@ -41,6 +41,7 @@
 #include "mongo/db/curop.h"
 #include "mongo/db/db_raii.h"
 #include "mongo/db/jsobj.h"
+#include "mongo/util/client_metadata.h"
 #include "mongo/util/log.h"
 #include "mongo/util/scopeguard.h"
 
@@ -94,6 +95,11 @@ void profile(OperationContext* txn, NetworkOp op) {
 
     b.appendDate("ts", jsTime());
     b.append("client", txn->getClient()->clientAddress());
+
+    auto appName = ClientMetadata::get(txn->getClient())->getApplicationName();
+    if (!appName.empty()) {
+        b.append("appName", appName);
+    }
 
     AuthorizationSession* authSession = AuthorizationSession::get(txn->getClient());
     _appendUserInfo(*CurOp::get(txn), b, authSession);

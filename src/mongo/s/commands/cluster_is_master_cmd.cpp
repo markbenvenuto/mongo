@@ -28,10 +28,13 @@
 
 #include "mongo/platform/basic.h"
 
+#include "mongo/db/client.h"
 #include "mongo/db/commands.h"
+#include "mongo/db/operation_context.h"
 #include "mongo/db/wire_version.h"
 #include "mongo/s/grid.h"
 #include "mongo/s/write_ops/batched_command_request.h"
+#include "mongo/util/client_metadata.h"
 
 namespace mongo {
 namespace {
@@ -65,6 +68,18 @@ public:
                      int options,
                      std::string& errmsg,
                      BSONObjBuilder& result) {
+        auto client = txn->getClient();
+        ClientMetadata* clientMetadata = ClientMetadata::get(client);
+        auto swParseClientMetadata = clientMetadata->parseIsMasterReply(cmdObj);
+
+        if (!swParseClientMetadata.getStatus().isOK()) {
+            return Command::appendCommandStatus(result, swParseClientMetadata.getStatus());
+        }
+
+        if (swParseClientMetadata.getValue()) {
+            clientMetadata->logClientMetadata(client);
+        }
+
         result.appendBool("ismaster", true);
         result.append("msg", "isdbgrid");
         result.appendNumber("maxBsonObjectSize", BSONObjMaxUserSize);

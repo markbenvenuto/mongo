@@ -25,6 +25,7 @@
 *    exception statement from all source files in the program, then also delete
 *    it in the license file.
 */
+#define MONGO_LOG_DEFAULT_COMPONENT ::mongo::logger::LogComponent::kFTDC
 
 #include "mongo/platform/basic.h"
 
@@ -49,6 +50,8 @@
 #include "mongo/db/wire_version.h"
 #include "mongo/executor/network_interface.h"
 #include "mongo/s/write_ops/batched_command_request.h"
+#include "mongo/util/client_metadata.h"
+#include "mongo/util/log.h"
 
 namespace mongo {
 
@@ -239,6 +242,24 @@ public:
                 mp->setTag(mp->getTag() | executor::NetworkInterface::kMessagingPortKeepOpen);
             }
         }
+
+        ClientMetadata* clientMetadata = ClientMetadata::get(txn->getClient());
+        auto swParseClientMetadata = clientMetadata->parseIsMasterReply(cmdObj);
+
+        log() << "IS-MASTER RECEIVED & PROCESSED - " << cmdObj
+              << " with status: " << swParseClientMetadata.getStatus();
+
+        if (!swParseClientMetadata.getStatus().isOK()) {
+            return Command::appendCommandStatus(result, swParseClientMetadata.getStatus());
+        }
+
+        if (swParseClientMetadata.getValue()) {
+            clientMetadata->logClientMetadata(txn->getClient());
+        } else {
+            log() << "IS-MASTER NO CLIENT METADATA DOC, seen " << clientMetadata->seen()
+                  << " and have_doc: " << !clientMetadata->getDocument().isEmpty();
+        }
+
         appendReplicationInfo(txn, result, 0);
 
         if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {

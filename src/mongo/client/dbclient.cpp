@@ -61,6 +61,7 @@
 #include "mongo/stdx/memory.h"
 #include "mongo/stdx/mutex.h"
 #include "mongo/util/assert_util.h"
+#include "mongo/util/client_metadata.h"
 #include "mongo/util/concurrency/mutex.h"
 #include "mongo/util/debug_util.h"
 #include "mongo/util/log.h"
@@ -73,6 +74,7 @@
 #include "mongo/util/password_digest.h"
 #include "mongo/util/represent_as.h"
 #include "mongo/util/time_support.h"
+#include "mongo/util/version.h"
 
 namespace mongo {
 
@@ -711,7 +713,8 @@ private:
 /**
 * Initializes the wire version of conn, and returns the isMaster reply.
 */
-StatusWith<executor::RemoteCommandResponse> initWireVersion(DBClientConnection* conn) {
+StatusWith<executor::RemoteCommandResponse> initWireVersion(DBClientConnection* conn,
+                                                            StringData applicationName) {
     try {
         // We need to force the usage of OP_QUERY on this command, even if we have previously
         // detected support for OP_COMMAND on a connection. This is necessary to handle the case
@@ -728,6 +731,12 @@ StatusWith<executor::RemoteCommandResponse> initWireVersion(DBClientConnection* 
             StringBuilder sb;
             sb << getHostName() << ':' << serverGlobalParams.port;
             bob.append("hostInfo", sb.str());
+        }
+
+        Status serializeStatus = ClientMetadata::serialize(
+            "MongoDB Internal Client", mongo::versionString, applicationName, bob);
+        if (!serializeStatus.isOK()) {
+            return serializeStatus;
         }
 
         Date_t start{Date_t::now()};
@@ -753,8 +762,10 @@ StatusWith<executor::RemoteCommandResponse> initWireVersion(DBClientConnection* 
 
 }  // namespace
 
-bool DBClientConnection::connect(const HostAndPort& server, std::string& errmsg) {
-    auto connectStatus = connect(server);
+bool DBClientConnection::connect(const HostAndPort& server,
+                                 StringData applicationName,
+                                 std::string& errmsg) {
+    auto connectStatus = connect(server, applicationName);
     if (!connectStatus.isOK()) {
         errmsg = connectStatus.reason();
         return false;
@@ -762,13 +773,14 @@ bool DBClientConnection::connect(const HostAndPort& server, std::string& errmsg)
     return true;
 }
 
-Status DBClientConnection::connect(const HostAndPort& serverAddress) {
+Status DBClientConnection::connect(const HostAndPort& serverAddress, StringData applicationName) {
     auto connectStatus = connectSocketOnly(serverAddress);
     if (!connectStatus.isOK()) {
         return connectStatus;
     }
 
-    auto swIsMasterReply = initWireVersion(this);
+    _applicationName = applicationName.toString();
+    auto swIsMasterReply = initWireVersion(this, applicationName);
     if (!swIsMasterReply.isOK()) {
         _failed = true;
         return swIsMasterReply.getStatus();
@@ -902,7 +914,7 @@ void DBClientConnection::_checkConnection() {
     LOG(_logLevel) << "trying reconnect to " << toString() << endl;
     string errmsg;
     _failed = false;
-    auto connectStatus = connect(_serverAddress);
+    auto connectStatus = connect(_serverAddress, _applicationName);
     if (!connectStatus.isOK()) {
         _failed = true;
         LOG(_logLevel) << "reconnect " << toString() << " failed " << errmsg << endl;

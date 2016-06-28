@@ -161,7 +161,6 @@ private:
     friend class ServiceContext;
     Client(std::string desc, ServiceContext* serviceContext, AbstractMessagingPort* p = 0);
 
-
     // Description for the client (e.g. conn8)
     const std::string _desc;
 

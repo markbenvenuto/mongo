@@ -35,6 +35,7 @@
     assert(profileObj.hasOwnProperty("millis"), tojson(profileObj));
     assert(profileObj.hasOwnProperty("numYield"), tojson(profileObj));
     assert(profileObj.hasOwnProperty("locks"), tojson(profileObj));
+    assert.eq(profileObj.appName, "MongoDB Shell", tojson(profileObj));
 
     //
     // Count with non-indexed query.
@@ -68,6 +69,7 @@
     assert.eq(profileObj.keysExamined, 6, tojson(profileObj));
     assert.eq(profileObj.planSummary, "COUNT_SCAN { a: 1.0 }", tojson(profileObj));
     assert(profileObj.execStats.hasOwnProperty("stage"), tojson(profileObj));
+    assert.eq(profileObj.appName, "MongoDB Shell", tojson(profileObj));
 
     //
     // Confirm "fromMultiPlanner" metric.
@@ -83,4 +85,5 @@
     profileObj = getLatestProfilerEntry(testDB);
 
     assert.eq(profileObj.fromMultiPlanner, true, tojson(profileObj));
+    assert.eq(profileObj.appName, "MongoDB Shell", tojson(profileObj));
 })();

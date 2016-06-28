@@ -45,6 +45,7 @@
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/stats/fill_locker_info.h"
+#include "mongo/util/client_metadata.h"
 #include "mongo/util/log.h"
 
 namespace mongo {
@@ -127,6 +128,11 @@ public:
 
             // The client information
             client->reportState(infoBuilder);
+
+            auto appName = ClientMetadata::get(client)->getApplicationName();
+            if (!appName.empty()) {
+                infoBuilder.append("applicationName", appName);
+            }
 
             // Operation context specific information
             infoBuilder.appendBool("active", static_cast<bool>(opCtx));

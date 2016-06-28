@@ -38,6 +38,7 @@
     assert(profileObj.hasOwnProperty("numYield"), tojson(profileObj));
     assert(profileObj.hasOwnProperty("locks"), tojson(profileObj));
     assert(!profileObj.hasOwnProperty("hasSortStage"), tojson(profileObj));
+    assert.eq(profileObj.appName, "MongoDB Shell", tojson(profileObj));
 
     //
     // Confirm hasSortStage with in-memory sort.

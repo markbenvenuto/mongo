@@ -37,6 +37,7 @@
     assert(profileObj.hasOwnProperty("millis"), tojson(profileObj));
     assert(profileObj.hasOwnProperty("numYield"), tojson(profileObj));
     assert(profileObj.hasOwnProperty("locks"), tojson(profileObj));
+    assert(profileObj.hasOwnProperty("appName"), tojson(profileObj));
 
     //
     // Confirm "fromMultiPlanner" metric.
@@ -52,4 +53,5 @@
     profileObj = getLatestProfilerEntry(testDB);
 
     assert.eq(profileObj.fromMultiPlanner, true, tojson(profileObj));
+    assert(profileObj.hasOwnProperty("appName"), tojson(profileObj));
 })();

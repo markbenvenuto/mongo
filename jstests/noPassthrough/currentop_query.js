@@ -74,6 +74,8 @@
                         return true;
                     }
 
+                    assert(testObj.hasOwnProperty("appName"), tojson(profileObj));
+
                     return false;
                 },
                 function() {

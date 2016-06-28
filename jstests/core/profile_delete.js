@@ -36,6 +36,7 @@
     assert(profileObj.hasOwnProperty("millis"), tojson(profileObj));
     assert(profileObj.hasOwnProperty("numYield"), tojson(profileObj));
     assert(profileObj.hasOwnProperty("locks"), tojson(profileObj));
+    assert(profileObj.hasOwnProperty("appName"), tojson(profileObj));
 
     //
     // Confirm metrics for multiple document delete.
@@ -50,6 +51,7 @@
 
     assert.eq(profileObj.ndeleted, 8, tojson(profileObj));
     assert.eq(profileObj.keysDeleted, 8, tojson(profileObj));
+    assert(profileObj.hasOwnProperty("appName"), tojson(profileObj));
 
     //
     // Confirm "fromMultiPlanner" metric.
@@ -65,4 +67,5 @@
     profileObj = getLatestProfilerEntry(testDB);
 
     assert.eq(profileObj.fromMultiPlanner, true, tojson(profileObj));
+    assert(profileObj.hasOwnProperty("appName"), tojson(profileObj));
 })();
