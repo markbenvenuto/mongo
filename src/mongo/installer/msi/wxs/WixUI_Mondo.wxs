@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+   <Fragment>
+       <UI Id="MongoWixUI_Mondo">
+           <UIRef Id="WixUI_FeatureTree" />
+
+           <Publish Event="NewDialog" Value="MongoSetupTypeDlg" Dialog="LicenseAgreementDlg" Control="Next">LicenseAccepted = "1"</Publish>
+           <Publish Event="NewDialog" Value="MongoSetupTypeDlg" Dialog="VerifyReadyDlg" Control="Back">WixUI_InstallMode = "InstallTypical" OR WixUI_InstallMode = "InstallComplete"</Publish>
+           <Publish Event="NewDialog" Value="MongoSetupTypeDlg" Dialog="CustomizeDlg" Control="Back">WixUI_InstallMode = "InstallCustom"</Publish>
+
+       </UI>
+   </Fragment>
+</Wix>

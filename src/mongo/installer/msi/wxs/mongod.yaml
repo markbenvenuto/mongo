@@ -1,0 +1,79 @@
+# mongod.conf
+
+systemLog:
+    # Level of internal debug verbosity
+    #verbosity: 0
+    # Destination can be file
+    destination: file
+    # Where to log
+    path: %MONGO_LOG_PATH%
+
+    logAppend: true
+
+    # TimeStamp format in log file: can be either ctime, iso8601-utc, or iso8601-local
+    timeStampFormat:   iso8601-local
+
+net:
+    # Listen to local interface only. UComment out to listen on all interfaces. 
+    bindIp: 127.0.0.1
+    # TCP Port to listen on
+    port: 27017
+    # Maxiumum incoming connections 
+    # maxIncomingConnections: 100000
+    # Inspect all client data for validity on receipt (useful for
+    # developing drivers)
+    #wireObjectCheck: true
+    # Enaled IPv6 
+    #ipv6: false
+    #
+
+    # SSL is only supported in Enterprise & Custom builds
+    #ssl:
+        # Allowed values disabled, allowSSL, preferSSL, or requireSSL
+        # mode: 
+        # PEMKeyFile:
+        # PEMKeyPassword:
+        # clusterFile:
+        # clusterPassword:
+        # CAFile:
+        # CRLFile:
+        #weakCertificateValidation:
+        # allowInvalidCertificates:
+        # FIPSMode
+        # setParameter
+
+#security:
+    # Specifies the path to a key file to that stores the shared secret that MongoDB instances
+    # use to authenticate to each other in a sharded cluster or replica set
+    # keyFile:
+    # Possible values: keyFile, sendKeyFile, sendX509, x509
+    # clusterAuthMode: keyfile
+    # authorization: disabled
+    # javascriptEnabled: true
+
+operationProfiling:
+    #slowOpThresholdMs: 100
+    #mode: off
+
+storage:
+    dbPath: %MONGO_DATA_PATH%
+    #directoryPerDB: false
+    #indexBuildRetry: true
+    #preallocDataFiles: true
+    #nsSize: 16
+
+    #quota:
+        #enforced: false
+        #maxFilesPerDB: 8
+
+    #smallFiles: false
+    #syncPeriodSecs: 60
+    #repairPath: _tmp
+
+    journal:
+        # Enables Write-Ahead Journalling
+        enabled: true
+        debugFlags: 0
+        commitIntervalMs: 100
+
+

@@ -44,14 +44,36 @@
             <Directory Id="MongoDB" Name="MongoDB">
                 <Directory Id="Server" Name="Server">
                     <Directory Id="INSTALLLOCATION" Name="!(wix.InstallFolder)">
-                      <Directory Id="BIN" Name="bin" />
-                      <Directory Id="SNMP" Name="snmp" />
+                        <Directory Id="BIN" Name="bin" />
+                        <Directory Id="MONGO_DATA_PATH" Name="data" />
+                        <Directory Id="MONGO_LOG_PATH" Name="log" />
+                        <Directory Id="SNMP" Name="snmp" />
                     </Directory>
+                </Directory>
+            </Directory>
+        </Directory>
+        <Directory Id="CommonAppDataFolder">
+            <Directory Id="MongoDBData" Name="MongoDB">
+                <Directory Id="ServerData" Name="Server">
+                    <Directory Id="VersionData" Name="!(wix.InstallFolder)" />
                 </Directory>
             </Directory>
         </Directory>
     </Directory>
 
+    <Binary Id="CAIntro" SourceFile="d:\projects\mongoca\mongoca\bin\Debug\mongoca.dll"/>
+    <CustomAction Id="UpdateMongoYAML"
+                  BinaryKey="CAIntro"
+                  DllEntry="UpdateMongoYAML"
+                  Execute="immediate"
+                  Return="check"
+                  HideTarget="no" />
+
+    
+    <InstallExecuteSequence>
+      <Custom Action="UpdateMongoYAML" After="InstallFinalize">NOT Installed</Custom>
+    </InstallExecuteSequence>
+  
     <Media Id="1" Cabinet="media1.cab" EmbedCab="yes" />
     <WixVariable Id="WixUIDialogBmp" Value="$(var.ProjectDir)Dialog.bmp" />
     <WixVariable Id="WixUIBannerBmp" Value="$(var.ProjectDir)Banner.bmp" />
@@ -75,6 +97,15 @@
     <UIRef Id="WixUI_ErrorProgressText" />
     <Property Id="WIXUI_INSTALLDIR" Value="INSTALLLOCATION" />
 
+    <Property Id="MONGO_SERVICE_INSTALL" Value="0" Secure="yes" />
+    <Property Id="MONGO_SERVICE_ACCOUNT_TYPE" Secure="yes" Value="ServiceLocalNetwork" />
+    <Property Id="MONGO_SERVICE_NAME" Secure="yes" Value="MongoDB" />
+    <Property Id="MONGO_SERVICE_ACCOUNT_NAME" Secure="yes" Value="MongoDB" />
+    <Property Id="MONGO_SERVICE_ACCOUNT_PASSWORD" Secure="yes" Hidden="yes"/>
+    <Property Id="MONGO_SERVICE_FIREWALL_EXCEPTION" Secure="yes"/>
+    <Property Id="MONGO_DATA_PATH" Secure="yes" />
+    <Property Id="MONGO_LOG_PATH" Secure="yes" />
+
     <Property Id="MONGO_MULTIPLE_SKU" >
         <RegistrySearch Id="Mongo_Multiple_Sku"
             Root="HKLM"
@@ -87,5 +118,10 @@
         Installed OR (NOT MONGO_MULTIPLE_SKU OR MONGO_MULTIPLE_SKU = "!(wix.ProductMajorName)")
     </Condition>
 
+    <CustomAction Id="MongoDB.SetAccount1" Property="MONGO_SERVICE_ACCOUNT_NAME" Value="NT AUTHORITY\NetworkService" />
+
+    <InstallExecuteSequence>
+        <Custom Action="MongoDB.SetAccount1" Before="InstallValidate">MONGO_SERVICE_ACCOUNT_TYPE = "ServiceLocalNetwork"</Custom>
+    </InstallExecuteSequence>
   </Product>
 </Wix>
