@@ -379,7 +379,7 @@ def variable_arch_converter(val):
 def decide_platform_tools():
     if is_running_os('windows'):
         # we only support MS toolchain on windows
-        return ['msvc', 'mslink', 'mslib']
+        return ['msvc', 'mslink', 'mslib', 'etwpp']
     elif is_running_os('linux', 'solaris'):
         return ['gcc', 'g++', 'gnulink', 'ar']
     elif is_running_os('osx'):

@@ -1,0 +1,156 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<instrumentationManifest
+    xmlns="http://schemas.microsoft.com/win/2004/08/events"
+    xmlns:win="http://manifests.microsoft.com/win/2004/08/windows/events"
+    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    >
+  
+  <instrumentation>
+    <events>
+
+      <provider name="MongoDB"
+          guid="{2A715D65-E4C5-41CF-A7C3-12C638849E6A}"
+          symbol="ProviderGuid"
+          resourceFileName="D:\projects\cpptest2\x64\Debug\cpptest2.exe"
+          messageFileName="D:\projects\cpptest2\x64\Debug\cpptest2.exe"
+          message="$(string.Provider.Name)"
+                >
+
+        <channels>
+          <channel chid="c1"
+              name="MongoDB/Admin"
+              type="Admin"
+              enabled="true"
+              symbol="CHANNEL_MONGO_ADMIN"/>
+          <channel chid="c2"
+              name="MongoDB/Debug"
+              type="Debug"
+              symbol="CHANNEL_MONGO_DEBUG"/>
+        </channels>
+
+        <!-- Consider generating tasks for each of our tags -->
+       
+        <templates>
+
+          <template tid="MessageTemplate">
+            <data name="string" inType="win:AnsiString" />
+
+            <UserData>
+              <EventData xmlns="ProviderNamespace">
+                <String> %1 </String>
+              </EventData>
+            </UserData>
+          </template>
+
+        </templates>
+
+        <events>
+          <event value="1"
+              level="win:Informational"
+              template="MessageTemplate"
+              symbol="MessageEvent"
+              message ="$(string.Event.Message)"
+              channel="c1"
+              />
+          <event value="2"
+              level="win:Verbose"
+              template="MessageTemplate"
+              symbol="DebugMessageEvent"
+              message ="$(string.Event.Message)"
+              channel="c2"
+              />
+        </events>
+
+
+      </provider>
+
+    </events>
+
+  </instrumentation>
+
+  <localization>
+    <resources culture="en-US">
+      <stringTable>
+
+        <string id="Provider.Name" value="MongoDB"/>
+
+        <string id="Event.Message" value="%1"/>
+
+      </stringTable>
+    </resources>
+  </localization>
+
+</instrumentationManifest>
+
+
+<!--
+
+"""SCons.Tool.mc
+
+Tool-specific initialization for mc (Microsoft MC compiler).
+
+There normally shouldn't be any need to import this module directly.
+It will usually be imported through the generic SCons.Tool.Tool()
+selection method.
+
+"""
+
+#
+# Copyright (c) 2006 The SCons Foundation
+#
+# Permission is hereby granted, free of charge, to any person obtaining
+# a copy of this software and associated documentation files (the
+# "Software"), to deal in the Software without restriction, including
+# without limitation the rights to use, copy, modify, merge, publish,
+# distribute, sublicense, and/or sell copies of the Software, and to
+# permit persons to whom the Software is furnished to do so, subject to
+# the following conditions:
+#
+# The above copyright notice and this permission notice shall be included
+# in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+# KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+# WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+#
+
+__revision__ = "/home/scons/scons/branch.0/baseline/src/engine/SCons/Tool/mc.py 0.96.1.D001 2004/08/23 09:55:29 knight"
+
+import SCons.Defaults
+import SCons.Util
+import SCons.Tool.msvs
+
+def mc_emitter(target, source, env):
+    """Produces a list of outputs from the MC compiler"""
+    base, ext = SCons.Util.splitext(str(target[0]))
+    incl = base + '.h'
+    resource = base + '.rc'
+
+    t = [incl, resource]
+
+    return (t,source)
+
+mc_builder = SCons.Builder.Builder(action='',
+                                     src_suffix = '.mc',
+                                     suffix='.h',
+                                     emitter = mc_emitter)
+
+def generate(env):
+    """Add Builders and construction variables for mc to an Environment."""
+    env['MC']          = 'MC.EXE'
+    env['MCFLAGS']     = '-cU'
+    env['MCCOM']       = '$MC $MCFLAGS -h ${TARGETS[0].dir} -r ${TARGETS[0].dir} $SOURCE'
+    env['BUILDERS']['MessageCatalog'] = mc_builder
+
+def exists(env):
+    if SCons.Tool.msvs.is_msvs_installed():
+        # there's at least one version of MSVS installed, which comes with mc:
+        return 1
+    else:
+        return env.Detect('mc') 
+
+-->

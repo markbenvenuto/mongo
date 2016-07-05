@@ -2,8 +2,13 @@
 
 Import("env")
 
+env.EtwPreprocessor("events.rc", "events.xml")
+
+env.RES("events.res", "events.rc")
+
 env.Library('logger',
             [
+             'events.res',
              'console.cpp',
              'log_manager.cpp',
              'log_severity.cpp',
