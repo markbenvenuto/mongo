@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi" xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
 	<Fragment>
     <DirectoryRef Id="BIN">
       <Component Id="c_bsondump" Guid="DEEA45CA-5175-453B-9D0B-6168B4C0C891">
@@ -14,9 +14,34 @@
         <File Id="f_mongod" Name="mongod.exe" Source="$(var.BinarySource)\mongod.exe"
               DiskId ="1" KeyPath="yes"/>
       </Component>
+      <Component Id="c_mongodWithService" Guid="1E7C89DA-4B96-41E2-8106-DDBA64631249">
+        <File Id="f_mongodWithService" Name="mongod.exe" Source="$(var.BinarySource)\mongod.exe"
+              DiskId ="1" KeyPath="yes"/>
+        <ServiceInstall Id='MyServiceInstall'
+              Description="MongoDB Database Server"
+              Arguments='--dbpath "[MONGO_DATA_PATH]" --logpath "[MONGO_LOG_PATH]\mongod.log" --config "[MONGO_LOG_PATH]\mongod.cfg" --service'
+              DisplayName='MongoDB Server'
+              Name='MongoDB'
+              ErrorControl='normal'
+              Start='auto'
+              Type='ownProcess'
+              Account='[MONGO_SERVICE_ACCOUNT_NAME]'
+              Password='[MONGO_SERVICE_ACCOUNT_PASSWORD]'
+              Vital='yes' />
+        <ServiceControl Id="StartDDService" Name="MongoDB" Start="install" Wait="no" />
+        <ServiceControl Id="StopDDService" Name="MongDB" Stop="both" Wait="yes" Remove="uninstall" />
+
+        <!--<ServiceControl Id='MyServiceControl' Name='MongoDB'-->
+              <!--Start='install' Stop='uninstall' Remove='uninstall' />-->
+      </Component>
       <Component Id="c_mongodPdb" Guid="8B41A2E2-911C-4399-8E9F-D3C1AD3B9EDD">
         <File Id="f_mongodPdb" Name="mongod.pdb" Source="$(var.BinarySource)\mongod.pdb"
               DiskId ="1" KeyPath="yes"/>
+      </Component>
+      <Component Id="c_mongodCfg" Guid="EA715A4C-7C63-4C5C-8F73-A82E84668AEE">
+        <File Id="f_mongodCfg" Name="mongod.cfg" Source="d:\mongo\src\mongo\installer\msi\wxs\mongod.conf"
+              DiskId ="1" KeyPath="yes"/>
+        <!--<File Id="f_mongodCfg" Name="mongod.cfg" Source="$(var.BinarySource)\mongod.conf" -->
       </Component>
       <Component Id="c_mongodump" Guid="FFE32884-ACAD-4EC6-AF84-6BC94F55819E">
         <File Id="f_mongodump" Name="mongodump.exe" Source="$(var.ToolBinarySource)\mongodump.exe"
@@ -115,11 +140,25 @@
         </Component>
       </DirectoryRef>
     <?endif ?>
+    <DirectoryRef Id="MONGO_DATA_PATH" >
+      <Component Id="c_MONGO_DATA_PATH" Guid="F695F048-E262-4871-A31B-0E2361BB4BCB">
+          <CreateFolder Directory="MONGO_DATA_PATH" >
+            <util:PermissionEx User="[MONGO_SERVICE_ACCOUNT_NAME]" GenericAll="yes"/>
+          </CreateFolder>
+      </Component>
+    </DirectoryRef>
+    <DirectoryRef Id="MONGO_LOG_PATH" >
+      <Component Id="c_MONGO_LOG_PATH" Guid="D7DBC821-5BD2-4EB7-AEFB-7AC92945146D">
+        <CreateFolder Directory="MONGO_LOG_PATH" >
+            <util:PermissionEx User="[MONGO_SERVICE_ACCOUNT_NAME]" GenericAll="yes"/>
+          </CreateFolder>
+      </Component>
+    </DirectoryRef>
 
 
     <?if $(var.Edition) = Enterprise or $(var.Edition) = SSL ?>
       <DirectoryRef Id="TARGETDIR">
-        <Merge Id="m_vcredist" SourceFile="$(var.MergeModulesBasePath)\Microsoft_VC120_CRT_x64.msm" DiskId="1" Language="0"/>
+        <Merge Id="m_vcredist" SourceFile="$(var.MergeModulesBasePath)\Microsoft_VC140_CRT_x64.msm" DiskId="1" Language="0"/>
       </DirectoryRef>
     <?endif ?>
 
