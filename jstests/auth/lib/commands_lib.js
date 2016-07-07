@@ -1356,6 +1356,20 @@ var authCommandsLib = {
           ]
         },
         {
+          testname: "getDiagnosticData",
+          command: {getDiagnosticData: 1},
+          skipSharded: true,
+          testcases: [
+              {
+                runOnDb: adminDbName,
+                roles: roles_monitoring,
+                privileges: [{resource: {cluster: true}, actions: ["getDiagnosticData"]}]
+              },
+              {runOnDb: firstDbName, roles: {}},
+              {runOnDb: secondDbName, roles: {}}
+          ]
+        },
+        {
           testname: "getLastError",
           command: {getLastError: 1},
           testcases: [

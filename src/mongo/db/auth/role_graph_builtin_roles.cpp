@@ -193,6 +193,7 @@ MONGO_INITIALIZER(AuthorizationBuiltinRoles)(InitializerContext* context) {
         << ActionType::serverStatus 
         << ActionType::top
         << ActionType::inprog
+        << ActionType::getDiagnosticData
         << ActionType::shardingState;
 
     // clusterMonitor role actions that target a database (or collection) resource
