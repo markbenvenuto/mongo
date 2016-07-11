@@ -1363,7 +1363,11 @@ var authCommandsLib = {
               {
                 runOnDb: adminDbName,
                 roles: roles_monitoring,
-                privileges: [{resource: {cluster: true}, actions: ["getDiagnosticData"]}]
+                privileges: [
+                    {resource: {cluster: true}, actions: ["serverStatus"]},
+                    {resource: {cluster: true}, actions: ["replSetGetStatus"]},
+                    {resource: {db: "local", collection: "oplog.rs"}, actions: ["collStats"]},
+                ]
               },
               {runOnDb: firstDbName, roles: {}},
               {runOnDb: secondDbName, roles: {}}

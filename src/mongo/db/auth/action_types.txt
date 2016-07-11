@@ -48,7 +48,6 @@
 "flushRouterConfig",
 "fsync",
 "getCmdLineOpts",
-"getDiagnosticData",
 "getLog",
 "getParameter",
 "getShardMap",

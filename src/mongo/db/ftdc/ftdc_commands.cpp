@@ -67,9 +67,26 @@ public:
     Status checkAuthForCommand(ClientBasic* client,
                                const std::string& dbname,
                                const BSONObj& cmdObj) override {
-        bool isAuthorized = AuthorizationSession::get(client)->isAuthorizedForActionsOnResource(
-            ResourcePattern::forClusterResource(), ActionType::getDiagnosticData);
-        return isAuthorized ? Status::OK() : Status(ErrorCodes::Unauthorized, "Unauthorized");
+
+        if (!AuthorizationSession::get(client)->isAuthorizedForActionsOnResource(
+                ResourcePattern::forClusterResource(), ActionType::serverStatus)) {
+            return Status(ErrorCodes::Unauthorized, "Unauthorized");
+        }
+
+        if (!AuthorizationSession::get(client)->isAuthorizedForActionsOnResource(
+                ResourcePattern::forClusterResource(), ActionType::replSetGetStatus)) {
+            return Status(ErrorCodes::Unauthorized, "Unauthorized");
+        }
+
+        if (!AuthorizationSession::get(client)->isAuthorizedForActionsOnResource(
+                parseResourcePattern("local",
+                                     BSON("collStats"
+                                          << "oplog.rs")),
+                ActionType::collStats)) {
+            return Status(ErrorCodes::Unauthorized, "Unauthorized");
+        }
+
+        return Status::OK();
     }
 
     bool run(OperationContext* txn,

@@ -306,6 +306,8 @@ void startFTDC() {
 
     // Install periodic collectors
     // These are collected on the period interval in FTDCConfig.
+    // NOTE: For each command here, there must be an equivalent privilege check in
+    // GetDiagnosticDataCommand
 
     // CmdServerStatus
     controller->addPeriodicCollector(stdx::make_unique<FTDCSimpleInternalCommandCollector>(

@@ -66,9 +66,7 @@ public:
     Status checkAuthForCommand(ClientBasic* client,
                                const std::string& dbname,
                                const BSONObj& cmdObj) override {
-        bool isAuthorized = AuthorizationSession::get(client)->isAuthorizedForActionsOnResource(
-            ResourcePattern::forClusterResource(), ActionType::getDiagnosticData);
-        return isAuthorized ? Status::OK() : Status(ErrorCodes::Unauthorized, "Unauthorized");
+        return Status::OK();
     }
 
     bool run(OperationContext* txn,
