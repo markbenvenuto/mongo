@@ -180,6 +180,7 @@ StatusWith<CursorId> runQueryWithoutRetrying(OperationContext* txn,
     params.isTailable = query.getQueryRequest().isTailable();
     params.isAwaitData = query.getQueryRequest().isAwaitData();
     params.isAllowPartialResults = query.getQueryRequest().isAllowPartialResults();
+    params.txn = txn;
 
     // This is the batchSize passed to each subsequent getMore command issued by the cursor. We
     // usually use the batchSize associated with the initial find, but as it is illegal to send a

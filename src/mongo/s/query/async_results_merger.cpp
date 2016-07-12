@@ -290,8 +290,11 @@ Status AsyncResultsMerger::askForNextBatch_inlock(size_t remoteIndex) {
         cmdObj = *remote.initialCmdObj;
     }
 
-    executor::RemoteCommandRequest request(
-        remote.getTargetHost(), _params.nsString.db().toString(), cmdObj, _metadataObj);
+    executor::RemoteCommandRequest request(remote.getTargetHost(),
+                                           _params.nsString.db().toString(),
+                                           cmdObj,
+                                           _metadataObj,
+                                           _params.txn);
 
     auto callbackStatus = _executor->scheduleRemoteCommand(
         request,
@@ -560,7 +563,7 @@ void AsyncResultsMerger::scheduleKillCursors_inlock() {
             BSONObj cmdObj = KillCursorsRequest(_params.nsString, {*remote.cursorId}).toBSON();
 
             executor::RemoteCommandRequest request(
-                remote.getTargetHost(), _params.nsString.db().toString(), cmdObj);
+                remote.getTargetHost(), _params.nsString.db().toString(), cmdObj, _params.txn);
 
             _executor->scheduleRemoteCommand(
                 request,
