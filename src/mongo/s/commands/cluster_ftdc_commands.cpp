@@ -38,6 +38,7 @@
 #include "mongo/db/operation_context.h"
 
 namespace mongo {
+namespace {
 
 /**
  * getDiagnosticData is a MongoD only command. We implement in MongoS to give users a better error
@@ -82,10 +83,13 @@ public:
     }
 };
 
+Command* ftdcCommand;
+
 MONGO_INITIALIZER(CreateDiagnosticDataCommand)(InitializerContext* context) {
-    new GetDiagnosticDataCommand();
+    ftdcCommand = new GetDiagnosticDataCommand();
 
     return Status::OK();
 }
 
+}  // namespace
 }  // namespace mongo

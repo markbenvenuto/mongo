@@ -102,7 +102,7 @@ void FTDCController::addOnRotateCollector(std::unique_ptr<FTDCCollectorInterface
 BSONObj FTDCController::getMostRecentPeriodicDocument() {
     {
         stdx::lock_guard<stdx::mutex> lock(_mutex);
-        return _mostRecentPeriodicDocument;
+        return _mostRecentPeriodicDocument.getOwned();
     }
 }
 

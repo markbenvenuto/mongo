@@ -38,6 +38,7 @@
 #include "mongo/db/operation_context.h"
 
 namespace mongo {
+namespace {
 
 /**
  * Get the most recent document FTDC collected from its periodic collectors.
@@ -103,10 +104,14 @@ public:
     }
 };
 
+Command* ftdcCommand;
+
 MONGO_INITIALIZER(CreateDiagnosticDataCommand)(InitializerContext* context) {
-    new GetDiagnosticDataCommand();
+    ftdcCommand = new GetDiagnosticDataCommand();
 
     return Status::OK();
 }
+
+}  // namespace
 
 }  // namespace mongo
