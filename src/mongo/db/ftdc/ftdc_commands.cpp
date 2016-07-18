@@ -80,9 +80,7 @@ public:
         }
 
         if (!AuthorizationSession::get(client)->isAuthorizedForActionsOnResource(
-                parseResourcePattern("local",
-                                     BSON("collStats"
-                                          << "oplog.rs")),
+                ResourcePattern::forExactNamespace(NamespaceString("local", "oplog.rs")),
                 ActionType::collStats)) {
             return Status(ErrorCodes::Unauthorized, "Unauthorized");
         }
