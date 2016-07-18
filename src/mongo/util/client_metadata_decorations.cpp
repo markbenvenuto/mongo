@@ -38,6 +38,7 @@
 #include "mongo/base/status.h"
 #include "mongo/db/client.h"
 #include "mongo/db/service_context.h"
+#include "mongo/db/operation_context.h"
 #include "mongo/stdx/memory.h"
 #include "mongo/util/log.h"
 #include "mongo/util/mongoutils/str.h"
@@ -74,6 +75,10 @@ MONGO_INITIALIZER_WITH_PREREQUISITES(CreateClientMetadata, ("SetGlobalEnvironmen
     return Status::OK();
 }
 
+ClientMetadata* ClientMetadata::get(OperationContext* txn) {
+    return get(txn->getClient());
+}
+
 ClientMetadata* ClientMetadata::get(ClientBasic* client) {
     return get(*client);
 }
@@ -89,6 +94,26 @@ void ClientMetadata::logClientMetadata(Client* client) const {
     dassert(!getClientMetadata(client)->getDocument().isEmpty());
     log() << "received client metadata from " << client->getRemote().toString() << " "
           << client->desc() << ": " << getClientMetadata(client)->getDocument();
+}
+
+Status ClientMetadata::readFromMetadata(OperationContext* txn, BSONElement& element) {
+    ClientMetadata* clientMetadata = get(txn->getClient());
+
+    if (element.eoo()) {
+        return Status::OK();
+    }
+    
+    return clientMetadata->parseClientMetadataDocument(element.Obj());
+}
+
+void ClientMetadata::writeToMetadata(OperationContext* txn, BSONObjBuilder* builder) {
+    if (txn == nullptr) {
+        return;
+    }
+
+    ClientMetadata* clientMetadata = get(txn->getClient());
+
+    builder->append(ClientMetadata::fieldName(), clientMetadata->getDocument());
 }
 
 }  // namespace mongo

@@ -36,6 +36,7 @@
 #include "mongo/rpc/metadata/config_server_metadata.h"
 #include "mongo/rpc/metadata/server_selection_metadata.h"
 #include "mongo/rpc/metadata/sharding_metadata.h"
+#include "mongo/util/client_metadata.h"
 
 namespace mongo {
 namespace rpc {
@@ -48,6 +49,7 @@ Status readRequestMetadata(OperationContext* txn, const BSONObj& metadataObj) {
     BSONElement ssmElem;
     BSONElement auditElem;
     BSONElement configSvrElem;
+    BSONElement clientElem;
 
     for (const auto& metadataElem : metadataObj) {
         auto fieldName = metadataElem.fieldNameStringData();
@@ -57,6 +59,8 @@ Status readRequestMetadata(OperationContext* txn, const BSONObj& metadataObj) {
             auditElem = metadataElem;
         } else if (fieldName == ConfigServerMetadata::fieldName()) {
             configSvrElem = metadataElem;
+        } else if (fieldName == ClientMetadata::fieldName()) {
+            clientElem = metadataElem;
         }
     }
 
@@ -71,6 +75,11 @@ Status readRequestMetadata(OperationContext* txn, const BSONObj& metadataObj) {
         return swAuditMetadata.getStatus();
     }
     AuditMetadata::get(txn) = std::move(swAuditMetadata.getValue());
+
+    auto statusClientMetadata = ClientMetadata::readFromMetadata(txn, clientElem);
+    if (!statusClientMetadata.isOK()) {
+        return statusClientMetadata;
+    }
 
     auto configServerMetadata = ConfigServerMetadata::readFromMetadata(configSvrElem);
     if (!configServerMetadata.isOK()) {

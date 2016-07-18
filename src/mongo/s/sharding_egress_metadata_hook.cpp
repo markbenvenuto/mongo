@@ -43,6 +43,7 @@
 #include "mongo/s/sharding_egress_metadata_hook.h"
 #include "mongo/util/net/hostandport.h"
 #include "mongo/util/stacktrace.h"
+#include "mongo/util/client_metadata.h"
 
 namespace mongo {
 
@@ -59,6 +60,9 @@ Status ShardingEgressMetadataHook::writeRequestMetadata(bool shardedConnection,
         if (!shardedConnection) {
             return Status::OK();
         }
+
+        ClientMetadata::writeToMetadata(nullptr, metadataBob);
+
         rpc::ConfigServerMetadata(_getConfigServerOpTime()).writeToMetadata(metadataBob);
         return Status::OK();
     } catch (...) {

@@ -40,6 +40,7 @@ namespace mongo {
 
 class Client;
 class ClientBasic;
+class OperationContext;
 
 /**
  * ClientMetadata is responsible for parsing the client metadata document that is received in
@@ -130,6 +131,15 @@ public:
      */
     static ClientMetadata* get(ClientBasic& client);
     static ClientMetadata* get(ClientBasic* client);
+
+    static ClientMetadata* get(OperationContext* client);
+    
+    static StringData fieldName() {
+        return "$client";
+    }
+
+    static Status readFromMetadata(OperationContext* txn, BSONElement& elem);
+    static void writeToMetadata(OperationContext* txn, BSONObjBuilder* builder);
 
     // TODO REMOVE
     bool seen() const {
