@@ -202,6 +202,13 @@ public:
          */
         Status setAwaitDataTimeout(Milliseconds awaitDataTimeout);
 
+
+        /**
+         * Update the operation context for remote requests.
+         *
+         * Network requests depend on having a valid operation context for user initiated actions.
+         */
+        void setOperationContext(OperationContext* txn);
     private:
         // ClusterCursorManager is a friend so that its methods can call the PinnedCursor
         // constructor declared below, which is private to prevent clients from calling it directly.
