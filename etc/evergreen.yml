@@ -374,6 +374,12 @@ functions:
           extra_args="$extra_args --continueOnFailure"
         fi
 
+        REG DELETE "HKLM\\SOFTWARE\\MICROSOFT\\Windows NT\\CurrentVersion\\SilentProcessExit\\mongod.exe"  /f || true
+        REG DELETE "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\AeDebug\\Debugger"  /f || true
+        REG DELETE "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\.NETFramework\\DbgManagedDebugger"  /f || true
+        REG DELETE "HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\Microsoft\\Windows NT\\CurrentVersion\\AeDebug\\Debugger"  /f || true
+        REG DELETE "HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\Microsoft\\.NETFramework\\DbgManagedDebugger"  /f || true
+        
         # Default storageEngineCacheSizeGB to 1. Override on individual test config if needed.
         # resmoke will assign to the appropriate parameter on storage engines that support it.
         set +o errexit
@@ -680,6 +686,9 @@ pre:
         set -o errexit
         set -o verbose
 
+        wevtutil.exe qe Application /c:50 /f:text /rd
+        wevtutil.exe qe System /c:50 /f:text /rd
+
         ulimit -a
         # Clear the dmesg ring buffer. The "post" phase will check dmesg for OOM messages.
         ${set_sudo}
@@ -759,6 +768,10 @@ post:
       working_dir: src # Temporary files created in src will be cleaned up in "pre".
       script: |
         ${set_sudo}
+        #
+        wevtutil.exe qe Application /c:50 /f:text /rd
+        wevtutil.exe qe System /c:50 /f:text /rd
+
         # Use dmesg -T option, if supported, to display timestamps.
         dmesg=dmesg
         dmesg -T > /dev/null 2>&1
