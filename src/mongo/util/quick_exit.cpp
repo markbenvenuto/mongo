@@ -73,8 +73,29 @@ extern "C" void __gcov_flush();
 namespace mongo {
 
 namespace {
+#ifdef _WIN32
+HANDLE exitHandle;
+int exitCode = 0;
+#endif
+
 stdx::mutex* const quickExitMutex = new stdx::mutex;
 }  // namespace
+
+#ifdef _WIN32
+void initQuickExit() {
+    exitHandle = ::CreateEvent(NULL, TRUE, FALSE, NULL);
+}
+
+int waitForQuickExit(HANDLE thread) {
+    HANDLE  hThreadArray[2];
+    hThreadArray[0] = exitHandle;
+    hThreadArray[1] = thread;
+
+    ::WaitForMultipleObjects(2, hThreadArray, FALSE, INFINITE);
+
+    return exitCode;
+}
+#endif
 
 void quickExit(int code) {
     // Ensure that only one thread invokes the last rites here. No
@@ -98,12 +119,15 @@ void quickExit(int code) {
     __lsan_do_leak_check();
 #endif
 
-#if defined(_WIN32) && defined(MONGO_CONFIG_DEBUG_BUILD)
+#if 0 //defined(_WIN32) && defined(MONGO_CONFIG_DEBUG_BUILD)
     // SERVER-23860: VS 2015 Debug Builds abort during _exit for unknown reasons.
     // Bypass _exit CRT shutdown code and call ExitProcess directly instead.
-    ::ExitProcess(code);
+    //::ExitProcess(code);
 #else
-    ::_exit(code);
+    exitCode = code;
+    SetEvent(exitHandle);
+    Sleep(1000 * 20);
+    //::_exit(code);
 #endif
 }
 

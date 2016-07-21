@@ -37,6 +37,7 @@
 #include <limits>
 #include <signal.h>
 #include <string>
+#include <TlHelp32.h>
 
 #include "mongo/base/checked_cast.h"
 #include "mongo/base/init.h"
@@ -782,7 +783,32 @@ using namespace mongo;
 
 static int mongoDbMain(int argc, char* argv[], char** envp);
 
+namespace mongo {
+void initQuickExit();
+int waitForQuickExit(HANDLE thread);
+}
+
+struct threadparams  {
+
+    threadparams(int argc, char** argv, char** envp) : argc(argc), argv(argv), envp(envp) {}
+
+    int argc;
+    char** argv;
+    char** envp;
+};
+
 #if defined(_WIN32)
+DWORD WINAPI MainThread(
+    _In_ LPVOID lpParameter
+) {
+
+    threadparams* tp = (threadparams*)lpParameter;
+
+    int exitCode = mongoDbMain(tp->argc, tp->argv, tp->envp);
+    quickExit(exitCode);
+}
+
+
 // In Windows, wmain() is an alternate entry point for main(), and receives the same parameters
 // as main() but encoded in Windows Unicode (UTF-16); "wide" 16-bit wchar_t characters.  The
 // WindowsCommandLine object converts these wide character strings to a UTF-8 coded equivalent
@@ -790,8 +816,40 @@ static int mongoDbMain(int argc, char* argv[], char** envp);
 // to process UTF-8 encoded arguments and environment variables without regard to platform.
 int wmain(int argc, wchar_t* argvW[], wchar_t* envpW[]) {
     WindowsCommandLine wcl(argc, argvW, envpW);
-    int exitCode = mongoDbMain(argc, wcl.argv(), wcl.envp());
-    quickExit(exitCode);
+
+    initQuickExit();
+
+    threadparams* tp = new threadparams(argc, wcl.argv(), wcl.envp());
+
+    HANDLE thread = CreateThread(NULL, 0, MainThread, tp , 0, NULL);
+
+    int code = waitForQuickExit(thread);
+
+    DWORD currentThread = GetCurrentThreadId();
+    DWORD procId = GetCurrentProcessId();
+    HANDLE h = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+    if (h != INVALID_HANDLE_VALUE) {
+        THREADENTRY32 te;
+        te.dwSize = sizeof(te);
+        if (Thread32First(h, &te)) {
+            do {
+                if (te.dwSize >= FIELD_OFFSET(THREADENTRY32, th32OwnerProcessID) +
+                    sizeof(te.th32OwnerProcessID)) {
+                    if (currentThread != te.th32ThreadID && te.th32OwnerProcessID == procId) {
+                        printf("Process 0x%04x Thread 0x%04x\n",
+                            te.th32OwnerProcessID, te.th32ThreadID);
+                        HANDLE hDie = OpenThread(NULL, FALSE, te.th32ThreadID);
+                        TerminateThread(hDie, 42);
+                    }
+                }
+                te.dwSize = sizeof(te);
+            } while (Thread32Next(h, &te));
+        }
+    }
+     
+    CloseHandle(h);
+
+    ExitProcess(code);
 }
 #else
 int main(int argc, char* argv[], char** envp) {
