@@ -114,6 +114,11 @@ Status AsyncResultsMerger::setAwaitDataTimeout(Milliseconds awaitDataTimeout) {
     return Status::OK();
 }
 
+void AsyncResultsMerger::setOperationContext(OperationContext* txn) {
+    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    _params.txn = txn;
+}
+
 bool AsyncResultsMerger::ready() {
     stdx::lock_guard<stdx::mutex> lk(_mutex);
     return ready_inlock();

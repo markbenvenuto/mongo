@@ -358,7 +358,7 @@ StatusWith<CursorResponse> ClusterFind::runGetMore(OperationContext* txn,
                                                    const GetMoreRequest& request) {
     auto cursorManager = grid.getCursorManager();
 
-    auto pinnedCursor = cursorManager->checkOutCursor(request.nss, request.cursorid);
+    auto pinnedCursor = cursorManager->checkOutCursor(request.nss, request.cursorid, txn);
     if (!pinnedCursor.isOK()) {
         return pinnedCursor.getStatus();
     }

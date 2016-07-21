@@ -42,6 +42,7 @@
 namespace mongo {
 
 class ClockSource;
+class OperationContext;
 template <typename T>
 class StatusWith;
 
@@ -278,7 +279,9 @@ public:
      *
      * Does not block.
      */
-    StatusWith<PinnedCursor> checkOutCursor(const NamespaceString& nss, CursorId cursorId);
+    StatusWith<PinnedCursor> checkOutCursor(const NamespaceString& nss,
+                                            CursorId cursorId,
+                                            OperationContext* txn);
 
     /**
      * Informs the manager that the given cursor should be killed.  The cursor need not necessarily
