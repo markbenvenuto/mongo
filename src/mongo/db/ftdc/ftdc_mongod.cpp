@@ -26,6 +26,8 @@
  * then also delete it in the license file.
  */
 
+#define MONGO_LOG_DEFAULT_COMPONENT ::mongo::logger::LogComponent::kFTDC
+
 #include "mongo/platform/basic.h"
 
 #include <boost/filesystem.hpp>
@@ -35,7 +37,9 @@
 #include "mongo/base/init.h"
 #include "mongo/base/status.h"
 #include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/db/client.h"
 #include "mongo/db/commands.h"
+#include "mongo/util/log.h"
 #include "mongo/db/ftdc/collector.h"
 #include "mongo/db/ftdc/config.h"
 #include "mongo/db/ftdc/controller.h"
@@ -287,7 +291,12 @@ private:
 // Note: This must be run before the server parameters are parsed during startup
 // so that the FTDCController is initialized.
 //
-void startFTDC() {
+stdx::thread startFTDCThread;
+
+void startFTDCDeferred() {
+    try {
+        Client::initThread("ftdcStartup");
+
     boost::filesystem::path dir(storageGlobalParams.dbpath);
     dir /= "diagnostic.data";
 
@@ -349,6 +358,15 @@ void startFTDC() {
     staticFTDC = std::move(controller);
 
     staticFTDC->start();
+        } catch (...) {
+        warning() << "Uncaught exception in '" << exceptionToStatus()
+                  << "' in full-time diagnostic data capture subsystem startup. Shutting down the "
+                     "full-time diagnostic data capture subsystem.";
+    }
+}
+
+void startFTDC() {
+    startFTDCThread = stdx::thread(startFTDCDeferred);
 }
 
 void stopFTDC() {
