@@ -682,6 +682,8 @@ static ExitCode _initAndListen(int listenPort) {
 
             restartInProgressIndexesFromLastShutdown(startupOpCtx.get());
 
+            logStartup(startupOpCtx.get());
+
             repl::getGlobalReplicationCoordinator()->startup(startupOpCtx.get());
 
             const unsigned long long missingRepl =
@@ -726,8 +728,6 @@ static ExitCode _initAndListen(int listenPort) {
                                                        kDistLockProcessIdForConfigServer));
             Balancer::create(startupOpCtx->getServiceContext());
         }
-
-        logStartup(startupOpCtx.get());
     } else if (serverGlobalParams.clusterRole == ClusterRole::ShardServer) {
         auto parseStatus = ShardIdentityType::fromBSON(serverGlobalParams.overrideShardIdentity);
         uassertStatusOK(parseStatus);
