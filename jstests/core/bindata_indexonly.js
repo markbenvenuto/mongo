@@ -18,7 +18,7 @@
     assert.commandWorked(coll.createIndex({_id: 1, a: 1}));
 
     assert.throws(function() {
-        db.mycoll.insert({_id: 0, a: BinData.prototype})
+        db.mycoll.insert({_id: 0, a: BinData.prototype});
     }, null, "bindata getter did not fail");
 
     function testIndexOnlyBinData(blob) {
