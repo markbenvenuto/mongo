@@ -30,7 +30,6 @@
 
 #include <cstdint>
 #include <string>
-#include <tuple>
 #include <type_traits>
 
 #include "mongo/base/status_with.h"
@@ -110,7 +109,7 @@ StatusWith<StringData> toString(ProtocolSet protocols);
 StatusWith<ProtocolSet> parseProtocolSet(StringData repr);
 
 /**
- * Validate client and server wire version. The server is returned from isMaster, and the client is
+ * Validates client and server wire version. The server is returned from isMaster, and the client is
  * from WireSpec.instance().
  */
 Status validateWireVersion(const WireVersionInfo client, const WireVersionInfo server);
