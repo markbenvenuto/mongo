@@ -72,9 +72,9 @@ RemoteCommandResponse simulateIsMaster(RemoteCommandRequest request) {
     ASSERT_EQ(request.dbname, "admin");
 
     RemoteCommandResponse response;
-    response.data = BSON("minWireVersion" << mongo::WireSpec::instance().minWireVersionIncoming
+    response.data = BSON("minWireVersion" << mongo::WireSpec::instance().incoming.minWireVersion
                                           << "maxWireVersion"
-                                          << mongo::WireSpec::instance().maxWireVersionIncoming);
+                                          << mongo::WireSpec::instance().incoming.maxWireVersion);
     return response;
 }
 
