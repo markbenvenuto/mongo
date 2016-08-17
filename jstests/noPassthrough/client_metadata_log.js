@@ -5,25 +5,26 @@
     'use strict';
 
     // Test MongoD
-    let TestMongoD = function(){
-        let conn = MongoRunner.runMongod( 
-            {useLogFiles: true}
-        );
+    let TestMongoD = function() {
+        let conn = MongoRunner.runMongod({useLogFiles: true});
         assert.neq(null, conn, 'mongod was unable to start up');
 
         let testDb = conn.getDB("test");
         let coll = conn.getCollection("test.foo");
-        coll.insert({_id : 1});
+        coll.insert({_id: 1});
 
         print("Checking log file for message: " + conn.fullOptions.logFile);
         let log = cat(conn.fullOptions.logFile);
-        assert(/received client metadata from .*: { application: { name: ".*" }, driver: { name: ".*", version: ".*" }, os: { type: ".*", name: ".*", architecture: ".*", version: ".*" } }/.test(log), "received client metadata log line missing in mongod log file!");
+        assert(
+            /received client metadata from .*: { application: { name: ".*" }, driver: { name: ".*", version: ".*" }, os: { type: ".*", name: ".*", architecture: ".*", version: ".*" } }/
+                .test(log),
+            "received client metadata log line missing in mongod log file!");
 
         MongoRunner.stopMongod(conn);
     };
 
     // Test MongoS
-    let TestMongoS = function(){
+    let TestMongoS = function() {
         let options = {
 
             mongosOptions: {useLogFiles: true},
@@ -38,11 +39,14 @@
         let conn = st.s0;
         let testDb = conn.getDB("test");
         let coll = conn.getCollection("test.foo");
-        coll.insert({_id : 1});
+        coll.insert({_id: 1});
 
         print("Checking log file for message: " + conn.fullOptions.logFile);
         let log = cat(conn.fullOptions.logFile);
-        assert(/received client metadata from .*: { application: { name: ".*" }, driver: { name: ".*", version: ".*" }, os: { type: ".*", name: ".*", architecture: ".*", version: ".*" } }/.test(log), "received client metadata log line missing in mongos log file!");
+        assert(
+            /received client metadata from .*: { application: { name: ".*" }, driver: { name: ".*", version: ".*" }, os: { type: ".*", name: ".*", architecture: ".*", version: ".*" } }/
+                .test(log),
+            "received client metadata log line missing in mongos log file!");
 
         st.stop();
     };
@@ -50,4 +54,3 @@
     TestMongoD();
     TestMongoS();
 })();
-
