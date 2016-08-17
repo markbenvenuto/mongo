@@ -30,6 +30,7 @@
 
 #include <cstdint>
 #include <string>
+#include <tuple>
 #include <type_traits>
 
 #include "mongo/base/status_with.h"
@@ -108,9 +109,27 @@ StatusWith<StringData> toString(ProtocolSet protocols);
 StatusWith<ProtocolSet> parseProtocolSet(StringData repr);
 
 /**
+ * Struct to pass around information about wire version.
+ */
+struct WireVersionInfo {
+    WireVersionInfo(int minVersion, int maxVersion)
+        : minWireVersion(minVersion), maxWireVersion(maxVersion) {}
+
+    int minWireVersion = 0;
+    int maxWireVersion = 0;
+};
+
+/**
+ * Validate client and server wire version. The server is returned form isMaster, and the client is
+ * from WireSpec.instance().
+ */
+Status validateWireVersion(const WireVersionInfo& client, const WireVersionInfo& server);
+
+/**
  * Determines the ProtocolSet of a remote server from an isMaster reply.
  */
-StatusWith<ProtocolSet> parseProtocolSetFromIsMasterReply(const BSONObj& isMasterReply);
+StatusWith<std::tuple<ProtocolSet, WireVersionInfo>> parseProtocolSetFromIsMasterReply(
+    const BSONObj& isMasterReply);
 
 /**
  * Returns true if wire version supports OP_COMMAND in mongod (not mongos).
