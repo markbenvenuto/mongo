@@ -87,17 +87,15 @@ struct WireSpec {
     }
 
     // incoming.minWireVersion - Minimum version that the server accepts on incoming requests. We
-    // should bump this whenever
-    // we don't want to allow incoming connections from clients that are too old.
+    // should bump this whenever we don't want to allow incoming connections from clients that are
+    // too old.
 
     // incoming.maxWireVersion - Latest version that the server accepts on incoming requests. This
-    // should always be at the
-    // latest entry in WireVersion.
+    // should always be at the latest entry in WireVersion.
     WireVersionInfo incoming;
 
     // outgoing.minWireVersion - Minimum version allowed on remote nodes when the server sends
-    // requests. We should bump this
-    // whenever we don't want to connect to clients that are too old.
+    // requests. We should bump this whenever we don't want to connect to clients that are too old.
 
     // outgoing.maxWireVersion - Latest version allowed on remote nodes when the server sends
     // requests.
