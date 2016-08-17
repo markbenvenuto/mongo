@@ -802,21 +802,18 @@ Status DBClientConnection::connect(const HostAndPort& serverAddress, StringData 
         return swProtocolSet.getStatus();
     }
 
-    auto validateStatus = validateWireVersion(
-        {WireSpec::instance().minWireVersionOutgoing, WireSpec::instance().maxWireVersionOutgoing},
-        std::get<1>(swProtocolSet.getValue()));
+    auto validateStatus =
+        rpc::validateWireVersion(WireSpec::instance().outgoing, swProtocolSet.getValue().version);
     if (!validateStatus.isOK()) {
         warning() << "remote host has incompatible wire version: " << validateStatus;
 
         return validateStatus;
     }
 
-    _setServerRPCProtocols(std::get<0>(swProtocolSet.getValue()));
+    _setServerRPCProtocols(swProtocolSet.getValue().protocolSet);
 
-    auto negotiatedProtocol =
-        rpc::negotiate(getServerRPCProtocols(),
-                       rpc::computeProtocolSet(WireSpec::instance().minWireVersionOutgoing,
-                                               WireSpec::instance().maxWireVersionOutgoing));
+    auto negotiatedProtocol = rpc::negotiate(
+        getServerRPCProtocols(), rpc::computeProtocolSet(WireSpec::instance().outgoing));
 
     if (!negotiatedProtocol.isOK()) {
         return negotiatedProtocol.getStatus();

@@ -110,16 +110,15 @@ void NetworkInterfaceASIO::_runIsMaster(AsyncOp* op) {
         if (!protocolSet.isOK())
             return _completeOperation(op, protocolSet.getStatus());
 
-        auto validateStatus = validateWireVersion({WireSpec::instance().minWireVersionOutgoing,
-                                                   WireSpec::instance().maxWireVersionOutgoing},
-                                                  std::get<1>(protocolSet.getValue()));
+        auto validateStatus =
+            rpc::validateWireVersion(WireSpec::instance().outgoing, protocolSet.getValue().version);
         if (!validateStatus.isOK()) {
             warning() << "remote host has incompatible wire version: " << validateStatus;
 
             return _completeOperation(op, validateStatus);
         }
 
-        op->connection().setServerProtocols(std::get<0>(protocolSet.getValue()));
+        op->connection().setServerProtocols(protocolSet.getValue().protocolSet);
 
         invariant(op->connection().clientProtocols() != rpc::supports::kNone);
         // Set the operation protocol

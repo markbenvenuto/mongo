@@ -108,7 +108,7 @@ StatusWith<ProtocolSet> parseProtocolSet(StringData repr) {
                                 << "and 'all' (0x3) are supported.");
 }
 
-StatusWith<std::tuple<ProtocolSet, WireVersionInfo>> parseProtocolSetFromIsMasterReply(
+StatusWith<ProtocolSetAndWireVersionInfo> parseProtocolSetFromIsMasterReply(
     const BSONObj& isMasterReply) {
     long long maxWireVersion;
     auto maxWireExtractStatus =
@@ -121,7 +121,7 @@ StatusWith<std::tuple<ProtocolSet, WireVersionInfo>> parseProtocolSetFromIsMaste
     // MongoDB 2.4 and earlier do not have maxWireVersion/minWireVersion in their 'isMaster' replies
     if ((maxWireExtractStatus == minWireExtractStatus) &&
         (maxWireExtractStatus == ErrorCodes::NoSuchKey)) {
-        return {std::tuple<ProtocolSet, WireVersionInfo>(supports::kOpQueryOnly, {0, 0})};
+        return {{supports::kOpQueryOnly, {0, 0}}};
     } else if (!maxWireExtractStatus.isOK()) {
         return maxWireExtractStatus;
     } else if (!minWireExtractStatus.isOK()) {
@@ -152,33 +152,34 @@ StatusWith<std::tuple<ProtocolSet, WireVersionInfo>> parseProtocolSetFromIsMaste
                                     << ")");
     }
 
-    return {std::tuple<ProtocolSet, WireVersionInfo>(
-        (!isMongos && supportsWireVersionForOpCommandInMongod(minWireVersion, maxWireVersion))
-            ? supports::kAll
-            : supports::kOpQueryOnly,
-        {static_cast<int>(minWireVersion), static_cast<int>(maxWireVersion)})};
+    WireVersionInfo version{static_cast<int>(minWireVersion), static_cast<int>(maxWireVersion)};
+
+    return {{(!isMongos && supportsWireVersionForOpCommandInMongod(version))
+                 ? supports::kAll
+                 : supports::kOpQueryOnly,
+             version}};
 }
 
-bool supportsWireVersionForOpCommandInMongod(int minWireVersion, int maxWireVersion) {
+bool supportsWireVersionForOpCommandInMongod(const WireVersionInfo version) {
     // FIND_COMMAND versions support OP_COMMAND (in mongod but not mongos).
-    return (minWireVersion <= WireVersion::FIND_COMMAND) &&
-        (maxWireVersion >= WireVersion::FIND_COMMAND);
+    return (version.minWireVersion <= WireVersion::FIND_COMMAND) &&
+        (version.maxWireVersion >= WireVersion::FIND_COMMAND);
 }
 
-ProtocolSet computeProtocolSet(int minWireVersion, int maxWireVersion) {
+ProtocolSet computeProtocolSet(const WireVersionInfo version) {
     ProtocolSet result = supports::kNone;
-    if (minWireVersion <= maxWireVersion) {
-        if (maxWireVersion >= WireVersion::FIND_COMMAND) {
+    if (version.minWireVersion <= version.maxWireVersion) {
+        if (version.maxWireVersion >= WireVersion::FIND_COMMAND) {
             result |= supports::kOpCommandOnly;
         }
-        if (minWireVersion <= WireVersion::RELEASE_2_4_AND_BEFORE) {
+        if (version.minWireVersion <= WireVersion::RELEASE_2_4_AND_BEFORE) {
             result |= supports::kOpQueryOnly;
         }
     }
     return result;
 }
 
-Status validateWireVersion(const WireVersionInfo& client, const WireVersionInfo& server) {
+Status validateWireVersion(const WireVersionInfo client, const WireVersionInfo server) {
     // Since this is defined in the code, it should always hold true since this is the versions that
     // mongos/d wants to connect to.
     invariant(client.minWireVersion <= client.maxWireVersion);

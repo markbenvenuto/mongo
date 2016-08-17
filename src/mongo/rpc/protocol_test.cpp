@@ -76,7 +76,7 @@ TEST(Protocol, parseProtocolSetFromIsMasterReply) {
                                   << "minWireVersion"
                                   << static_cast<int>(WireVersion::RELEASE_2_4_AND_BEFORE));
 
-        ASSERT_EQ(std::get<0>(assertGet(parseProtocolSetFromIsMasterReply(mongod32))),
+        ASSERT_EQ(assertGet(parseProtocolSetFromIsMasterReply(mongod32)).protocolSet,
                   supports::kAll);
     }
     {
@@ -88,7 +88,7 @@ TEST(Protocol, parseProtocolSetFromIsMasterReply) {
                                   << "msg"
                                   << "isdbgrid");
 
-        ASSERT_EQ(std::get<0>(assertGet(parseProtocolSetFromIsMasterReply(mongos32))),
+        ASSERT_EQ(assertGet(parseProtocolSetFromIsMasterReply(mongos32)).protocolSet,
                   supports::kOpQueryOnly);
     }
     {
@@ -96,23 +96,23 @@ TEST(Protocol, parseProtocolSetFromIsMasterReply) {
         auto mongod30 = BSON(
             "maxWireVersion" << static_cast<int>(WireVersion::RELEASE_2_7_7) << "minWireVersion"
                              << static_cast<int>(WireVersion::RELEASE_2_4_AND_BEFORE));
-        ASSERT_EQ(std::get<0>(assertGet(parseProtocolSetFromIsMasterReply(mongod30))),
+        ASSERT_EQ(assertGet(parseProtocolSetFromIsMasterReply(mongod30)).protocolSet,
                   supports::kOpQueryOnly);
     }
     {
         auto mongod24 = BSONObj();
-        ASSERT_EQ(std::get<0>(assertGet(parseProtocolSetFromIsMasterReply(mongod24))),
+        ASSERT_EQ(assertGet(parseProtocolSetFromIsMasterReply(mongod24)).protocolSet,
                   supports::kOpQueryOnly);
     }
 }
 
-#define VALIDATE_WIRE_VERSION(macro, clientMin, clientMax, serverMin, serverMax)             \
-    do {                                                                                     \
-        auto msg = BSON("minWireVersion" << static_cast<int>(serverMin) << "maxWireVersion"  \
-                                         << static_cast<int>(serverMax));                    \
-        auto swReply = parseProtocolSetFromIsMasterReply(msg);                               \
-        ASSERT_OK(swReply.getStatus());                                                      \
-        macro(validateWireVersion({clientMin, clientMax}, std::get<1>(swReply.getValue()))); \
+#define VALIDATE_WIRE_VERSION(macro, clientMin, clientMax, serverMin, serverMax)            \
+    do {                                                                                    \
+        auto msg = BSON("minWireVersion" << static_cast<int>(serverMin) << "maxWireVersion" \
+                                         << static_cast<int>(serverMax));                   \
+        auto swReply = parseProtocolSetFromIsMasterReply(msg);                              \
+        ASSERT_OK(swReply.getStatus());                                                     \
+        macro(validateWireVersion({clientMin, clientMax}, swReply.getValue().version));     \
     } while (0);
 
 TEST(Protocol, validateWireVersion) {
