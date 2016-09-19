@@ -31,21 +31,22 @@ if debugBuild:
 # Enable optional rich logging
 env.Append(CPPDEFINES=["HAVE_VERBOSE"])
 
-conf = Configure(env)
-if conf.CheckFunc("fallocate"):
-    conf.env.Append(CPPDEFINES=[
-        "HAVE_FALLOCATE"
-    ])
-if conf.CheckFunc("sync_file_range"):
-    conf.env.Append(CPPDEFINES=[
-        "HAVE_SYNC_FILE_RANGE"
-    ])
+if not get_option('ninja'):
+    conf = Configure(env)
+    if conf.CheckFunc("fallocate"):
+        conf.env.Append(CPPDEFINES=[
+            "HAVE_FALLOCATE"
+        ])
+    if conf.CheckFunc("sync_file_range"):
+        conf.env.Append(CPPDEFINES=[
+            "HAVE_SYNC_FILE_RANGE"
+        ])
 
-if conf.CheckCHeader('x86intrin.h'):
-    conf.env.Append(CPPDEFINES=[
-        "HAVE_X86INTRIN_H"
-    ])
-env = conf.Finish();
+    if conf.CheckCHeader('x86intrin.h'):
+        conf.env.Append(CPPDEFINES=[
+            "HAVE_X86INTRIN_H"
+        ])
+    env = conf.Finish();
 
 if env.TargetOSIs('windows'):
     env.Append(CPPPATH=["build_win"])
