@@ -350,6 +350,11 @@ add_option('use-system-zlib',
     nargs=0,
 )
 
+add_option('use-system-mozjs',
+    help='use system version of mozjs library',
+    nargs=0,
+)
+
 add_option('use-system-stemmer',
     help='use system version of stemmer',
     nargs=0)
@@ -2703,6 +2708,9 @@ def doConfigure(myenv):
 
     if use_system_version_of_library("zlib"):
         conf.FindSysLibDep("zlib", ["zdll" if conf.env.TargetOSIs('windows') else "z"])
+
+    if use_system_version_of_library("mozjs"):
+        conf.FindSysLibDep("mozjs", ["mozjs-45"])
 
     if use_system_version_of_library("stemmer"):
         conf.FindSysLibDep("stemmer", ["stemmer"])
