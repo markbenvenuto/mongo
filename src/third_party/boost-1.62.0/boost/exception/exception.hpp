@@ -183,7 +183,7 @@ boost
         struct get_info<throw_line>;
 
         template <class>
-        struct set_info_rv;
+        class set_info_rv;
 
         template <>
         struct set_info_rv<throw_function>;

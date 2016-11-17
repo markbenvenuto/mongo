@@ -12,6 +12,8 @@ boost_thread_source = dict(
     ).get(env['TARGET_OS_FAMILY'], 'UNKNOWN_OS_FAMILY_FOR_BOOST_THREADS__%s' % env['TARGET_OS_FAMILY'])
 
 threadlib_env = env.Clone()
+if threadlib_env.ToolchainIs("gcc"):
+    threadlib_env.AppendUnique(CCFLAGS=["-Wno-unused-variable"])
 threadlib_env.Append(CPPDEFINES=['BOOST_THREAD_BUILD_LIB'])
 threadlib_env.Library('boost_thread', [
                     'libs/thread/src/future.cpp',
