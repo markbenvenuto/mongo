@@ -199,6 +199,10 @@ public:
         return _prng;
     }
 
+    stdx::thread::id getThreadId() const {
+        return _threadId;
+    }
+
 private:
     friend class ServiceContext;
     explicit Client(std::string desc,

@@ -285,12 +285,19 @@ class GDBDumper(object):
 
         call([dbg, "--version"])
 
+
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        print("dir %s" % script_dir);
+        analyze_script = os.path.join(script_dir, "buildscripts/gdb/analyze.py")
+
         cmds = [
             "set pagination off",
             "attach %d" % pid,
             "info sharedlibrary",
             "thread apply all bt",
             "gcore dump_" + process_name + "." + str(pid) + "." + self.get_dump_ext() if take_dump else "",
+            "source " + analyze_script,
+            "mongodb-analyze",
             "set confirm off",
             "quit",
             ]
