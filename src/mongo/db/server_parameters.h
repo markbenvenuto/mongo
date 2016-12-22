@@ -153,9 +153,6 @@ class is_safe_runtime_parameter_type<long long> : public std::true_type {};
 template <>
 class is_safe_runtime_parameter_type<double> : public std::true_type {};
 
-template <>
-class is_safe_runtime_parameter_type<AtomicInt32> : public std::true_type {};
-
 /**
  * Get the type of storage to use for a given tuple of <type, ServerParameterType>.
  *
@@ -260,5 +257,3 @@ protected:
  */
 #define MONGO_EXPORT_RUNTIME_SERVER_PARAMETER(NAME, TYPE, INITIAL_VALUE) \
     MONGO_EXPORT_SERVER_PARAMETER_IMPL(NAME, TYPE, INITIAL_VALUE, ServerParameterType::kRuntimeOnly)
-
-#include "server_parameters_inline.h"

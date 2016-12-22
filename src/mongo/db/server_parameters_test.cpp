@@ -41,7 +41,7 @@ using std::string;
 using std::vector;
 
 TEST(ServerParameters, Simple1) {
-    std::atomic<int> f(5);  // NOLINT
+    AtomicInt32 f(5);
     ExportedServerParameter<int, ServerParameterType::kStartupAndRuntime> ff(NULL, "ff", &f);
     ASSERT_EQUALS("ff", ff.name());
 

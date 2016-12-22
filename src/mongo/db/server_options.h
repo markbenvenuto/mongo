@@ -31,6 +31,7 @@
 #include "mongo/platform/process_id.h"
 #include "mongo/s/catalog/sharding_catalog_client.h"
 #include "mongo/util/net/listen.h"  // For DEFAULT_MAX_CONN
+#include "mongo/platform/atomic_word.h"
 
 namespace mongo {
 
@@ -54,7 +55,7 @@ struct ServerGlobalParams {
 
     bool indexBuildRetry = true;  // --noIndexBuildRetry
 
-    std::atomic<bool> quiet{false};  // --quiet NOLINT
+    AtomicBool quiet{false};  // --quiet
 
     ClusterRole clusterRole = ClusterRole::None;  // --configsvr/--shardsvr
 

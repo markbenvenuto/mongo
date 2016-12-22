@@ -111,18 +111,18 @@ void ExpressionMapping::cover2d(const R2Region& region,
 std::vector<S2CellId> ExpressionMapping::get2dsphereCovering(const S2Region& region) {
     uassert(28739,
             "Geo coarsest level must be in range [0,30]",
-            0 <= internalQueryS2GeoCoarsestLevel && internalQueryS2GeoCoarsestLevel <= 30);
+            0 <= internalQueryS2GeoCoarsestLevel.load() && internalQueryS2GeoCoarsestLevel.load() <= 30);
     uassert(28740,
             "Geo finest level must be in range [0,30]",
-            0 <= internalQueryS2GeoFinestLevel && internalQueryS2GeoFinestLevel <= 30);
+            0 <= internalQueryS2GeoFinestLevel.load() && internalQueryS2GeoFinestLevel.load() <= 30);
     uassert(28741,
             "Geo coarsest level must be less than or equal to finest",
-            internalQueryS2GeoCoarsestLevel <= internalQueryS2GeoFinestLevel);
+            internalQueryS2GeoCoarsestLevel.load() <= internalQueryS2GeoFinestLevel.load());
 
     S2RegionCoverer coverer;
-    coverer.set_min_level(internalQueryS2GeoCoarsestLevel);
-    coverer.set_max_level(internalQueryS2GeoFinestLevel);
-    coverer.set_max_cells(internalQueryS2GeoMaxCells);
+    coverer.set_min_level(internalQueryS2GeoCoarsestLevel.load());
+    coverer.set_max_level(internalQueryS2GeoFinestLevel.load());
+    coverer.set_max_cells(internalQueryS2GeoMaxCells.load());
 
     std::vector<S2CellId> cover;
     coverer.GetCovering(region, &cover);

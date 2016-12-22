@@ -56,9 +56,9 @@
 namespace mongo {
 
 // How we access the external setParameter testing bool.
-extern std::atomic<bool> internalQueryForceIntersectionPlans;  // NOLINT
+extern AtomicBool internalQueryForceIntersectionPlans;  
 
-extern std::atomic<bool> internalQueryPlannerEnableHashIntersection;  // NOLINT
+extern AtomicBool internalQueryPlannerEnableHashIntersection;  
 
 }  // namespace mongo
 

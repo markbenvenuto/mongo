@@ -45,8 +45,8 @@ namespace executor {
 MONGO_EXPORT_SERVER_PARAMETER(taskExecutorPoolSize, int, 0);
 
 size_t TaskExecutorPool::getSuggestedPoolSize() {
-    if (taskExecutorPoolSize > 0) {
-        return taskExecutorPoolSize;
+    if (taskExecutorPoolSize.load() > 0) {
+        return taskExecutorPoolSize.load();
     }
 
     ProcessInfo p;

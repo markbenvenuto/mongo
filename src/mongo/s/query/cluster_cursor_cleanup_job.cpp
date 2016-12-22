@@ -43,7 +43,7 @@ namespace {
 
 // Period of time after which mortal cursors are killed for inactivity. Configurable with server
 // parameter "cursorTimeoutMillis".
-std::atomic<long long> cursorTimeoutMillis(  // NOLINT
+AtomicInt64 cursorTimeoutMillis(  
     durationCount<Milliseconds>(Minutes(10)));
 
 ExportedServerParameter<long long, ServerParameterType::kStartupAndRuntime>
