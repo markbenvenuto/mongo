@@ -450,6 +450,11 @@ add_option("cxx-std",
     help="Select the C++ langauge standard to build with",
 )
 
+add_option( "ninja",
+    help="ninja support",
+    nargs=0,
+    default=False)
+
 def find_mongo_custom_variables():
     files = []
     for path in sys.path:
@@ -1330,7 +1335,7 @@ if not env.TargetOSIs('windows'):
     env["CXXCOM"] = env["CXXCOM"].replace("$CCFLAGS", "$CCFLAGS $PROGCCFLAGS")
     env["LINKCOM"] = env["LINKCOM"].replace("$LINKFLAGS", "$LINKFLAGS $PROGLINKFLAGS")
 
-if not env.Verbose():
+if not env.Verbose() and not has_option('ninja'):
     env.Append( CCCOMSTR = "Compiling $TARGET" )
     env.Append( CXXCOMSTR = env["CCCOMSTR"] )
     env.Append( SHCCCOMSTR = "Compiling $TARGET" )
@@ -2938,6 +2943,13 @@ def add_version_to_distsrc(env, archive):
 env.AddDistSrcCallback(add_version_to_distsrc)
 
 env['SERVER_DIST_BASENAME'] = env.subst('mongodb-%s-$MONGO_DISTNAME' % (getSystemInstallName()))
+
+# Inject our ninja hack before we process all the SConscript files
+if has_option('ninja'):
+    import scons_to_ninja
+    scons_to_ninja.GenerateNinjaFile(
+        env, dest_file='build.ninja')
+    print "Using Ninja mode"
 
 module_sconscripts = moduleconfig.get_module_sconscripts(mongo_modules)
 
