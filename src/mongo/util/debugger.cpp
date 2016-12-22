@@ -32,6 +32,7 @@
 #include "mongo/util/debugger.h"
 
 #include <cstdlib>
+#include <mutex>
 
 #if defined(USE_GDBSERVER)
 #include <cstdio>
@@ -53,7 +54,8 @@ void breakpoint() {
 #endif
 #ifndef _WIN32
     // code to raise a breakpoint in GDB
-    ONCE {
+    static std::once_flag flag;
+    std::call_once(flag, []() {
         // prevent SIGTRAP from crashing the program if default action is specified and we are not
         // in gdb
         struct sigaction current;
@@ -63,7 +65,7 @@ void breakpoint() {
         if (current.sa_handler == SIG_DFL) {
             signal(SIGTRAP, SIG_IGN);
         }
-    }
+    });
 
     raise(SIGTRAP);
 #endif

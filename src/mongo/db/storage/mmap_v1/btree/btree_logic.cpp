@@ -30,6 +30,7 @@
 
 #include "mongo/platform/basic.h"
 
+#include <mutex>
 #include <numeric>
 
 #include "mongo/db/client.h"
@@ -2136,9 +2137,8 @@ void BtreeLogic<BtreeLayout>::assertValid(const std::string& ns,
             // wassert( z <= 0 );
             if (z > 0) {
                 log() << "Btree keys out of order in collection " << ns;
-                ONCE {
-                    dumpBucket(bucket);
-                }
+                static std::once_flag flag;
+                std::call_once(flag, [&bucket]() { dumpBucket(bucket); });
                 invariant(false);
             }
         }

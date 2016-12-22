@@ -32,6 +32,8 @@
 
 #include "mongo/db/auth/authz_session_external_state_server_common.h"
 
+#include <mutex>
+
 #include "mongo/base/status.h"
 #include "mongo/db/auth/authorization_manager.h"
 #include "mongo/db/client.h"
@@ -67,11 +69,12 @@ void AuthzSessionExternalStateServerCommon::_checkShouldAllowLocalhost(Operation
 
     _allowLocalhost = !_authzManager->hasAnyPrivilegeDocuments(txn);
     if (_allowLocalhost) {
-        ONCE {
+        static std::once_flag flag;
+        std::call_once(flag, []() {
             log() << "note: no users configured in admin.system.users, allowing localhost "
                      "access"
                   << std::endl;
-        }
+        });
     }
 }
 
