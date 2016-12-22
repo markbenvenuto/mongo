@@ -93,7 +93,7 @@ Status ExportedServerParameter<T, paramType>::setFromString(const string& str) {
     return set(value);
 }
 
-
+#if 0
 #define EXPORTED_ATOMIC_SERVER_PARAMETER_TYPE(VALUE_TYPE, PARAM_TYPE) \
     template <> \
     void ExportedServerParameter<VALUE_TYPE, PARAM_TYPE>::append(OperationContext* txn, BSONObjBuilder& b, const std::string& name) { \
@@ -161,7 +161,7 @@ EXPORTED_NONATOMIC_SERVER_PARAMETER_TYPE(bool )
 EXPORTED_NONATOMIC_SERVER_PARAMETER_TYPE(int) 
 EXPORTED_NONATOMIC_SERVER_PARAMETER_TYPE(long long)
 EXPORTED_NONATOMIC_SERVER_PARAMETER_TYPE(double)
-
+#endif
 
 #define EXPORTED_SERVER_PARAMETER(PARAM_TYPE)                                                   \
     template <>                                                                                 \
@@ -199,15 +199,6 @@ Status ExportedServerParameter<vector<string>, ServerParameterType::kStartupOnly
     splitStringDelim(str, &v, ',');
     return set(v);
 }
-
-
-
-
-template <typename T, ServerParameterType paramType>
-void ExportedServerParameter<T, paramType>::append(OperationContext* txn, BSONObjBuilder& b, const std::string& name) {
-    b.append(name, *_value);
-}
-
 
 
 }  // namespace mongo

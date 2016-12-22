@@ -257,3 +257,5 @@ protected:
  */
 #define MONGO_EXPORT_RUNTIME_SERVER_PARAMETER(NAME, TYPE, INITIAL_VALUE) \
     MONGO_EXPORT_SERVER_PARAMETER_IMPL(NAME, TYPE, INITIAL_VALUE, ServerParameterType::kRuntimeOnly)
+
+#include "server_parameters_inline.h"
