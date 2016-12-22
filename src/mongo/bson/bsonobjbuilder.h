@@ -265,6 +265,15 @@ public:
         return *this;
     }
 
+    /** Append a NumberLong */
+    template<typename T>
+    BSONObjBuilder& append(StringData fieldName, const AtomicWord<T>& n) {
+        _b.appendNum((char)NumberLong);
+        _b.appendStr(fieldName);
+        _b.appendNum(n.load());
+        return *this;
+    }
+
     /**
      * Append a NumberLong (if int64_t isn't the same as long long)
      */

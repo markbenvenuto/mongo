@@ -52,4 +52,36 @@ inline Status ExportedServerParameter<T, paramType>::set(const T& newValue) {
     return Status::OK();
 }
 
+
+template <typename T, ServerParameterType paramType>
+void ExportedServerParameter<T, paramType>::append(OperationContext* txn, BSONObjBuilder& b, const std::string& name) {
+    b.append(name, *_value);
+}
+
+template <>
+void ExportedServerParameter<bool, ServerParameterType::kStartupAndRuntime>::append(OperationContext* txn, BSONObjBuilder& b, const std::string& name) {
+    b.append(name, _value->load());
+}
+
+template <>
+inline Status ExportedServerParameter<bool, ServerParameterType::kStartupAndRuntime>::set(const bool& newValue) {
+    Status v = validate(newValue);
+    if (!v.isOK())
+        return v;
+
+    _value->store(newValue);
+    return Status::OK();
+}
+
+template <>
+inline Status ExportedServerParameter<int, ServerParameterType::kStartupAndRuntime>::set(const int& newValue) {
+    Status v = validate(newValue);
+    if (!v.isOK())
+        return v;
+
+    _value->store(newValue);
+    return Status::OK();
+}
+
+
 }  // namespace mongo

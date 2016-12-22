@@ -4,7 +4,7 @@
  *    This program is free software: you can redistribute it and/or  modify
  *    it under the terms of the GNU Affero General Public License, version 3,
  *    as published by the Free Software Foundation.
- *
+ 3*
  *    This program is distributed in the hope that it will be useful,
  *    but WITHOUT ANY WARRANTY; without even the implied warranty of
  *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -70,6 +70,6 @@ MONGO_EXPORT_SERVER_PARAMETER(internalQueryFacetBufferSizeBytes, int, 100 * 1024
 
 MONGO_EXPORT_SERVER_PARAMETER(internalInsertMaxBatchSize,
                               int,
-                              internalQueryExecYieldIterations / 2);
+                              internalQueryExecYieldIterations.load() / 2);
 
 }  // namespace mongo
