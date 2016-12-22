@@ -214,7 +214,7 @@ public:
      */
     OldThreadPool* getWriterPool();
 
-    static AtomicInt32 replBatchLimitOperations; 
+    static AtomicInt32 replBatchLimitOperations;
 
 protected:
     static const unsigned int replBatchLimitBytes = 100 * 1024 * 1024;

@@ -266,7 +266,7 @@ public:
     }
 
     /** Append a NumberLong */
-    template<typename T>
+    template <typename T>
     BSONObjBuilder& append(StringData fieldName, const AtomicWord<T>& n) {
         _b.appendNum((char)NumberLong);
         _b.appendStr(fieldName);

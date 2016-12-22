@@ -111,10 +111,12 @@ void ExpressionMapping::cover2d(const R2Region& region,
 std::vector<S2CellId> ExpressionMapping::get2dsphereCovering(const S2Region& region) {
     uassert(28739,
             "Geo coarsest level must be in range [0,30]",
-            0 <= internalQueryS2GeoCoarsestLevel.load() && internalQueryS2GeoCoarsestLevel.load() <= 30);
+            0 <= internalQueryS2GeoCoarsestLevel.load() &&
+                internalQueryS2GeoCoarsestLevel.load() <= 30);
     uassert(28740,
             "Geo finest level must be in range [0,30]",
-            0 <= internalQueryS2GeoFinestLevel.load() && internalQueryS2GeoFinestLevel.load() <= 30);
+            0 <= internalQueryS2GeoFinestLevel.load() &&
+                internalQueryS2GeoFinestLevel.load() <= 30);
     uassert(28741,
             "Geo coarsest level must be less than or equal to finest",
             internalQueryS2GeoCoarsestLevel.load() <= internalQueryS2GeoFinestLevel.load());

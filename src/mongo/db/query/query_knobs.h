@@ -28,10 +28,8 @@
 
 #pragma once
 
-#include <atomic>
-
-#include "mongo/platform/atomic_word.h"
 #include "mongo/platform/atomic_proxy.h"
+#include "mongo/platform/atomic_word.h"
 
 namespace mongo {
 
@@ -41,77 +39,77 @@ namespace mongo {
 
 // Max number of times we call work() on plans before comparing them,
 // for small collections.
-extern AtomicInt32 internalQueryPlanEvaluationWorks;  
+extern AtomicInt32 internalQueryPlanEvaluationWorks;
 
 // For large collections, the number times we work() candidate plans is
 // taken as this fraction of the collection size.
-extern AtomicDouble internalQueryPlanEvaluationCollFraction;  
+extern AtomicDouble internalQueryPlanEvaluationCollFraction;
 
 // Stop working plans once a plan returns this many results.
-extern AtomicInt32 internalQueryPlanEvaluationMaxResults;  
+extern AtomicInt32 internalQueryPlanEvaluationMaxResults;
 
 // Do we give a big ranking bonus to intersection plans?
-extern AtomicBool internalQueryForceIntersectionPlans;  
+extern AtomicBool internalQueryForceIntersectionPlans;
 
 // Do we have ixisect on at all?
-extern AtomicBool internalQueryPlannerEnableIndexIntersection;  
+extern AtomicBool internalQueryPlannerEnableIndexIntersection;
 
 // Do we use hash-based intersection for rooted $and queries?
-extern AtomicBool internalQueryPlannerEnableHashIntersection;  
+extern AtomicBool internalQueryPlannerEnableHashIntersection;
 
 //
 // plan cache
 //
 
 // How many entries in the cache?
-extern AtomicInt32 internalQueryCacheSize;  
+extern AtomicInt32 internalQueryCacheSize;
 
 // How many feedback entries do we collect before possibly evicting from the cache based on bad
 // performance?
-extern AtomicInt32 internalQueryCacheFeedbacksStored;  
+extern AtomicInt32 internalQueryCacheFeedbacksStored;
 
 // How many times more works must we perform in order to justify plan cache eviction
 // and replanning?
-extern AtomicDouble internalQueryCacheEvictionRatio;  
+extern AtomicDouble internalQueryCacheEvictionRatio;
 
 //
 // Planning and enumeration.
 //
 
 // How many indexed solutions will QueryPlanner::plan output?
-extern AtomicInt32 internalQueryPlannerMaxIndexedSolutions;  
+extern AtomicInt32 internalQueryPlannerMaxIndexedSolutions;
 
 // How many solutions will the enumerator consider at each OR?
-extern AtomicInt32 internalQueryEnumerationMaxOrSolutions;  
+extern AtomicInt32 internalQueryEnumerationMaxOrSolutions;
 
 // How many intersections will the enumerator consider at each AND?
-extern AtomicInt32 internalQueryEnumerationMaxIntersectPerAnd;  
+extern AtomicInt32 internalQueryEnumerationMaxIntersectPerAnd;
 
 // Do we want to plan each child of the OR independently?
-extern AtomicBool internalQueryPlanOrChildrenIndependently;  
+extern AtomicBool internalQueryPlanOrChildrenIndependently;
 
 // How many index scans are we willing to produce in order to obtain a sort order
 // during explodeForSort?
-extern AtomicInt32 internalQueryMaxScansToExplode;  
+extern AtomicInt32 internalQueryMaxScansToExplode;
 
 //
 // Query execution.
 //
 
-extern AtomicInt32 internalQueryExecMaxBlockingSortBytes;  
+extern AtomicInt32 internalQueryExecMaxBlockingSortBytes;
 
 // Yield after this many "should yield?" checks.
-extern AtomicInt32 internalQueryExecYieldIterations;  
+extern AtomicInt32 internalQueryExecYieldIterations;
 
 // Yield if it's been at least this many milliseconds since we last yielded.
-extern AtomicInt32 internalQueryExecYieldPeriodMS;  
+extern AtomicInt32 internalQueryExecYieldPeriodMS;
 
 // Limit the size that we write without yielding to 16MB / 64 (max expected number of indexes)
 const int64_t insertVectorMaxBytes = 256 * 1024;
 
 // The number of bytes to buffer at once during a $facet stage.
-extern AtomicInt32 internalQueryFacetBufferSizeBytes;  
+extern AtomicInt32 internalQueryFacetBufferSizeBytes;
 
-extern AtomicInt32 internalInsertMaxBatchSize;  
+extern AtomicInt32 internalInsertMaxBatchSize;
 
 }  // namespace mongo

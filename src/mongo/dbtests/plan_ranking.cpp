@@ -56,9 +56,9 @@
 namespace mongo {
 
 // How we access the external setParameter testing bool.
-extern AtomicBool internalQueryForceIntersectionPlans;  
+extern AtomicBool internalQueryForceIntersectionPlans;
 
-extern AtomicBool internalQueryPlannerEnableHashIntersection;  
+extern AtomicBool internalQueryPlannerEnableHashIntersection;
 
 }  // namespace mongo
 
@@ -72,11 +72,11 @@ static const NamespaceString nss("unittests.PlanRankingTests");
 class PlanRankingTestBase {
 public:
     PlanRankingTestBase()
-        : _internalQueryForceIntersectionPlans(internalQueryForceIntersectionPlans),
-          _enableHashIntersection(internalQueryPlannerEnableHashIntersection),
+        : _internalQueryForceIntersectionPlans(internalQueryForceIntersectionPlans.load()),
+          _enableHashIntersection(internalQueryPlannerEnableHashIntersection.load()),
           _client(&_txn) {
         // Run all tests with hash-based intersection enabled.
-        internalQueryPlannerEnableHashIntersection = true;
+        internalQueryPlannerEnableHashIntersection.store(true);
 
         OldClientWriteContext ctx(&_txn, nss.ns());
         _client.dropCollection(nss.ns());
@@ -84,8 +84,8 @@ public:
 
     virtual ~PlanRankingTestBase() {
         // Restore external setParameter testing bools.
-        internalQueryForceIntersectionPlans = _internalQueryForceIntersectionPlans;
-        internalQueryPlannerEnableHashIntersection = _enableHashIntersection;
+        internalQueryForceIntersectionPlans.store(_internalQueryForceIntersectionPlans);
+        internalQueryPlannerEnableHashIntersection.store(_enableHashIntersection);
     }
 
     void insert(const BSONObj& obj) {
@@ -158,7 +158,7 @@ protected:
     // A large number, which must be larger than the number of times
     // candidate plans are worked by the multi plan runner. Used for
     // determining the number of documents in the tests below.
-    static const int N;
+    static int N;
 
     const ServiceContext::UniqueOperationContext _txnPtr = cc().makeOperationContext();
     OperationContext& _txn = *_txnPtr;
@@ -178,7 +178,7 @@ private:
 };
 
 // static
-const int PlanRankingTestBase::N = internalQueryPlanEvaluationWorks + 1000;
+int PlanRankingTestBase::N = internalQueryPlanEvaluationWorks.load() + 1000;
 
 /**
  * Test that the "prefer ixisect" parameter works.
@@ -215,7 +215,7 @@ public:
 
         // Turn on the "force intersect" option.
         // This will be reverted by PlanRankingTestBase's destructor when the test completes.
-        internalQueryForceIntersectionPlans = true;
+        internalQueryForceIntersectionPlans.store(true);
 
         // And run the same query again.
         {
@@ -265,7 +265,7 @@ public:
 
         // Turn on the "force intersect" option.
         // This will be reverted by PlanRankingTestBase's destructor when the test completes.
-        internalQueryForceIntersectionPlans = true;
+        internalQueryForceIntersectionPlans.store(true);
 
         QuerySolution* soln = pickBestPlan(cq.get());
         ASSERT(

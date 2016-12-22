@@ -32,38 +32,41 @@
 
 namespace mongo {
 
-#define EXPORTED_ATOMIC_SERVER_PARAMETER_TYPE(VALUE_TYPE, PARAM_TYPE) \
-    template <> \
-    inline void ExportedServerParameter<VALUE_TYPE, PARAM_TYPE>::append(OperationContext* txn, BSONObjBuilder& b, const std::string& name) { \
-            b.append(name, _value->load()); \
-    } \
-    \
-    template <> \
-    inline Status ExportedServerParameter<VALUE_TYPE, PARAM_TYPE>::set(const VALUE_TYPE& newValue) {            \
-                Status v = validate(newValue); \
-                if (!v.isOK()) \
-                    return v; \
-                    \
-                    _value->store(newValue); \
-                    return Status::OK(); \
-        } \
-    \
-    template <>\
-     inline Status ExportedServerParameter<VALUE_TYPE, PARAM_TYPE>::set(const BSONElement& newValueElement) {\
-        VALUE_TYPE newValue;\
-    \
-        if (!newValueElement.coerce(&newValue))\
-            return Status(ErrorCodes::BadValue, "can't set value");\
-    \
-        return set(newValue); \
-    } 
+#define EXPORTED_ATOMIC_SERVER_PARAMETER_TYPE(VALUE_TYPE, PARAM_TYPE)        \
+    template <>                                                              \
+    inline void ExportedServerParameter<VALUE_TYPE, PARAM_TYPE>::append(     \
+        OperationContext* txn, BSONObjBuilder& b, const std::string& name) { \
+        b.append(name, _value->load());                                      \
+    }                                                                        \
+                                                                             \
+    template <>                                                              \
+    inline Status ExportedServerParameter<VALUE_TYPE, PARAM_TYPE>::set(      \
+        const VALUE_TYPE& newValue) {                                        \
+        Status v = validate(newValue);                                       \
+        if (!v.isOK())                                                       \
+            return v;                                                        \
+                                                                             \
+        _value->store(newValue);                                             \
+        return Status::OK();                                                 \
+    }                                                                        \
+                                                                             \
+    template <>                                                              \
+    inline Status ExportedServerParameter<VALUE_TYPE, PARAM_TYPE>::set(      \
+        const BSONElement& newValueElement) {                                \
+        VALUE_TYPE newValue;                                                 \
+                                                                             \
+        if (!newValueElement.coerce(&newValue))                              \
+            return Status(ErrorCodes::BadValue, "can't set value");          \
+                                                                             \
+        return set(newValue);                                                \
+    }
 
 
-#define EXPORTED_ATOMIC_SERVER_PARAMETER(PARAM_TYPE)                                                   \
-            EXPORTED_ATOMIC_SERVER_PARAMETER_TYPE(bool, PARAM_TYPE) \
-                    EXPORTED_ATOMIC_SERVER_PARAMETER_TYPE(int, PARAM_TYPE) \
-                    EXPORTED_ATOMIC_SERVER_PARAMETER_TYPE(long long, PARAM_TYPE) \
-    EXPORTED_ATOMIC_SERVER_PARAMETER_TYPE(double, PARAM_TYPE) 
+#define EXPORTED_ATOMIC_SERVER_PARAMETER(PARAM_TYPE)             \
+    EXPORTED_ATOMIC_SERVER_PARAMETER_TYPE(bool, PARAM_TYPE)      \
+    EXPORTED_ATOMIC_SERVER_PARAMETER_TYPE(int, PARAM_TYPE)       \
+    EXPORTED_ATOMIC_SERVER_PARAMETER_TYPE(long long, PARAM_TYPE) \
+    EXPORTED_ATOMIC_SERVER_PARAMETER_TYPE(double, PARAM_TYPE)
 
 EXPORTED_ATOMIC_SERVER_PARAMETER(ServerParameterType::kRuntimeOnly);
 EXPORTED_ATOMIC_SERVER_PARAMETER(ServerParameterType::kStartupAndRuntime);
@@ -90,7 +93,9 @@ inline Status ExportedServerParameter<T, paramType>::set(const T& newValue) {
 
 
 template <typename T, ServerParameterType paramType>
-void ExportedServerParameter<T, paramType>::append(OperationContext* txn, BSONObjBuilder& b, const std::string& name) {
+void ExportedServerParameter<T, paramType>::append(OperationContext* txn,
+                                                   BSONObjBuilder& b,
+                                                   const std::string& name) {
     b.append(name, *_value);
 }
 

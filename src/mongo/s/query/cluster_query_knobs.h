@@ -28,7 +28,7 @@
 
 #pragma once
 
-#include <atomic>
+#include "mongo/platform/atomic_word.h"
 
 namespace mongo {
 

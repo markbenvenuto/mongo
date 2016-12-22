@@ -213,7 +213,8 @@ StatusWith<std::vector<BSONObj>> MultiIndexBlock::init(const std::vector<BSONObj
     std::size_t eachIndexBuildMaxMemoryUsageBytes = 0;
     if (!indexSpecs.empty()) {
         eachIndexBuildMaxMemoryUsageBytes =
-            static_cast<std::size_t>(maxIndexBuildMemoryUsageMegabytes.load()) * 1024 * 1024 / indexSpecs.size();
+            static_cast<std::size_t>(maxIndexBuildMemoryUsageMegabytes.load()) * 1024 * 1024 /
+            indexSpecs.size();
     }
 
     for (size_t i = 0; i < indexSpecs.size(); i++) {

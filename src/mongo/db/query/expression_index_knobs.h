@@ -39,24 +39,24 @@ namespace mongo {
 /**
  * The maximum number of cells to use for 2D geo query covering for predicate queries
  */
-extern AtomicInt32 internalGeoPredicateQuery2DMaxCoveringCells;  
+extern AtomicInt32 internalGeoPredicateQuery2DMaxCoveringCells;
 
 /**
  * The maximum number of cells to use for 2D geo query covering for predicate queries
  */
-extern AtomicInt32 internalGeoNearQuery2DMaxCoveringCells;  
+extern AtomicInt32 internalGeoNearQuery2DMaxCoveringCells;
 
 //
 // Geo query.
 //
 
 // What is the finest level we will cover a queried region or geoNear annulus?
-extern AtomicInt32 internalQueryS2GeoFinestLevel;  
+extern AtomicInt32 internalQueryS2GeoFinestLevel;
 
 // What is the coarsest level we will cover a queried region or geoNear annulus?
-extern AtomicInt32 internalQueryS2GeoCoarsestLevel;  
+extern AtomicInt32 internalQueryS2GeoCoarsestLevel;
 
 // What is the maximum cell count that we want? (advisory, not a hard threshold)
-extern AtomicInt32 internalQueryS2GeoMaxCells;  
+extern AtomicInt32 internalQueryS2GeoMaxCells;
 
 }  // namespace mongo

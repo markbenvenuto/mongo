@@ -69,7 +69,7 @@ namespace {
  * - setting to false will fail.
  */
 // Unused, needed for server parameter.
-AtomicBool newCollectionsUsePowerOf2SizesFlag(true);  
+AtomicBool newCollectionsUsePowerOf2SizesFlag(true);
 
 class NewCollectionsUsePowerOf2SizesParameter
     : public ExportedServerParameter<bool, ServerParameterType::kStartupAndRuntime> {

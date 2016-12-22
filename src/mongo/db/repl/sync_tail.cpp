@@ -82,7 +82,7 @@ using std::endl;
 
 namespace repl {
 
-AtomicInt32 SyncTail::replBatchLimitOperations{50 * 1000}; 
+AtomicInt32 SyncTail::replBatchLimitOperations{50 * 1000};
 
 /**
  * This variable determines the number of writer threads SyncTail will have. It has a default

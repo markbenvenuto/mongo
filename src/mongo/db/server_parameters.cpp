@@ -93,76 +93,6 @@ Status ExportedServerParameter<T, paramType>::setFromString(const string& str) {
     return set(value);
 }
 
-#if 0
-#define EXPORTED_ATOMIC_SERVER_PARAMETER_TYPE(VALUE_TYPE, PARAM_TYPE) \
-    template <> \
-    void ExportedServerParameter<VALUE_TYPE, PARAM_TYPE>::append(OperationContext* txn, BSONObjBuilder& b, const std::string& name) { \
-            b.append(name, _value->load()); \
-    } \
-    \
-    template <> \
-    Status ExportedServerParameter<VALUE_TYPE, PARAM_TYPE>::set(const VALUE_TYPE& newValue) {            \
-                Status v = validate(newValue); \
-                if (!v.isOK()) \
-                    return v; \
-                    \
-                    _value->store(newValue); \
-                    return Status::OK(); \
-        } \
-    \
-    template <>\
-     Status ExportedServerParameter<VALUE_TYPE, PARAM_TYPE>::set(const BSONElement& newValueElement) {\
-        VALUE_TYPE newValue;\
-    \
-        if (!newValueElement.coerce(&newValue))\
-            return Status(ErrorCodes::BadValue, "can't set value");\
-    \
-        return set(newValue); \
-    } 
-
-
-#define EXPORTED_ATOMIC_SERVER_PARAMETER(PARAM_TYPE)                                                   \
-            EXPORTED_ATOMIC_SERVER_PARAMETER_TYPE(bool, PARAM_TYPE) \
-                    EXPORTED_ATOMIC_SERVER_PARAMETER_TYPE(int, PARAM_TYPE) \
-                    EXPORTED_ATOMIC_SERVER_PARAMETER_TYPE(long long, PARAM_TYPE) \
-    EXPORTED_ATOMIC_SERVER_PARAMETER_TYPE(double, PARAM_TYPE) 
-
-EXPORTED_ATOMIC_SERVER_PARAMETER(ServerParameterType::kRuntimeOnly);
-EXPORTED_ATOMIC_SERVER_PARAMETER(ServerParameterType::kStartupAndRuntime);
-
-#define EXPORTED_NONATOMIC_SERVER_PARAMETER_TYPE(VALUE_TYPE) \
-    template <> \
-    void ExportedServerParameter<VALUE_TYPE, ServerParameterType::kStartupOnly>::append(OperationContext* txn, BSONObjBuilder& b, const std::string& name) { \
-            b.append(name, *_value); \
-    } \
-    \
-    template <> \
-    Status ExportedServerParameter<VALUE_TYPE, ServerParameterType::kStartupOnly>::set(const VALUE_TYPE& newValue) {            \
-                Status v = validate(newValue); \
-                if (!v.isOK()) \
-                    return v; \
-                    \
-                    *_value = newValue; \
-                    return Status::OK(); \
-        } \
-    \
-        template <>\
-         Status ExportedServerParameter<VALUE_TYPE, ServerParameterType::kStartupOnly>::set(const BSONElement& newValueElement) {\
-        \
-            VALUE_TYPE newValue;\
-            \
-            if (!newValueElement.coerce(&newValue))\
-                return Status(ErrorCodes::BadValue, "can't set value");\
-                \
-                return set(newValue); \
-    }
-
-EXPORTED_NONATOMIC_SERVER_PARAMETER_TYPE(bool ) 
-EXPORTED_NONATOMIC_SERVER_PARAMETER_TYPE(int) 
-EXPORTED_NONATOMIC_SERVER_PARAMETER_TYPE(long long)
-EXPORTED_NONATOMIC_SERVER_PARAMETER_TYPE(double)
-#endif
-
 #define EXPORTED_SERVER_PARAMETER(PARAM_TYPE)                                                   \
     template <>                                                                                 \
     Status ExportedServerParameter<bool, PARAM_TYPE>::setFromString(const string& str) {        \
@@ -172,7 +102,7 @@ EXPORTED_NONATOMIC_SERVER_PARAMETER_TYPE(double)
             return set(false);                                                                  \
         return Status(ErrorCodes::BadValue, "can't convert string to bool");                    \
     }                                                                                           \
-\
+                                                                                                \
     template Status ExportedServerParameter<int, PARAM_TYPE>::setFromString(const string& str); \
                                                                                                 \
     template Status ExportedServerParameter<long long, PARAM_TYPE>::setFromString(              \

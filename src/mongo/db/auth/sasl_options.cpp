@@ -139,7 +139,8 @@ Status storeSASLOptions(const moe::Environment& params) {
         saslGlobalParams.authdPath = params["security.sasl.saslauthdSocketPath"].as<std::string>();
     }
     if (params.count("security.sasl.scramIterationCount") && !haveScramIterationCount) {
-        saslGlobalParams.scramIterationCount.store(params["security.sasl.scramIterationCount"].as<int>());
+        saslGlobalParams.scramIterationCount.store(
+            params["security.sasl.scramIterationCount"].as<int>());
     }
 
     return Status::OK();

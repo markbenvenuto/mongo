@@ -46,13 +46,13 @@ TEST(ServerParameters, Simple1) {
     ASSERT_EQUALS("ff", ff.name());
 
     ff.set(6);
-    ASSERT_EQUALS(6, f);
+    ASSERT_EQUALS(6, f.load());
 
     ff.set(BSON("x" << 7).firstElement());
-    ASSERT_EQUALS(7, f);
+    ASSERT_EQUALS(7, f.load());
 
     ff.setFromString("8");
-    ASSERT_EQUALS(8, f);
+    ASSERT_EQUALS(8, f.load());
 }
 
 TEST(ServerParameters, Vector1) {

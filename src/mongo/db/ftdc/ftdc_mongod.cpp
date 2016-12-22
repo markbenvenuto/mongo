@@ -85,7 +85,7 @@ public:
 
 } exportedFTDCEnabledParameter;
 
-AtomicInt32 localPeriodMillis(FTDCConfig::kPeriodMillisDefault); 
+AtomicInt32 localPeriodMillis(FTDCConfig::kPeriodMillisDefault);
 
 class ExportedFTDCPeriodParameter
     : public ExportedServerParameter<std::int32_t, ServerParameterType::kStartupAndRuntime> {
@@ -114,11 +114,9 @@ public:
 } exportedFTDCPeriodParameter;
 
 // Scale the values down since are defaults are in bytes, but the user interface is MB
-AtomicInt32 localMaxDirectorySizeMB(
-    FTDCConfig::kMaxDirectorySizeBytesDefault / (1024 * 1024));
+AtomicInt32 localMaxDirectorySizeMB(FTDCConfig::kMaxDirectorySizeBytesDefault / (1024 * 1024));
 
-AtomicInt32 localMaxFileSizeMB(FTDCConfig::kMaxFileSizeBytesDefault /  
-                                             (1024 * 1024));
+AtomicInt32 localMaxFileSizeMB(FTDCConfig::kMaxFileSizeBytesDefault / (1024 * 1024));
 
 class ExportedFTDCDirectorySizeParameter
     : public ExportedServerParameter<std::int32_t, ServerParameterType::kStartupAndRuntime> {
@@ -189,7 +187,7 @@ public:
 
 } exportedFTDCFileSizeParameter;
 
-AtomicInt32 localMaxSamplesPerArchiveMetricChunk(  
+AtomicInt32 localMaxSamplesPerArchiveMetricChunk(
     FTDCConfig::kMaxSamplesPerArchiveMetricChunkDefault);
 
 class ExportedFTDCArchiveChunkSizeParameter
