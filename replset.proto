@@ -1,0 +1,51 @@
+// See README.txt for information and build instructions.
+//
+// Note: START and END tags are used in comments to define sections used in
+// tutorials.  They are not part of the syntax for Protocol Buffers.
+//
+// To get an in-depth walkthrough of this file and the related examples, see:
+// https://developers.google.com/protocol-buffers/docs/tutorials
+
+// [START declaration]
+syntax = "proto3";
+package tutorial;
+// [END declaration]
+
+// [START messages]
+message Person {
+  string _id = 1;
+  int32 version = 2;
+  int64 protocolVersion = 3;
+
+  bool writeConcernMajorityJournalDefault = 4;
+
+  bool configsvr = 5;
+
+  message Member {
+      int32 _id = 1;
+      string host = 2;
+      bool arbiterOnly = 3;
+      bool hidden;
+      number prioroity;
+      repeated Tag tags;
+      number slaveDelay;
+      number votes;
+  }
+
+  repeated Member members = 6;
+
+  message Settings {
+    bool chainingAllowed = 1;
+    number   heartbeatIntervalMillis;
+    number heartbeatTimeoutSecs;
+    number electionTimeoutMillis;
+    number catchUpTimeoutMillis;
+    string getLastErrorModes : <document>,
+    string getLastErrorDefaults : <document>,
+    string replicaSetId
+  }
+
+  Settings settings;
+}
+// [END messages]
+
