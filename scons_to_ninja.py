@@ -105,19 +105,33 @@ def GenerateNinjaFile(env, dest_file):
 # Generic rule for handling any command.
 rule cmd
   command = $cmd
+
+# Rule to generate implicit dependencies by builtin header scanning
+rule cc
+  command = $cmd  -MMD -MF $out.d
+  depfile = $out.d
+
 """)
 
         unknown_targets = []
 
         posix = os.name == "posix"
 
+# TODO
+# New algorithm
+# Phase 1
+# 1. Gather list of gcc/ar/ld deps and filter out stuff that epends on scons
+# Phase 2
+# 2. Build new list of compile on scons
+# 3. output scons command
+
         for node in node_list:
 
             dest_path = node.get_path()
             cmds = node_map[node]
             try:
-                deps = [GetRealNode(dep).get_path() for dep in node.all_children()]
-                deps = [d for d in deps if not "mongo\\config.h" ]
+                deps = [str(GetRealNode(dep).get_path()) for dep in node.all_children()]
+                # deps = [d for d in deps if not "mongo\\config.h" ]
             except AttributeError:
                 unknown_targets.append([dest_path, []])
                 print "src2 - " + str(node)
@@ -127,7 +141,7 @@ rule cmd
             if "conftest" in dest_path or ".pdb" in dest_path:
                 continue
 
-            deps = [GetRealNode(dep).get_path() for dep in node.all_children()]
+            # deps = [GetRealNode(dep).get_path() for dep in node.all_children()]
 
             if "python" in " ".join(deps):
                 continue
@@ -153,8 +167,19 @@ rule cmd
                 else:
                     cmds = ['cmd.exe /c "uuidgen > ' + dest_path + '"']
 
-            ninja_fh.write('\nbuild %s: cmd %s\n'
-                           % (dest_path, ' '.join(escape_path(a) for a in deps)))
+            # Filter out headers
+            deps = [d for d in deps if not d.endswith(".h") and not d.endswith('.i')]
+            # for d in deps:
+                # print d
+
+            is_compiler = "gcc" in " ".join(cmds) or "cl.exe" in " ".join(cmds)
+
+            if is_compiler:
+                ninja_fh.write('\nbuild %s: cc %s\n'
+                               % (dest_path, ' '.join(escape_path(a) for a in deps)))
+            else:
+                ninja_fh.write('\nbuild %s: cmd %s\n'
+                               % (dest_path, ' '.join(escape_path(a) for a in deps)))
             ninja_fh.write('  cmd = %s\n' % ' && '.join(cmds))
 
         scons_args = [quote_arg(a) for a in sys.argv if filter_arg(a)]
