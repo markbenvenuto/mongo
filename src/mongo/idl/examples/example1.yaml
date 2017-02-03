@@ -13,8 +13,8 @@ type:
 type:
     name: NameSpaceString
     type: builtin
-    serializer: mongo::NameSpaceString::serialize
-    deserializer: mongo::NameSpaceString::deserialize
+    serializer: mongo::NamespaceString::serialize
+    deserializer: mongo::NamepaceString::deserialize
 
 struct:
     name:  Shape
@@ -55,9 +55,9 @@ struct:
     name: Shapes
     field:
         - name: circles
-          type: list<Circle>
+          type: array<Circle>
         - name: squares
-          type: list<Square>
+          type: array<Square>
 
 #typedef string ObjectId;
 
