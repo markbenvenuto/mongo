@@ -16,7 +16,109 @@
 
 #include "idl_options.h"
 
+#include "yaml-cpp/yaml.h"
+
 namespace mongo {
+
+class IDLFileLineInfo {
+public:
+    IDLFileLineInfo(std::string file, int line, int column) : _file(file), _line(line), _column(column) { }
+private:
+    std::string _file;
+    int _line;
+    int _column;
+};
+
+class IDLParserContext {
+public:
+    StringData getCurrentFile() { return _file;  }
+private:
+    std::string _file;
+};
+
+enum class IDLTypeKind {
+    scalar,
+    list,
+};
+
+// Not used for code generation
+class IDLType {
+public:
+    static std::unique_ptr<IDLType> create(StringData name);
+    void dump(std::ostream& stream);
+private:
+    std::string _name;
+    IDLFileLineInfo _location;
+};
+
+// Merges with IDLType during bind
+class IDLFieldType {
+public:
+    static std::unique_ptr<IDLFieldType> create(StringData name);
+    void dump(std::ostream& stream);
+private:
+    std::string _name;
+    // default, required
+    // min, max?
+    IDLFileLineInfo _location;
+};
+
+class IDLField {
+public:
+    static std::unique_ptr<IDLField> create(StringData name);
+    void dump(std::ostream& stream);
+private:
+    std::string _name;
+    // alias, 
+    std::unique_ptr<IDLFieldType> _fieldType;
+    IDLFileLineInfo _location;
+};
+
+class IDLStruct {
+public:
+    static std::unique_ptr<IDLStruct> create(StringData name);
+    void dump(std::ostream& stream);
+private:
+    std::string _name;
+    IDLFileLineInfo _location;
+    std::map<std::string, std::unique_ptr<IDLField>> _fields;
+};
+
+class IDLSymbolTable {
+public:
+private:
+    std::map<std::string, std::unique_ptr<IDLStruct>> _structs;
+    std::map<std::string, std::unique_ptr<IDLType>> _types;
+};
+class IDLParser {
+public:
+    void parse(std::istream& stream);
+private:
+    // Parse the file
+    //
+    void parseImport(StringData filename);
+    void parseStruct(const IDLParserContext& context, const YAML::Node& node);
+    void parseType(const IDLParserContext& context, const YAML::Node& node);
+    void loadBuiltinTypes();
+
+    // Validate and Bind the AST
+    // dup names, etc
+    void bind();
+
+    void dump(std::ostream& stream);
+private:
+    IDLSymbolTable _symbolTable;
+};
+
+class IDLGenerator {
+public:
+    void generate(IDLSymbolTable symbolTable);
+};
+
+class IntendedTextWriter {
+public:
+     
+};
 
 namespace {
 
@@ -25,13 +127,18 @@ MONGO_INITIALIZER(SetGlobalEnvironment)(InitializerContext* context) {
     return Status::OK();
 }
 
-
 int idlToolMain(int argc, char* argv[], char** envp) {
     setupSignalHandlers();
     runGlobalInitializersOrDie(argc, argv, envp);
     startSignalProcessingThread();
 
     std::cout << "Welcome" << std::endl;
+
+    // Basic Steps
+    // 1. Parse Document
+    // 2. Validate AST
+    // 3. Generate Code
+
 
     return 0;
 }
