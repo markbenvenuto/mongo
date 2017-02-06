@@ -50,7 +50,7 @@ private:
 };
 
 // Not used for code generation
-class IDLType {
+class IDLType : public IDLObject {
 public:
     static std::unique_ptr<IDLType> create(StringData name);
     void dump(std::ostream& stream);
@@ -67,10 +67,9 @@ private:
     std::string _name;
     // default, required
     // min, max?
-    IDLFileLineInfo _location;
 };
 
-class IDLField {
+class IDLField :public IDLObject {
 public:
     static std::unique_ptr<IDLField> create(StringData name);
     void dump(std::ostream& stream);
@@ -78,16 +77,14 @@ private:
     std::string _name;
     // alias, 
     std::unique_ptr<IDLFieldType> _fieldType;
-    IDLFileLineInfo _location;
 };
 
-class IDLStruct {
+class IDLStruct : public IDLObject {
 public:
     static std::unique_ptr<IDLStruct> create(StringData name);
     void dump(std::ostream& stream);
 private:
     std::string _name;
-    IDLFileLineInfo _location;
     std::map<std::string, std::unique_ptr<IDLField>> _fields;
 };
 

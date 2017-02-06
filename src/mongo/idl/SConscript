@@ -5,6 +5,7 @@ env = env.Clone()
 
 ftdcEnv = env.Clone()
 #ftdcEnv.InjectThirdPartyIncludePaths(libraries=['zlib'])
+ftdcEnv.InjectThirdPartyIncludePaths(libraries=['yaml'])
 
 idlc = ftdcEnv.Program(
     target='idlc',
@@ -22,7 +23,21 @@ idlc = ftdcEnv.Program(
 
 #env.Alias("all", mongoldap)
 
-ftdcEnv.Install("#/", idlc)
+#ftdcEnv.Install("#/", idlc)
+
+idl_example_cmd = env.Command(
+			"$BUILD_DIR/example_idl.cpp",
+			"example1.idl",
+            '$BUILD_DIR/mongo/idl/idlc.exe --help ${SOURCES}')
+env.Depends(idl_example_cmd, '$BUILD_DIR/mongo/idl/idlc.exe')
+
+env.Library(
+    target='example_idl',
+    source=[
+        '$BUILD_DIR/example_idl.cpp',
+        'example1_idl_user.cpp',
+	],
+	)
 
 #env.CppUnitTest(
     #target='ftdc_test',
