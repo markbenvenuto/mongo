@@ -41,6 +41,14 @@ enum class IDLTypeKind {
     list,
 };
 
+class IDLObject {
+public:
+    //void dump(std::ostream& stream);
+private:
+    bool _imported;
+    IDLFileLineInfo _location;
+};
+
 // Not used for code generation
 class IDLType {
 public:
@@ -48,7 +56,6 @@ public:
     void dump(std::ostream& stream);
 private:
     std::string _name;
-    IDLFileLineInfo _location;
 };
 
 // Merges with IDLType during bind
@@ -86,10 +93,13 @@ private:
 
 class IDLSymbolTable {
 public:
+    Status addStruct(std::unique_ptr<IDLStruct> structure);
+    Status addType(std::unique_ptr<IDLType> type);
 private:
     std::map<std::string, std::unique_ptr<IDLStruct>> _structs;
     std::map<std::string, std::unique_ptr<IDLType>> _types;
 };
+
 class IDLParser {
 public:
     void parse(std::istream& stream);
