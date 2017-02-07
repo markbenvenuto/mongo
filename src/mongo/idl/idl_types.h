@@ -24,11 +24,33 @@ private:
     int _column;
 };
 
+class IDLError {
+public:
+    IDLError(StringData msg, IDLFileLineInfo lineInfo) : _msg(msg.toString()), _lineInfo(std::move(lineInfo)) {}
+private:
+    IDLFileLineInfo _lineInfo;
+    std::string _msg;
+};
+
+class IDLErrorCollection {
+public:
+    void addError(StringData msg, IDLFileLineInfo lineInfo);
+    bool hasErrors();
+    std::vector<IDLError>& getErrors();
+private:
+    std::vector<IDLError> _errors;
+};
+
 class IDLParserContext {
 public:
+    IDLParserContext(StringData file) : _file(file.toString()) {}
+    void addError(StringData msg, const YAML::Node& node) { getErrors().addError(msg, IDLFileLineInfo(_file, node.Mark().line, node.Mark().column)); }
+    void addError(StringData msg) { getErrors().addError(msg, IDLFileLineInfo(_file, 0, 0)); }
+    IDLErrorCollection& getErrors() { return _errors; }
     StringData getCurrentFile() { return _file; }
 private:
     std::string _file;
+    IDLErrorCollection _errors;
 };
 
 enum class IDLTypeKind {
@@ -94,14 +116,14 @@ private:
 
 class IDLParser {
 public:
-    Status parse(std::istream& stream);
+    void parse(IDLParserContext& context, std::istream& stream);
 private:
     // Parse the file
     //
-    Status parseImport(StringData filename);
-    Status parseStruct(const IDLParserContext& context, const YAML::Node& node);
-    Status parseType(const IDLParserContext& context, const YAML::Node& node);
-    Status loadBuiltinTypes();
+    void parseImport(IDLParserContext& context, StringData filename);
+    void parseStruct(IDLParserContext& context, const YAML::Node& node);
+    void parseType(IDLParserContext& context, const YAML::Node& node);
+    void loadBuiltinTypes();
 
     // Validate and Bind the AST
     // dup names, etc

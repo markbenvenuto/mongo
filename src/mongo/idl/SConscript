@@ -12,6 +12,7 @@ idlc = ftdcEnv.Program(
     source=[
         'idl_driver.cpp',
         'idl_options.cpp',
+		'examples/bikeshed_example.cpp',
     ],
     LIBDEPS=[
         '$BUILD_DIR/mongo/base',

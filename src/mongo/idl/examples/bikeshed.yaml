@@ -1,0 +1,56 @@
+# TODO: write the code for this
+global:
+    cpp_namespace: mongo::acme::
+
+# 3 levels of deserialization
+# - 1 readString/toString
+# - 2 BSONelemtn
+# - 3 - full on kitchen
+
+type:
+    name: NamespaceString
+    cpp_type: NamepaceString
+    serialization_type: String 
+    serializer: mongo::NamespaceString::toString
+    deserializer: mongo::NamepaceString
+
+type:
+    name: safeInt32
+    description: Accepts any numerical type within int32 range
+    serialization_type: BSONElement
+    cpp_type: mongo::BSONElement::isNumber
+    serializer: mongo::BSONElement::numberInt??
+    deserializer: mongo::BSONElement::numberInt
+
+struct:
+    name: WriteConcern
+    description: A Fake Write Concern for a command
+    fields:
+        - name: w
+          cpp_type: WriteConcernWriteField
+          serialization_type: BSONObj
+          serializer: WriteConcernWriteField::deserializeWField
+        - name: j
+          type: bool
+        - name: wtimeout
+          type: safeInt32
+          min: 0
+          max: 50
+          default: 42
+          required: true
+        - name: wOptime
+          # A legacy field to ignore now
+          ignore: true
+
+struct:
+    name: bikeShedCmd
+    description: An example command
+    fields:
+        - name: color
+          description: The Bike Shed's color
+          required: true
+          type: string
+        - name: ns
+          type: NamespaceString
+        - name: writeConcern
+          type: WriteConcern

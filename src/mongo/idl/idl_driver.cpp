@@ -25,22 +25,43 @@
 
 namespace mongo {
 
-Status IDLParser::parse(std::istream& stream) {
+
+
+StringData nodeTypeToString(YAML::NodeType::value nodeType) {
+    switch (nodeType) {
+    case YAML::NodeType::Undefined:
+        return "Undefined"_sd;
+    case YAML::NodeType::Null:
+        return "Null"_sd;
+    case YAML::NodeType::Scalar:
+        return "Scalar"_sd;
+    case YAML::NodeType::Sequence:
+        return "Sequence"_sd;
+    case YAML::NodeType::Map:
+        return "Map"_sd;
+    default:
+        return "<unknown>"_sd;
+    }
+}
+
+void IDLParser::parse(IDLParserContext& context, std::istream& stream) {
     try {
         YAML::Node root = YAML::Load(stream);
 
         if (!root.IsMap()) {
-            return Status(ErrorCodes::BadValue, "FOo");
+            context.addError(str::stream() << "Invalid root YAML node, expected a Map, got '" << nodeTypeToString(root.Type()) << "' instead.", root);
+                return;
         }
 
-        IDLParserContext context;
 
         for (const auto& node : root) {
 
                 const auto& first = node.first;
 
                 if (!first.IsScalar()) {
-                    return Status(ErrorCodes::BadValue, "FOo");
+                    context.addError(str::stream() << "Invalid YAML node, expected a Scalar, got '" << nodeTypeToString(node.Type()) << "' instead.", node);
+                    // Skip this entry
+                    continue;
                 }
 
                 const auto& str = first.Scalar();
@@ -54,35 +75,25 @@ Status IDLParser::parse(std::istream& stream) {
         std::cout << "hell";
     }
     catch (const YAML::Exception& e) {
-        StringBuilder sb;
-        sb << "Error parsing YAML config file: " << e.what();
-        return Status(ErrorCodes::BadValue, sb.str());
+        context.addError(str::stream() << "Error parsing YAML idl file: " << e.what());
     }
     catch (const std::runtime_error& e) {
-        StringBuilder sb;
-        sb << "Unexpected exception parsing YAML config file: " << e.what();
-        return Status(ErrorCodes::BadValue, sb.str());
+        context.addError(str::stream() << "Unexpected exception parsing YAML idl file: " << e.what());
     }
-
-
-    return Status::OK();
 }
+
 // Parse the file
 //
-Status IDLParser::parseImport(StringData filename) {
-    return Status::OK();
+void IDLParser::parseImport(IDLParserContext& context, StringData filename) {
 }
 
-Status IDLParser::parseStruct(const IDLParserContext& context, const YAML::Node& node) {
-    return Status::OK();
+void IDLParser::parseStruct(IDLParserContext& context, const YAML::Node& node) {
 }
 
-Status IDLParser::parseType(const IDLParserContext& context, const YAML::Node& node) {
-    return Status::OK();
+void IDLParser::parseType(IDLParserContext& context, const YAML::Node& node) {
 }
 
-Status IDLParser::loadBuiltinTypes() {
-    return Status::OK();
+void IDLParser::loadBuiltinTypes() {
 }
 
 
@@ -112,11 +123,16 @@ int idlToolMain(int argc, char* argv[], char** envp) {
     // 2. Validate AST
     // 3. Generate Code
 
+    IDLParserContext context(globalIDLToolOptions->inputFile);
     IDLParser parser;
     std::fstream  fis;
     fis.open(globalIDLToolOptions->inputFile);
-    Status s = parser.parse(fis);
-    log() << "Parser Status " << s;
+    parser.parse(context, fis);
+    if (context.getErrors().hasErrors()) {
+        
+    }
+
+    //log() << "Parser Status " << s;
 
 
     return 0;
