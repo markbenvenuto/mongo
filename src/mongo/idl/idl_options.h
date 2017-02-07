@@ -21,7 +21,8 @@ namespace moe = mongo::optionenvironment;
 
 struct IDLToolOptions {
     bool color;
-    std::string user;
+    std::string inputFile;
+    std::string outputDirectory;
 };
 
 extern IDLToolOptions* globalIDLToolOptions;

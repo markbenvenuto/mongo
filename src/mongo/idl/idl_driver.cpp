@@ -1,8 +1,11 @@
 /**
  *  Copyright (C) 2016 MongoDB Inc.
  */
+#define MONGO_LOG_DEFAULT_COMPONENT ::mongo::logger::LogComponent::kFTDC
 
 #include "mongo/platform/basic.h"
+
+#include <fstream>
 
 #include "mongo/base/init.h"
 #include "mongo/base/initializer.h"
@@ -12,120 +15,83 @@
 #include "mongo/util/quick_exit.h"
 #include "mongo/util/signal_handlers.h"
 #include "mongo/util/text.h"
+#include "mongo/util/log.h"
 #include "mongo/util/version.h"
 
 #include "idl_options.h"
+#include "idl_types.h"
 
 #include "yaml-cpp/yaml.h"
 
 namespace mongo {
 
-class IDLFileLineInfo {
-public:
-    IDLFileLineInfo(std::string file, int line, int column) : _file(file), _line(line), _column(column) { }
-private:
-    std::string _file;
-    int _line;
-    int _column;
-};
+Status IDLParser::parse(std::istream& stream) {
+    try {
+        YAML::Node root = YAML::Load(stream);
 
-class IDLParserContext {
-public:
-    StringData getCurrentFile() { return _file;  }
-private:
-    std::string _file;
-};
+        if (!root.IsMap()) {
+            return Status(ErrorCodes::BadValue, "FOo");
+        }
 
-enum class IDLTypeKind {
-    scalar,
-    list,
-};
+        IDLParserContext context;
 
-class IDLObject {
-public:
-    //void dump(std::ostream& stream);
-private:
-    bool _imported;
-    IDLFileLineInfo _location;
-};
+        for (const auto& node : root) {
 
-// Not used for code generation
-class IDLType : public IDLObject {
-public:
-    static std::unique_ptr<IDLType> create(StringData name);
-    void dump(std::ostream& stream);
-private:
-    std::string _name;
-};
+                const auto& first = node.first;
 
-// Merges with IDLType during bind
-class IDLFieldType {
-public:
-    static std::unique_ptr<IDLFieldType> create(StringData name);
-    void dump(std::ostream& stream);
-private:
-    std::string _name;
-    // default, required
-    // min, max?
-};
+                if (!first.IsScalar()) {
+                    return Status(ErrorCodes::BadValue, "FOo");
+                }
 
-class IDLField :public IDLObject {
-public:
-    static std::unique_ptr<IDLField> create(StringData name);
-    void dump(std::ostream& stream);
-private:
-    std::string _name;
-    // alias, 
-    std::unique_ptr<IDLFieldType> _fieldType;
-};
+                const auto& str = first.Scalar();
 
-class IDLStruct : public IDLObject {
-public:
-    static std::unique_ptr<IDLStruct> create(StringData name);
-    void dump(std::ostream& stream);
-private:
-    std::string _name;
-    std::map<std::string, std::unique_ptr<IDLField>> _fields;
-};
+                if (str == "type") {
+                    parseType(context, node.second);
+                }
+            
+        }
 
-class IDLSymbolTable {
-public:
-    Status addStruct(std::unique_ptr<IDLStruct> structure);
-    Status addType(std::unique_ptr<IDLType> type);
-private:
-    std::map<std::string, std::unique_ptr<IDLStruct>> _structs;
-    std::map<std::string, std::unique_ptr<IDLType>> _types;
-};
+        std::cout << "hell";
+    }
+    catch (const YAML::Exception& e) {
+        StringBuilder sb;
+        sb << "Error parsing YAML config file: " << e.what();
+        return Status(ErrorCodes::BadValue, sb.str());
+    }
+    catch (const std::runtime_error& e) {
+        StringBuilder sb;
+        sb << "Unexpected exception parsing YAML config file: " << e.what();
+        return Status(ErrorCodes::BadValue, sb.str());
+    }
 
-class IDLParser {
-public:
-    void parse(std::istream& stream);
-private:
-    // Parse the file
-    //
-    void parseImport(StringData filename);
-    void parseStruct(const IDLParserContext& context, const YAML::Node& node);
-    void parseType(const IDLParserContext& context, const YAML::Node& node);
-    void loadBuiltinTypes();
 
-    // Validate and Bind the AST
-    // dup names, etc
-    void bind();
+    return Status::OK();
+}
+// Parse the file
+//
+Status IDLParser::parseImport(StringData filename) {
+    return Status::OK();
+}
 
-    void dump(std::ostream& stream);
-private:
-    IDLSymbolTable _symbolTable;
-};
+Status IDLParser::parseStruct(const IDLParserContext& context, const YAML::Node& node) {
+    return Status::OK();
+}
 
-class IDLGenerator {
-public:
-    void generate(IDLSymbolTable symbolTable);
-};
+Status IDLParser::parseType(const IDLParserContext& context, const YAML::Node& node) {
+    return Status::OK();
+}
 
-class IntendedTextWriter {
-public:
-     
-};
+Status IDLParser::loadBuiltinTypes() {
+    return Status::OK();
+}
+
+
+// Validate and Bind the AST
+// dup names, etc
+void IDLParser::bind() {}
+
+void IDLParser::dump(std::ostream& stream) {}
+
 
 namespace {
 
@@ -145,6 +111,12 @@ int idlToolMain(int argc, char* argv[], char** envp) {
     // 1. Parse Document
     // 2. Validate AST
     // 3. Generate Code
+
+    IDLParser parser;
+    std::fstream  fis;
+    fis.open(globalIDLToolOptions->inputFile);
+    Status s = parser.parse(fis);
+    log() << "Parser Status " << s;
 
 
     return 0;

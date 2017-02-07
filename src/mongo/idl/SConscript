@@ -18,12 +18,11 @@ idlc = ftdcEnv.Program(
         '$BUILD_DIR/mongo/db/service_context',
         "$BUILD_DIR/mongo/util/signal_handlers",
         "$BUILD_DIR/mongo/util/version_impl",
+        "$BUILD_DIR/mongo/util/options_parser/options_parser_init",
     ],
 )
 
-#env.Alias("all", mongoldap)
-
-#ftdcEnv.Install("#/", idlc)
+ftdcEnv.Install("#/", idlc)
 
 idl_example_cmd = env.Command(
 			"$BUILD_DIR/example_idl.cpp",
