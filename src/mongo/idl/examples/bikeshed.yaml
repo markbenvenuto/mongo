@@ -17,8 +17,8 @@ type:
 type:
     name: safeInt32
     description: Accepts any numerical type within int32 range
+    cpp_type: int32_t
     serialization_type: BSONElement
-    cpp_type: mongo::BSONElement::isNumber
     serializer: mongo::BSONElement::numberInt??
     deserializer: mongo::BSONElement::numberInt
 

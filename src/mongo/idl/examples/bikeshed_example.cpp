@@ -29,7 +29,6 @@ private:
     bool _j;
     int32_t _wtimeout;
 };
-
 class BikeShedCmd {
 public:
     static StatusWith<std::unique_ptr<BikeShedCmd>> parse(const BSONObj& obj);
@@ -43,16 +42,10 @@ private:
     NamespaceString _ns;
     std::unique_ptr<WriteConcern> _writeConcen;
 };
-
-} // namespace mongo
-
-namespace mongo {
-
 StatusWith<std::unique_ptr<WriteConcern>> WriteConcern::parse(const BSONObj& obj) {
     if (obj.isEmpty()) {
         return Status(ErrorCodes::FailedToParse, "WriteConcern object cannot be empty");
     }
-
     std::unique_ptr<WriteConcern> object;
     for (auto element : obj) {
         const auto fieldName = element.fieldNameStringData();
@@ -79,7 +72,6 @@ StatusWith<std::unique_ptr<WriteConcern>> WriteConcern::parse(const BSONObj& obj
                 str::stream() << "Unrecognized WriteConcern field: " << fieldName);
         }
     }
-
     return std::move(object);
 }
 
@@ -87,7 +79,6 @@ StatusWith<std::unique_ptr<BikeShedCmd>> BikeShedCmd::parse(const BSONObj& obj) 
     if (obj.isEmpty()) {
         return Status(ErrorCodes::FailedToParse, "BikeShedCmd object cannot be empty");
     }
-
     std::unique_ptr<WriteConcern> object;
     for (auto element : obj) {
         const auto fieldName = element.fieldNameStringData();
@@ -112,9 +103,7 @@ StatusWith<std::unique_ptr<BikeShedCmd>> BikeShedCmd::parse(const BSONObj& obj) 
                 str::stream() << "Unrecognized BikeShedCmd field: " << fieldName);
         }
     }
-
     return std::move(object);
 }
-
 } // namespace mongo
 
