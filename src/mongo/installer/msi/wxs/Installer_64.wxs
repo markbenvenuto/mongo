@@ -61,17 +61,23 @@
         </Directory>
     </Directory>
 
-    <Binary Id="CAIntro" SourceFile="d:\projects\mongoca\mongoca\bin\Debug\mongoca.dll"/>
+    <Binary Id="CAIntro" SourceFile="$(var.CustomActionDll)"/>
     <CustomAction Id="UpdateMongoYAML"
                   BinaryKey="CAIntro"
                   DllEntry="UpdateMongoYAML"
-                  Execute="immediate"
+                  Execute="deferred"
                   Return="check"
                   HideTarget="no" />
+    <CustomAction Id="UpdateMongoYAML.SetProperty" 
+      Return="check"
+      Property="UpdateMongoYAML"
+      Value="BIN=[BIN];MONGO_DATA_PATH=[MONGO_DATA_PATH];MONGO_LOG_PATH=[MONGO_LOG_PATH]"/>
 
     
     <InstallExecuteSequence>
-      <Custom Action="UpdateMongoYAML" After="InstallFinalize">NOT Installed</Custom>
+      <!--<Custom Action="UpdateMongoYAML" After="InstallFiles">NOT Installed AND MONGO_SERVICE_INSTALL</Custom>-->
+      <Custom Action="UpdateMongoYAML.SetProperty" Before="InstallFiles" />
+      <Custom Action="UpdateMongoYAML" After="InstallFiles">MONGO_SERVICE_INSTALL AND NOT REMOVE</Custom>
     </InstallExecuteSequence>
   
     <Media Id="1" Cabinet="media1.cab" EmbedCab="yes" />

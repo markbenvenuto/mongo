@@ -44,7 +44,7 @@
                     <Text>{\WixUI_Font_Title}Service Configuration</Text>
                 </Control>
                 <Control Id="textDescription" Type="Text" X="23" Y="23" Width="345" Height="10" TabSkip="yes" Transparent="yes">
-                    <Text>Specify optional settings to configiure MongoDB as a service.</Text>
+                    <Text>Specify optional settings to configure MongoDB as a service.</Text>
                 </Control>
                 <Control Id="lineTopDivider" Type="Line" X="0" Y="44" Width="375" Height="2" />
                 <Control Id="lineBottomDivider" Type="Line" X="0" Y="234" Width="375" Height="2" />

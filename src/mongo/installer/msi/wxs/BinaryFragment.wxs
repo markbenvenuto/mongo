@@ -19,7 +19,7 @@
               DiskId ="1" KeyPath="yes"/>
         <ServiceInstall Id='MyServiceInstall'
               Description="MongoDB Database Server"
-              Arguments='--dbpath "[MONGO_DATA_PATH]" --logpath "[MONGO_LOG_PATH]\mongod.log" --config "[MONGO_LOG_PATH]\mongod.cfg" --service'
+              Arguments='--config "[BIN]\mongod.cfg" --service'
               DisplayName='MongoDB Server'
               Name='MongoDB'
               ErrorControl='normal'
@@ -39,7 +39,7 @@
               DiskId ="1" KeyPath="yes"/>
       </Component>
       <Component Id="c_mongodCfg" Guid="EA715A4C-7C63-4C5C-8F73-A82E84668AEE">
-        <File Id="f_mongodCfg" Name="mongod.cfg" Source="d:\mongo\src\mongo\installer\msi\wxs\mongod.conf"
+        <File Id="f_mongodCfg" Name="mongod.cfg" Source="d:\mongo\src\mongo\installer\msi\wxs\mongod.yaml"
               DiskId ="1" KeyPath="yes"/>
         <!--<File Id="f_mongodCfg" Name="mongod.cfg" Source="$(var.BinarySource)\mongod.conf" -->
       </Component>

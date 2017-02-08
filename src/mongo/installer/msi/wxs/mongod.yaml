@@ -1,79 +1,41 @@
 # mongod.conf
 
+# for documentation of all options, see:
+#   http://docs.mongodb.org/manual/reference/configuration-options/
+
+# Where and how to store data.
+storage:
+  dbPath: %MONGO_DATA_PATH%
+  journal:
+    enabled: true
+#  engine:
+#  mmapv1:
+#  wiredTiger:
+
+# where to write logging data.
 systemLog:
-    # Level of internal debug verbosity
-    #verbosity: 0
-    # Destination can be file
-    destination: file
-    # Where to log
-    path: %MONGO_LOG_PATH%
+  destination: file
+  logAppend: true
+  path:  %MONGO_LOG_PATH%\mongod.log
 
-    logAppend: true
-
-    # TimeStamp format in log file: can be either ctime, iso8601-utc, or iso8601-local
-    timeStampFormat:   iso8601-local
-
+# network interfaces
 net:
-    # Listen to local interface only. UComment out to listen on all interfaces. 
-    bindIp: 127.0.0.1
-    # TCP Port to listen on
-    port: 27017
-    # Maxiumum incoming connections 
-    # maxIncomingConnections: 100000
-    # Inspect all client data for validity on receipt (useful for
-    # developing drivers)
-    #wireObjectCheck: true
-    # Enaled IPv6 
-    #ipv6: false
-    #
+  port: 27017
+  bindIp: 127.0.0.1
 
-    # SSL is only supported in Enterprise & Custom builds
-    #ssl:
-        # Allowed values disabled, allowSSL, preferSSL, or requireSSL
-        # mode: 
-        # PEMKeyFile:
-        # PEMKeyPassword:
-        # clusterFile:
-        # clusterPassword:
-        # CAFile:
-        # CRLFile:
-        #weakCertificateValidation:
-        # allowInvalidCertificates:
-        # FIPSMode
-        # setParameter
+
+#processManagement:
 
 #security:
-    # Specifies the path to a key file to that stores the shared secret that MongoDB instances
-    # use to authenticate to each other in a sharded cluster or replica set
-    # keyFile:
-    # Possible values: keyFile, sendKeyFile, sendX509, x509
-    # clusterAuthMode: keyfile
-    # authorization: disabled
-    # javascriptEnabled: true
 
-operationProfiling:
-    #slowOpThresholdMs: 100
-    #mode: off
+#operationProfiling:
 
-storage:
-    dbPath: %MONGO_DATA_PATH%
-    #directoryPerDB: false
-    #indexBuildRetry: true
-    #preallocDataFiles: true
-    #nsSize: 16
+#replication:
 
-    #quota:
-        #enforced: false
-        #maxFilesPerDB: 8
+#sharding:
 
-    #smallFiles: false
-    #syncPeriodSecs: 60
-    #repairPath: _tmp
+## Enterprise-Only Options:
 
-    journal:
-        # Enables Write-Ahead Journalling
-        enabled: true
-        debugFlags: 0
-        commitIntervalMs: 100
+#auditLog:
 
-
+#snmp:
