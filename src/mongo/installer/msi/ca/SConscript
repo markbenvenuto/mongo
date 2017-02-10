@@ -1,0 +1,34 @@
+# -*- mode: python -*-
+Import("env")
+Import("debugBuild")
+
+env = env.Clone()
+
+#print("ENV: " + env.Dump() )
+
+# Do not link with DLL version of the CRT
+# As part of install, we may need to install the CRT DLL
+# but if it is not installed, we cannot run the installer if we dynamically linked.abs
+#
+bad_flags = [a for a in env['CCFLAGS'] if a.startswith("/M")]
+
+for flag in bad_flags:
+    env['CCFLAGS'].remove(flag)
+
+if debugBuild:
+    env['CCFLAGS'].append("/MTd")
+else:
+    env['CCFLAGS'].append("/MT")
+    
+
+env.Append(LIBS=['msi.lib'])
+
+ca = env.SharedLibrary(
+    target='mongoca',
+    source=[
+        'customaction.cpp',
+        'customaction.def',
+    ],
+)
+
+env.Install("#/", ca)
