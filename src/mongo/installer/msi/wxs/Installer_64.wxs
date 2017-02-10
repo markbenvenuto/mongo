@@ -106,9 +106,15 @@
     <Property Id="MONGO_SERVICE_INSTALL" Value="0" Secure="yes" />
     <Property Id="MONGO_SERVICE_ACCOUNT_TYPE" Secure="yes" Value="ServiceLocalNetwork" />
     <Property Id="MONGO_SERVICE_NAME" Secure="yes" Value="MongoDB" />
+    <Property Id="MONGO_SERVICE_ACCOUNT_DOMAIN" Value="." />
     <Property Id="MONGO_SERVICE_ACCOUNT_NAME" Secure="yes" Value="MongoDB" />
     <Property Id="MONGO_SERVICE_ACCOUNT_PASSWORD" Secure="yes" Hidden="yes"/>
-    <Property Id="MONGO_SERVICE_FIREWALL_EXCEPTION" Secure="yes"/>
+
+    <!--
+    <Property Id="MONGO_SERVICE_ACCOUNT_DOMAIN_GRANT" />
+    <Property Id="MONGO_SERVICE_ACCOUNT_DOMAIN_SERVICE" />
+    -->
+
     <Property Id="MONGO_DATA_PATH" Secure="yes" />
     <Property Id="MONGO_LOG_PATH" Secure="yes" />
 
@@ -124,10 +130,39 @@
         Installed OR (NOT MONGO_MULTIPLE_SKU OR MONGO_MULTIPLE_SKU = "!(wix.ProductMajorName)")
     </Condition>
 
-    <CustomAction Id="MongoDB.SetAccount1" Property="MONGO_SERVICE_ACCOUNT_NAME" Value="NT AUTHORITY\NetworkService" />
+
+    <!-- Setup the domain to use for granting permissions, the gotcha is the local machine
+      The API underneath wants an empty string for the grant, but the service domain stuff wants '.'
+    -->
+    <!-- Default the domain to grant to the user request -->
+    <CustomAction Id="MongoDB.SetGrantAccountDefault" Property="MONGO_SERVICE_ACCOUNT_DOMAIN_GRANT" Value="[MONGO_SERVICE_ACCOUNT_DOMAIN]" />
+
+    <!-- Change the domain to blank if the user specified '.' i.e. local machine -->
+    <CustomAction Id="MongoDB.SetGrantAccountToBlank" Property="MONGO_SERVICE_ACCOUNT_DOMAIN_GRANT" Value="" />
+
+    <!-- Change the domain to blank if the user specified '.' i.e. local machine -->
+    <CustomAction Id="MongoDB.SetGrantAccountToNetworkAccount" Property="MONGO_SERVICE_ACCOUNT_DOMAIN_GRANT" Value="NT AUTHORITY" />
+
+    <!-- Default to the fully qualified domain\account for the service account -->
+    <CustomAction Id="MongoDB.SetServiceAccountDefault" Property="MONGO_SERVICE_FULL_ACCOUNT_NAME" Value="[MONGO_SERVICE_ACCOUNT_DOMAIN]\[MONGO_SERVICE_ACCOUNT_NAME]" />
+
+    <!-- Default to .\account if the user left domain blank -->
+    <CustomAction Id="MongoDB.SetServiceAccountToDot" Property="MONGO_SERVICE_FULL_ACCOUNT_NAME" Value=".\[MONGO_SERVICE_ACCOUNT_NAME]" />
+
+    <!-- If the user chose network service, then just set the user account to Network Service -->
+    <CustomAction Id="MongoDB.SetServiceNetworkAccount" Property="MONGO_SERVICE_FULL_ACCOUNT_NAME" Value="NT AUTHORITY\NetworkService" />
+    <CustomAction Id="MongoDB.SetServiceNetworkAccount2" Property="MONGO_SERVICE_ACCOUNT_NAME" Value="NetworkService" />
 
     <InstallExecuteSequence>
-        <Custom Action="MongoDB.SetAccount1" Before="InstallValidate">MONGO_SERVICE_ACCOUNT_TYPE = "ServiceLocalNetwork"</Custom>
+        <Custom Action="MongoDB.SetGrantAccountDefault" After="CostFinalize" />
+        <Custom Action="MongoDB.SetGrantAccountToBlank" After="CostFinalize">MONGO_SERVICE_ACCOUNT_DOMAIN = "."</Custom>
+        <Custom Action="MongoDB.SetGrantAccountToNetworkAccount" After="CostFinalize">MONGO_SERVICE_ACCOUNT_TYPE = "ServiceLocalNetwork"</Custom>
+
+        <Custom Action="MongoDB.SetServiceAccountDefault" After="CostFinalize" />
+        <Custom Action="MongoDB.SetServiceAccountToDot" After="CostFinalize">MONGO_SERVICE_ACCOUNT_DOMAIN = ""</Custom>
+        <Custom Action="MongoDB.SetServiceNetworkAccount" After="CostFinalize">MONGO_SERVICE_ACCOUNT_TYPE = "ServiceLocalNetwork"</Custom>
+        <Custom Action="MongoDB.SetServiceNetworkAccount2" After="CostFinalize">MONGO_SERVICE_ACCOUNT_TYPE = "ServiceLocalNetwork"</Custom>
+
     </InstallExecuteSequence>
   </Product>
 </Wix>

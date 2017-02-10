@@ -66,7 +66,7 @@
                 <Control Id="CheckBox1" Type="CheckBox" X="8" Y="48" Width="132" Height="18"  Property="MONGO_SERVICE_INSTALL" CheckBoxValue="TRUE" TabSkip="no">
                     <Text>Install MongoD as a Service</Text>
                 </Control>
-                <Control Id="RadioButtonGroup1" Type="RadioButtonGroup" Property="MONGO_SERVICE_ACCOUNT_TYPE" X="20" Y="62" Width="180" Height="44">
+                <Control Id="RadioButtonGroup1" Type="RadioButtonGroup" Property="MONGO_SERVICE_ACCOUNT_TYPE" X="20" Y="62" Width="190" Height="44">
                     <RadioButtonGroup Property="MONGO_SERVICE_ACCOUNT_TYPE">
                         <RadioButton X="0" Y="2" Width="184" Height="18" Value="ServiceLocalNetwork" Text="Run service as Network Service user" />
                         <RadioButton X="0" Y="18" Width="184" Height="18" Value="ServiceCustomAccount" Text="Run service as a local or domain user:" />
@@ -74,57 +74,62 @@
                     <Condition Action="disable">NOT MONGO_SERVICE_INSTALL</Condition>
                     <Condition Action="enable">MONGO_SERVICE_INSTALL</Condition>
                 </Control>
-                <Control Id="Text7" Type="Text" X="38" Y="100" Width="76" Height="16" TabSkip="yes">
+                <Control Id="textAccountName" Type="Text" X="38" Y="116" Width="76" Height="15" TabSkip="yes">
                     <Text>Account Name:</Text>
                     <Condition Action="disable">NOT MONGO_SERVICE_INSTALL OR MONGO_SERVICE_ACCOUNT_TYPE = "ServiceLocalNetwork"</Condition>
                     <Condition Action="enable"><![CDATA[MONGO_SERVICE_INSTALL AND MONGO_SERVICE_ACCOUNT_TYPE <> "ServiceLocalNetwork"]]></Condition>
                 </Control>
-                <Control Id="Text8" Type="Text" X="38" Y="118" Width="76" Height="16" TabSkip="yes">
+                <Control Id="textAccountDomain" Type="Text" X="38" Y="98" Width="76" Height="15" TabSkip="yes">
+                    <Text>Account Domain:</Text>
+                    <Condition Action="disable">NOT MONGO_SERVICE_INSTALL OR MONGO_SERVICE_ACCOUNT_TYPE = "ServiceLocalNetwork"</Condition>
+                    <Condition Action="enable"><![CDATA[MONGO_SERVICE_INSTALL AND MONGO_SERVICE_ACCOUNT_TYPE <> "ServiceLocalNetwork"]]></Condition>
+                </Control>
+                <Control Id="textAccountPassword" Type="Text" X="38" Y="134" Width="76" Height="15" TabSkip="yes">
                     <Text>Account Password:</Text>
                     <Condition Action="disable">NOT MONGO_SERVICE_INSTALL OR MONGO_SERVICE_ACCOUNT_TYPE = "ServiceLocalNetwork"</Condition>
                     <Condition Action="enable"><![CDATA[MONGO_SERVICE_INSTALL AND MONGO_SERVICE_ACCOUNT_TYPE <> "ServiceLocalNetwork"]]></Condition>
                 </Control>
-                <Control Id="Edit9" Type="Edit" X="126" Y="100" Width="100" Height="15" TabSkip="no" Property="MONGO_SERVICE_ACCOUNT_NAME">
+                <Control Id="editAccountDomain" Type="Edit" X="124" Y="98" Width="101" Height="15" TabSkip="no" Property="MONGO_SERVICE_ACCOUNT_DOMAIN">
                     <Text>{32767}</Text>
                     <Condition Action="disable">NOT MONGO_SERVICE_INSTALL OR MONGO_SERVICE_ACCOUNT_TYPE = "ServiceLocalNetwork"</Condition>
                     <Condition Action="enable"><![CDATA[MONGO_SERVICE_INSTALL AND MONGO_SERVICE_ACCOUNT_TYPE <> "ServiceLocalNetwork"]]></Condition>
                 </Control>
-                <Control Id="Edit10" Type="Edit" X="126" Y="118" Width="100" Height="15" TabSkip="no" Password="yes" Property="MONGO_SERVICE_ACCOUNT_PASSWORD">
+                <Control Id="editAccountName" Type="Edit" X="124" Y="116" Width="101" Height="15" TabSkip="no" Property="MONGO_SERVICE_ACCOUNT_NAME">
                     <Text>{32767}</Text>
                     <Condition Action="disable">NOT MONGO_SERVICE_INSTALL OR MONGO_SERVICE_ACCOUNT_TYPE = "ServiceLocalNetwork"</Condition>
                     <Condition Action="enable"><![CDATA[MONGO_SERVICE_INSTALL AND MONGO_SERVICE_ACCOUNT_TYPE <> "ServiceLocalNetwork"]]></Condition>
                 </Control>
-                <Control Id="Text11" Type="Text" X="20" Y="140" Width="62" Height="15" TabSkip="yes">
+                <Control Id="editAccountPassword" Type="Edit" X="124" Y="134" Width="101" Height="15" TabSkip="no" Password="yes" Property="MONGO_SERVICE_ACCOUNT_PASSWORD">
+                    <Text>{32767}</Text>
+                    <Condition Action="disable">NOT MONGO_SERVICE_INSTALL OR MONGO_SERVICE_ACCOUNT_TYPE = "ServiceLocalNetwork"</Condition>
+                    <Condition Action="enable"><![CDATA[MONGO_SERVICE_INSTALL AND MONGO_SERVICE_ACCOUNT_TYPE <> "ServiceLocalNetwork"]]></Condition>
+                </Control>
+                <Control Id="textServiceName" Type="Text" X="23" Y="161" Width="62" Height="15" TabSkip="yes">
                     <Text>Service Name:</Text>
                     <Condition Action="disable">NOT MONGO_SERVICE_INSTALL</Condition>
                     <Condition Action="enable">MONGO_SERVICE_INSTALL</Condition>
                 </Control>
-                <Control Id="Edit12" Type="Edit" X="96" Y="140" Width="105" Height="15" TabSkip="no" Property="MONGO_SERVICE_NAME">
+                <Control Id="editServiceName" Type="Edit" X="98" Y="161" Width="105" Height="15" TabSkip="no" Property="MONGO_SERVICE_NAME">
                     <Condition Action="disable">NOT MONGO_SERVICE_INSTALL</Condition>
                     <Condition Action="enable">MONGO_SERVICE_INSTALL</Condition>
                 </Control>
-                <Control Id="Text13" Type="Text" X="20" Y="165" Width="61" Height="15" TabSkip="yes">
+                <Control Id="textDataDirectory" Type="Text" X="23" Y="188" Width="64" Height="15" TabSkip="yes">
                     <Text>Data Directory:</Text>
                     <Condition Action="disable">NOT MONGO_SERVICE_INSTALL</Condition>
                     <Condition Action="enable">MONGO_SERVICE_INSTALL</Condition>
                 </Control>
-                <Control Id="Text14" Type="Text" X="20" Y="184" Width="61" Height="15" TabSkip="yes">
+                <Control Id="textLogDirectory" Type="Text" X="23" Y="210" Width="62" Height="15" TabSkip="yes">
                     <Text>Log Directory:</Text>
                     <Condition Action="disable">NOT MONGO_SERVICE_INSTALL</Condition>
                     <Condition Action="enable">MONGO_SERVICE_INSTALL</Condition>
                 </Control>
-                <Control Id="Edit15" Type="Edit" X="96" Y="165" Width="238" Height="15" TabSkip="no" Property="MONGO_DATA_PATH">
+                <Control Id="editDataDirectory" Type="Edit" X="98" Y="188" Width="237" Height="15" TabSkip="no" Property="MONGO_DATA_PATH">
                     <Text>{32767}</Text>
                     <Condition Action="disable">NOT MONGO_SERVICE_INSTALL</Condition>
                     <Condition Action="enable">MONGO_SERVICE_INSTALL</Condition>
                 </Control>
-                <Control Id="Edit16" Type="Edit" X="96" Y="184" Width="238" Height="15" TabSkip="no" Property="MONGO_LOG_PATH">
+                <Control Id="editLogDirectory" Type="Edit" X="98" Y="210" Width="238" Height="15" TabSkip="no" Property="MONGO_LOG_PATH">
                     <Text>{32767}</Text>
-                    <Condition Action="disable">NOT MONGO_SERVICE_INSTALL</Condition>
-                    <Condition Action="enable">MONGO_SERVICE_INSTALL</Condition>
-                </Control>
-                <Control Id="CheckBox18" Type="CheckBox" X="20" Y="215" Width="218" Height="16" Property="MONGO_SERVICE_FIREWALL_EXCEPTION" CheckBoxValue="1" TabSkip="no">
-                    <Text>Add exception for MongoDB to Windows Firewall</Text>
                     <Condition Action="disable">NOT MONGO_SERVICE_INSTALL</Condition>
                     <Condition Action="enable">MONGO_SERVICE_INSTALL</Condition>
                 </Control>

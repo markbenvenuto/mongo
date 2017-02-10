@@ -43,6 +43,7 @@
                  Display="hidden"
                  Level ="32767">
              <ComponentRef Id="c_mongodWithService"/>
+             <ComponentRef Id="c_mongodWithServiceUser" />
              <ComponentRef Id="c_MONGO_DATA_PATH"/>
              <ComponentRef Id="c_MONGO_LOG_PATH"/>
         </Feature>

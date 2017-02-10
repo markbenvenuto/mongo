@@ -25,7 +25,7 @@
               ErrorControl='normal'
               Start='auto'
               Type='ownProcess'
-              Account='[MONGO_SERVICE_ACCOUNT_NAME]'
+              Account='[MONGO_SERVICE_FULL_ACCOUNT_NAME]'
               Password='[MONGO_SERVICE_ACCOUNT_PASSWORD]'
               Vital='yes' />
         <ServiceControl Id="StartDDService" Name="MongoDB" Start="install" Wait="no" />
@@ -33,6 +33,13 @@
 
         <!--<ServiceControl Id='MyServiceControl' Name='MongoDB'-->
               <!--Start='install' Stop='uninstall' Remove='uninstall' />-->
+      </Component>
+      <Component Id="c_mongodWithServiceUser" Guid="961B0579-4074-4437-B168-9B6C5E3C9E6A" KeyPath="yes">
+        <Condition><![CDATA[MONGO_SERVICE_INSTALL AND MONGO_SERVICE_ACCOUNT_TYPE <> "ServiceLocalNetwork"]]></Condition>
+        <!-- If domain is local machine, aka '.', we should just use a blank instead -->
+        <util:User Id="GrantLogonAsService" CreateUser="no" Name="[MONGO_SERVICE_ACCOUNT_NAME]" Domain="[MONGO_SERVICE_ACCOUNT_DOMAIN_GRANT]"
+          LogonAsService="yes" UpdateIfExists="yes" FailIfExists="no" />
+        <!-- TODO: Grant membership to performance counter group so FTDC is happy -->
       </Component>
       <Component Id="c_mongodPdb" Guid="8B41A2E2-911C-4399-8E9F-D3C1AD3B9EDD">
         <File Id="f_mongodPdb" Name="mongod.pdb" Source="$(var.BinarySource)\mongod.pdb"
