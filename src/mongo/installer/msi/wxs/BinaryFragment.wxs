@@ -28,8 +28,7 @@
               Account='[MONGO_SERVICE_FULL_ACCOUNT_NAME]'
               Password='[MONGO_SERVICE_ACCOUNT_PASSWORD]'
               Vital='yes' />
-        <ServiceControl Id="StartDDService" Name="MongoDB" Start="install" Wait="no" />
-        <ServiceControl Id="StopDDService" Name="MongDB" Stop="both" Wait="yes" Remove="uninstall" />
+        <ServiceControl Id="StartStopService" Name="MongoDB" Start="install" Stop="both" Remove="uninstall" Wait="no" />
 
         <!--<ServiceControl Id='MyServiceControl' Name='MongoDB'-->
               <!--Start='install' Stop='uninstall' Remove='uninstall' />-->
