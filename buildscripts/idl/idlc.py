@@ -1,3 +1,32 @@
+from __future__ import absolute_import
+
+import argparse
+#from . import idl.parser
+import idl.parser
+
+def main():
+    parser = argparse.ArgumentParser(description='MongoDB IDL Compiler.')
+
+    parser.add_argument(
+        '--input',
+        type=str,
+        help="IDL input file")
+
+    parser.add_argument(
+        '--output',
+        type=str,
+        help="IDL output file prefix")
+
+    parser.add_argument(
+        '--include',
+        type=str,
+        help="Directory to search for IDL import files")
+    
+    args = parser.parse_args()
+
+    print("Hello")
+
+    idl.parser.parse("""
 # TODO: write the code for this
 global:
     cpp_namespace: "mongo::acme::"
@@ -19,7 +48,7 @@ type:
     cpp_type: NamepaceString
     serialization_type: String 
     serializer: "mongo::NamespaceString::toBSON"
-    deserializer:" mongo::NamepaceString::parseBSON"
+    deserializer: "mongo::NamepaceString::parseBSON"
 
 type:
     name: safeInt32
@@ -60,3 +89,7 @@ struct:
           required: true
         ns: NamespaceString
         writeConcern: WriteConcern
+""")
+
+if __name__ == '__main__':
+    main()

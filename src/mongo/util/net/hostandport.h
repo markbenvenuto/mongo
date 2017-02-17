@@ -56,6 +56,8 @@ struct HostAndPort {
      */
     static StatusWith<HostAndPort> parse(StringData text);
 
+    static HostAndPort parseIDL(StringData text);
+
     /**
      * Construct an empty/invalid HostAndPort.
      */

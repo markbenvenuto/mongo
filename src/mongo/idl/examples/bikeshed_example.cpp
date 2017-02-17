@@ -3,104 +3,113 @@
 #include "mongo/base/status_with.h"
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/util/net/hostandport.h"
 #include <string>
 
 namespace mongo {
+NamespaceString parseAndValidateCommandNamespace(StringData, BSONElement&) {
+    return NamespaceString();
+}
+class IDLParserErrorContext {
+public:
+    IDLParserErrorContext push_back(StringData str);
+    void assertNotEmptyObject(StringData str);
+    void assertType(BSONElement&, BSONType, StringData str );
+    void assertIsNumber(BSONElement&, StringData str);
+    void throwUnknownField(BSONElement&, StringData str);
+    NamespaceString parseCommandNamespace(BSONElement&, StringData str);
+};
+
 class WriteConcernWriteField {
 public:
-    static StatusWith<WriteConcernWriteField> deserializeWField(BSONElement& elem);
+    static WriteConcernWriteField deserializeWField(BSONElement& elem);
     int i;
 };
 
 class WriteConcern {
 public:
-    static StatusWith<std::unique_ptr<WriteConcern>> parse(const BSONObj& obj);
+    static WriteConcern parse(IDLParserErrorContext& ctxt, const BSONObj& obj);
     Status serialize();
 
     const WriteConcernWriteField& getW() const { return _w; }
     void setW(WriteConcernWriteField value) { _w = std::move(value); }
 
-    bool getJ() const { return _j;  }
-    void setJ(bool value) { _j = value;  }
+    boost::optional<bool> getJ() const { return _j;  }
+    void setJ(boost::optional<bool> value) { _j = value;  }
 
-    // Getters/Setters ...
+    int32_t getWTimeout() const { return _wtimeout; }
+    void setWTimeout(int32_t value) { _wtimeout = value; }
 private:
-    WriteConcernWriteField _w;
-    bool _j;
-    int32_t _wtimeout;
+    WriteConcernWriteField _w; // required so optional is not used
+    boost::optional<bool> _j;
+    int32_t _wtimeout; // required so optional is not used
 };
 class BikeShedCmd {
 public:
-    static StatusWith<std::unique_ptr<BikeShedCmd>> parse(const BSONObj& obj);
-    Status serialize();
+    static BikeShedCmd parse(IDLParserErrorContext& ctxt, const BSONObj& obj);
+    Status serialize(NamespaceString ns);
 
-    StringData getColor() const { return _color;  }
+    const NamespaceString& getNS() const { return _ns; }
+
+    boost::optional<StringData> getColor() const { return boost::optional<StringData>(_color);  }
     void setColor(StringData value) { _color = value.toString(); }
-    // Getters/Setters ...
+    
+    const boost::optional<HostAndPort> getHost() const { return _host; }
+    void setHost(boost::optional<HostAndPort> value) { _host = value; }
+
+    const WriteConcern& getWriteConcern() const { return _writeConcern; }
+    void setWriteConcern(WriteConcern value) { _writeConcern = std::move(value); }
 private:
-    std::string _color;
     NamespaceString _ns;
-    std::unique_ptr<WriteConcern> _writeConcen;
+    boost::optional<std::string> _color;
+    boost::optional<HostAndPort> _host;
+    WriteConcern _writeConcern; // required so optional is not used
 };
-StatusWith<std::unique_ptr<WriteConcern>> WriteConcern::parse(const BSONObj& obj) {
-    if (obj.isEmpty()) {
-        return Status(ErrorCodes::FailedToParse, "WriteConcern object cannot be empty");
-    }
-    std::unique_ptr<WriteConcern> object;
+WriteConcern WriteConcern::parse(IDLParserErrorContext& ctxt, const BSONObj& obj) {
+    ctxt.assertNotEmptyObject("writeConcern");
+
+    WriteConcern object;
     for (auto element : obj) {
         const auto fieldName = element.fieldNameStringData();
         if (fieldName == "j") {
-            if (element.type() != Bool) {
-                return Status(ErrorCodes::FailedToParse, "j must be a boolean value");
-            }
-            object->_j = element.trueValue();
+            ctxt.assertType(element, Bool, "j");
+            object._j = element.trueValue();
         } else if (fieldName == "w") {
-            auto swParseField = WriteConcernWriteField::deserializeWField(element);
-            if (!swParseField.isOK()) {
-                return swParseField.getStatus();
-            }
-            object->_w = std::move(swParseField.getValue());
+            object._w = std::move(WriteConcernWriteField::deserializeWField(element));
         } else if (fieldName == "wTimeout") {
-            if (element.isNumber()) {
-                return Status(ErrorCodes::FailedToParse, "wTimeout must be a number field");
-            }
-            object->_wtimeout = element.numberInt();
+            ctxt.assertIsNumber(element, "wTimeout");
+            object._wtimeout = element.numberInt();
         } else if (fieldName == "wOptime") {
             // Ignore.
         } else {
-            return Status(ErrorCodes::FailedToParse,
-                str::stream() << "Unrecognized WriteConcern field: " << fieldName);
+            ctxt.throwUnknownField(element, "writeConcern");
         }
     }
     return std::move(object);
 }
 
-StatusWith<std::unique_ptr<BikeShedCmd>> BikeShedCmd::parse(const BSONObj& obj) {
-    if (obj.isEmpty()) {
-        return Status(ErrorCodes::FailedToParse, "BikeShedCmd object cannot be empty");
-    }
-    std::unique_ptr<WriteConcern> object;
+BikeShedCmd BikeShedCmd::parse(IDLParserErrorContext& ctxt, const BSONObj& obj) {
+    ctxt.assertNotEmptyObject("writeConcern");
+
+    BikeShedCmd object;
+    bool firstFieldFound = false;
     for (auto element : obj) {
         const auto fieldName = element.fieldNameStringData();
+        if (firstFieldFound == false) {
+            object._ns = ctxt.parseCommandNamespace(element, "bikeShedCmd");
+            firstFieldFound = true;
+            continue;
+        }
         if (fieldName == "color") {
-            if (element.type() != String) {
-                return Status(ErrorCodes::FailedToParse, "color must be a string value");
-            }
-            object->_color = element.stringValue();
-        } else if (fieldName == "ns") {
-            if (element.type() != String) {
-                return Status(ErrorCodes::FailedToParse, "ns must be a string value");
-            }
-            object->_ns = NamespaceString(element.stringValue());
+            ctxt.assertType(element, String, "color");
+            object._color = element.toString();
+        } else if (fieldName == "host") {
+            ctxt.assertType(element, String, "host");
+            object._host = HostAndPort::parseIDL(element.toString());
         } else if (fieldName == "writeConcern") {
-            auto swParseField = WriteConcern::parse(element);
-            if (!swParseField.isOK()) {
-                return swParseField.getStatus();
-            }
-            object->_writeConcen = std::move(swParseField.getValue());
+            object._writeConcern = std::move(WriteConcern::parse(ctxt.push_back("writeConcern"), element.Obj()));
         } else {
-            return Status(ErrorCodes::FailedToParse,
-                str::stream() << "Unrecognized BikeShedCmd field: " << fieldName);
+            ctxt.throwUnknownField(element, "writeConcern");
         }
     }
     return std::move(object);
