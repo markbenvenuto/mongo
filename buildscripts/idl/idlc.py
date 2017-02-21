@@ -30,7 +30,8 @@ def main():
 # TODO: write the code for this
 global:
     cpp_namespace: "mongo::acme::"
-
+    cpp_includes:
+        - "mongo/db/foo.h"
 # 3 levels of deserialization
 # - 1 readString/toString
 # - 2 BSONelemtn

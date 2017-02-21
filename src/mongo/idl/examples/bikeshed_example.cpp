@@ -130,7 +130,7 @@ BikeShedCmd BikeShedCmd::parse(IDLParserErrorContext& ctxt, const BSONObj& obj) 
         ctxt.throwMissingRequiredField("writeConcern");
     }
 
-    // Set defaults if needed
+    // Set defaults if neededw
 
     return std::move(object);
 }
