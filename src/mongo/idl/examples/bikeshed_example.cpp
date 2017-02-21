@@ -12,11 +12,12 @@ NamespaceString parseAndValidateCommandNamespace(StringData, BSONElement&) {
 }
 class IDLParserErrorContext {
 public:
-    IDLParserErrorContext push_back(StringData str);
-    void assertNotEmptyObject(StringData str);
-    void assertType(BSONElement&, BSONType, StringData str );
-    void assertIsNumber(BSONElement&, StringData str);
-    void throwUnknownField(BSONElement&, StringData str);
+    IDLParserErrorContext push_back(StringData fieldName);
+    void assertNotEmptyObject(StringData fieldName);
+    void assertType(const BSONElement&, BSONType, StringData fieldName);
+    void assertIsNumber(const BSONElement&, StringData str);
+    void throwUnknownField(const BSONElement&, StringData str);
+    void throwMissingRequiredField(StringData str);
     NamespaceString parseCommandNamespace(BSONElement&, StringData str);
 };
 
@@ -65,6 +66,7 @@ private:
     boost::optional<HostAndPort> _host;
     WriteConcern _writeConcern; // required so optional is not used
 };
+
 WriteConcern WriteConcern::parse(IDLParserErrorContext& ctxt, const BSONObj& obj) {
     ctxt.assertNotEmptyObject("writeConcern");
 
@@ -85,21 +87,30 @@ WriteConcern WriteConcern::parse(IDLParserErrorContext& ctxt, const BSONObj& obj
             ctxt.throwUnknownField(element, "writeConcern");
         }
     }
+
+    // 
+
     return std::move(object);
 }
 
 BikeShedCmd BikeShedCmd::parse(IDLParserErrorContext& ctxt, const BSONObj& obj) {
-    ctxt.assertNotEmptyObject("writeConcern");
+    ctxt.assertNotEmptyObject("bikeShedCmd");
 
     BikeShedCmd object;
+
+    // Check for required fields
+    bool hasSeenWriteConcern = false;
     bool firstFieldFound = false;
+    
     for (auto element : obj) {
         const auto fieldName = element.fieldNameStringData();
+        
         if (firstFieldFound == false) {
             object._ns = ctxt.parseCommandNamespace(element, "bikeShedCmd");
             firstFieldFound = true;
             continue;
         }
+
         if (fieldName == "color") {
             ctxt.assertType(element, String, "color");
             object._color = element.toString();
@@ -108,11 +119,23 @@ BikeShedCmd BikeShedCmd::parse(IDLParserErrorContext& ctxt, const BSONObj& obj) 
             object._host = HostAndPort::parseIDL(element.toString());
         } else if (fieldName == "writeConcern") {
             object._writeConcern = std::move(WriteConcern::parse(ctxt.push_back("writeConcern"), element.Obj()));
+            hasSeenWriteConcern = true;
         } else {
             ctxt.throwUnknownField(element, "writeConcern");
         }
     }
+
+    // Check missing required fields
+    if (!hasSeenWriteConcern) {
+        ctxt.throwMissingRequiredField("writeConcern");
+    }
+
+    // Set defaults if needed
+
     return std::move(object);
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 } // namespace mongo
 
