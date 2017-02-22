@@ -1,69 +1,80 @@
-def fooar():
-    print "Asas"
+"""IDL AST classes"""
+from __future__ import absolute_import, print_function
 
 class IDLSpec(object):
+    """The in-memory representation of an IDL file
+
+        - Includes all imported files
+        - Fields may have had types derived depending on pass run
+    """
     def __init__(self, *args, **kwargs):
-        self.symbols = symbol_table()
+        self.symbols = SymbolTable()
         self.globals = None
         self.imports = None
 
-        return super(IDLSpec, self).__init__(*args, **kwargs)
+        super(IDLSpec, self).__init__(*args, **kwargs)
 
 
 
-class symbol_table(object):
-    """description of class"""
+class SymbolTable(object):
+    """IDL Symbol Table
+
+        - Contains all information ...
+    """
 
     def __init__(self, *args, **kwargs):
         self.types = []
         self.structs = []
         self.commands = []
 
-        return super(symbol_table, self).__init__(*args, **kwargs)
-     
-    def _isDuplicate(self, ctxt, node, name, duplicate_class_name):
+        super(SymbolTable, self).__init__(*args, **kwargs)
+
+    def _is_duplicate(self, ctxt, node, name, duplicate_class_name):
+        """Does the given item already exist in the symbol table"""
         for struct in self.structs:
             if struct.name == name:
-                ctxt.addDuplicateSymbolError(node, name, duplicate_class_name, 'struct')
+                ctxt.add_duplicate_symbol_error(node, name, duplicate_class_name, 'struct')
                 return False
         return True
 
-    def addStruct(self, ctxt, node, struct):
-        if not self._isDuplicate(ctxt, node, struct.name, "struct"):
+    def add_struct(self, ctxt, node, struct):
+        """Add an IDL struct to the symbol table and check for duplicates"""
+        if not self._is_duplicate(ctxt, node, struct.name, "struct"):
             self.structs.append(struct)
 
-    def addType(self, ctxt, node, type):
+    def add_type(self, ctxt, node, idltype):
+        """Add an IDL type to the symbol table and check for duplicates"""
         pass
 
-    def addCommand(self, ctxt, node, command):
+    def add_command(self, ctxt, node, command):
+        """Add an IDL command  to the symbol table  and check for duplicates"""
         pass
-       
-class idl_global(object):
+
+class Global(object):
     """IDL global object"""
     def __init__(self, *args, **kwargs):
         self.cpp_namespace = None
         self.cpp_includes = []
-        return super(idl_global, self).__init__(*args, **kwargs)
+        super(Global, self).__init__(*args, **kwargs)
 
-class idl_import(object):
+class Import(object):
     """IDL imports object"""
 
-class type(object):
-    """type"""
+class Type(object):
+    """IDL type"""
 
-class field(object):
-    """fields"""
+class Field(object):
+    """fields in a struct"""
     def __init__(self, *args, **kwargs):
         self.name = None
-        return super(struct, self).__init__(*args, **kwargs)
+        super(Field, self).__init__(*args, **kwargs)
 
-class struct(object):
+class Struct(object):
     """IDL struct"""
     def __init__(self, *args, **kwargs):
         self.name = None
         self.fields = []
-        return super(struct, self).__init__(*args, **kwargs)
+        super(Struct, self).__init__(*args, **kwargs)
 
-class command(struct):
+class Command(Struct):
     """IDL command"""
-

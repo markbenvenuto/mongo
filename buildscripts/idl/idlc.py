@@ -1,10 +1,14 @@
-from __future__ import absolute_import
+#!/usr/bin/env python2
+"""
+IDL Compiler Driver
+"""
+from __future__ import absolute_import, print_function
 
 import argparse
-#from . import idl.parser
 import idl.parser
 
 def main():
+    """Main Entry point"""
     parser = argparse.ArgumentParser(description='MongoDB IDL Compiler.')
 
     parser.add_argument(
@@ -21,7 +25,7 @@ def main():
         '--include',
         type=str,
         help="Directory to search for IDL import files")
-    
+
     args = parser.parse_args()
 
     print("Hello")
