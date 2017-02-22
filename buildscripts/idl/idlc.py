@@ -5,6 +5,7 @@ IDL Compiler Driver
 from __future__ import absolute_import, print_function, unicode_literals
 
 import argparse
+import idl.binder
 import idl.parser
 import idl.generator
 
@@ -48,6 +49,11 @@ type:
     cpp_type: "mongo::StringData"
     deserializer: "mongo::BSONElement::str"
     
+type:
+    name: int32
+    bson_serialization_type: int32
+    cpp_type: "std::int32_t"
+    deserializer: "mongo::BSONElement::numberInt"
 
 type:
     name: NamespaceString
@@ -68,12 +74,7 @@ struct:
     name: WriteConcern
     description: A Fake Write Concern for a command
     fields:
-        w: 
-          type: object
-          cpp_type: WriteConcernWriteField
-          serialization_type: any
-          serializer: "WriteConcernWriteField::deserializeWField"
-        j: bool
+        j: int32
         wtimeout: 
           type: safeInt32
           min: 0
@@ -93,12 +94,13 @@ struct:
           type: string
           description: The Bike Shed's color
           required: true
-        ns: NamespaceString
         writeConcern: WriteConcern
 """)
 
     if not parsed_doc.errors:
-        idl.generator.generate_code(parsed_doc.spec, "fooobar")
+        bound_doc = idl.binder.bind(parsed_doc.spec)
+        if not bound_doc.errors:
+            idl.generator.generate_code(bound_doc.spec, "fooobar")
 
 if __name__ == '__main__':
     main()
