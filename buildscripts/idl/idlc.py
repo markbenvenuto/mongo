@@ -2,10 +2,11 @@
 """
 IDL Compiler Driver
 """
-from __future__ import absolute_import, print_function
+from __future__ import absolute_import, print_function, unicode_literals
 
 import argparse
 import idl.parser
+import idl.generator
 
 def main():
     """Main Entry point"""
@@ -30,7 +31,7 @@ def main():
 
     print("Hello")
 
-    idl.parser.parse("""
+    parsed_doc = idl.parser.parse("""
 # TODO: write the code for this
 global:
     cpp_namespace: "mongo::acme::"
@@ -43,7 +44,7 @@ global:
 
 type:
     name: string
-    serialization_type: String 
+    bson_serialization_type: String 
     cpp_type: "mongo::StringData"
     deserializer: "mongo::BSONElement::str"
     
@@ -51,7 +52,7 @@ type:
 type:
     name: NamespaceString
     cpp_type: NamepaceString
-    serialization_type: String 
+    bson_serialization_type: String 
     serializer: "mongo::NamespaceString::toBSON"
     deserializer: "mongo::NamepaceString::parseBSON"
 
@@ -59,7 +60,7 @@ type:
     name: safeInt32
     description: Accepts any numerical type within int32 range
     cpp_type: int64_t
-    serialization_type: "BSONElement::isNumber"
+    bson_serialization_type: "BSONElement::isNumber"
     serializer: "mongo::BSONElement::numberInt??"
     deserializer: "mongo::BSONElement::numberInt"
 
@@ -95,6 +96,9 @@ struct:
         ns: NamespaceString
         writeConcern: WriteConcern
 """)
+
+    if not parsed_doc.errors:
+        idl.generator.generate_code(parsed_doc.spec, "fooobar")
 
 if __name__ == '__main__':
     main()
