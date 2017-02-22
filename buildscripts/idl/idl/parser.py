@@ -1,30 +1,11 @@
 """IDL Parser"""
 from __future__ import absolute_import, print_function
 
+import pprint
 import yaml
+
 from . import errors
 from . import ast
-
-class ParserErrorCollection(object):
-    """A collection of errors with line & context information"""
-    def __init__(self):
-        self._errors = []
-
-    def add(self, file_name, node, msg):
-        """Add an error message with file (line, column) information"""
-        line = node.start_mark.line
-        column = node.start_mark.column
-        error_msg = "%s: (%d, %d): %s" % (file_name, line, column, msg)
-        self._errors.append(error_msg)
-
-    def has_errors(self):
-        """Have any errors been added to the collection?"""
-        return len(self._errors) > 0
-
-    def dump_errors(self):
-        """Print the list of errors"""
-        for error in self._errors:
-            print ("%s\n\n" % error)
 
 class ParserContext(object):
     """IDL parser context
@@ -33,13 +14,13 @@ class ParserContext(object):
         - keeping track of current file
         - generating error messages
     """
-    def __init__(self, file_name, *args, **kwargs):
-        self._errors = ParserErrorCollection()
+    def __init__(self, file_name, errors=ast.ParserErrorCollection(), *args, **kwargs):
+        self.errors = errors
         self._file = file_name
         super(ParserContext, self).__init__(*args, **kwargs)
 
     def _add_error(self, node, msg):
-        self._errors.add(self._file, node, msg)
+        self.errors.add(self._file, node, msg)
 
     def add_unknown_root_node_error(self, node):
         """Add an error about an unknown root node"""
@@ -99,14 +80,6 @@ class ParserContext(object):
         self._add_error(node, "Duplicate node found for '%s'" % (node_name))
         return False
 
-    def has_errors(self):
-        """Have any errors been added to the collection?"""
-        return self._errors.has_errors()
-
-    def dump_errors(self):
-        """Print the list of errors"""
-        self._errors.dump_errors()
-
 def parse_global(ctxt, spec, node):
     """Parse a global section in the IDL file"""
     if not ctxt.is_mapping_node(node, "global"):
@@ -126,7 +99,7 @@ def parse_global(ctxt, spec, node):
                 # TODO: validate namespace
                 idlglobal.cpp_namespace = second_node.value
         elif first_name == "cpp_includes":
-            if (not ctxt.is_empty_list(second_node, idlglobal.cpp_includes, "cpp_includes")) and \
+            if (ctxt.is_empty_list(second_node, idlglobal.cpp_includes, "cpp_includes")) and \
                 ctxt.is_sequence_or_scalar_node(second_node, "cpp_includes"):
                 idlglobal.cpp_namespace = ctxt.get_list(second_node)
         else:
@@ -140,6 +113,49 @@ def parse_global(ctxt, spec, node):
 def parse_type(ctxt, spec, node):
     """Parse a type section in the IDL file"""
     pass
+
+def parse_field(ctxt, name, node):
+    """Parse a field in a struct/command in the IDL file"""
+    field = ast.Field()
+
+    field.name = name
+    for node_pair in node.value:
+        first_node = node_pair[0]
+        second_node = node_pair[1]
+
+        first_name = first_node.value
+
+        if ctxt.is_scalar_node(second_node, name):
+            if first_name == "type":
+                if not ctxt.is_duplicate(second_node, field.type, "type"):
+                    field.type = second_node.value
+            else:
+                ctxt.add_unknown_root_node_error(first_node)
+
+    return field
+
+def parse_fields(ctxt, spec, node):
+    """Parse a fields section in a struct in the IDL file"""
+
+    fields = []
+
+    for node_pair in node.value:
+        first_node = node_pair[0]
+        second_node = node_pair[1]
+
+        first_name = first_node.value
+
+        # Simple Type
+        #ctxt.is_scalar_node(second_node, "name"):
+        if second_node.id == "scalar":
+            pass
+        else:
+        # TODO: check for duplicate fields
+            field = parse_field(ctxt, first_name, second_node)
+            
+            fields.append(field)
+
+    return fields
 
 def parse_struct(ctxt, spec, node):
     """Parse a struct section in the IDL file"""
@@ -159,6 +175,10 @@ def parse_struct(ctxt, spec, node):
                 ctxt.is_scalar_node(second_node, "name"):
                 # TODO: validate name
                 struct.name = second_node.value
+        elif first_name == "fields":
+            if (ctxt.is_empty_list(second_node, struct.fields, "fields")) and \
+                ctxt.is_mapping_node(second_node, "fields"):
+                struct.fields = parse_fields(ctxt, spec, second_node)
         else:
             ctxt.add_unknown_root_node_error(first_node)
 
@@ -195,8 +215,13 @@ def parse(stream):
         else:
             ctxt.add_unknown_root_node_error(first_node)
 
-    if ctxt.has_errors():
-        ctxt.dump_errors()
-        return None
+
+    #pp = pprint.PrettyPrinter()
+
+    #pp.pprint(spec)
+
+    if ctxt.errors.has_errors():
+        ctxt.errors.dump_errors()
+        return ast.IDLParsedSpec(None, ctxt.errors)
     else:
-        return spec
+        return ast.IDLParsedSpec(spec, None)

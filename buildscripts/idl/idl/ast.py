@@ -1,6 +1,33 @@
 """IDL AST classes"""
 from __future__ import absolute_import, print_function
 
+class ParserErrorCollection(object):
+    """A collection of errors with line & context information"""
+    def __init__(self):
+        self._errors = []
+
+    def add(self, file_name, node, msg):
+        """Add an error message with file (line, column) information"""
+        line = node.start_mark.line
+        column = node.start_mark.column
+        error_msg = "%s: (%d, %d): %s" % (file_name, line, column, msg)
+        self._errors.append(error_msg)
+
+    def has_errors(self):
+        """Have any errors been added to the collection?"""
+        return len(self._errors) > 0
+
+    def dump_errors(self):
+        """Print the list of errors"""
+        for error in self._errors:
+            print ("%s\n\n" % error)
+
+class IDLParsedSpec(object):
+    def __init__(self, spec, errors):
+        self.spec = spec
+        self.errors = errors
+
+# TODO: add dump to yaml support
 class IDLSpec(object):
     """The in-memory representation of an IDL file
 
@@ -50,6 +77,8 @@ class SymbolTable(object):
         """Add an IDL command  to the symbol table  and check for duplicates"""
         pass
 
+#TODO add file, line, col info everywhere
+
 class Global(object):
     """IDL global object"""
     def __init__(self, *args, **kwargs):
@@ -67,6 +96,7 @@ class Field(object):
     """fields in a struct"""
     def __init__(self, *args, **kwargs):
         self.name = None
+        self.type = None
         super(Field, self).__init__(*args, **kwargs)
 
 class Struct(object):
