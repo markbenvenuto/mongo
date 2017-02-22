@@ -3,6 +3,7 @@ from __future__ import absolute_import, print_function
 
 import pprint
 import yaml
+from yaml import nodes
 
 from . import errors
 from . import ast
@@ -20,23 +21,28 @@ class ParserContext(object):
         super(ParserContext, self).__init__(*args, **kwargs)
 
     def _add_error(self, node, msg):
+        # type: (yaml.nodes.Node, str) -> None
         self.errors.add(self._file, node, msg)
 
     def add_unknown_root_node_error(self, node):
+        # type: (yaml.nodes.Node) -> None
         """Add an error about an unknown root node"""
         self._add_error(node, "Unrecognized IDL specification root level node '%s' only (global, import, type, command, and struct) are accepted" % (node.value))
 
     def add_duplicate_symbol_error(self, node, name, duplicate_class_name, original_class_name):
+        # type: (yaml.nodes.Node, str, str, str) -> None
         """Add an error about a duplicate symbol"""
         self._add_error(node, "%s '%s' is a duplicate symbol of an existing %s" % (duplicate_class_name, name, original_class_name))
 
     def _is_node_type(self, node, node_name, expected_node_type):
+        # type: (yaml.nodes.Node, str, str) -> bool
         if not node.id == expected_node_type:
             self._add_error(node, "Illegal node type '%s' for '%s', expected node type '%s'" % (node.id, node_name, expected_node_type))
             return False
         return True
 
     def is_mapping_node(self, node, node_name):
+        # type: (yaml.nodes.Node, str) -> None
         """Is this YAML node a Map?"""
         return self._is_node_type(node, node_name, "mapping")
 
