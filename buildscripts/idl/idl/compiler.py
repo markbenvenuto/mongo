@@ -2,6 +2,7 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 from . import parser
 
+
 def compile(stream):
 
     spec = parser.parse(stream)

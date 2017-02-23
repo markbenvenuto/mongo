@@ -6,7 +6,8 @@ import io
 import os
 import string
 
-INDENT_SPACE_COUNT=4
+INDENT_SPACE_COUNT = 4
+
 
 def camel_case(name):
     # type: (unicode) -> unicode
@@ -14,13 +15,15 @@ def camel_case(name):
         name = string.upper(name[0:1]) + name[1:]
     return name
 
+
 def get_method_name(name):
     # type: (unicode) -> unicode
     pos = name.rfind("::")
     if pos == -1:
         return name
     return name[pos + 2:]
-    
+
+
 class IndentedTextWriter(object):
     def __init__(self, stream, *args, **kwargs):
         # type: (io.StringIO, *str, **bool) -> None
@@ -41,12 +44,12 @@ class IndentedTextWriter(object):
     def unindent(self):
         # type: () -> None
         self._indent -= 1
-        
+
     def write_line(self, msg):
         # type: (unicode) -> None
         """Write a line to the stream"""
         fill = ''
-        for x in range(self._indent *  INDENT_SPACE_COUNT):
+        for x in range(self._indent * INDENT_SPACE_COUNT):
             fill += ' '
 
         self._stream.write(fill)
@@ -59,14 +62,14 @@ class IndentedTextWriter(object):
         self._stream.write(u"\n")
 
 
-
 class CppFileWriter(object):
     """C++ File writer. Encapsulates low level knowledge of how to print a file.
        Relies on caller to orchestrate calls correctly though.
     """
+
     def __init__(self, writer, *args, **kwargs):
         # type: (IndentedTextWriter, *str, **bool) -> None
-        self._writer = writer # type: IndentedTextWriter
+        self._writer = writer  # type: IndentedTextWriter
         #super(CppFileWriter, self).__init__(*args, **kwargs)
 
     def write_unindented_line(self, msg):
@@ -80,7 +83,8 @@ class CppFileWriter(object):
 
     def gen_namespace(self, namespace):
         # type: (unicode) -> ScopedBlock
-        return ScopedBlock(self._writer, "namespace %s {" % namespace, "}  // namespace %s" % namespace)
+        return ScopedBlock(self._writer, "namespace %s {" % namespace, "}  // namespace %s" %
+                           namespace)
 
     def gen_class_declaration(self, class_name):
         # type: (unicode) -> IndentedScopedBlock
@@ -115,7 +119,7 @@ class CppFileWriter(object):
         # TODO: handle vector
         if cpp_type == "StringData":
             cpp_type = "std::string"
-        
+
         return cpp_type
 
     def _get_field_member_name(self, field):
@@ -139,15 +143,17 @@ class CppFileWriter(object):
         else:
             optional_ampersand = ""
             body = "return %s(%s);" % (param_type, member_name)
- 
-        self._writer.write_line("const %s%s get%s() const { %s }" % (param_type, optional_ampersand, camel_case(field.name), body))
+
+        self._writer.write_line("const %s%s get%s() const { %s }" %
+                                (param_type, optional_ampersand, camel_case(field.name), body))
 
     def gen_setter(self, field):
         # type: (ast.Field) -> None
         param_type = self._get_field_parameter_type(field)
         member_name = self._get_field_member_name(field)
 
-        self._writer.write_line("void set%s(%s value) { %s = std::move(value); }" % (camel_case(field.name), param_type, member_name))
+        self._writer.write_line("void set%s(%s value) { %s = std::move(value); }" %
+                                (camel_case(field.name), param_type, member_name))
         self._writer.write_empty_line()
 
     def gen_member(self, field):
@@ -172,7 +178,8 @@ class CppFileWriter(object):
     def gen_deserializer(self, struct):
         # type: (ast.Struct) -> None
 
-        with self._block("%s %s::parse(const BSONObj& bsonObject) {" % (camel_case(struct.name), camel_case(struct.name)), "}"):
+        with self._block("%s %s::parse(const BSONObj& bsonObject) {" %
+                         (camel_case(struct.name), camel_case(struct.name)), "}"):
 
             self._writer.write_line("%s object;" % camel_case(struct.name))
 
@@ -194,27 +201,32 @@ class CppFileWriter(object):
                             self._writer.write_line("// ignore field")
                         else:
                             if field.struct:
-                                self._writer.write_line("object.%s = %s::parse(element.Obj());" % (self._get_field_member_name(field), camel_case(field.struct.name)) )
+                                self._writer.write_line("object.%s = %s::parse(element.Obj());" %
+                                                        (self._get_field_member_name(field),
+                                                         camel_case(field.struct.name)))
                             elif "BSONElement::" in field.deserializer:
                                 method_name = get_method_name(field.deserializer)
-                                self._writer.write_line("object.%s = element.%s();" % (self._get_field_member_name(field), method_name) )
+                                self._writer.write_line("object.%s = element.%s();" % (
+                                    self._get_field_member_name(field), method_name))
                             else:
                                 # Custom method, call the method on object
                                 method_name = get_method_name(field.deserializer)
-                                self._writer.write_line("object.%s.%s(element);" % (self._get_field_member_name(field), method_name) )
+                                self._writer.write_line("object.%s.%s(element);" % (
+                                    self._get_field_member_name(field), method_name))
 
                 # TODO: generate strict check for extranous fields
 
-            # TODO: default values
+                # TODO: default values
 
-            # TODO: required fields
-                
+                # TODO: required fields
+
             self._writer.write_line("return object;")
 
     def gen_serializer(self, struct):
         # type: (ast.Struct) -> None
 
-        with self._block("void %s::serialize(BSONObjBuilder* builder) const {" % camel_case(struct.name), "}"):
+        with self._block("void %s::serialize(BSONObjBuilder* builder) const {" %
+                         camel_case(struct.name), "}"):
 
             for field in struct.fields:
                 if field.ignore:
@@ -232,23 +244,28 @@ class CppFileWriter(object):
                     #             self._writer.write_line('builder->FOOOO("%s", %s.get());' % (field.name, member_name))
                     # - 
                     #             self._writer.write_line('builder->FOOOO("%s", %s.get());' % (field.name, member_name))
-                        
+
                     # else:
                     # Generate default serialization using BSONObjBuilder::append
                     if field.required:
-                        self._writer.write_line('builder->append("%s", %s);' % (field.name, member_name))
+                        self._writer.write_line('builder->append("%s", %s);' %
+                                                (field.name, member_name))
                     else:
                         with self._block("if (%s) {" % member_name, "}"):
-                            self._writer.write_line('builder->append("%s", %s.get());' % (field.name, member_name))
+                            self._writer.write_line('builder->append("%s", %s.get());' %
+                                                    (field.name, member_name))
                 else:
                     predicate = "{"
                     if not field.required:
                         predicate = "if (%s) {" % member_name
 
                     with self._block(predicate, "}"):
-                        self._writer.write_line('BSONObjBuilder subObjBuilder(builder->subobjStart("%s"));' % (field.name))
-                        self._writer.write_line('%s.serialize(&subObjBuilder);' % (self._access_member(field)))
-                
+                        self._writer.write_line(
+                            'BSONObjBuilder subObjBuilder(builder->subobjStart("%s"));' %
+                            (field.name))
+                        self._writer.write_line('%s.serialize(&subObjBuilder);' %
+                                                (self._access_member(field)))
+
                     self._writer.write_empty_line()
 
 
@@ -265,6 +282,7 @@ class ScopedBlock(object):
     def __exit__(self, *args):
         self._writer.write_unindented_line(self._closing)
 
+
 class IndentedScopedBlock(object):
     def __init__(self, writer, opening, closing):
         # type: (IndentedTextWriter, unicode, unicode) -> None
@@ -279,6 +297,7 @@ class IndentedScopedBlock(object):
     def __exit__(self, *args):
         self._writer.unindent()
         self._writer.write_line(self._closing)
+
 
 def generate_header(spec, file_name):
     # type: (ast.IDLAST, unicode) -> None
@@ -320,6 +339,7 @@ def generate_header(spec, file_name):
     file_handle = io.open(file_name, mode="wb")
     file_handle.write(stream.getvalue())
 
+
 def generate_source(spec, file_name):
     # type: (ast.IDLAST, unicode) -> None
     stream = io.StringIO()
@@ -348,7 +368,6 @@ def generate_source(spec, file_name):
 
     file_handle = io.open(file_name, mode="wb")
     file_handle.write(stream.getvalue())
-
 
 
 def generate_code(spec, file_prefix):

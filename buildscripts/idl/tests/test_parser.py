@@ -5,6 +5,7 @@ import textwrap
 
 import unittest
 
+
 class Test_parser(unittest.TestCase):
     def assertParseOk(self, str):
         parsed_doc = idl.parser.parse(str)
@@ -26,7 +27,8 @@ class Test_parser(unittest.TestCase):
         self.assertParseOk(textwrap.dedent("""
         global:
             cpp_includes: 'foo'"""))
-        self.assertParseOk(textwrap.dedent("""
+        self.assertParseOk(
+            textwrap.dedent("""
         global:
             cpp_includes: 
                 - 'bar'
@@ -36,23 +38,27 @@ class Test_parser(unittest.TestCase):
             cpp_includes: 'bar'"""))
 
     def test_global_negative(self):
-        self.assertParseNotOk(textwrap.dedent("""
+        self.assertParseNotOk(
+            textwrap.dedent("""
         global:
             cpp_namespace: 'foo'
         global:
             cpp_namespace: 'bar'
             """), idl.errors.ERROR_ID_DUPLICATE_NODE)
-        self.assertParseNotOk(textwrap.dedent("""
+        self.assertParseNotOk(
+            textwrap.dedent("""
         global:
             cpp_namespace: 'foo'
             cpp_namespace: 'foo'"""), idl.errors.ERROR_ID_DUPLICATE_NODE)
-        self.assertParseNotOk(textwrap.dedent("""
+        self.assertParseNotOk(
+            textwrap.dedent("""
         global:
             cpp_includes: 'foo'
             cpp_includes: 'foo'"""), idl.errors.ERROR_ID_DUPLICATE_NODE)
 
     def test_root_negative(self):
-        self.assertParseNotOk(textwrap.dedent("""
+        self.assertParseNotOk(
+            textwrap.dedent("""
         fake:
             cpp_namespace: 'foo'
             """), idl.errors.ERROR_ID_UNKNOWN_ROOT)
@@ -64,7 +70,7 @@ if __name__ == '__main__':
     if __package__ is None:
         import sys
         from os import path
-        sys.path.append( path.dirname( path.dirname( path.abspath(__file__) ) ) )
+        sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
         from context import idl
     else:
         from .context import idl

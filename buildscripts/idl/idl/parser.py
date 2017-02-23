@@ -3,7 +3,6 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 from typing import List, Union, Any
 
-
 import pprint
 import yaml
 from yaml import nodes
@@ -20,7 +19,7 @@ def parse_global(ctxt, spec, node):
 
     idlglobal = syntax.Global(ctxt.file_name, node.start_mark.line, node.start_mark.column)
 
-    field_name_set = set() # type: Set[str]
+    field_name_set = set()  # type: Set[str]
 
     for node_pair in node.value:
         first_node = node_pair[0]
@@ -49,6 +48,7 @@ def parse_global(ctxt, spec, node):
 
     spec.globals = idlglobal
 
+
 def parse_type(ctxt, spec, node):
     # type: (errors.ParserContext, syntax.IDLSpec, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> None
     """Parse a type section in the IDL file"""
@@ -57,7 +57,7 @@ def parse_type(ctxt, spec, node):
 
     idltype = syntax.Type(ctxt.file_name, node.start_mark.line, node.start_mark.column)
 
-    field_name_set = set() # type: Set[str]
+    field_name_set = set()  # type: Set[str]
 
     for node_pair in node.value:
         first_node = node_pair[0]
@@ -92,13 +92,13 @@ def parse_type(ctxt, spec, node):
 
     spec.symbols.add_type(ctxt, idltype)
 
+
 def parse_field(ctxt, name, node):
     # type: (errors.ParserContext, str, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> syntax.Field
     """Parse a field in a struct/command in the IDL file"""
     field = syntax.Field(ctxt.file_name, node.start_mark.line, node.start_mark.column)
 
-
-    field_name_set = set() # type: Set[str]
+    field_name_set = set()  # type: Set[str]
     field.name = name
     for node_pair in node.value:
         first_node = node_pair[0]
@@ -125,13 +125,14 @@ def parse_field(ctxt, name, node):
 
     return field
 
+
 def parse_fields(ctxt, spec, node):
     # type: (errors.ParserContext, syntax.IDLSpec, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> List[syntax.Field]
     """Parse a fields section in a struct in the IDL file"""
 
     fields = []
 
-    field_name_set = set() # type: Set[str]
+    field_name_set = set()  # type: Set[str]
 
     for node_pair in node.value:
         first_node = node_pair[0]
@@ -151,12 +152,13 @@ def parse_fields(ctxt, spec, node):
             fields.append(field)
         else:
             field = parse_field(ctxt, first_name, second_node)
-            
+
             fields.append(field)
 
         field_name_set.add(first_name)
 
     return fields
+
 
 def parse_struct(ctxt, spec, node):
     # type: (errors.ParserContext, syntax.IDLSpec, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> None
@@ -165,7 +167,7 @@ def parse_struct(ctxt, spec, node):
         return
 
     struct = syntax.Struct(ctxt.file_name, node.start_mark.line, node.start_mark.column)
-    field_name_set = set() # type: Set[str]
+    field_name_set = set()  # type: Set[str]
 
     for node_pair in node.value:
         first_node = node_pair[0]
@@ -190,6 +192,7 @@ def parse_struct(ctxt, spec, node):
         field_name_set.add(first_name)
 
     spec.symbols.add_struct(ctxt, struct)
+
 
 def parse(stream):
     """Parse a YAML document into an AST"""
@@ -221,7 +224,6 @@ def parse(stream):
             parse_struct(ctxt, spec, second_node)
         else:
             ctxt.add_unknown_root_node_error(first_node)
-
 
     #pp = pprint.PrettyPrinter()
 

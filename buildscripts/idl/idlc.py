@@ -9,24 +9,16 @@ import idl.binder
 import idl.parser
 import idl.generator
 
+
 def main():
     """Main Entry point"""
     parser = argparse.ArgumentParser(description='MongoDB IDL Compiler.')
 
-    parser.add_argument(
-        '--input',
-        type=str,
-        help="IDL input file")
+    parser.add_argument('--input', type=str, help="IDL input file")
 
-    parser.add_argument(
-        '--output',
-        type=str,
-        help="IDL output file prefix")
+    parser.add_argument('--output', type=str, help="IDL output file prefix")
 
-    parser.add_argument(
-        '--include',
-        type=str,
-        help="Directory to search for IDL import files")
+    parser.add_argument('--include', type=str, help="Directory to search for IDL import files")
 
     args = parser.parse_args()
 
@@ -104,6 +96,7 @@ struct:
         bound_doc = idl.binder.bind(parsed_doc.spec)
         if not bound_doc.errors:
             idl.generator.generate_code(bound_doc.spec, "example_gen")
+
 
 if __name__ == '__main__':
     main()

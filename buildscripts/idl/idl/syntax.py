@@ -6,6 +6,7 @@ from typing import List, Union, Any, Optional, Tuple
 from . import common
 from . import errors
 
+
 # TODO: add dump to yaml support
 class IDLSpec(object):
     """The in-memory representation of an IDL file
@@ -13,12 +14,14 @@ class IDLSpec(object):
         - Includes all imported files
         - Fields may have had types derived depending on pass run
     """
+
     def __init__(self, *args, **kwargs):
         self.symbols = SymbolTable()
         self.globals = None
         self.imports = None
 
         super(IDLSpec, self).__init__(*args, **kwargs)
+
 
 class IDLParsedSpec(object):
     def __init__(self, spec, error_collection):
@@ -75,7 +78,7 @@ class SymbolTable(object):
         for struct in self.structs:
             if struct.name == field.type:
                 return (struct, None)
-        
+
         ctxt.add_unknown_type_error(field, field.name, field.type)
         return (None, None)
 
@@ -83,52 +86,62 @@ class SymbolTable(object):
         """Add an IDL command  to the symbol table  and check for duplicates"""
         pass
 
+
 class Global(common.SourceLocation):
     """IDL global object"""
+
     def __init__(self, file_name, line, column, *args, **kwargs):
         # type: (unicode, int, int, *str, **bool) -> None
-        self.cpp_namespace = None # type: unicode
-        self.cpp_includes = [] # type: List[unicode]
+        self.cpp_namespace = None  # type: unicode
+        self.cpp_includes = []  # type: List[unicode]
         super(Global, self).__init__(file_name, line, column)
+
 
 class Import(common.SourceLocation):
     """IDL imports object"""
 
+
 class Type(common.SourceLocation):
     """IDL type"""
+
     def __init__(self, file_name, line, column, *args, **kwargs):
         # type: (unicode, int, int, *str, **bool) -> None
-        self.name = None # type: unicode
-        self.cpp_type = None # type: unicode
-        self.bson_serialization_type = None # type: unicode
-        self.serializer = None # type: unicode
-        self.deserializer = None # type: unicode
+        self.name = None  # type: unicode
+        self.cpp_type = None  # type: unicode
+        self.bson_serialization_type = None  # type: unicode
+        self.serializer = None  # type: unicode
+        self.deserializer = None  # type: unicode
         super(Type, self).__init__(file_name, line, column)
+
 
 class Field(common.SourceLocation):
     """Fields in a struct"""
+
     def __init__(self, file_name, line, column, *args, **kwargs):
         # type: (unicode, int, int, *str, **bool) -> None
-        self.name = None # type: unicode
+        self.name = None  # type: unicode
         self.type = None  # type: unicode
-        self.ignore = False # type: bool
-        self.required = False # type: bool
+        self.ignore = False  # type: bool
+        self.required = False  # type: bool
 
         # Properties common to type and fields
-        self.cpp_type = None # type: unicode
-        self.bson_serialization_type = None # type: unicode
-        self.serializer = None # type: unicode
-        self.deserializer = None # type: unicode
+        self.cpp_type = None  # type: unicode
+        self.bson_serialization_type = None  # type: unicode
+        self.serializer = None  # type: unicode
+        self.deserializer = None  # type: unicode
 
         super(Field, self).__init__(file_name, line, column)
 
+
 class Struct(common.SourceLocation):
     """IDL struct"""
+
     def __init__(self, file_name, line, column, *args, **kwargs):
         # type: (unicode, int, int, *str, **bool) -> None
         self.name = None  # type: unicode
         self.fields = []  # type: List[Field]
         super(Struct, self).__init__(file_name, line, column)
+
 
 class Command(Struct):
     """IDL command"""

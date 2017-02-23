@@ -7,6 +7,7 @@ from . import errors
 
 # TODO: fix up to be mongo as default namespace
 
+
 def bind_struct(ctxt, parsed_spec, struct):
     # type: (errors.ParserContext, syntax.IDLSpec, syntax.Struct) -> ast.Struct
 
@@ -38,7 +39,7 @@ def bind_field(ctxt, parsed_spec, field):
 
     # Copy over common fields
     ast_field.required = field.required
-    
+
     # Copy over only the needed information if this a struct or a type
     if struct:
         ast_field.struct = struct
@@ -49,22 +50,22 @@ def bind_field(ctxt, parsed_spec, field):
         ast_field.serializer = idltype.serializer
         ast_field.deserializer = idltype.deserializer
 
-
     return ast_field
+
 
 def bind_globals(ctxt, parsed_spec):
     # type: (errors.ParserContext, syntax.IDLSpec) -> ast.Global
 
-
     if parsed_spec.globals:
-        ast_global = ast.Global(parsed_spec.globals.file_name, parsed_spec.globals.line, parsed_spec.globals.column)
+        ast_global = ast.Global(parsed_spec.globals.file_name, parsed_spec.globals.line,
+                                parsed_spec.globals.column)
         ast_global.cpp_namespace = parsed_spec.globals.cpp_namespace
         ast_global.cpp_includes = parsed_spec.globals.cpp_includes
     else:
         ast_global = ast.Global("None", 0, 0)
-        
 
     return ast_global
+
 
 def bind(parsed_spec):
     # type: (syntax.IDLSpec) -> ast.IDLBoundSpec
@@ -86,4 +87,3 @@ def bind(parsed_spec):
         return ast.IDLBoundSpec(None, ctxt.errors)
     else:
         return ast.IDLBoundSpec(bound_spec, None)
-
