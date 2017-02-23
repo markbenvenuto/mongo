@@ -9,18 +9,18 @@ import yaml
 from yaml import nodes
 
 from . import errors
-from . import ast
+from . import syntax
 
 
 def parse_global(ctxt, spec, node):
-    # type: (errors.ParserContext, ast.IDLSpec, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> None
+    # type: (errors.ParserContext, syntax.IDLSpec, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> None
     """Parse a global section in the IDL file"""
     if not ctxt.is_mapping_node(node, "global"):
         return
 
-    idlglobal = ast.Global(ctxt.file_name, node.start_mark.line, node.start_mark.column)
+    idlglobal = syntax.Global(ctxt.file_name, node.start_mark.line, node.start_mark.column)
 
-    field_name_set = set()
+    field_name_set = set() # type: Set[str]
 
     for node_pair in node.value:
         first_node = node_pair[0]
@@ -50,14 +50,14 @@ def parse_global(ctxt, spec, node):
     spec.globals = idlglobal
 
 def parse_type(ctxt, spec, node):
-    # type: (errors.ParserContext, ast.IDLSpec, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> None
+    # type: (errors.ParserContext, syntax.IDLSpec, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> None
     """Parse a type section in the IDL file"""
     if not ctxt.is_mapping_node(node, "type"):
         return
 
-    idltype = ast.Type(ctxt.file_name, node.start_mark.line, node.start_mark.column)
+    idltype = syntax.Type(ctxt.file_name, node.start_mark.line, node.start_mark.column)
 
-    field_name_set = set()
+    field_name_set = set() # type: Set[str]
 
     for node_pair in node.value:
         first_node = node_pair[0]
@@ -93,12 +93,12 @@ def parse_type(ctxt, spec, node):
     spec.symbols.add_type(ctxt, idltype)
 
 def parse_field(ctxt, name, node):
-    # type: (errors.ParserContext, str, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> ast.Field
+    # type: (errors.ParserContext, str, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> syntax.Field
     """Parse a field in a struct/command in the IDL file"""
-    field = ast.Field(ctxt.file_name, node.start_mark.line, node.start_mark.column)
+    field = syntax.Field(ctxt.file_name, node.start_mark.line, node.start_mark.column)
 
 
-    field_name_set = set()
+    field_name_set = set() # type: Set[str]
     field.name = name
     for node_pair in node.value:
         first_node = node_pair[0]
@@ -126,12 +126,12 @@ def parse_field(ctxt, name, node):
     return field
 
 def parse_fields(ctxt, spec, node):
-    # type: (errors.ParserContext, ast.IDLSpec, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> List[ast.Field]
+    # type: (errors.ParserContext, syntax.IDLSpec, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> List[syntax.Field]
     """Parse a fields section in a struct in the IDL file"""
 
     fields = []
 
-    field_name_set = set()
+    field_name_set = set() # type: Set[str]
 
     for node_pair in node.value:
         first_node = node_pair[0]
@@ -145,7 +145,7 @@ def parse_fields(ctxt, spec, node):
 
         # Simple Type
         if second_node.id == "scalar":
-            field = ast.Field(ctxt.file_name, node.start_mark.line, node.start_mark.column)
+            field = syntax.Field(ctxt.file_name, node.start_mark.line, node.start_mark.column)
             field.name = first_name
             field.type = second_node.value
             fields.append(field)
@@ -159,13 +159,13 @@ def parse_fields(ctxt, spec, node):
     return fields
 
 def parse_struct(ctxt, spec, node):
-    # type: (errors.ParserContext, ast.IDLSpec, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> None
+    # type: (errors.ParserContext, syntax.IDLSpec, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> None
     """Parse a struct section in the IDL file"""
     if not ctxt.is_mapping_node(node, "struct"):
         return
 
-    struct = ast.Struct(ctxt.file_name, node.start_mark.line, node.start_mark.column)
-    field_name_set = set()
+    struct = syntax.Struct(ctxt.file_name, node.start_mark.line, node.start_mark.column)
+    field_name_set = set() # type: Set[str]
 
     for node_pair in node.value:
         first_node = node_pair[0]
@@ -205,7 +205,7 @@ def parse(stream):
     if not nodes.id == "mapping":
         raise errors.IDLError("Did not expected mapping node as root node of IDL document")
 
-    spec = ast.IDLSpec()
+    spec = syntax.IDLSpec()
 
     for node_pair in nodes.value:
         first_node = node_pair[0]
@@ -229,6 +229,6 @@ def parse(stream):
 
     if ctxt.errors.has_errors():
         ctxt.errors.dump_errors()
-        return ast.IDLParsedSpec(None, ctxt.errors)
+        return syntax.IDLParsedSpec(None, ctxt.errors)
     else:
-        return ast.IDLParsedSpec(spec, None)
+        return syntax.IDLParsedSpec(spec, None)

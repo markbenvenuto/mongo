@@ -1,7 +1,7 @@
 """Generator"""
 from __future__ import absolute_import, print_function, unicode_literals
 
-import ast
+from . import ast
 import io
 import os
 import string
@@ -16,7 +16,7 @@ def camel_case(name):
 
 class IndentedTextWriter(object):
     def __init__(self, stream, *args, **kwargs):
-        # type (io.IOBase, *str, **bool) -> None
+        # type: (io.StringIO, *str, **bool) -> None
         self._stream = stream
         self._indent = 0
         #super(IndentedTextWriter, self).__init__(*args, **kwargs)
@@ -51,6 +51,14 @@ class IndentedTextWriter(object):
         """Write a line to the stream"""
         self._stream.write(u"\n")
 
+
+def get_method_name(name):
+    # type: (unicode) -> unicode
+    pos = name.rfind("::")
+    if pos == -1:
+        return name
+    return name[pos + 2:]
+
 class CppFileWriter(object):
     """C++ File writer. Encapsulates low level knowledge of how to print a file.
        Relies on caller to orchestrate calls correctly though.
@@ -61,30 +69,30 @@ class CppFileWriter(object):
         #super(CppFileWriter, self).__init__(*args, **kwargs)
 
     def write_unindented_line(self, msg):
-        # type (unicode) -> None
+        # type: (unicode) -> None
         self._writer.write_unindented_line(msg)
 
     def gen_include(self, include):
-        # type (unicode) -> None
+        # type: (unicode) -> None
         """Generate a C++ include line"""
         self._writer.write_unindented_line('#include "%s"' % include)
 
     def gen_namespace(self, namespace):
-        # type (unicode) -> ScopedBlock
+        # type: (unicode) -> ScopedBlock
         return ScopedBlock(self._writer, "namespace %s {" % namespace, "}  // namespace %s" % namespace)
 
     def gen_class_declaration(self, class_name):
-        # type (unicode) -> IndentedScopedBlock
+        # type: (unicode) -> IndentedScopedBlock
         return IndentedScopedBlock(self._writer, "class %s {" % camel_case(class_name), "};")
 
     def gen_serializer_methods(self, class_name):
-        # type (unicode) -> None
+        # type: (unicode) -> None
         self._writer.write_line("static %s parse(const BSONObj& object);" % camel_case(class_name))
         self._writer.write_line("void serialize(BSONObjBuilder* builder) const;")
         self._writer.write_empty_line()
 
     def _get_field_parameter_type(self, field):
-        # type (ast.Field) -> unicode
+        # type: (ast.Field) -> unicode
         assert field.cpp_type is not None or field.struct is not None
 
         if field.struct:
@@ -98,22 +106,22 @@ class CppFileWriter(object):
         return cpp_type
 
     def _get_field_member_type(self, field):
-        # type (ast.Field) -> unicode
+        # type: (ast.Field) -> unicode
         return self._get_field_parameter_type(field)
 
     def _get_field_member_name(self, field):
-        # type (ast.Field) -> unicode
+        # type: (ast.Field) -> unicode
         return "_" + field.name
 
     def gen_getter(self, field):
-        # type (ast.Field) -> None
+        # type: (ast.Field) -> None
         param_type = self._get_field_parameter_type(field)
         member_name = self._get_field_member_name(field)
 
-        self._writer.write_line("const %s& get%s() const { return %s}" % (param_type, camel_case(field.name), member_name))
+        self._writer.write_line("const %s& get%s() const { return %s; }" % (param_type, camel_case(field.name), member_name))
 
     def gen_setter(self, field):
-        # type (ast.Field) -> None
+        # type: (ast.Field) -> None
         param_type = self._get_field_parameter_type(field)
         member_name = self._get_field_member_name(field)
 
@@ -121,32 +129,29 @@ class CppFileWriter(object):
         self._writer.write_empty_line()
 
     def gen_member(self, field):
-        # type (ast.Field) -> None
+        # type: (ast.Field) -> None
         member_type = self._get_field_member_type(field)
         member_name = self._get_field_member_name(field)
 
         self._writer.write_line("%s %s;" % (member_type, member_name))
 
     def _block(self, opening, closing):
-        # type (unicode) -> IndentedScopedBlock
+        # type: (unicode, unicode) -> IndentedScopedBlock
         return IndentedScopedBlock(self._writer, opening, closing)
 
     def gen_deserializer(self, struct):
-        # type (ast.Struct) -> None
+        # type: (ast.Struct) -> None
 
         with self._block("%s %s::parse(const BSONObj& bsonObject) {" % (camel_case(struct.name), camel_case(struct.name)), "}"):
 
             self._writer.write_line("%s object;" % camel_case(struct.name))
 
-            with self._block("for (const auto& element : bsonObject) {", "}"):
+            with self._block("for (const auto&& element : bsonObject) {", "}"):
 
                 self._writer.write_line("const auto& fieldName = element.fieldNameStringData();")
 
                 first_field = True
                 for field in struct.fields:
-                    if field.ignore:
-                        continue;
-
                     predicate = 'else if (fieldName == "%s") {' % field.name
                     if first_field:
                         predicate = 'if (fieldName == "%s") {' % field.name
@@ -155,40 +160,70 @@ class CppFileWriter(object):
                     with self._block(predicate, "}"):
                         # TODO: check type of field
                         # TODO: check for duplicates
-                        self._writer.write_line("object.%s = element.%s;" % (self._get_field_member_name(field), "str()") )
+                        if field.ignore:
+                            self._writer.write_line("// ignore field")
+                        else:
+                            if field.struct:
+                                self._writer.write_line("object.%s = %s::parse(element.Obj());" % (self._get_field_member_name(field), camel_case(field.struct.name)) )
+                            elif "BSONElement::" in field.deserializer:
+                                method_name = get_method_name(field.deserializer)
+                                self._writer.write_line("object.%s = element.%s();" % (self._get_field_member_name(field), method_name) )
+                            else:
+                                # Custom method, call the method on object
+                                method_name = get_method_name(field.deserializer)
+                                self._writer.write_line("object.%s.%s(element);" % (self._get_field_member_name(field), method_name) )
 
                 # TODO: generate strict check for extranous fields
 
             # TODO: default values
 
             # TODO: required fields
+                
+            self._writer.write_line("return object;")
 
+    def _access_member(self, field):
+        # type: (ast.Field) -> unicode
+        member_name = self._get_field_member_name(field)
+        if field.required:
+            return "%s" % member_name
+        # optional
+        return "%s.get()" % member_name
 
     def gen_serializer(self, struct):
-        # type (ast.Struct) -> None
+        # type: (ast.Struct) -> None
 
         with self._block("void %s::serialize(BSONObjBuilder* builder) const {" % camel_case(struct.name), "}"):
 
             for field in struct.fields:
                 if field.ignore:
-                    continue;
+                    continue
 
                 member_name = self._get_field_member_name(field)
                 if not field.struct:
+                    # if field.serializer:
+                    #     # Generate custom serialization
+                    #     method_name = get_method_name(field.deserializer)
+                    #     if field.required:
+                    #         self._writer.write_line('builder->FOOOO("%s", %s);' % (field.name, member_name))
+                    #     else:
+                    #         with self._block("if (%s) {" % member_name, "}"):
+                    #             self._writer.write_line('builder->FOOOO("%s", %s.get());' % (field.name, member_name))
+                        
+                    # else:
+                    # Generate default serialization using BSONObjBuilder::append
                     if field.required:
                         self._writer.write_line('builder->append("%s", %s);' % (field.name, member_name))
                     else:
                         with self._block("if (%s) {" % member_name, "}"):
                             self._writer.write_line('builder->append("%s", %s.get());' % (field.name, member_name))
                 else:
-                    if field.required:
-                        with self._block("{", "}"):
-                            self._writer.write_line('BSONObjBuilder subObjBuilder(builder->subobjStart("%s"));' % (field.name))
-                            self._writer.write_line('%s.serialize(&subObjBuilder);' % (member_name))
-                    else:
-                        with self._block("if (%s) {" % member_name, "}"):
-                            self._writer.write_line('BSONObjBuilder subObjBuilder(builder->subobjStart("%s"));' % (field.name))
-                            self._writer.write_line('%s.get().serialize(&subObjBuilder);' % (member_name))
+                    predicate = "{"
+                    if not field.required:
+                        predicate = "if (%s) {" % member_name
+
+                    with self._block(predicate, "}"):
+                        self._writer.write_line('BSONObjBuilder subObjBuilder(builder->subobjStart("%s"));' % (field.name))
+                        self._writer.write_line('%s.serialize(&subObjBuilder);' % (self._access_member(field)))
                 
                     self._writer.write_empty_line()
 
@@ -222,7 +257,7 @@ class IndentedScopedBlock(object):
         self._writer.write_line(self._closing)
 
 def generate_header(spec, file_name):
-    # type (ast.IDLSpec, unicode) -> None
+    # type: (ast.IDLAST, unicode) -> None
     stream = io.StringIO()
     text_writer = IndentedTextWriter(stream)
 
@@ -237,7 +272,7 @@ def generate_header(spec, file_name):
 
     # Generate namesapce
     with header.gen_namespace("mongo"):
-        for struct in spec.symbols.structs:
+        for struct in spec.structs:
             with header.gen_class_declaration(struct.name):
                 header.write_unindented_line("public:")
 
@@ -262,7 +297,7 @@ def generate_header(spec, file_name):
     file_handle.write(stream.getvalue())
 
 def generate_source(spec, file_name):
-    # type (ast.IDLSpec, unicode) -> None
+    # type: (ast.IDLAST, unicode) -> None
     stream = io.StringIO()
     text_writer = IndentedTextWriter(stream)
 
@@ -277,7 +312,7 @@ def generate_source(spec, file_name):
 
     # Generate namesapce
     with source.gen_namespace("mongo"):
-        for struct in spec.symbols.structs:
+        for struct in spec.structs:
             # Write deserializer
             source.gen_deserializer(struct)
 
@@ -293,7 +328,7 @@ def generate_source(spec, file_name):
 
 
 def generate_code(spec, file_prefix):
-    # type (ast.IDLSpec, unicode) -> None
+    # type: (ast.IDLAST, unicode) -> None
     #self._stream = io.open(file_name, mode="w")
 
     generate_header(spec, file_prefix + ".hpp")

@@ -71,7 +71,7 @@ type:
     deserializer: "mongo::BSONElement::numberInt"
 
 struct:
-    name: WriteConcern
+    name: FakeWriteConcern
     description: A Fake Write Concern for a command
     fields:
         j: int32
@@ -94,7 +94,7 @@ struct:
           type: string
           description: The Bike Shed's color
           required: true
-        writeConcern: WriteConcern
+        writeConcern: FakeWriteConcern
 """)
 
     if not parsed_doc.errors:
