@@ -14,6 +14,13 @@ def camel_case(name):
         name = string.upper(name[0:1]) + name[1:]
     return name
 
+def get_method_name(name):
+    # type: (unicode) -> unicode
+    pos = name.rfind("::")
+    if pos == -1:
+        return name
+    return name[pos + 2:]
+    
 class IndentedTextWriter(object):
     def __init__(self, stream, *args, **kwargs):
         # type: (io.StringIO, *str, **bool) -> None
@@ -52,12 +59,6 @@ class IndentedTextWriter(object):
         self._stream.write(u"\n")
 
 
-def get_method_name(name):
-    # type: (unicode) -> unicode
-    pos = name.rfind("::")
-    if pos == -1:
-        return name
-    return name[pos + 2:]
 
 class CppFileWriter(object):
     """C++ File writer. Encapsulates low level knowledge of how to print a file.
