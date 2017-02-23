@@ -99,6 +99,8 @@ class CppFileWriter(object):
             cpp_type = field.struct.name
         else:
             cpp_type = field.cpp_type
+            if cpp_type == "std::string":
+                cpp_type = "StringData"
 
         if field.required == False:
             return "boost::optional<%s>" % cpp_type
@@ -107,18 +109,37 @@ class CppFileWriter(object):
 
     def _get_field_member_type(self, field):
         # type: (ast.Field) -> unicode
-        return self._get_field_parameter_type(field)
+        cpp_type = self._get_field_parameter_type(field)
+
+        # TODO: handle vector
+        if cpp_type == "StringData":
+            cpp_type = "std::string"
+        
+        return cpp_type
 
     def _get_field_member_name(self, field):
         # type: (ast.Field) -> unicode
         return "_" + field.name
+
+    def _return_as_reference(self, name):
+        # type: (unicode) -> bool
+        if "StringData" in name:
+            return False
+        return True
 
     def gen_getter(self, field):
         # type: (ast.Field) -> None
         param_type = self._get_field_parameter_type(field)
         member_name = self._get_field_member_name(field)
 
-        self._writer.write_line("const %s& get%s() const { return %s; }" % (param_type, camel_case(field.name), member_name))
+        if self._return_as_reference(param_type):
+            optional_ampersand = "&"
+            body = "return %s;" % (member_name)
+        else:
+            optional_ampersand = ""
+            body = "return %s(%s);" % (param_type, member_name)
+ 
+        self._writer.write_line("const %s%s get%s() const { %s }" % (param_type, optional_ampersand, camel_case(field.name), body))
 
     def gen_setter(self, field):
         # type: (ast.Field) -> None
@@ -134,6 +155,14 @@ class CppFileWriter(object):
         member_name = self._get_field_member_name(field)
 
         self._writer.write_line("%s %s;" % (member_type, member_name))
+
+    def _access_member(self, field):
+        # type: (ast.Field) -> unicode
+        member_name = self._get_field_member_name(field)
+        if field.required:
+            return "%s" % member_name
+        # optional
+        return "%s.get()" % member_name
 
     def _block(self, opening, closing):
         # type: (unicode, unicode) -> IndentedScopedBlock
@@ -181,14 +210,6 @@ class CppFileWriter(object):
                 
             self._writer.write_line("return object;")
 
-    def _access_member(self, field):
-        # type: (ast.Field) -> unicode
-        member_name = self._get_field_member_name(field)
-        if field.required:
-            return "%s" % member_name
-        # optional
-        return "%s.get()" % member_name
-
     def gen_serializer(self, struct):
         # type: (ast.Struct) -> None
 
@@ -207,6 +228,8 @@ class CppFileWriter(object):
                     #         self._writer.write_line('builder->FOOOO("%s", %s);' % (field.name, member_name))
                     #     else:
                     #         with self._block("if (%s) {" % member_name, "}"):
+                    #             self._writer.write_line('builder->FOOOO("%s", %s.get());' % (field.name, member_name))
+                    # - 
                     #             self._writer.write_line('builder->FOOOO("%s", %s.get());' % (field.name, member_name))
                         
                     # else:

@@ -46,7 +46,7 @@ global:
 type:
     name: string
     bson_serialization_type: String 
-    cpp_type: "mongo::StringData"
+    cpp_type: "std::string"
     deserializer: "mongo::BSONElement::str"
     
 type:
@@ -94,6 +94,9 @@ struct:
           type: string
           description: The Bike Shed's color
           required: true
+        nameplate:
+          type: string
+          description: The Bike Shed's nameplate
         writeConcern: FakeWriteConcern
 """)
 

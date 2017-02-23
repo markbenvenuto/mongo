@@ -16,7 +16,6 @@ public:
     IDLParserErrorContext push_back(StringData fieldName);
     void assertNotEmptyObject(StringData fieldName);
     void assertType(const BSONElement&, BSONType, StringData fieldName);
-    void assertIsNumber(const BSONElement&, StringData str);
     void throwUnknownField(const BSONElement&, StringData str);
     void throwMissingRequiredField(StringData str);
     //NamespaceString parseCommandNamespace(BSONElement&, StringData str);
