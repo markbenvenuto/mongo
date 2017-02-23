@@ -3,6 +3,7 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 from typing import List, Union, Any
 
+
 import pprint
 import yaml
 from yaml import nodes
@@ -19,23 +20,29 @@ def parse_global(ctxt, spec, node):
 
     idlglobal = ast.Global(ctxt.file_name, node.start_mark.line, node.start_mark.column)
 
+    field_name_set = set()
+
     for node_pair in node.value:
         first_node = node_pair[0]
         second_node = node_pair[1]
 
         first_name = first_node.value
 
+        if first_name in field_name_set:
+            ctxt.add_duplicate(first_node, first_name)
+            continue
+
         if first_name == "cpp_namespace":
-            if (not ctxt.is_duplicate(second_node, idlglobal.cpp_namespace, "cpp_namespace")) and \
-                ctxt.is_scalar_node(second_node, "cpp_namespace"):
+            if ctxt.is_scalar_node(second_node, "cpp_namespace"):
                 # TODO: validate namespace
                 idlglobal.cpp_namespace = second_node.value
         elif first_name == "cpp_includes":
-            if (ctxt.is_empty_list(second_node, idlglobal.cpp_includes, "cpp_includes")) and \
-                ctxt.is_sequence_or_scalar_node(second_node, "cpp_includes"):
+            if ctxt.is_sequence_or_scalar_node(second_node, "cpp_includes"):
                 idlglobal.cpp_includes = ctxt.get_list(second_node)
         else:
             ctxt.add_unknown_root_node_error(first_node)
+
+        field_name_set.add(first_name)
 
     if ctxt.is_duplicate(node, spec.globals, "global"):
         return
@@ -50,35 +57,38 @@ def parse_type(ctxt, spec, node):
 
     idltype = ast.Type(ctxt.file_name, node.start_mark.line, node.start_mark.column)
 
+    field_name_set = set()
+
     for node_pair in node.value:
         first_node = node_pair[0]
         second_node = node_pair[1]
 
         first_name = first_node.value
 
+        if first_name in field_name_set:
+            ctxt.add_duplicate(first_node, first_name)
+            continue
+
         if first_name == "name":
-            if (not ctxt.is_duplicate(second_node, idltype.name, "name")) and \
-                ctxt.is_scalar_node(second_node, "name"):
+            if ctxt.is_scalar_node(second_node, "name"):
                 idltype.name = second_node.value
         elif first_name == "cpp_type":
-            if (not ctxt.is_duplicate(second_node, idltype.cpp_type, "cpp_type")) and \
-                ctxt.is_scalar_node(second_node, "cpp_type"):
+            if ctxt.is_scalar_node(second_node, "cpp_type"):
                 idltype.cpp_type = second_node.value
         elif first_name == "bson_serialization_type":
-            if (not ctxt.is_duplicate(second_node, idltype.bson_serialization_type, "bson_serialization_type")) and \
-                ctxt.is_scalar_node(second_node, "bson_serialization_type"):
+            if ctxt.is_scalar_node(second_node, "bson_serialization_type"):
                 idltype.bson_serialization_type = second_node.value
         elif first_name == "serializer":
-            if (not ctxt.is_duplicate(second_node, idltype.serializer, "serializer")) and \
-                ctxt.is_scalar_node(second_node, "serializer"):
+            if ctxt.is_scalar_node(second_node, "serializer"):
                 idltype.serializer = second_node.value
         elif first_name == "deserializer":
-            if (not ctxt.is_duplicate(second_node, idltype.deserializer, "deserializer")) and \
-                ctxt.is_scalar_node(second_node, "deserializer"):
+            if ctxt.is_scalar_node(second_node, "deserializer"):
                 idltype.deserializer = second_node.value
         #TODO: fix
         #else:
         #    ctxt.add_unknown_root_node_error(first_node)
+
+        field_name_set.add(first_name)
 
     spec.symbols.add_type(ctxt, idltype)
 
@@ -87,6 +97,8 @@ def parse_field(ctxt, name, node):
     """Parse a field in a struct/command in the IDL file"""
     field = ast.Field(ctxt.file_name, node.start_mark.line, node.start_mark.column)
 
+
+    field_name_set = set()
     field.name = name
     for node_pair in node.value:
         first_node = node_pair[0]
@@ -94,21 +106,22 @@ def parse_field(ctxt, name, node):
 
         first_name = first_node.value
 
+        if first_name in field_name_set:
+            ctxt.add_duplicate(first_node, first_name)
+            continue
+
         if ctxt.is_scalar_node(second_node, name):
             if first_name == "type":
-                if not ctxt.is_duplicate(second_node, field.type, "type"):
-                    field.type = second_node.value
+                field.type = second_node.value
             elif first_name == "ignore":
-                # TODO: add duplicate check
-                #if not ctxt.is_duplicate(second_node, field.ignore, "ignore"):
                 field.ignore = second_node.value
             elif first_name == "required":
-                # TODO: add duplicate check
-                #if not ctxt.is_duplicate(second_node, field.ignore, "ignore"):
                 field.required = second_node.value
             #TODO: fix
             #else:
             #    ctxt.add_unknown_root_node_error(first_node)
+
+        field_name_set.add(first_name)
 
     return field
 
@@ -118,11 +131,17 @@ def parse_fields(ctxt, spec, node):
 
     fields = []
 
+    field_name_set = set()
+
     for node_pair in node.value:
         first_node = node_pair[0]
         second_node = node_pair[1]
 
         first_name = first_node.value
+
+        if first_name in field_name_set:
+            ctxt.add_duplicate(first_node, first_name)
+            continue
 
         # Simple Type
         if second_node.id == "scalar":
@@ -131,10 +150,11 @@ def parse_fields(ctxt, spec, node):
             field.type = second_node.value
             fields.append(field)
         else:
-        # TODO: check for duplicate fields
             field = parse_field(ctxt, first_name, second_node)
             
             fields.append(field)
+
+        field_name_set.add(first_name)
 
     return fields
 
@@ -145,6 +165,7 @@ def parse_struct(ctxt, spec, node):
         return
 
     struct = ast.Struct(ctxt.file_name, node.start_mark.line, node.start_mark.column)
+    field_name_set = set()
 
     for node_pair in node.value:
         first_node = node_pair[0]
@@ -152,18 +173,21 @@ def parse_struct(ctxt, spec, node):
 
         first_name = first_node.value
 
+        if first_name in field_name_set:
+            ctxt.add_duplicate(first_node, first_name)
+            continue
+
         if first_name == "name":
-            if (not ctxt.is_duplicate(second_node, struct.name, "name")) and \
-                ctxt.is_scalar_node(second_node, "name"):
+            if ctxt.is_scalar_node(second_node, "name"):
                 # TODO: validate name
                 struct.name = second_node.value
         elif first_name == "fields":
-            if (ctxt.is_empty_list(second_node, struct.fields, "fields")) and \
-                ctxt.is_mapping_node(second_node, "fields"):
+            if ctxt.is_mapping_node(second_node, "fields"):
                 struct.fields = parse_fields(ctxt, spec, second_node)
         #TODO: fix
         #else:
         #    ctxt.add_unknown_root_node_error(first_node)
+        field_name_set.add(first_name)
 
     spec.symbols.add_struct(ctxt, struct)
 

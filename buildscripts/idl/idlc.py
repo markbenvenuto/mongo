@@ -36,8 +36,8 @@ def main():
 # TODO: write the code for this
 global:
     cpp_namespace: "mongo::acme::"
-    cpp_includes:
-        - "mongo/db/foo.h"
+#    cpp_includes:
+#        - "mongo/db/foo.h"
 # 3 levels of deserialization
 # - 1 readString/toString
 # - 2 BSONelemtn
@@ -100,7 +100,7 @@ struct:
     if not parsed_doc.errors:
         bound_doc = idl.binder.bind(parsed_doc.spec)
         if not bound_doc.errors:
-            idl.generator.generate_code(bound_doc.spec, "fooobar")
+            idl.generator.generate_code(bound_doc.spec, "example_gen")
 
 if __name__ == '__main__':
     main()

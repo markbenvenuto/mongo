@@ -140,6 +140,11 @@ class ParserContext(object):
 
         return False
 
+    def add_duplicate(self, node, node_name):
+        # type: (yaml.nodes.Node, unicode) -> None
+        """Is this a duplicate node, check to see if value is not None"""
+        self._add_node_error(node, ERROR_ID_DUPLICATE_NODE, "Duplicate node found for '%s'" % (node_name))
+
     def is_empty_list(self, node, value, node_name):
         # type: (yaml.nodes.Node, List, unicode) -> bool
         """Is this a duplicate node, check to see if value is not an empty list"""

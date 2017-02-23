@@ -3,8 +3,16 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import ast
 import io
+import os
+import string
 
 INDENT_SPACE_COUNT=4
+
+def camel_case(name):
+    # type: (unicode) -> unicode
+    if len(name) > 1:
+        name = string.upper(name[0:1]) + name[1:]
+    return name
 
 class IndentedTextWriter(object):
     def __init__(self, stream, *args, **kwargs):
@@ -67,11 +75,11 @@ class CppFileWriter(object):
 
     def gen_class_declaration(self, class_name):
         # type (unicode) -> IndentedScopedBlock
-        return IndentedScopedBlock(self._writer, "class %s {" % class_name.capitalize(), "};")
+        return IndentedScopedBlock(self._writer, "class %s {" % camel_case(class_name), "};")
 
     def gen_serializer_methods(self, class_name):
         # type (unicode) -> None
-        self._writer.write_line("static void %s parse(const BSONObj& object);" % class_name.capitalize())
+        self._writer.write_line("static %s parse(const BSONObj& object);" % camel_case(class_name))
         self._writer.write_line("void serialize(BSONObjBuilder* builder) const;")
         self._writer.write_empty_line()
 
@@ -102,14 +110,14 @@ class CppFileWriter(object):
         param_type = self._get_field_parameter_type(field)
         member_name = self._get_field_member_name(field)
 
-        self._writer.write_line("const %s& get%s() const { return %s}" % (param_type, field.name.capitalize(), member_name))
+        self._writer.write_line("const %s& get%s() const { return %s}" % (param_type, camel_case(field.name), member_name))
 
     def gen_setter(self, field):
         # type (ast.Field) -> None
         param_type = self._get_field_parameter_type(field)
         member_name = self._get_field_member_name(field)
 
-        self._writer.write_line("void set%s(%s value) { %s = std::move(value); }" % (field.name.capitalize(), param_type, member_name))
+        self._writer.write_line("void set%s(%s value) { %s = std::move(value); }" % (camel_case(field.name), param_type, member_name))
         self._writer.write_empty_line()
 
     def gen_member(self, field):
@@ -126,25 +134,28 @@ class CppFileWriter(object):
     def gen_deserializer(self, struct):
         # type (ast.Struct) -> None
 
-        with self._block("void %s::parse(const BSONObj& object) {" % struct.name.capitalize(), "}"):
+        with self._block("%s %s::parse(const BSONObj& bsonObject) {" % (camel_case(struct.name), camel_case(struct.name)), "}"):
 
-            self._writer.write_line("%s object;" % struct.name.capitalize())
+            self._writer.write_line("%s object;" % camel_case(struct.name))
 
-            with self._block("for (const auto& element : obj) {", "}"):
+            with self._block("for (const auto& element : bsonObject) {", "}"):
 
                 self._writer.write_line("const auto& fieldName = element.fieldNameStringData();")
 
                 first_field = True
                 for field in struct.fields:
+                    if field.ignore:
+                        continue;
 
-                    predicate = 'else if (fieldName == "%s")' % field.name
+                    predicate = 'else if (fieldName == "%s") {' % field.name
                     if first_field:
-                        predicate = 'if (fieldName == "%s")' % field.name
+                        predicate = 'if (fieldName == "%s") {' % field.name
                         first_field = False
 
                     with self._block(predicate, "}"):
+                        # TODO: check type of field
                         # TODO: check for duplicates
-                        self._writer.write_line("object.%s = element.%s" % (self._get_field_member_name(field), "str()") )
+                        self._writer.write_line("object.%s = element.%s;" % (self._get_field_member_name(field), "str()") )
 
                 # TODO: generate strict check for extranous fields
 
@@ -156,18 +167,30 @@ class CppFileWriter(object):
     def gen_serializer(self, struct):
         # type (ast.Struct) -> None
 
-        with self._block("void %s::serialize(BSONObjBuilder* builder) {" % struct.name.capitalize(), "}"):
+        with self._block("void %s::serialize(BSONObjBuilder* builder) const {" % camel_case(struct.name), "}"):
 
             for field in struct.fields:
+                if field.ignore:
+                    continue;
 
                 member_name = self._get_field_member_name(field)
-                if field.required:
-                    self._writer.write_line('builder->append("%s", %s)' % (field.name, member_name))
+                if not field.struct:
+                    if field.required:
+                        self._writer.write_line('builder->append("%s", %s);' % (field.name, member_name))
+                    else:
+                        with self._block("if (%s) {" % member_name, "}"):
+                            self._writer.write_line('builder->append("%s", %s.get());' % (field.name, member_name))
                 else:
-                    with self._block("if (%s) {" % member_name, "}"):
-                        self._writer.write_line('builder->append("%s", %s)' % (field.name, member_name))
-
-                self._writer.write_empty_line()
+                    if field.required:
+                        with self._block("{", "}"):
+                            self._writer.write_line('BSONObjBuilder subObjBuilder(builder->subobjStart("%s"));' % (field.name))
+                            self._writer.write_line('%s.serialize(&subObjBuilder);' % (member_name))
+                    else:
+                        with self._block("if (%s) {" % member_name, "}"):
+                            self._writer.write_line('BSONObjBuilder subObjBuilder(builder->subobjStart("%s"));' % (field.name))
+                            self._writer.write_line('%s.get().serialize(&subObjBuilder);' % (member_name))
+                
+                    self._writer.write_empty_line()
 
 
 class ScopedBlock(object):
@@ -205,6 +228,9 @@ def generate_header(spec, file_name):
 
     header = CppFileWriter(text_writer)
 
+    # Add system includes
+    header.gen_include("mongo/bson/bsonobj.h")
+
     # Generate includes
     for include in spec.globals.cpp_includes:
         header.gen_include(include)
@@ -232,6 +258,8 @@ def generate_header(spec, file_name):
                         header.gen_member(field)
     # Generate structs
     print(stream.getvalue())
+    file_handle = io.open(file_name, mode="wb")
+    file_handle.write(stream.getvalue())
 
 def generate_source(spec, file_name):
     # type (ast.IDLSpec, unicode) -> None
@@ -242,7 +270,10 @@ def generate_source(spec, file_name):
 
     # Generate includes
     # TODO: refine
-    source.gen_include(file_name.replace(".cc", ".hpp"))
+    source.gen_include(os.path.abspath(file_name.replace(".cc", ".hpp")))
+
+    # Add system includes
+    source.gen_include("mongo/bson/bsonobjbuilder.h")
 
     # Generate namesapce
     with source.gen_namespace("mongo"):
@@ -255,6 +286,9 @@ def generate_source(spec, file_name):
 
     # Generate structs
     print(stream.getvalue())
+
+    file_handle = io.open(file_name, mode="wb")
+    file_handle.write(stream.getvalue())
 
 
 
