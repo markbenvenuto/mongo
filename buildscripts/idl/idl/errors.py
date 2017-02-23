@@ -105,10 +105,8 @@ class ParserContext(object):
         # type: (yaml.nodes.Node) -> None
         """Add an error about an unknown root node."""
         self._add_node_error(
-            node, ERROR_ID_UNKNOWN_ROOT,
-            "Unrecognized IDL specification root level node '%s' only " +
-            " (global, import, type, command, and struct) are accepted"
-            % (node.value))
+            node, ERROR_ID_UNKNOWN_ROOT, "Unrecognized IDL specification root level node '%s' only "
+            + " (global, import, type, command, and struct) are accepted" % (node.value))
 
     def add_duplicate_symbol_error(self, location, name, duplicate_class_name, original_class_name):
         # type: (common.SourceLocation, unicode, unicode, unicode) -> None
@@ -120,8 +118,8 @@ class ParserContext(object):
     def add_unknown_type_error(self, location, field_name, type_name):
         # type: (common.SourceLocation, unicode, unicode) -> None
         """Add an error about a duplicate symbol."""
-        self._add_error(location, ERROR_ID_UNKNOWN_TYPE, "'%s' is an unknown type for field '%s'" %
-                        (type_name, field_name))
+        self._add_error(location, ERROR_ID_UNKNOWN_TYPE,
+                        "'%s' is an unknown type for field '%s'" % (type_name, field_name))
 
     def _is_node_type(self, node, node_name, expected_node_type):
         # type: (Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode], unicode, unicode) -> bool
@@ -171,5 +169,5 @@ class ParserContext(object):
     def add_duplicate(self, node, node_name):
         # type: (yaml.nodes.Node, unicode) -> None
         """Add an error about a duplicate node."""
-        self._add_node_error(node, ERROR_ID_DUPLICATE_NODE, "Duplicate node found for '%s'" %
-                             (node_name))
+        self._add_node_error(node, ERROR_ID_DUPLICATE_NODE,
+                             "Duplicate node found for '%s'" % (node_name))

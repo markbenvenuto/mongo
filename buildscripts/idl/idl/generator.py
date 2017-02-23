@@ -83,8 +83,8 @@ class CppFileWriter(object):
 
     def gen_namespace(self, namespace):
         # type: (unicode) -> ScopedBlock
-        return ScopedBlock(self._writer, "namespace %s {" % namespace, "}  // namespace %s" %
-                           namespace)
+        return ScopedBlock(self._writer, "namespace %s {" % namespace,
+                           "}  // namespace %s" % namespace)
 
     def gen_class_declaration(self, class_name):
         # type: (unicode) -> IndentedScopedBlock

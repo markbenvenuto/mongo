@@ -12,6 +12,7 @@ from typing import List, Union, Any, Optional, Tuple
 from . import common
 from . import errors
 
+
 # TODO: add dump to yaml support
 class IDLSpec(object):
     """
@@ -23,8 +24,8 @@ class IDLSpec(object):
 
     def __init__(self, *args, **kwargs):
         """Construct an IDL spec"""
-        self.symbols = SymbolTable() # type: SymbolTable
-        self.globals = None # type: Optional[Globals]
+        self.symbols = SymbolTable()  # type: SymbolTable
+        self.globals = None  # type: Optional[Globals]
         #TODO self.imports = None # type: Optional[Imports]
 
         super(IDLSpec, self).__init__(*args, **kwargs)
@@ -36,7 +37,8 @@ class IDLParsedSpec(object):
     def __init__(self, spec, error_collection):
         """Must specify either a IDL document or errors, not both."""
         # type: (IDLSpec, errors.ParserErrorCollection) -> None
-        assert (spec is None and error_collection is not None) or (spec is not None and error_collection is None)
+        assert (spec is None and error_collection is not None) or (spec is not None and
+                                                                   error_collection is None)
         self.spec = spec
         self.errors = error_collection
 
@@ -51,9 +53,9 @@ class SymbolTable(object):
 
     def __init__(self, *args, **kwargs):
         """Construct an empty symbol table."""
-        self.types = [] # type: List[Type]
-        self.structs = [] # type: List[Struct]
-        self.commands = [] # type: List[Command]
+        self.types = []  # type: List[Type]
+        self.structs = []  # type: List[Struct]
+        self.commands = []  # type: List[Command]
 
         super(SymbolTable, self).__init__(*args, **kwargs)
 
