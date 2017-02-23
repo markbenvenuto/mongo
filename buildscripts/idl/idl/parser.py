@@ -1,4 +1,9 @@
-"""IDL Parser"""
+"""
+IDL Parser.
+
+Converts a YAML document to a syntax tree.abs
+Only validates the document is syntatically correct, not semantically.
+"""
 from __future__ import absolute_import, print_function, unicode_literals
 
 from typing import List, Union, Any
@@ -13,7 +18,7 @@ from . import syntax
 
 def parse_global(ctxt, spec, node):
     # type: (errors.ParserContext, syntax.IDLSpec, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> None
-    """Parse a global section in the IDL file"""
+    """Parse a global section in the IDL file."""
     if not ctxt.is_mapping_node(node, "global"):
         return
 
@@ -43,7 +48,8 @@ def parse_global(ctxt, spec, node):
 
         field_name_set.add(first_name)
 
-    if ctxt.is_duplicate(node, spec.globals, "global"):
+    if spec.globals:
+        ctxt.add_duplicate(node, "global")
         return
 
     spec.globals = idlglobal
@@ -51,7 +57,7 @@ def parse_global(ctxt, spec, node):
 
 def parse_type(ctxt, spec, node):
     # type: (errors.ParserContext, syntax.IDLSpec, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> None
-    """Parse a type section in the IDL file"""
+    """Parse a type section in the IDL file."""
     if not ctxt.is_mapping_node(node, "type"):
         return
 
@@ -95,7 +101,7 @@ def parse_type(ctxt, spec, node):
 
 def parse_field(ctxt, name, node):
     # type: (errors.ParserContext, str, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> syntax.Field
-    """Parse a field in a struct/command in the IDL file"""
+    """Parse a field in a struct/command in the IDL file."""
     field = syntax.Field(ctxt.file_name, node.start_mark.line, node.start_mark.column)
 
     field_name_set = set()  # type: Set[str]
@@ -128,7 +134,7 @@ def parse_field(ctxt, name, node):
 
 def parse_fields(ctxt, spec, node):
     # type: (errors.ParserContext, syntax.IDLSpec, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> List[syntax.Field]
-    """Parse a fields section in a struct in the IDL file"""
+    """Parse a fields section in a struct in the IDL file."""
 
     fields = []
 
@@ -162,7 +168,7 @@ def parse_fields(ctxt, spec, node):
 
 def parse_struct(ctxt, spec, node):
     # type: (errors.ParserContext, syntax.IDLSpec, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> None
-    """Parse a struct section in the IDL file"""
+    """Parse a struct section in the IDL file."""
     if not ctxt.is_mapping_node(node, "struct"):
         return
 
@@ -195,22 +201,21 @@ def parse_struct(ctxt, spec, node):
 
 
 def parse(stream):
-    """Parse a YAML document into an AST"""
-
+    """Parse a YAML document into an AST."""
     # This may throw
-    nodes = yaml.compose(stream)
+    root_node = yaml.compose(stream)
 
     ctxt = errors.ParserContext("root", errors.ParserErrorCollection())
 
     #print(dir(nodes))
     #print(nodes.__class__)
     #if not isinstance(nodes.value, yaml.nodes.MappingNode):
-    if not nodes.id == "mapping":
+    if not root_node.id == "mapping":
         raise errors.IDLError("Did not expected mapping node as root node of IDL document")
 
     spec = syntax.IDLSpec()
 
-    for node_pair in nodes.value:
+    for node_pair in root_node.value:
         first_node = node_pair[0]
         second_node = node_pair[1]
 
