@@ -288,9 +288,11 @@ class ScopedBlock(object):
         self._closing = closing
 
     def __enter__(self):
+        # type: () -> None
         self._writer.write_unindented_line(self._opening)
 
     def __exit__(self, *args):
+        # type: (*str) -> None
         self._writer.write_unindented_line(self._closing)
 
 
@@ -302,10 +304,12 @@ class IndentedScopedBlock(object):
         self._closing = closing
 
     def __enter__(self):
+        # type: () -> None
         self._writer.write_line(self._opening)
         self._writer.indent()
 
     def __exit__(self, *args):
+        # type: (*str) -> None
         self._writer.unindent()
         self._writer.write_line(self._closing)
 

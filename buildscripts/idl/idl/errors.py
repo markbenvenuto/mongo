@@ -38,8 +38,8 @@ class ParserError(common.SourceLocation):
     """
 
     def __init__(self, error_id, msg, file_name, line, column, *args, **kwargs):
-        """"Construct a parser error with source location information."""
         # type: (unicode, unicode, unicode, int, int, *str, **bool) -> None
+        """"Construct a parser error with source location information."""
         self.error_id = error_id
         self.msg = msg
         super(ParserError, self).__init__(file_name, line, column)
@@ -49,8 +49,9 @@ class ParserErrorCollection(object):
     """A collection of parser errors with line & context information."""
 
     def __init__(self):
+        # type: () -> None
         """Default constructor."""
-        self._errors = []  # List[ParserError]
+        self._errors = []  # type: List[ParserError]
 
     def add(self, location, error_id, msg):
         # type: (common.SourceLocation, unicode, unicode) -> None

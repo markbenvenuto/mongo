@@ -1,6 +1,8 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 from . import parser
+from . import binder
+from . import generator
 
 class compileArgs(object):
     """
@@ -12,13 +14,12 @@ class compileArgs(object):
     """
 
 def compile(stream):
-
-    parsed_doc = idl.parser.parse(stream)
+    parsed_doc = parser.parse(stream)
 
     if not parsed_doc.errors:
-        bound_doc = idl.binder.bind(parsed_doc.spec)
+        bound_doc = binder.bind(parsed_doc.spec)
         if not bound_doc.errors:
-            idl.generator.generate_code(bound_doc.spec, "example_gen")
+            generator.generate_code(bound_doc.spec, "example_gen")
 
     # TODO: bind and validate the tree
 

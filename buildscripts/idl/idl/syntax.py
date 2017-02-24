@@ -22,21 +22,20 @@ class IDLSpec(object):
     - Fields may have had types derived depending on pass run
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self):
+        # type: () -> None
         """Construct an IDL spec"""
         self.symbols = SymbolTable()  # type: SymbolTable
-        self.globals = None  # type: Optional[Globals]
+        self.globals = None  # type: Optional[Global]
         #TODO self.imports = None # type: Optional[Imports]
-
-        super(IDLSpec, self).__init__(*args, **kwargs)
 
 
 class IDLParsedSpec(object):
     """A parsed IDL document or a set of errors if parsing failed."""
 
     def __init__(self, spec, error_collection):
-        """Must specify either a IDL document or errors, not both."""
         # type: (IDLSpec, errors.ParserErrorCollection) -> None
+        """Must specify either a IDL document or errors, not both."""
         assert (spec is None and error_collection is not None) or (spec is not None and
                                                                    error_collection is None)
         self.spec = spec
@@ -51,13 +50,12 @@ class SymbolTable(object):
     TODO fill out
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self):
+        # type: () -> None
         """Construct an empty symbol table."""
         self.types = []  # type: List[Type]
         self.structs = []  # type: List[Struct]
         self.commands = []  # type: List[Command]
-
-        super(SymbolTable, self).__init__(*args, **kwargs)
 
     def _is_duplicate(self, ctxt, location, name, duplicate_class_name):
         # type: (errors.ParserContext, common.SourceLocation, unicode, unicode) -> bool
@@ -80,8 +78,8 @@ class SymbolTable(object):
             self.structs.append(struct)
 
     def add_type(self, ctxt, idltype):
-        """Add an IDL type to the symbol table and check for duplicates."""
         # type: (errors.ParserContext, Type) -> None
+        """Add an IDL type to the symbol table and check for duplicates."""
         if not self._is_duplicate(ctxt, idltype, idltype.name, "type"):
             self.types.append(idltype)
 
@@ -100,6 +98,7 @@ class SymbolTable(object):
         return (None, None)
 
     def add_command(self, ctxt, command):
+        # type: (errors.ParserContext, Command) -> None
         """Add an IDL command  to the symbol table and check for duplicates."""
         pass
 
@@ -112,8 +111,8 @@ class Global(common.SourceLocation):
     """
 
     def __init__(self, file_name, line, column, *args, **kwargs):
-        """Construct a Global."""
         # type: (unicode, int, int, *str, **bool) -> None
+        """Construct a Global."""
         self.cpp_namespace = None  # type: unicode
         self.cpp_includes = []  # type: List[unicode]
         super(Global, self).__init__(file_name, line, column)

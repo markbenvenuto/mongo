@@ -24,20 +24,18 @@ class IDLAST(object):
     - Fields may have had types derived depending on pass run
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self):
+        # type: () -> None
         """Construct a IDLAST."""
-        self.globals = None  # Global
-        self.structs = []  # List[Struct]
-
-        super(IDLAST, self).__init__(*args, **kwargs)
-
+        self.globals = None  # type: Global
+        self.structs = []  # type: List[Struct]
 
 class IDLBoundSpec(object):
     """A bound IDL document or a set of errors if parsing failed."""
 
     def __init__(self, spec, error_collection):
-        """Must specify either a IDL document or errors, not both."""
         # type: (IDLAST, errors.ParserErrorCollection) -> None
+        """Must specify either a IDL document or errors, not both."""
         assert (spec is None and error_collection is not None) or (spec is not None and
                                                                    error_collection is None)
         self.spec = spec
@@ -52,8 +50,8 @@ class Global(common.SourceLocation):
     """
 
     def __init__(self, file_name, line, column, *args, **kwargs):
-        """Construct a Global."""
         # type: (unicode, int, int, *str, **bool) -> None
+        """Construct a Global."""
         self.cpp_namespace = None  # type: unicode
         self.cpp_includes = []  # type: List[unicode]
         super(Global, self).__init__(file_name, line, column)

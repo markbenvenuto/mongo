@@ -200,8 +200,8 @@ def parse_struct(ctxt, spec, node):
     spec.symbols.add_struct(ctxt, struct)
 
 
-def parse(stream):
-TODO:
+def parse(stream, file_name="unknown"):
+    # type: (Any, unicode) -> syntax.IDLParsedSpec
     """Parse a YAML document into an AST."""
     # This may throw
     root_node = yaml.compose(stream)

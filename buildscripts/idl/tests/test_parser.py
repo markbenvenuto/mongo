@@ -1,19 +1,19 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function, unicode_literals
 
 import textwrap
-#from .context import idl
-
 import unittest
 
 
 class Test_parser(unittest.TestCase):
     def assertParseOk(self, str):
+        # type: (unicode) -> None
         parsed_doc = idl.parser.parse(str)
 
         self.assertIsNone(parsed_doc.errors)
         self.assertIsNotNone(parsed_doc.spec)
 
     def assertParseNotOk(self, str, id):
+        # type: (unicode, unicode) -> None
         parsed_doc = idl.parser.parse(str)
 
         self.assertIsNone(parsed_doc.spec)
@@ -21,6 +21,7 @@ class Test_parser(unittest.TestCase):
         self.assertTrue(parsed_doc.errors.contains(id))
 
     def test_global_positive(self):
+        # type: () -> None
         self.assertParseOk(textwrap.dedent("""
         global:
             cpp_namespace: 'foo'"""))
@@ -38,6 +39,7 @@ class Test_parser(unittest.TestCase):
             cpp_includes: 'bar'"""))
 
     def test_global_negative(self):
+        # type: () -> None
         self.assertParseNotOk(
             textwrap.dedent("""
         global:
@@ -57,6 +59,7 @@ class Test_parser(unittest.TestCase):
             cpp_includes: 'foo'"""), idl.errors.ERROR_ID_DUPLICATE_NODE)
 
     def test_root_negative(self):
+        # type: () -> None
         self.assertParseNotOk(
             textwrap.dedent("""
         fake:
