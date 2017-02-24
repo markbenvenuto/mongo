@@ -107,7 +107,7 @@ class SymbolTable(object):
 class Global(common.SourceLocation):
     """
     IDL global object container.
-    
+
     Not all fields are populated.
     """
 
@@ -128,7 +128,7 @@ class Import(common.SourceLocation):
 class Type(common.SourceLocation):
     """
     Stores all type information about an IDL type.
-    
+
     Not all fields are populated.
     """
 
@@ -148,7 +148,7 @@ class Field(common.SourceLocation):
     An instance of a field in a struct.
 
     Name is always populated.
-    Other fields may not be populated. 
+    Other fields may not be populated.
     """
 
     def __init__(self, file_name, line, column, *args, **kwargs):
@@ -171,7 +171,7 @@ class Field(common.SourceLocation):
 class Struct(common.SourceLocation):
     """
     IDL struct information.
- 
+
     Not all fields are populated.
     """
 

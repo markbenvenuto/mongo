@@ -42,7 +42,7 @@ def bind_field(ctxt, parsed_spec, field):
 
     # Copy over only the needed information if this a struct or a type
     if struct:
-        ast_field.struct = struct
+        ast_field.struct_type = struct.name
     else:
         # TODO: merge types
         ast_field.cpp_type = idltype.cpp_type
@@ -55,7 +55,7 @@ def bind_field(ctxt, parsed_spec, field):
 
 def bind_globals(ctxt, parsed_spec):
     # type: (errors.ParserContext, syntax.IDLSpec) -> ast.Global
-
+    """Bind the globals object from the syntax tree into the ast tree by doing a deep copy."""
     if parsed_spec.globals:
         ast_global = ast.Global(parsed_spec.globals.file_name, parsed_spec.globals.line,
                                 parsed_spec.globals.column)
@@ -69,13 +69,13 @@ def bind_globals(ctxt, parsed_spec):
 
 def bind(parsed_spec):
     # type: (syntax.IDLSpec) -> ast.IDLBoundSpec
-    """Bind and validate a IDL Specification
-
-    """
+    """Bind and validate a IDL Specification."""
 
     ctxt = errors.ParserContext("unknown", errors.ParserErrorCollection())
 
     bound_spec = ast.IDLAST()
+
+    # TODO: Validate all the types here...
 
     bound_spec.globals = bind_globals(ctxt, parsed_spec)
 

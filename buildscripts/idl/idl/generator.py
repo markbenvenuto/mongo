@@ -98,10 +98,10 @@ class CppFileWriter(object):
 
     def _get_field_parameter_type(self, field):
         # type: (ast.Field) -> unicode
-        assert field.cpp_type is not None or field.struct is not None
+        assert field.cpp_type is not None or field.struct_type is not None
 
-        if field.struct:
-            cpp_type = field.struct.name
+        if field.struct_type:
+            cpp_type = field.struct_type
         else:
             cpp_type = field.cpp_type
             if cpp_type == "std::string":
@@ -200,10 +200,10 @@ class CppFileWriter(object):
                         if field.ignore:
                             self._writer.write_line("// ignore field")
                         else:
-                            if field.struct:
+                            if field.struct_type:
                                 self._writer.write_line("object.%s = %s::parse(element.Obj());" %
                                                         (self._get_field_member_name(field),
-                                                         camel_case(field.struct.name)))
+                                                         camel_case(field.struct_type)))
                             elif "BSONElement::" in field.deserializer:
                                 method_name = get_method_name(field.deserializer)
                                 self._writer.write_line("object.%s = element.%s();" % (
@@ -233,7 +233,7 @@ class CppFileWriter(object):
                     continue
 
                 member_name = self._get_field_member_name(field)
-                if not field.struct:
+                if not field.struct_type:
                     # if field.serializer:
                     #     # Generate custom serialization
                     #     method_name = get_method_name(field.deserializer)
