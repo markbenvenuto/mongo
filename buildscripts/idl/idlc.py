@@ -92,10 +92,6 @@ struct:
         writeConcern: FakeWriteConcern
 """)
 
-    if not parsed_doc.errors:
-        bound_doc = idl.binder.bind(parsed_doc.spec)
-        if not bound_doc.errors:
-            idl.generator.generate_code(bound_doc.spec, "example_gen")
 
 
 if __name__ == '__main__':

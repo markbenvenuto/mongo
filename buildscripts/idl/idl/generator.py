@@ -8,13 +8,11 @@ import string
 
 INDENT_SPACE_COUNT = 4
 
-
 def camel_case(name):
     # type: (unicode) -> unicode
     if len(name) > 1:
         name = string.upper(name[0:1]) + name[1:]
     return name
-
 
 def get_method_name(name):
     # type: (unicode) -> unicode
@@ -23,6 +21,18 @@ def get_method_name(name):
         return name
     return name[pos + 2:]
 
+def is_view_type(cpp_type):
+    # type: (unicode) -> bool
+    if cpp_type == "std::string":
+        return True
+    return False
+
+def get_view_type(cpp_type):
+    # type: (unicode) -> unicode
+    if cpp_type == "std::string":
+        cpp_type = "StringData"
+
+    return cpp_type
 
 class IndentedTextWriter(object):
     def __init__(self, stream, *args, **kwargs):
@@ -49,7 +59,7 @@ class IndentedTextWriter(object):
         # type: (unicode) -> None
         """Write a line to the stream"""
         fill = ''
-        for x in range(self._indent * INDENT_SPACE_COUNT):
+        for _ in range(self._indent * INDENT_SPACE_COUNT):
             fill += ' '
 
         self._stream.write(fill)
@@ -96,7 +106,7 @@ class CppFileWriter(object):
         self._writer.write_line("void serialize(BSONObjBuilder* builder) const;")
         self._writer.write_empty_line()
 
-    def _get_field_parameter_type(self, field):
+    def _get_field_cpp_type(self, field):
         # type: (ast.Field) -> unicode
         assert field.cpp_type is not None or field.struct_type is not None
 
@@ -107,6 +117,14 @@ class CppFileWriter(object):
             if cpp_type == "std::string":
                 cpp_type = "StringData"
 
+        return cpp_type
+
+    def _get_field_parameter_type(self, field):
+        # type: (ast.Field) -> unicode
+        assert field.cpp_type is not None or field.struct_type is not None
+
+        cpp_type = self._get_field_cpp_type(field)
+
         if field.required == False:
             return "boost::optional<%s>" % cpp_type
 
@@ -114,30 +132,19 @@ class CppFileWriter(object):
 
     def _get_field_member_type(self, field):
         # type: (ast.Field) -> unicode
-        cpp_type = self._get_field_parameter_type(field)
-
-        # TODO: handle vector
-        if cpp_type == "StringData":
-            cpp_type = "std::string"
-
-        return cpp_type
+        return self._get_field_parameter_type(field)
 
     def _get_field_member_name(self, field):
         # type: (ast.Field) -> unicode
         return "_" + field.name
 
-    def _return_as_reference(self, name):
-        # type: (unicode) -> bool
-        if "StringData" in name:
-            return False
-        return True
-
     def gen_getter(self, field):
         # type: (ast.Field) -> None
+        cpp_type = self._get_field_cpp_type(field)
         param_type = self._get_field_parameter_type(field)
         member_name = self._get_field_member_name(field)
 
-        if self._return_as_reference(param_type):
+        if not is_view_type(cpp_type):
             optional_ampersand = "&"
             body = "return %s;" % (member_name)
         else:
@@ -181,11 +188,15 @@ class CppFileWriter(object):
         with self._block("%s %s::parse(const BSONObj& bsonObject) {" %
                          (camel_case(struct.name), camel_case(struct.name)), "}"):
 
+            # TODO: generate preamble checks
+
             self._writer.write_line("%s object;" % camel_case(struct.name))
 
             with self._block("for (const auto&& element : bsonObject) {", "}"):
 
                 self._writer.write_line("const auto& fieldName = element.fieldNameStringData();")
+
+                # TODO: generate command namespace string check
 
                 first_field = True
                 for field in struct.fields:

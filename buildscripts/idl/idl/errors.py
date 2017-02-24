@@ -12,6 +12,8 @@ from typing import List, Union, Any
 
 from . import common
 
+# Error Codes used by IDL Compiler
+#
 ERROR_ID_UNKNOWN_ROOT = "ID0001"
 ERROR_ID_DUPLICATE_SYMBOL = "ID0002"
 ERROR_ID_IS_NODE_TYPE = "ID0003"

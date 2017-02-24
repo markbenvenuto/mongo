@@ -7,12 +7,15 @@ from . import errors
 
 # TODO: fix up to be mongo as default namespace
 
+# TODO: ban StringData as a type
 
 def bind_struct(ctxt, parsed_spec, struct):
     # type: (errors.ParserContext, syntax.IDLSpec, syntax.Struct) -> ast.Struct
 
     ast_struct = ast.Struct(struct.file_name, struct.line, struct.column)
     ast_struct.name = struct.name
+
+    # TODO: validate struct
 
     for field in struct.fields:
         ast_field = bind_field(ctxt, parsed_spec, field)
@@ -27,6 +30,8 @@ def bind_field(ctxt, parsed_spec, field):
 
     ast_field = ast.Field(field.file_name, field.line, field.column)
     ast_field.name = field.name
+
+    # TODO validate field
 
     if field.ignore:
         #  TODO: validate ignored field

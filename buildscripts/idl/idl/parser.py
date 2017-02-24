@@ -201,6 +201,7 @@ def parse_struct(ctxt, spec, node):
 
 
 def parse(stream):
+TODO:
     """Parse a YAML document into an AST."""
     # This may throw
     root_node = yaml.compose(stream)

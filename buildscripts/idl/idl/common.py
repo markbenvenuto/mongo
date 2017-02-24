@@ -4,7 +4,7 @@ IDL Common classes.
 Classes are shared among both the syntax and ast trees.
 """
 from __future__ import absolute_import, print_function, unicode_literals
-
+  
 
 class SourceLocation(object):
     """Source location information about a syntax or ast object."""
