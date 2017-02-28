@@ -20,6 +20,11 @@ def compile(stream):
         bound_doc = binder.bind(parsed_doc.spec)
         if not bound_doc.errors:
             generator.generate_code(bound_doc.spec, "example_gen")
+        else:
+            bound_doc.errors.dump_errors()
+    else:
+        parsed_doc.errors.dump_errors()
+
 
     # TODO: bind and validate the tree
 

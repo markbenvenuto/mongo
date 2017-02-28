@@ -125,7 +125,7 @@ class CppFileWriter(object):
 
         cpp_type = self._get_field_cpp_type(field)
 
-        if field.required == False:
+        if field.optional:
             return "boost::optional<%s>" % cpp_type
 
         return cpp_type
@@ -151,6 +151,9 @@ class CppFileWriter(object):
             optional_ampersand = ""
             body = "return %s(%s);" % (param_type, member_name)
 
+        # TODO: generate xvalue 
+        #  WriteConcernWriteField getW() && { return std::move(_w); } = delete
+
         self._writer.write_line("const %s%s get%s() const { %s }" %
                                 (param_type, optional_ampersand, camel_case(field.name), body))
 
@@ -173,7 +176,7 @@ class CppFileWriter(object):
     def _access_member(self, field):
         # type: (ast.Field) -> unicode
         member_name = self._get_field_member_name(field)
-        if field.required:
+        if not field.optional:
             return "%s" % member_name
         # optional
         return "%s.get()" % member_name
@@ -258,7 +261,7 @@ class CppFileWriter(object):
 
                     # else:
                     # Generate default serialization using BSONObjBuilder::append
-                    if field.required:
+                    if not field.optional:
                         self._writer.write_line('builder->append("%s", %s);' %
                                                 (field.name, member_name))
                     else:
@@ -267,7 +270,7 @@ class CppFileWriter(object):
                                                     (field.name, member_name))
                 else:
                     predicate = "{"
-                    if not field.required:
+                    if field.optional:
                         predicate = "if (%s) {" % member_name
 
                     with self._block(predicate, "}"):

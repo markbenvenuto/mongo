@@ -44,7 +44,7 @@ def parse_global(ctxt, spec, node):
             if ctxt.is_sequence_or_scalar_node(second_node, "cpp_includes"):
                 idlglobal.cpp_includes = ctxt.get_list(second_node)
         else:
-            ctxt.add_unknown_root_node_error(first_node)
+            ctxt.add_unknown_node_error(first_node, "global")
 
         field_name_set.add(first_name)
 
@@ -78,6 +78,9 @@ def parse_type(ctxt, spec, node):
         if first_name == "name":
             if ctxt.is_scalar_node(second_node, "name"):
                 idltype.name = second_node.value
+        elif first_name == "description":
+            if ctxt.is_scalar_node(second_node, "description"):
+                idltype.description = second_node.value
         elif first_name == "cpp_type":
             if ctxt.is_scalar_node(second_node, "cpp_type"):
                 idltype.cpp_type = second_node.value
@@ -90,11 +93,29 @@ def parse_type(ctxt, spec, node):
         elif first_name == "deserializer":
             if ctxt.is_scalar_node(second_node, "deserializer"):
                 idltype.deserializer = second_node.value
-        #TODO: fix
-        #else:
-        #    ctxt.add_unknown_root_node_error(first_node)
+        elif first_name == "bindata_subtype":
+            if ctxt.is_scalar_node(second_node, "bindata_subtype"):
+                idltype.bindata_subtype = second_node.value
+        elif first_name == "default":
+            if ctxt.is_scalar_node(second_node, "default"):
+                idltype.default = second_node.value
+        else:
+            ctxt.add_unknown_node_error(first_node, "type")
 
         field_name_set.add(first_name)
+
+    if idltype.name is None:
+        ctxt.add_missing_required_field(node, "type", "name")
+
+    if idltype.cpp_type is None:
+        ctxt.add_missing_required_field(node, "type", "cpp_type")
+
+    # TODO: fix
+    #if idltype.description is None:
+    #    ctxt.add_missing_required_field(node, "type", "description")
+
+    if idltype.bson_serialization_type is None:
+        ctxt.add_missing_required_field(node, "type", "bson_serialization_type")
 
     spec.symbols.add_type(ctxt, idltype)
 
@@ -120,12 +141,27 @@ def parse_field(ctxt, name, node):
             if first_name == "type":
                 field.type = second_node.value
             elif first_name == "ignore":
-                field.ignore = second_node.value
-            elif first_name == "required":
-                field.required = second_node.value
-            #TODO: fix
-            #else:
-            #    ctxt.add_unknown_root_node_error(first_node)
+                if ctxt.is_scalar_bool_node(second_node, "ignore"):
+                    field.ignore = second_node.value
+            elif first_name == "optional":
+                if ctxt.is_scalar_bool_node(second_node, "optional"):
+                    field.optional = second_node.value
+            elif first_name == "description":
+                field.description = second_node.value
+            elif first_name == "cpp_type":
+                field.cpp_type = second_node.value
+            elif first_name == "bson_serialization_type":
+                field.bson_serialization_type = second_node.value
+            elif first_name == "serializer":
+                field.serializer = second_node.value
+            elif first_name == "deserializer":
+                field.deserializer = second_node.value
+            elif first_name == "bindata_subtype":
+                field.bindata_subtype = second_node.value
+            elif first_name == "default":
+                field.default = second_node.value
+            else:
+                ctxt.add_unknown_node_error(first_node, "field")
 
         field_name_set.add(first_name)
 
@@ -187,15 +223,30 @@ def parse_struct(ctxt, spec, node):
 
         if first_name == "name":
             if ctxt.is_scalar_node(second_node, "name"):
-                # TODO: validate name
+                # TODO: validate name is not array
                 struct.name = second_node.value
+        elif first_name == "description":
+            if ctxt.is_scalar_node(second_node, "description"):
+                struct.description = second_node.value
+        elif first_name == "strict":
+            if ctxt.is_scalar_bool_node(second_node, "strict"):
+                struct.strict = second_node.value
         elif first_name == "fields":
             if ctxt.is_mapping_node(second_node, "fields"):
                 struct.fields = parse_fields(ctxt, spec, second_node)
-        #TODO: fix
-        #else:
-        #    ctxt.add_unknown_root_node_error(first_node)
+        else:
+            ctxt.add_unknown_node_error(first_node, "struct")
+
         field_name_set.add(first_name)
+
+    if struct.name is None:
+        ctxt.add_missing_required_field(node, "type", "name")
+    elif len(struct.fields) == 0:
+        ctxt.add_empty_struct(node, struct.name)
+
+    # TODO: fix
+    #if struct.description is None:
+    #    ctxt.add_missing_required_field(node, "type", "description")
 
     spec.symbols.add_struct(ctxt, struct)
 
@@ -203,7 +254,8 @@ def parse_struct(ctxt, spec, node):
 def parse(stream, file_name="unknown"):
     # type: (Any, unicode) -> syntax.IDLParsedSpec
     """Parse a YAML document into an AST."""
-    # This may throw
+
+    # This will throw if the YAML parse fails
     root_node = yaml.compose(stream)
 
     ctxt = errors.ParserContext("root", errors.ParserErrorCollection())
@@ -236,7 +288,6 @@ def parse(stream, file_name="unknown"):
     #pp.pprint(spec)
 
     if ctxt.errors.has_errors():
-        ctxt.errors.dump_errors()
         return syntax.IDLParsedSpec(None, ctxt.errors)
     else:
         return syntax.IDLParsedSpec(spec, None)

@@ -5,9 +5,7 @@ IDL Compiler Driver
 from __future__ import absolute_import, print_function
 
 import argparse
-import idl.binder
-import idl.parser
-import idl.generator
+import idl.compiler
 
 
 def main():
@@ -25,7 +23,7 @@ def main():
 
     print("Hello")
 
-    parsed_doc = idl.parser.parse("""
+    idl.compiler.compile("""
 # TODO: write the code for this
 global:
     cpp_namespace: "mongo::acme::"
@@ -50,6 +48,7 @@ type:
 
 type:
     name: NamespaceString
+    name: NamespaceString
     cpp_type: NamepaceString
     bson_serialization_type: String 
     serializer: "mongo::NamespaceString::toBSON"
@@ -70,8 +69,6 @@ struct:
         j: int32
         wtimeout: 
           type: safeInt32
-          min: 0
-          max: 50
           default: 42
           required: true
         wOptime:
@@ -92,6 +89,7 @@ struct:
           description: The Bike Shed's nameplate
         writeConcern: FakeWriteConcern
 """)
+
 
 
 

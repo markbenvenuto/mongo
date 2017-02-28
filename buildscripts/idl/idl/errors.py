@@ -20,7 +20,10 @@ ERROR_ID_IS_NODE_TYPE = "ID0003"
 ERROR_ID_IS_NODE_TYPE_SCALAR_OR_SEQUENCE = "ID0004"
 ERROR_ID_DUPLICATE_NODE = "ID0005"
 ERROR_ID_UNKNOWN_TYPE = "ID0006"
-
+ERROR_ID_IS_NODE_VALID_BOOL = "ID0007"
+ERROR_ID_UNKNOWN_NODE = "ID0008"
+ERROR_ID_EMPTY_FIELDS = "ID0009"
+ERROR_ID_MISSING_REQUIRED_FIELD = "ID0010"
 
 class IDLError(Exception):
     """Base class for all resmoke.py exceptions."""
@@ -69,14 +72,22 @@ class ParserErrorCollection(object):
         """Check if the error collection has at least one message of a given error_id."""
         return len([a for a in self._errors if a.error_id == error_id]) > 0
 
+    def _to_list(self):
+        # type: () -> List[unicode]
+        return ["%s: (%d, %d): %s: %s" % (error.file_name, error.line, error.column,
+                                                error.error_id, error.msg)
+            for error in self._errors]
+
     def dump_errors(self):
         # type: () -> None
         """Print the list of errors."""
-        for error in self._errors:
-            error_msg = "%s: (%d, %d): %s: %s" % (error.file_name, error.line, error.column,
-                                                  error.error_id, error.msg)
+        ', '.join(self._to_list())        
+        for error_msg in self._to_list():
             print("%s\n\n" % error_msg)
 
+    def __str__(self):
+        # type: () -> str
+        return ', '.join(self._to_list()) # type: ignore
 
 class ParserContext(object):
     """
@@ -108,8 +119,14 @@ class ParserContext(object):
         # type: (yaml.nodes.Node) -> None
         """Add an error about an unknown root node."""
         self._add_node_error(
-            node, ERROR_ID_UNKNOWN_ROOT, "Unrecognized IDL specification root level node '%s' only "
-            + " (global, import, type, command, and struct) are accepted" % (node.value))
+            node, ERROR_ID_UNKNOWN_ROOT, ("Unrecognized IDL specification root level node '%s' only "
+            + " (global, import, type, command, and struct) are accepted") % (node.value))
+
+    def add_unknown_node_error(self, node, name):
+        # type: (yaml.nodes.Node, unicode) -> None
+        """Add an error about an unknown node."""
+        self._add_node_error(
+            node, ERROR_ID_UNKNOWN_NODE, "Unknown IDL node '%s' for YAML entity '%s'." % (node.value, name))
 
     def add_duplicate_symbol_error(self, location, name, duplicate_class_name, original_class_name):
         # type: (common.SourceLocation, unicode, unicode, unicode) -> None
@@ -159,6 +176,18 @@ class ParserContext(object):
             return False
         return True
 
+    def is_scalar_bool_node(self, node, node_name):
+        # type: (Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode], unicode) -> bool
+        """Return True if this YAML node is a Scalar and a valid boolean"""
+        if not self._is_node_type(node, node_name, "scalar"):
+            return False
+        if not (node.value == "true" or node.value == "false"):
+            self._add_node_error(
+                node, ERROR_ID_IS_NODE_VALID_BOOL,
+                "Illegal bool value for '%s', expected either 'true' or 'false'." %
+                node_name)
+        return True
+
     def get_list(self, node):
         # type: (Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> List[unicode]
         """Get a YAML scalar or sequence node as a list of strings."""
@@ -174,3 +203,16 @@ class ParserContext(object):
         """Add an error about a duplicate node."""
         self._add_node_error(node, ERROR_ID_DUPLICATE_NODE,
                              "Duplicate node found for '%s'" % (node_name))
+
+    def add_empty_struct(self, node, name):
+        # type: (yaml.nodes.Node, unicode) -> None
+        """Add an error about a struct without fields."""
+        self._add_node_error(node, ERROR_ID_EMPTY_FIELDS,
+                             "Struct '%s' must have fields specified but none found" % (name))
+
+    def add_missing_required_field(self, node, node_parent, node_name):
+        # type: (yaml.nodes.Node, unicode, unicode) -> None
+        """Add an error about a YAML node missing a required child."""
+        self._add_node_error(node, ERROR_ID_MISSING_REQUIRED_FIELD,
+                             "IDL node '%s' is missing required scalar '%s'" % (node_parent, node_name))
+

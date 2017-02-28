@@ -135,10 +135,14 @@ class Type(common.SourceLocation):
         # type: (unicode, int, int, *str, **bool) -> None
         """Construct a Type."""
         self.name = None  # type: unicode
+        self.description = None # type: unicode
         self.cpp_type = None  # type: unicode
         self.bson_serialization_type = None  # type: unicode
+        self.bindata_subtype = None # type: unicode
         self.serializer = None  # type: unicode
         self.deserializer = None  # type: unicode
+        self.default = None # type: unicode
+
         super(Type, self).__init__(file_name, line, column)
 
 
@@ -154,15 +158,18 @@ class Field(common.SourceLocation):
         # type: (unicode, int, int, *str, **bool) -> None
         """Construct a Field."""
         self.name = None  # type: unicode
+        self.description = None # type: unicode
         self.type = None  # type: unicode
         self.ignore = False  # type: bool
-        self.required = False  # type: bool
+        self.optional = False  # type: bool
 
         # Properties common to type and fields
         self.cpp_type = None  # type: unicode
         self.bson_serialization_type = None  # type: unicode
+        self.bindata_subtype = None # type: unicode
         self.serializer = None  # type: unicode
         self.deserializer = None  # type: unicode
+        self.default = None # type: unicode
 
         super(Field, self).__init__(file_name, line, column)
 
@@ -178,6 +185,8 @@ class Struct(common.SourceLocation):
         # type: (unicode, int, int, *str, **bool) -> None
         """Construct a Struct."""
         self.name = None  # type: unicode
+        self.description = None # type: unicode
+        self.strict = True # type: bool
         self.fields = []  # type: List[Field]
         super(Struct, self).__init__(file_name, line, column)
 

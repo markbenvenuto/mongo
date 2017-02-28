@@ -43,7 +43,7 @@ def bind_field(ctxt, parsed_spec, field):
         return None
 
     # Copy over common fields
-    ast_field.required = field.required
+    ast_field.optional = field.optional
 
     # Copy over only the needed information if this a struct or a type
     if struct:

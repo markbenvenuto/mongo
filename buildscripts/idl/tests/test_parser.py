@@ -5,67 +5,246 @@ import unittest
 
 
 class Test_parser(unittest.TestCase):
-    def assertParseOk(self, str):
+    def assert_parse(self, doc_str):
         # type: (unicode) -> None
-        parsed_doc = idl.parser.parse(str)
+        parsed_doc = idl.parser.parse(doc_str)
 
-        self.assertIsNone(parsed_doc.errors)
-        self.assertIsNotNone(parsed_doc.spec)
+        self.assertIsNone(parsed_doc.errors, "Expected no parser errors\nFor document:\n%s\nReceived errors:\n %s" % (doc_str, parsed_doc.errors))
+        self.assertIsNotNone(parsed_doc.spec, "Expected a parsed doc")
 
-    def assertParseNotOk(self, str, id):
+    def assert_parse_fail(self, doc_str, id):
         # type: (unicode, unicode) -> None
-        parsed_doc = idl.parser.parse(str)
+        parsed_doc = idl.parser.parse(doc_str)
 
-        self.assertIsNone(parsed_doc.spec)
-        self.assertIsNotNone(parsed_doc.errors)
-        self.assertTrue(parsed_doc.errors.contains(id))
+        self.assertIsNone(parsed_doc.spec, "Expected no parsed doc")
+        self.assertIsNotNone(parsed_doc.errors, "Expected parser errors")
+        self.assertTrue(parsed_doc.errors.contains(id), "For document:\n%s\nExpected error message '%s' but received only errors:\n %s" % (doc_str, id, parsed_doc.errors))
 
     def test_global_positive(self):
         # type: () -> None
-        self.assertParseOk(textwrap.dedent("""
+        self.assert_parse(textwrap.dedent("""
         global:
             cpp_namespace: 'foo'"""))
-        self.assertParseOk(textwrap.dedent("""
+        self.assert_parse(textwrap.dedent("""
         global:
             cpp_includes: 'foo'"""))
-        self.assertParseOk(
+        self.assert_parse(
             textwrap.dedent("""
         global:
             cpp_includes: 
                 - 'bar'
                 - 'foo'"""))
-        self.assertParseOk(textwrap.dedent("""
+        self.assert_parse(textwrap.dedent("""
         global:
             cpp_includes: 'bar'"""))
 
     def test_global_negative(self):
         # type: () -> None
-        self.assertParseNotOk(
+        self.assert_parse_fail(
+            textwrap.dedent("""
+        global: foo
+            """), idl.errors.ERROR_ID_IS_NODE_TYPE)
+
+        self.assert_parse_fail(
             textwrap.dedent("""
         global:
             cpp_namespace: 'foo'
         global:
             cpp_namespace: 'bar'
             """), idl.errors.ERROR_ID_DUPLICATE_NODE)
-        self.assertParseNotOk(
+        self.assert_parse_fail(
             textwrap.dedent("""
         global:
             cpp_namespace: 'foo'
             cpp_namespace: 'foo'"""), idl.errors.ERROR_ID_DUPLICATE_NODE)
-        self.assertParseNotOk(
+        self.assert_parse_fail(
             textwrap.dedent("""
         global:
             cpp_includes: 'foo'
             cpp_includes: 'foo'"""), idl.errors.ERROR_ID_DUPLICATE_NODE)
 
+        self.assert_parse_fail(
+            textwrap.dedent("""
+        global:
+            cpp_includes:
+                inc1: 'foo'"""), idl.errors.ERROR_ID_IS_NODE_TYPE_SCALAR_OR_SEQUENCE)
+
+        self.assert_parse_fail(
+            textwrap.dedent("""
+        global:
+            bar: 'foo'
+            """), idl.errors.ERROR_ID_UNKNOWN_NODE)
+
     def test_root_negative(self):
         # type: () -> None
-        self.assertParseNotOk(
+        self.assert_parse_fail(
             textwrap.dedent("""
         fake:
             cpp_namespace: 'foo'
             """), idl.errors.ERROR_ID_UNKNOWN_ROOT)
 
+    def test_type_positive(self):
+        # type: () -> None
+        self.assert_parse(textwrap.dedent("""
+        type:
+            name: foo
+            description: foo
+            cpp_type: foo
+            bson_serialization_type: foo
+            serializer: foo
+            deserializer: foo
+            default: foo
+            bindata_subtype: foo
+            """))
+
+    def test_type_negative(self):
+        # type: () -> None
+        self.assert_parse_fail(textwrap.dedent("""
+            type: 'foo'"""), idl.errors.ERROR_ID_IS_NODE_TYPE)
+        self.assert_parse_fail(textwrap.dedent("""
+        type:
+            name: foo
+            bogus: foo
+            """), idl.errors.ERROR_ID_UNKNOWN_NODE)
+        self.assert_parse_fail(textwrap.dedent("""
+        type:
+            name: foo
+            name: foo
+            """), idl.errors.ERROR_ID_DUPLICATE_NODE)
+        self.assert_parse_fail(textwrap.dedent("""
+        type:
+            name:
+                - foo
+            """), idl.errors.ERROR_ID_IS_NODE_TYPE)
+        self.assert_parse_fail(textwrap.dedent("""
+        type:
+            name:
+                foo: bar
+            """), idl.errors.ERROR_ID_IS_NODE_TYPE)
+        self.assert_parse_fail(textwrap.dedent("""
+        type:
+            description: foo
+            cpp_type: foo
+            bson_serialization_type: foo
+            """), idl.errors.ERROR_ID_MISSING_REQUIRED_FIELD)
+        self.assert_parse_fail(textwrap.dedent("""
+        type:
+            name: foo
+            description: foo
+            cpp_type: foo
+            """), idl.errors.ERROR_ID_MISSING_REQUIRED_FIELD)
+        self.assert_parse_fail(textwrap.dedent("""
+        type:
+            name: foo
+            description: foo
+            bson_serialization_type: foo
+            """), idl.errors.ERROR_ID_MISSING_REQUIRED_FIELD)
+
+    def test_struct_positive(self):
+        # type: () -> None
+        self.assert_parse(textwrap.dedent("""
+        struct:
+            name: foo
+            description: foo
+            strict: true
+            fields:
+                foo: bar
+            """))
+        self.assert_parse(textwrap.dedent("""
+        struct:
+            name: foo
+            description: foo
+            strict: false
+            fields:
+                foo: bar
+            """))
+
+    def test_struct_negative(self):
+        # type: () -> None
+        self.assert_parse_fail(textwrap.dedent("""
+        struct:
+            name: foo
+            description: foo
+            strict: true
+            """), idl.errors.ERROR_ID_EMPTY_FIELDS)
+        self.assert_parse_fail(textwrap.dedent("""
+        struct:
+            name: foo
+            description: foo
+            strict: bar
+            fields:
+                foo: bar
+            """), idl.errors.ERROR_ID_IS_NODE_VALID_BOOL)
+
+        
+    def test_struct_positive(self):
+        # type: () -> None
+        self.assert_parse(textwrap.dedent("""
+        struct:
+            name: foo
+            description: foo
+            strict: true
+            fields:
+                foo: bar
+            """))
+
+    def test_field_positive(self):
+        self.assert_parse(textwrap.dedent("""
+        struct:
+            name: foo
+            description: foo
+            strict: false
+            fields:
+                foo: short
+            """))
+        self.assert_parse(textwrap.dedent("""
+        struct:
+            name: foo
+            description: foo
+            strict: false
+            fields:
+                foo:
+                    type: foo
+                    description: foo
+                    cpp_type: foo
+                    bson_serialization_type: foo
+                    serializer: foo
+                    deserializer: foo
+                    default: foo
+                    bindata_subtype: foo
+                    optional: true
+                    ignore: true
+            """))
+        self.assert_parse(textwrap.dedent("""
+        struct:
+            name: foo
+            description: foo
+            strict: false
+            fields:
+                foo:
+                    optional: false
+                    ignore: false
+            """))
+
+    def test_field_negative(self):
+        self.assert_parse_fail(textwrap.dedent("""
+        struct:
+            name: foo
+            description: foo
+            strict: false
+            fields:
+                foo:
+                    optional: bar
+            """), idl.errors.ERROR_ID_IS_NODE_VALID_BOOL)
+        self.assert_parse_fail(textwrap.dedent("""
+        struct:
+            name: foo
+            description: foo
+            strict: false
+            fields:
+                foo:
+                    ignore: bar
+            """), idl.errors.ERROR_ID_IS_NODE_VALID_BOOL)
 
 if __name__ == '__main__':
 
@@ -78,7 +257,7 @@ if __name__ == '__main__':
     else:
         from .context import idl
 
-    print dir(idl)
-    print dir(idl.parser)
+    print(dir(idl))
+    print(dir(idl.parser))
 
     unittest.main()

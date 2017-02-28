@@ -70,7 +70,7 @@ class Field(common.SourceLocation):
         # type: (unicode, int, int, *str, **bool) -> None
         """Construct a Field"""
         self.name = None  # type: unicode
-        self.required = False  # type: bool
+        self.optional = False  # type: bool
         self.ignore = False  # type: bool
 
         # Properties specific to fields which are types
