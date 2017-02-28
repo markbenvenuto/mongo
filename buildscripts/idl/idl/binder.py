@@ -9,6 +9,7 @@ from . import errors
 
 # TODO: ban StringData as a type
 
+
 def bind_struct(ctxt, parsed_spec, struct):
     # type: (errors.ParserContext, syntax.IDLSpec, syntax.Struct) -> ast.Struct
 

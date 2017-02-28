@@ -8,11 +8,13 @@ import string
 
 INDENT_SPACE_COUNT = 4
 
+
 def camel_case(name):
     # type: (unicode) -> unicode
     if len(name) > 1:
         name = string.upper(name[0:1]) + name[1:]
     return name
+
 
 def get_method_name(name):
     # type: (unicode) -> unicode
@@ -21,11 +23,13 @@ def get_method_name(name):
         return name
     return name[pos + 2:]
 
+
 def is_view_type(cpp_type):
     # type: (unicode) -> bool
     if cpp_type == "std::string":
         return True
     return False
+
 
 def get_view_type(cpp_type):
     # type: (unicode) -> unicode
@@ -33,6 +37,7 @@ def get_view_type(cpp_type):
         cpp_type = "StringData"
 
     return cpp_type
+
 
 class IndentedTextWriter(object):
     def __init__(self, stream, *args, **kwargs):

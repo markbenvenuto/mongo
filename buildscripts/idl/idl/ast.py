@@ -30,6 +30,7 @@ class IDLAST(object):
         self.globals = None  # type: Global
         self.structs = []  # type: List[Struct]
 
+
 class IDLBoundSpec(object):
     """A bound IDL document or a set of errors if parsing failed."""
 

@@ -13,7 +13,8 @@ if __package__ is None:
 else:
     from .context import idl
     from . import testcase
-    
+
+
 class Test_parser(testcase.IDLTestcase):
     def test_empty(self):
         # type: () -> None
@@ -84,7 +85,8 @@ class Test_parser(testcase.IDLTestcase):
 
     def test_type_positive(self):
         # type: () -> None
-        self.assert_parse(textwrap.dedent("""
+        self.assert_parse(
+            textwrap.dedent("""
         type:
             name: foo
             description: foo
@@ -98,41 +100,49 @@ class Test_parser(testcase.IDLTestcase):
 
     def test_type_negative(self):
         # type: () -> None
-        self.assert_parse_fail(textwrap.dedent("""
+        self.assert_parse_fail(
+            textwrap.dedent("""
             type: 'foo'"""), idl.errors.ERROR_ID_IS_NODE_TYPE)
-        self.assert_parse_fail(textwrap.dedent("""
+        self.assert_parse_fail(
+            textwrap.dedent("""
         type:
             name: foo
             bogus: foo
             """), idl.errors.ERROR_ID_UNKNOWN_NODE)
-        self.assert_parse_fail(textwrap.dedent("""
+        self.assert_parse_fail(
+            textwrap.dedent("""
         type:
             name: foo
             name: foo
             """), idl.errors.ERROR_ID_DUPLICATE_NODE)
-        self.assert_parse_fail(textwrap.dedent("""
+        self.assert_parse_fail(
+            textwrap.dedent("""
         type:
             name:
                 - foo
             """), idl.errors.ERROR_ID_IS_NODE_TYPE)
-        self.assert_parse_fail(textwrap.dedent("""
+        self.assert_parse_fail(
+            textwrap.dedent("""
         type:
             name:
                 foo: bar
             """), idl.errors.ERROR_ID_IS_NODE_TYPE)
-        self.assert_parse_fail(textwrap.dedent("""
+        self.assert_parse_fail(
+            textwrap.dedent("""
         type:
             description: foo
             cpp_type: foo
             bson_serialization_type: foo
             """), idl.errors.ERROR_ID_MISSING_REQUIRED_FIELD)
-        self.assert_parse_fail(textwrap.dedent("""
+        self.assert_parse_fail(
+            textwrap.dedent("""
         type:
             name: foo
             description: foo
             cpp_type: foo
             """), idl.errors.ERROR_ID_MISSING_REQUIRED_FIELD)
-        self.assert_parse_fail(textwrap.dedent("""
+        self.assert_parse_fail(
+            textwrap.dedent("""
         type:
             name: foo
             description: foo
@@ -141,7 +151,8 @@ class Test_parser(testcase.IDLTestcase):
 
     def test_struct_positive(self):
         # type: () -> None
-        self.assert_parse(textwrap.dedent("""
+        self.assert_parse(
+            textwrap.dedent("""
         struct:
             name: foo
             description: foo
@@ -149,7 +160,8 @@ class Test_parser(testcase.IDLTestcase):
             fields:
                 foo: bar
             """))
-        self.assert_parse(textwrap.dedent("""
+        self.assert_parse(
+            textwrap.dedent("""
         struct:
             name: foo
             description: foo
@@ -160,13 +172,15 @@ class Test_parser(testcase.IDLTestcase):
 
     def test_struct_negative(self):
         # type: () -> None
-        self.assert_parse_fail(textwrap.dedent("""
+        self.assert_parse_fail(
+            textwrap.dedent("""
         struct:
             name: foo
             description: foo
             strict: true
             """), idl.errors.ERROR_ID_EMPTY_FIELDS)
-        self.assert_parse_fail(textwrap.dedent("""
+        self.assert_parse_fail(
+            textwrap.dedent("""
         struct:
             name: foo
             description: foo
@@ -174,10 +188,11 @@ class Test_parser(testcase.IDLTestcase):
             fields:
                 foo: bar
             """), idl.errors.ERROR_ID_IS_NODE_VALID_BOOL)
-        
+
     def test_field_positive(self):
         # type: () -> None
-        self.assert_parse(textwrap.dedent("""
+        self.assert_parse(
+            textwrap.dedent("""
         struct:
             name: foo
             description: foo
@@ -185,7 +200,8 @@ class Test_parser(testcase.IDLTestcase):
             fields:
                 foo: short
             """))
-        self.assert_parse(textwrap.dedent("""
+        self.assert_parse(
+            textwrap.dedent("""
         struct:
             name: foo
             description: foo
@@ -203,7 +219,8 @@ class Test_parser(testcase.IDLTestcase):
                     optional: true
                     ignore: true
             """))
-        self.assert_parse(textwrap.dedent("""
+        self.assert_parse(
+            textwrap.dedent("""
         struct:
             name: foo
             description: foo
@@ -216,7 +233,8 @@ class Test_parser(testcase.IDLTestcase):
 
     def test_field_negative(self):
         # type: () -> None
-        self.assert_parse_fail(textwrap.dedent("""
+        self.assert_parse_fail(
+            textwrap.dedent("""
         struct:
             name: foo
             description: foo
@@ -225,7 +243,8 @@ class Test_parser(testcase.IDLTestcase):
                 foo:
                     optional: bar
             """), idl.errors.ERROR_ID_IS_NODE_VALID_BOOL)
-        self.assert_parse_fail(textwrap.dedent("""
+        self.assert_parse_fail(
+            textwrap.dedent("""
         struct:
             name: foo
             description: foo
@@ -235,8 +254,9 @@ class Test_parser(testcase.IDLTestcase):
                     ignore: bar
             """), idl.errors.ERROR_ID_IS_NODE_VALID_BOOL)
 
+
 if __name__ == '__main__':
-   
+
     print(dir(idl))
     print(dir(idl.parser))
 

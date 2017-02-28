@@ -272,7 +272,6 @@ def parse(stream, file_name="unknown"):
     if not root_node.id == "mapping":
         raise errors.IDLError("Did not expected mapping node as root node of IDL document")
 
-
     for node_pair in root_node.value:
         first_node = node_pair[0]
         second_node = node_pair[1]

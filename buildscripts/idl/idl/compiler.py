@@ -4,6 +4,7 @@ from . import parser
 from . import binder
 from . import generator
 
+
 class compileArgs(object):
     """
 
@@ -12,6 +13,7 @@ class compileArgs(object):
     - Output Document
     - OUput 
     """
+
 
 def compile(stream):
     parsed_doc = parser.parse(stream)
@@ -24,7 +26,6 @@ def compile(stream):
             bound_doc.errors.dump_errors()
     else:
         parsed_doc.errors.dump_errors()
-
 
     # TODO: bind and validate the tree
 
