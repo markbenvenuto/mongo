@@ -260,13 +260,18 @@ def parse(stream, file_name="unknown"):
 
     ctxt = errors.ParserContext("root", errors.ParserErrorCollection())
 
+    spec = syntax.IDLSpec()
+
+    # If the document is empty, we are done
+    if not root_node:
+        return syntax.IDLParsedSpec(spec, None)
+
     #print(dir(nodes))
     #print(nodes.__class__)
     #if not isinstance(nodes.value, yaml.nodes.MappingNode):
     if not root_node.id == "mapping":
         raise errors.IDLError("Did not expected mapping node as root node of IDL document")
 
-    spec = syntax.IDLSpec()
 
     for node_pair in root_node.value:
         first_node = node_pair[0]

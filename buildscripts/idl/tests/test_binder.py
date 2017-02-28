@@ -13,8 +13,8 @@ if __package__ is None:
 else:
     from .context import idl
     from . import testcase
-    
-class Test_parser(testcase.IDLTestcase):
+
+class Test_Binder(testcase.IDLTestcase):
     def test_empty(self):
         # type: () -> None
         self.assert_parse("")
@@ -236,8 +236,5 @@ class Test_parser(testcase.IDLTestcase):
             """), idl.errors.ERROR_ID_IS_NODE_VALID_BOOL)
 
 if __name__ == '__main__':
-   
-    print(dir(idl))
-    print(dir(idl.parser))
 
     unittest.main()
