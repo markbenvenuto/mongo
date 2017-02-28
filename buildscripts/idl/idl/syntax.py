@@ -137,7 +137,7 @@ class Type(common.SourceLocation):
         self.name = None  # type: unicode
         self.description = None  # type: unicode
         self.cpp_type = None  # type: unicode
-        self.bson_serialization_type = None  # type: unicode
+        self.bson_serialization_type = None  # type: List[unicode]
         self.bindata_subtype = None  # type: unicode
         self.serializer = None  # type: unicode
         self.deserializer = None  # type: unicode
@@ -165,7 +165,7 @@ class Field(common.SourceLocation):
 
         # Properties common to type and fields
         self.cpp_type = None  # type: unicode
-        self.bson_serialization_type = None  # type: unicode
+        self.bson_serialization_type = None  # type: List[unicode]
         self.bindata_subtype = None  # type: unicode
         self.serializer = None  # type: unicode
         self.deserializer = None  # type: unicode

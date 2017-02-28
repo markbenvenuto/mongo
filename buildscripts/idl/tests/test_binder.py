@@ -18,136 +18,122 @@ else:
 class Test_Binder(testcase.IDLTestcase):
     def test_empty(self):
         # type: () -> None
-        self.assert_parse("")
+        """Test an empty document works."""
+        self.assert_bind("")
 
     def test_global_positive(self):
         # type: () -> None
-        self.assert_parse(textwrap.dedent("""
-        global:
-            cpp_namespace: 'foo'"""))
-        self.assert_parse(textwrap.dedent("""
-        global:
-            cpp_includes: 'foo'"""))
-        self.assert_parse(
+        """Postive global tests."""
+        spec = self.assert_bind(
             textwrap.dedent("""
         global:
+            cpp_namespace: 'something'
             cpp_includes: 
                 - 'bar'
                 - 'foo'"""))
-        self.assert_parse(textwrap.dedent("""
-        global:
-            cpp_includes: 'bar'"""))
+        self.assertEquals( spec.globals.cpp_namespace, "something")
+        self.assertListEqual( spec.globals.cpp_includes, ['bar', 'foo'])
 
-    def test_global_negative(self):
-        # type: () -> None
-        self.assert_parse_fail(
-            textwrap.dedent("""
-        global: foo
-            """), idl.errors.ERROR_ID_IS_NODE_TYPE)
-
-        self.assert_parse_fail(
-            textwrap.dedent("""
-        global:
-            cpp_namespace: 'foo'
-        global:
-            cpp_namespace: 'bar'
-            """), idl.errors.ERROR_ID_DUPLICATE_NODE)
-        self.assert_parse_fail(
-            textwrap.dedent("""
-        global:
-            cpp_namespace: 'foo'
-            cpp_namespace: 'foo'"""), idl.errors.ERROR_ID_DUPLICATE_NODE)
-        self.assert_parse_fail(
-            textwrap.dedent("""
-        global:
-            cpp_includes: 'foo'
-            cpp_includes: 'foo'"""), idl.errors.ERROR_ID_DUPLICATE_NODE)
-
-        self.assert_parse_fail(
-            textwrap.dedent("""
-        global:
-            cpp_includes:
-                inc1: 'foo'"""), idl.errors.ERROR_ID_IS_NODE_TYPE_SCALAR_OR_SEQUENCE)
-
-        self.assert_parse_fail(
-            textwrap.dedent("""
-        global:
-            bar: 'foo'
-            """), idl.errors.ERROR_ID_UNKNOWN_NODE)
-
-    def test_root_negative(self):
-        # type: () -> None
-        self.assert_parse_fail(
-            textwrap.dedent("""
-        fake:
-            cpp_namespace: 'foo'
-            """), idl.errors.ERROR_ID_UNKNOWN_ROOT)
+        # TODO: validate namespace
+        # TODO: validate includes prefixed with mongo???
 
     def test_type_positive(self):
         # type: () -> None
-        self.assert_parse(
+        """Positive type tests."""
+        self.assert_bind(
             textwrap.dedent("""
         type:
             name: foo
             description: foo
             cpp_type: foo
-            bson_serialization_type: foo
+            bson_serialization_type: string
             serializer: foo
             deserializer: foo
             default: foo
-            bindata_subtype: foo
             """))
+
+        # Test supported types
+        for bson_type in ["bool","date","null","numberdecimal","numberdouble","numberint","numberlong","object","objectid","regex","string","timestamp","undefined"]:
+            self.assert_bind(
+                textwrap.dedent("""
+            type:
+                name: foo
+                description: foo
+                cpp_type: foo
+                bson_serialization_type: %s
+                serializer: foo
+                deserializer: foo
+                default: foo
+                """ % (bson_type)))
+            
 
     def test_type_negative(self):
         # type: () -> None
-        self.assert_parse_fail(
+        """Negative type tests."""
+
+        # Test array as name
+        self.assert_bind_fail(
             textwrap.dedent("""
-            type: 'foo'"""), idl.errors.ERROR_ID_IS_NODE_TYPE)
-        self.assert_parse_fail(
+            type: 
+                name: array<foo>
+                description: foo
+                cpp_type: foo
+                bson_serialization_type: foo
+            """), idl.errors.ERROR_ID_ARRAY_NOT_VALID_TYPE)
+        
+        # Test bad type name
+        self.assert_bind_fail(
             textwrap.dedent("""
-        type:
-            name: foo
-            bogus: foo
-            """), idl.errors.ERROR_ID_UNKNOWN_NODE)
-        self.assert_parse_fail(
+            type: 
+                name: foo
+                description: foo
+                cpp_type: foo
+                bson_serialization_type: foo
+            """), idl.errors.ERROR_ID_BAD_BSON_TYPE)
+
+        # Test bindata_subtype missing
+        self.assert_bind_fail(
             textwrap.dedent("""
-        type:
-            name: foo
-            name: foo
-            """), idl.errors.ERROR_ID_DUPLICATE_NODE)
-        self.assert_parse_fail(
+            type: 
+                name: foo
+                description: foo
+                cpp_type: foo
+                bson_serialization_type: bindata
+            """), idl.errors.ERROR_ID_BAD_BSON_BINDATA_SUBTYPE_VALUE)
+
+        # Test bindata_subtype wrong
+        self.assert_bind_fail(
             textwrap.dedent("""
-        type:
-            name:
-                - foo
-            """), idl.errors.ERROR_ID_IS_NODE_TYPE)
-        self.assert_parse_fail(
+            type: 
+                name: foo
+                description: foo
+                cpp_type: foo
+                bson_serialization_type: bindata
+                bindata_subtype: foo
+            """), idl.errors.ERROR_ID_BAD_BSON_BINDATA_SUBTYPE_VALUE)
+
+        # Test bindata_subtype on wrong type
+        self.assert_bind_fail(
             textwrap.dedent("""
-        type:
-            name:
-                foo: bar
-            """), idl.errors.ERROR_ID_IS_NODE_TYPE)
-        self.assert_parse_fail(
+            type: 
+                name: foo
+                description: foo
+                cpp_type: foo
+                bson_serialization_type: string
+                bindata_subtype: generic
+            """), idl.errors.ERROR_ID_BAD_BSON_BINDATA_SUBTYPE_TYPE)
+
+        # Test bindata in list of types
+        self.assert_bind_fail(
             textwrap.dedent("""
-        type:
-            description: foo
-            cpp_type: foo
-            bson_serialization_type: foo
-            """), idl.errors.ERROR_ID_MISSING_REQUIRED_FIELD)
-        self.assert_parse_fail(
-            textwrap.dedent("""
-        type:
-            name: foo
-            description: foo
-            cpp_type: foo
-            """), idl.errors.ERROR_ID_MISSING_REQUIRED_FIELD)
-        self.assert_parse_fail(
-            textwrap.dedent("""
-        type:
-            name: foo
-            description: foo
-            bson_serialization_type: foo
-            """), idl.errors.ERROR_ID_MISSING_REQUIRED_FIELD)
+            type: 
+                name: foo
+                description: foo
+                cpp_type: foo
+                bson_serialization_type: 
+                            - bindata
+                            - string
+            """), idl.errors.ERROR_ID_BAD_BSON_TYPE)
 
     def test_struct_positive(self):
         # type: () -> None

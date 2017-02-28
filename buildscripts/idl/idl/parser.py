@@ -85,8 +85,8 @@ def parse_type(ctxt, spec, node):
             if ctxt.is_scalar_node(second_node, "cpp_type"):
                 idltype.cpp_type = second_node.value
         elif first_name == "bson_serialization_type":
-            if ctxt.is_scalar_node(second_node, "bson_serialization_type"):
-                idltype.bson_serialization_type = second_node.value
+            if ctxt.is_sequence_or_scalar_node(second_node, "bson_serialization_type"):
+                idltype.bson_serialization_type = ctxt.get_list(second_node)
         elif first_name == "serializer":
             if ctxt.is_scalar_node(second_node, "serializer"):
                 idltype.serializer = second_node.value
@@ -137,7 +137,10 @@ def parse_field(ctxt, name, node):
             ctxt.add_duplicate(first_node, first_name)
             continue
 
-        if ctxt.is_scalar_node(second_node, name):
+        if first_name == "bson_serialization_type":
+            if ctxt.is_sequence_or_scalar_node(second_node, "bson_serialization_type"):
+                field.bson_serialization_type = ctxt.get_list(second_node)
+        elif ctxt.is_scalar_node(second_node, name):
             if first_name == "type":
                 field.type = second_node.value
             elif first_name == "ignore":
@@ -150,8 +153,6 @@ def parse_field(ctxt, name, node):
                 field.description = second_node.value
             elif first_name == "cpp_type":
                 field.cpp_type = second_node.value
-            elif first_name == "bson_serialization_type":
-                field.bson_serialization_type = second_node.value
             elif first_name == "serializer":
                 field.serializer = second_node.value
             elif first_name == "deserializer":

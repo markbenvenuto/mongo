@@ -1,5 +1,7 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
+from typing import Any
+
 from . import parser
 from . import binder
 from . import generator
@@ -11,11 +13,12 @@ class compileArgs(object):
     - Include Path
     - Input Document
     - Output Document
-    - OUput 
+    - Output 
     """
 
 
 def compile(stream):
+    # type: (Any) -> None
     parsed_doc = parser.parse(stream)
 
     if not parsed_doc.errors:

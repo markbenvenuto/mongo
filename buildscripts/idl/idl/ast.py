@@ -76,7 +76,7 @@ class Field(common.SourceLocation):
 
         # Properties specific to fields which are types
         self.cpp_type = None  # type: unicode
-        self.bson_serialization_type = None  # type: unicode
+        self.bson_serialization_type = None  # type: List[unicode]
         self.serializer = None  # type: unicode
         self.deserializer = None  # type: unicode
 

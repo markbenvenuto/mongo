@@ -4,15 +4,98 @@ from __future__ import absolute_import, print_function, unicode_literals
 from . import ast
 from . import syntax
 from . import errors
+from . import bson
 
-# TODO: fix up to be mongo as default namespace
+def validate_types(ctxt, parsed_spec):
+    # type: (errors.ParserContext, syntax.IDLSpec) -> None
+
+    for idl_type in parsed_spec.symbols.types:
+        validate_type(ctxt, idl_type)
+
+def validate_bson_types_list(ctxt, idl_type):
+    # type: (errors.ParserContext, syntax.Type) -> bool
+    bson_types = idl_type.bson_serialization_type
+    if len(bson_types) == 1:
+        # Any is only valid if it is the only bson type specified
+        if bson_types[0] == "any":
+            return True
+        if not bson.is_valid_bson_type(bson_types[0]):
+            ctxt.add_bad_bson_type(idl_type, "type", idl_type.name,  bson_types[0])
+            return False
+
+        # Validate bindata_subytpe
+        if bson_types[0] == "bindata":
+            subtype = idl_type.bindata_subtype
+            if subtype is None:
+                subtype = "<unknown>"
+            
+            if not bson.is_valid_bindata_subtype(subtype):
+                ctxt.add_bad_bson_bindata_subtype_value(idl_type, "type", idl_type.name, subtype)
+        elif idl_type.bindata_subtype is not None:
+            ctxt.add_bad_bson_bindata_subtype(idl_type, "type", idl_type.name,  bson_types[0])
+
+        return True
+
+    for bson_type in bson_types:
+        if not bson.is_valid_bson_type(bson_type):
+            ctxt.add_bad_bson_type(idl_type, "type", idl_type.name,  bson_type)
+            return False
+
+        # V1 restiction: cannot mix bindata into list of types unless someone can prove this is actually needed.
+        if bson_type == "bindata":
+            ctxt.add_bad_bson_type(idl_type, "type", idl_type.name,  bson_type)
+            return False
+
+        # Cannot mix non-scalar types into the list of types
+        if not bson.is_scalar_bson_type(bson_type):
+            ctxt.add_bad_bson_scalar_type(idl_type, "type", idl_type.name,  bson_type)
+            return False
+
+    return True        
+
+def validate_type(ctxt, idl_type):
+    # type: (errors.ParserContext, syntax.Type) -> None
+
+    # Validate naming restrictions
+    if idl_type.name.startswith("array"):
+        ctxt.add_array_not_valid(idl_type, idl_type.name)
+
+    # Validate bson type restrictions
+    if not validate_bson_types_list(ctxt, idl_type):
+        # Error exit to avoid too much nesting
+        return
+
+    if len(idl_type.bson_serialization_type) == 1:
+        bson_type = idl_type.bson_serialization_type[0]
+        if bson_type == "any":
+            if idl_type.deserializer is None:
+                ctxt.add_missing_ast_required_field(idl_type, "type", idl_type.name, "deserializer")
+        elif bson_type == "object":
+            if idl_type.deserializer is None:
+                ctxt.add_missing_ast_required_field(idl_type, "type", idl_type.name, "deserializer")
+
+            if idl_type.serializer is None:
+                ctxt.add_missing_ast_required_field(idl_type, "type", idl_type.name, "serializer")
+    else:
+        # Now, this is a list of scalar types
+        if idl_type.deserializer is None:
+            ctxt.add_missing_ast_required_field(idl_type, "type", idl_type.name, "deserializer")
 
 # TODO: ban StringData as a type
 
 
+
+    # TODO: validate bindata subtype
+    # TODO: validate bindata subtype
+    pass
+
+# Check for type or struct named array
+#def validate_common_type_fields:
+
 def bind_struct(ctxt, parsed_spec, struct):
     # type: (errors.ParserContext, syntax.IDLSpec, syntax.Struct) -> ast.Struct
 
+# Check for type or struct named array
     ast_struct = ast.Struct(struct.file_name, struct.line, struct.column)
     ast_struct.name = struct.name
 
@@ -68,7 +151,10 @@ def bind_globals(ctxt, parsed_spec):
         ast_global.cpp_namespace = parsed_spec.globals.cpp_namespace
         ast_global.cpp_includes = parsed_spec.globals.cpp_includes
     else:
-        ast_global = ast.Global("None", 0, 0)
+        ast_global = ast.Global("<implicit>", 0, 0)
+
+        # If no namespace has been set, default it do "mongo"
+        ast_global.cpp_namespace = "mongo"
 
     return ast_global
 
@@ -81,15 +167,14 @@ def bind(parsed_spec):
 
     bound_spec = ast.IDLAST()
 
-    # TODO: Validate all the types here...
-
     bound_spec.globals = bind_globals(ctxt, parsed_spec)
+
+    validate_types(ctxt, parsed_spec)
 
     for struct in parsed_spec.symbols.structs:
         bound_spec.structs.append(bind_struct(ctxt, parsed_spec, struct))
 
     if ctxt.errors.has_errors():
-        ctxt.errors.dump_errors()
         return ast.IDLBoundSpec(None, ctxt.errors)
     else:
         return ast.IDLBoundSpec(bound_spec, None)

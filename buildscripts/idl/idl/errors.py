@@ -24,7 +24,14 @@ ERROR_ID_IS_NODE_VALID_BOOL = "ID0007"
 ERROR_ID_UNKNOWN_NODE = "ID0008"
 ERROR_ID_EMPTY_FIELDS = "ID0009"
 ERROR_ID_MISSING_REQUIRED_FIELD = "ID0010"
+ERROR_ID_ARRAY_NOT_VALID_TYPE = "ID0011"
+ERROR_ID_MISSING_AST_REQUIRED_FIELD = "ID0012"
+ERROR_ID_BAD_BSON_TYPE = "ID0013"
+ERROR_ID_BAD_BSON_TYPE_LIST = "ID0014"
+ERROR_ID_BAD_BSON_BINDATA_SUBTYPE_TYPE = "ID00015"
+ERROR_ID_BAD_BSON_BINDATA_SUBTYPE_VALUE = "ID00016"
 
+# TODO: assert these are unique somehow
 
 class IDLError(Exception):
     """Base class for all resmoke.py exceptions."""
@@ -218,3 +225,47 @@ class ParserContext(object):
         self._add_node_error(node, ERROR_ID_MISSING_REQUIRED_FIELD,
                              "IDL node '%s' is missing required scalar '%s'" %
                              (node_parent, node_name))
+
+    def add_missing_ast_required_field(self, location, ast_type, ast_parent, ast_name):
+        # type: (common.SourceLocation, unicode, unicode, unicode) -> None
+        """Add an error about a YAML node missing a required child."""
+        self._add_error(location, ERROR_ID_MISSING_AST_REQUIRED_FIELD,
+                             "%s '%s' is missing required scalar '%s'" %
+                             (ast_type, ast_parent, ast_name))
+
+    def add_array_not_valid(self, location, name):
+        # type: (common.SourceLocation, unicode) -> None
+        """Add an error about a 'array' not being a valid type name."""
+        self._add_error(location, ERROR_ID_ARRAY_NOT_VALID_TYPE,
+                             "Type or field '%s' cannot be named 'array'." %
+                             (name))
+
+    def add_bad_bson_type(self, location, ast_type, ast_parent, bson_type_name):
+        # type: (common.SourceLocation, unicode, unicode, unicode) -> None
+        """Add an error about a bad bson type."""
+        self._add_error(location, ERROR_ID_BAD_BSON_TYPE,
+                             "BSON Type '%s' is not recognized for %s '%s'." %
+                             (bson_type_name, ast_type, ast_parent))
+
+    def add_bad_bson_scalar_type(self, location, ast_type, ast_parent, bson_type_name):
+        # type: (common.SourceLocation, unicode, unicode, unicode) -> None
+        """Add an error about a bad list of bson types."""
+        self._add_error(location, ERROR_ID_BAD_BSON_TYPE_LIST,
+                             ("BSON Type '%s' is not a scalar bson type for %s '%s'" + 
+                             " and cannot be used in a list of bson serialization types.") %
+                             (bson_type_name, ast_type, ast_parent))
+
+    def add_bad_bson_bindata_subtype(self, location, ast_type, ast_parent, bson_type_name):
+        # type: (common.SourceLocation, unicode, unicode, unicode) -> None
+        """Add an error about a bindata_subtype associated with a type that is not bindata."""
+        self._add_error(location, ERROR_ID_BAD_BSON_BINDATA_SUBTYPE_TYPE,
+                             ("The bindata_subtype field for %s '%s' is not valid for bson type '%s'") %
+                             (ast_type, ast_parent, bson_type_name))
+
+    def add_bad_bson_bindata_subtype_value(self, location, ast_type, ast_parent, value):
+        # type: (common.SourceLocation, unicode, unicode, unicode) -> None
+        """Add an error about a bad value for bindata_subtype."""
+        self._add_error(location, ERROR_ID_BAD_BSON_BINDATA_SUBTYPE_VALUE,
+                             ("The bindata_subtype field's value '%s' for %s '%s' is not valid.") %
+                             (value, ast_type, ast_parent))
+
