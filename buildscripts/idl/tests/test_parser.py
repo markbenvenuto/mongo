@@ -14,6 +14,7 @@ else:
     from .context import idl
     from . import testcase
 
+
 class Test_parser(testcase.IDLTestcase):
     def test_empty(self):
         # type: () -> None
@@ -36,12 +37,12 @@ class Test_parser(testcase.IDLTestcase):
         self.assert_parse(textwrap.dedent("""
         global:
             cpp_namespace: 'foo'"""))
-        
+
         # cpp_includes scalar
         self.assert_parse(textwrap.dedent("""
         global:
             cpp_includes: 'foo'"""))
-        
+
         # cpp_includes list
         self.assert_parse(
             textwrap.dedent("""
@@ -53,7 +54,7 @@ class Test_parser(testcase.IDLTestcase):
     def test_global_negative(self):
         # type: () -> None
         """Negative global tests."""
-        
+
         # Global is a scalar
         self.assert_parse_fail(
             textwrap.dedent("""
@@ -68,14 +69,14 @@ class Test_parser(testcase.IDLTestcase):
         global:
             cpp_namespace: 'bar'
             """), idl.errors.ERROR_ID_DUPLICATE_NODE)
-        
+
         # Duplicate cpp_namespace
         self.assert_parse_fail(
             textwrap.dedent("""
         global:
             cpp_namespace: 'foo'
             cpp_namespace: 'foo'"""), idl.errors.ERROR_ID_DUPLICATE_NODE)
-        
+
         # Duplicate cpp_includes
         self.assert_parse_fail(
             textwrap.dedent("""
@@ -114,7 +115,7 @@ class Test_parser(testcase.IDLTestcase):
             default: foo
             bindata_subtype: foo
             """))
-        
+
         # Test sequence of bson serialization types
         self.assert_parse(
             textwrap.dedent("""
@@ -130,12 +131,12 @@ class Test_parser(testcase.IDLTestcase):
     def test_type_negative(self):
         # type: () -> None
         """Negative type test cases."""
-        
+
         # Test scalar fails
         self.assert_parse_fail(
             textwrap.dedent("""
             type: 'foo'"""), idl.errors.ERROR_ID_IS_NODE_TYPE)
-        
+
         # Test unknown field
         self.assert_parse_fail(
             textwrap.dedent("""
@@ -143,7 +144,7 @@ class Test_parser(testcase.IDLTestcase):
             name: foo
             bogus: foo
             """), idl.errors.ERROR_ID_UNKNOWN_NODE)
-        
+
         # test duplicate field
         self.assert_parse_fail(
             textwrap.dedent("""
@@ -151,7 +152,7 @@ class Test_parser(testcase.IDLTestcase):
             name: foo
             name: foo
             """), idl.errors.ERROR_ID_DUPLICATE_NODE)
-        
+
         # test list instead of scalar
         self.assert_parse_fail(
             textwrap.dedent("""
@@ -159,7 +160,7 @@ class Test_parser(testcase.IDLTestcase):
             name:
                 - foo
             """), idl.errors.ERROR_ID_IS_NODE_TYPE)
-        
+
         # test map instead of scalar
         self.assert_parse_fail(
             textwrap.dedent("""
@@ -167,7 +168,7 @@ class Test_parser(testcase.IDLTestcase):
             name:
                 foo: bar
             """), idl.errors.ERROR_ID_IS_NODE_TYPE)
-        
+
         # test missing name field
         self.assert_parse_fail(
             textwrap.dedent("""
@@ -176,7 +177,7 @@ class Test_parser(testcase.IDLTestcase):
             cpp_type: foo
             bson_serialization_type: foo
             """), idl.errors.ERROR_ID_MISSING_REQUIRED_FIELD)
-        
+
         # test missing bson_serialization_type field
         self.assert_parse_fail(
             textwrap.dedent("""
@@ -198,7 +199,7 @@ class Test_parser(testcase.IDLTestcase):
     def test_struct_positive(self):
         # type: () -> None
         """Positive struct test cases."""
-        
+
         # All fields with true for bools
         self.assert_parse(
             textwrap.dedent("""
@@ -209,7 +210,7 @@ class Test_parser(testcase.IDLTestcase):
             fields:
                 foo: bar
             """))
-        
+
         # All fields with false for bools
         self.assert_parse(
             textwrap.dedent("""
@@ -224,7 +225,7 @@ class Test_parser(testcase.IDLTestcase):
     def test_struct_negative(self):
         # type: () -> None
         """Negative struct test cases."""
-        
+
         # Missing fields
         self.assert_parse_fail(
             textwrap.dedent("""
@@ -244,7 +245,7 @@ class Test_parser(testcase.IDLTestcase):
             fields:
                 foo: bar
             """), idl.errors.ERROR_ID_UNKNOWN_NODE)
-        
+
         # strict is a bool
         self.assert_parse_fail(
             textwrap.dedent("""
@@ -259,7 +260,7 @@ class Test_parser(testcase.IDLTestcase):
     def test_field_positive(self):
         # type: () -> None
         """Positive field test cases."""
-        
+
         # Test short types
         self.assert_parse(
             textwrap.dedent("""
@@ -334,7 +335,7 @@ class Test_parser(testcase.IDLTestcase):
                 foo: short
                 foo: int
             """), idl.errors.ERROR_ID_DUPLICATE_NODE)
-        
+
         # Test bad bool
         self.assert_parse_fail(
             textwrap.dedent("""

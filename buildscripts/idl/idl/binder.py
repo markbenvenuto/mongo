@@ -6,11 +6,13 @@ from . import syntax
 from . import errors
 from . import bson
 
+
 def validate_types(ctxt, parsed_spec):
     # type: (errors.ParserContext, syntax.IDLSpec) -> None
 
     for idl_type in parsed_spec.symbols.types:
         validate_type(ctxt, idl_type)
+
 
 def validate_bson_types_list(ctxt, idl_type):
     # type: (errors.ParserContext, syntax.Type) -> bool
@@ -20,7 +22,7 @@ def validate_bson_types_list(ctxt, idl_type):
         if bson_types[0] == "any":
             return True
         if not bson.is_valid_bson_type(bson_types[0]):
-            ctxt.add_bad_bson_type(idl_type, "type", idl_type.name,  bson_types[0])
+            ctxt.add_bad_bson_type(idl_type, "type", idl_type.name, bson_types[0])
             return False
 
         # Validate bindata_subytpe
@@ -28,30 +30,31 @@ def validate_bson_types_list(ctxt, idl_type):
             subtype = idl_type.bindata_subtype
             if subtype is None:
                 subtype = "<unknown>"
-            
+
             if not bson.is_valid_bindata_subtype(subtype):
                 ctxt.add_bad_bson_bindata_subtype_value(idl_type, "type", idl_type.name, subtype)
         elif idl_type.bindata_subtype is not None:
-            ctxt.add_bad_bson_bindata_subtype(idl_type, "type", idl_type.name,  bson_types[0])
+            ctxt.add_bad_bson_bindata_subtype(idl_type, "type", idl_type.name, bson_types[0])
 
         return True
 
     for bson_type in bson_types:
         if not bson.is_valid_bson_type(bson_type):
-            ctxt.add_bad_bson_type(idl_type, "type", idl_type.name,  bson_type)
+            ctxt.add_bad_bson_type(idl_type, "type", idl_type.name, bson_type)
             return False
 
         # V1 restiction: cannot mix bindata into list of types unless someone can prove this is actually needed.
         if bson_type == "bindata":
-            ctxt.add_bad_bson_type(idl_type, "type", idl_type.name,  bson_type)
+            ctxt.add_bad_bson_type(idl_type, "type", idl_type.name, bson_type)
             return False
 
         # Cannot mix non-scalar types into the list of types
         if not bson.is_scalar_bson_type(bson_type):
-            ctxt.add_bad_bson_scalar_type(idl_type, "type", idl_type.name,  bson_type)
+            ctxt.add_bad_bson_scalar_type(idl_type, "type", idl_type.name, bson_type)
             return False
 
-    return True        
+    return True
+
 
 def validate_type(ctxt, idl_type):
     # type: (errors.ParserContext, syntax.Type) -> None
@@ -83,19 +86,19 @@ def validate_type(ctxt, idl_type):
 
 # TODO: ban StringData as a type
 
-
-
-    # TODO: validate bindata subtype
-    # TODO: validate bindata subtype
+# TODO: validate bindata subtype
+# TODO: validate bindata subtype
     pass
+
 
 # Check for type or struct named array
 #def validate_common_type_fields:
 
+
 def bind_struct(ctxt, parsed_spec, struct):
     # type: (errors.ParserContext, syntax.IDLSpec, syntax.Struct) -> ast.Struct
 
-# Check for type or struct named array
+    # Check for type or struct named array
     ast_struct = ast.Struct(struct.file_name, struct.line, struct.column)
     ast_struct.name = struct.name
 

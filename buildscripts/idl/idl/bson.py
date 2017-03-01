@@ -3,7 +3,6 @@ BSON Type Information
 """
 from __future__ import absolute_import, print_function, unicode_literals
 
-
 BSON_TYPE_INFORMATION = {
     #"minkey": True,
     #"eoo": True,
@@ -31,14 +30,15 @@ BSON_TYPE_INFORMATION = {
 }
 
 BINDATA_SUBTYPE = {
-    "generic" : True,
-    "function" : True,
-    "binary" : False ,
-    "uuid_old" : False,
+    "generic": True,
+    "function": True,
+    "binary": False,
+    "uuid_old": False,
     "uuid": True,
-    "md5" : True,
+    "md5": True,
     # "user_defined" : True  
 }
+
 
 def is_valid_bson_type(name):
     # type: (unicode) -> bool
@@ -52,11 +52,13 @@ def is_scalar_bson_type(name):
     assert is_valid_bson_type(name)
     return BSON_TYPE_INFORMATION[name]
 
+
 def list_valid_types():
     # type: () -> List[unicode]
     """Returns a list of supported bson types."""
     # TODO: improve
     return [a for a in BSON_TYPE_INFORMATION.iterkeys()]
+
 
 def is_valid_bindata_subtype(name):
     # type: (unicode) -> bool

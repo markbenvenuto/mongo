@@ -31,8 +31,8 @@ class Test_Binder(testcase.IDLTestcase):
             cpp_includes: 
                 - 'bar'
                 - 'foo'"""))
-        self.assertEquals( spec.globals.cpp_namespace, "something")
-        self.assertListEqual( spec.globals.cpp_includes, ['bar', 'foo'])
+        self.assertEquals(spec.globals.cpp_namespace, "something")
+        self.assertListEqual(spec.globals.cpp_includes, ['bar', 'foo'])
 
         # TODO: validate namespace
         # TODO: validate includes prefixed with mongo???
@@ -53,7 +53,10 @@ class Test_Binder(testcase.IDLTestcase):
             """))
 
         # Test supported types
-        for bson_type in ["bool","date","null","numberdecimal","numberdouble","numberint","numberlong","object","objectid","regex","string","timestamp","undefined"]:
+        for bson_type in [
+                "bool", "date", "null", "numberdecimal", "numberdouble", "numberint", "numberlong",
+                "object", "objectid", "regex", "string", "timestamp", "undefined"
+        ]:
             self.assert_bind(
                 textwrap.dedent("""
             type:
@@ -65,7 +68,6 @@ class Test_Binder(testcase.IDLTestcase):
                 deserializer: foo
                 default: foo
                 """ % (bson_type)))
-            
 
     def test_type_negative(self):
         # type: () -> None
@@ -80,7 +82,7 @@ class Test_Binder(testcase.IDLTestcase):
                 cpp_type: foo
                 bson_serialization_type: foo
             """), idl.errors.ERROR_ID_ARRAY_NOT_VALID_TYPE)
-        
+
         # Test bad type name
         self.assert_bind_fail(
             textwrap.dedent("""
