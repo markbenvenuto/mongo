@@ -31,6 +31,8 @@ int idlToolMain(int argc, char* argv[], char** envp) {
     runGlobalInitializersOrDie(argc, argv, envp);
     startSignalProcessingThread();
 
+    std::cout << "Welcome" << std::endl;
+
     return 0;
 }
 
