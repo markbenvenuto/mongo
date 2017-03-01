@@ -93,7 +93,7 @@ class SymbolTable(object):
         for struct in self.structs:
             if struct.name == field.type:
                 return (struct, None)
-
+        # TODO: handle array
         ctxt.add_unknown_type_error(field, field.name, field.type)
         return (None, None)
 

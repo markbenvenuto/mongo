@@ -69,6 +69,24 @@ class Test_Binder(testcase.IDLTestcase):
                 default: foo
                 """ % (bson_type)))
 
+        # Test supported bindata_subtype
+        for bindata_subtype in [
+        "generic","function","binary","uuid_old","uuid","md5"
+        ]:
+            self.assert_bind(
+                textwrap.dedent("""
+            type:
+                name: foo
+                description: foo
+                cpp_type: foo
+                bson_serialization_type: bindata
+                bindata_subtype: %s
+                serializer: foo
+                deserializer: foo
+                default: foo
+                """ % (bindata_subtype)))
+
+
     def test_type_negative(self):
         # type: () -> None
         """Negative type tests."""
@@ -132,6 +150,18 @@ class Test_Binder(testcase.IDLTestcase):
                 name: foo
                 description: foo
                 cpp_type: foo
+                bson_serialization_type: 
+                            - bindata
+                            - string
+            """), idl.errors.ERROR_ID_BAD_BSON_TYPE)
+
+        # Test bindata in list of types
+        self.assert_bind_fail(
+            textwrap.dedent("""
+            type: 
+                name: foo
+                description: foo
+                cpp_type: StringData
                 bson_serialization_type: 
                             - bindata
                             - string

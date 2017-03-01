@@ -30,6 +30,7 @@ ERROR_ID_BAD_BSON_TYPE = "ID0013"
 ERROR_ID_BAD_BSON_TYPE_LIST = "ID0014"
 ERROR_ID_BAD_BSON_BINDATA_SUBTYPE_TYPE = "ID00015"
 ERROR_ID_BAD_BSON_BINDATA_SUBTYPE_VALUE = "ID00016"
+ERROR_ID_NO_STRINGDATA = "ID00017"
 
 # TODO: assert these are unique somehow
 
@@ -234,11 +235,11 @@ class ParserContext(object):
                         "%s '%s' is missing required scalar '%s'" %
                         (ast_type, ast_parent, ast_name))
 
-    def add_array_not_valid(self, location, name):
-        # type: (common.SourceLocation, unicode) -> None
+    def add_array_not_valid(self, location, ast_type, name):
+        # type: (common.SourceLocation, unicode, unicode) -> None
         """Add an error about a 'array' not being a valid type name."""
         self._add_error(location, ERROR_ID_ARRAY_NOT_VALID_TYPE,
-                        "Type or field '%s' cannot be named 'array'." % (name))
+                        "The %s '%s' cannot be named 'array'." % (ast_type, name))
 
     def add_bad_bson_type(self, location, ast_type, ast_parent, bson_type_name):
         # type: (common.SourceLocation, unicode, unicode, unicode) -> None
@@ -268,3 +269,10 @@ class ParserContext(object):
         self._add_error(location, ERROR_ID_BAD_BSON_BINDATA_SUBTYPE_VALUE,
                         ("The bindata_subtype field's value '%s' for %s '%s' is not valid.") %
                         (value, ast_type, ast_parent))
+
+    def add_no_string_data(self, location, ast_type, ast_parent):
+        # type: (common.SourceLocation, unicode, unicode) -> None
+        """Add an error about using StringData for cpp_type."""
+        self._add_error(location, ERROR_ID_NO_STRINGDATA,
+                        ("Do not use mongo::StringData for %s '%s', use std::string instead.") %
+                        (ast_type, ast_parent))

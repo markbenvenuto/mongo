@@ -7,15 +7,11 @@ from . import errors
 from . import bson
 
 
-def validate_types(ctxt, parsed_spec):
-    # type: (errors.ParserContext, syntax.IDLSpec) -> None
-
-    for idl_type in parsed_spec.symbols.types:
-        validate_type(ctxt, idl_type)
-
 
 def validate_bson_types_list(ctxt, idl_type):
     # type: (errors.ParserContext, syntax.Type) -> bool
+    """Validate each type for its bson serialization type is correct."""
+
     bson_types = idl_type.bson_serialization_type
     if len(bson_types) == 1:
         # Any is only valid if it is the only bson type specified
@@ -58,14 +54,15 @@ def validate_bson_types_list(ctxt, idl_type):
 
 def validate_type(ctxt, idl_type):
     # type: (errors.ParserContext, syntax.Type) -> None
+    """Validate each type is correct."""
 
     # Validate naming restrictions
     if idl_type.name.startswith("array"):
-        ctxt.add_array_not_valid(idl_type, idl_type.name)
+        ctxt.add_array_not_valid(idl_type, "type", idl_type.name)
 
     # Validate bson type restrictions
     if not validate_bson_types_list(ctxt, idl_type):
-        # Error exit to avoid too much nesting
+        # Error exit to avoid too much nesting in if statements
         return
 
     if len(idl_type.bson_serialization_type) == 1:
@@ -84,25 +81,35 @@ def validate_type(ctxt, idl_type):
         if idl_type.deserializer is None:
             ctxt.add_missing_ast_required_field(idl_type, "type", idl_type.name, "deserializer")
 
-# TODO: ban StringData as a type
+    # Validate cpp_type
+    # Do not allow StringData, use std::string instead.abs
+    if "StringData" in idl_type.cpp_type:
+        ctxt.add_no_string_data(idl_type, "type", idl_type.name)
 
-# TODO: validate bindata subtype
-# TODO: validate bindata subtype
-    pass
 
+def validate_types(ctxt, parsed_spec):
+    # type: (errors.ParserContext, syntax.IDLSpec) -> None
+    """Validate all types are correct."""
 
-# Check for type or struct named array
-#def validate_common_type_fields:
+    for idl_type in parsed_spec.symbols.types:
+        validate_type(ctxt, idl_type)
 
 
 def bind_struct(ctxt, parsed_spec, struct):
     # type: (errors.ParserContext, syntax.IDLSpec, syntax.Struct) -> ast.Struct
+    """
+    Bind a struct.
+    
+    - Validating a struct and fields.
+    - Create the AST version from the syntax tree.
+    """
 
-    # Check for type or struct named array
     ast_struct = ast.Struct(struct.file_name, struct.line, struct.column)
     ast_struct.name = struct.name
 
-    # TODO: validate struct
+    # Validate naming restrictions
+    if ast_struct.name.startswith("array"):
+        ctxt.add_array_not_valid(ast_struct, "struct", ast_struct.name)
 
     for field in struct.fields:
         ast_field = bind_field(ctxt, parsed_spec, field)
@@ -114,17 +121,27 @@ def bind_struct(ctxt, parsed_spec, struct):
 
 def bind_field(ctxt, parsed_spec, field):
     # type: (errors.ParserContext, syntax.IDLSpec, syntax.Field) -> ast.Field
+    """
+    Bind a field from the syntax tree.
 
+    - Create the AST version from the syntax tree.
+    - Validate the resulting type is correct.
+    """
     ast_field = ast.Field(field.file_name, field.line, field.column)
     ast_field.name = field.name
 
     # TODO validate field
+
+    # Validate naming restrictions
+    if ast_field.name.startswith("array"):
+        ctxt.add_array_not_valid(ast_field, "field", ast_field.name)
 
     if field.ignore:
         #  TODO: validate ignored field
         ast_field.ignore = field.ignore
         return ast_field
 
+    # TODO: handle array
     (struct, idltype) = parsed_spec.symbols.resolve_field_type(ctxt, field)
     if not struct and not idltype:
         return None
@@ -136,6 +153,7 @@ def bind_field(ctxt, parsed_spec, field):
     if struct:
         ast_field.struct_type = struct.name
     else:
+        # Validate newly merged type
         # TODO: merge types
         ast_field.cpp_type = idltype.cpp_type
         ast_field.bson_serialization_type = idltype.bson_serialization_type
