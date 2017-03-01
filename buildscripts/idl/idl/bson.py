@@ -1,5 +1,7 @@
 """
-BSON Type Information
+BSON Type Information.
+
+Utilities for validating bson types, etc.
 """
 from __future__ import absolute_import, print_function, unicode_literals
 
@@ -36,31 +38,31 @@ BINDATA_SUBTYPE = {
     "uuid_old": False,
     "uuid": True,
     "md5": True,
-    # "user_defined" : True  
+    # "user_defined" : True
 }
 
 
 def is_valid_bson_type(name):
     # type: (unicode) -> bool
-    """Returns True if this is a valid bson type."""
+    """Return True if this is a valid bson type."""
     return name in BSON_TYPE_INFORMATION
 
 
 def is_scalar_bson_type(name):
     # type: (unicode) -> bool
-    """Returns True if this bson type is a scalar."""
+    """Return True if this bson type is a scalar."""
     assert is_valid_bson_type(name)
     return BSON_TYPE_INFORMATION[name]
 
 
 def list_valid_types():
     # type: () -> List[unicode]
-    """Returns a list of supported bson types."""
+    """Return a list of supported bson types."""
     # TODO: improve
     return [a for a in BSON_TYPE_INFORMATION.iterkeys()]
 
 
 def is_valid_bindata_subtype(name):
     # type: (unicode) -> bool
-    """Returns True if this bindata subtype is valid."""
+    """Return True if this bindata subtype is valid."""
     return name in BINDATA_SUBTYPE

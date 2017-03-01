@@ -50,8 +50,8 @@ class ParserError(common.SourceLocation):
     - msg - a string describing an error
     """
 
-    def __init__(self, error_id, msg, file_name, line, column, *args, **kwargs):
-        # type: (unicode, unicode, unicode, int, int, *str, **bool) -> None
+    def __init__(self, error_id, msg, file_name, line, column):
+        # type: (unicode, unicode, unicode, int, int) -> None
         """"Construct a parser error with source location information."""
         self.error_id = error_id
         self.msg = msg
@@ -98,6 +98,7 @@ class ParserErrorCollection(object):
 
     def __str__(self):
         # type: () -> str
+        """Return a list of errors"""
         return ', '.join(self._to_list())  # type: ignore
 
 
@@ -110,8 +111,8 @@ class ParserContext(object):
     - tracking error messages
     """
 
-    def __init__(self, file_name, errors, *args, **kwargs):
-        # type: (unicode, ParserErrorCollection, *str, **bool) -> None
+    def __init__(self, file_name, errors):
+        # type: (unicode, ParserErrorCollection) -> None
         """Constructor."""
         self.errors = errors
         self.file_name = file_name
@@ -190,7 +191,7 @@ class ParserContext(object):
 
     def is_scalar_bool_node(self, node, node_name):
         # type: (Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode], unicode) -> bool
-        """Return True if this YAML node is a Scalar and a valid boolean"""
+        """Return True if this YAML node is a Scalar and a valid boolean."""
         if not self._is_node_type(node, node_name, "scalar"):
             return False
         if not (node.value == "true" or node.value == "false"):

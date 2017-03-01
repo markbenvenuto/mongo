@@ -110,8 +110,8 @@ class Global(common.SourceLocation):
     Not all fields are populated.
     """
 
-    def __init__(self, file_name, line, column, *args, **kwargs):
-        # type: (unicode, int, int, *str, **bool) -> None
+    def __init__(self, file_name, line, column):
+        # type: (unicode, int, int) -> None
         """Construct a Global."""
         self.cpp_namespace = None  # type: unicode
         self.cpp_includes = []  # type: List[unicode]
@@ -131,8 +131,8 @@ class Type(common.SourceLocation):
     Not all fields are populated.
     """
 
-    def __init__(self, file_name, line, column, *args, **kwargs):
-        # type: (unicode, int, int, *str, **bool) -> None
+    def __init__(self, file_name, line, column):
+        # type: (unicode, int, int) -> None
         """Construct a Type."""
         self.name = None  # type: unicode
         self.description = None  # type: unicode
@@ -154,8 +154,8 @@ class Field(common.SourceLocation):
     Other fields may not be populated.
     """
 
-    def __init__(self, file_name, line, column, *args, **kwargs):
-        # type: (unicode, int, int, *str, **bool) -> None
+    def __init__(self, file_name, line, column):
+        # type: (unicode, int, int) -> None
         """Construct a Field."""
         self.name = None  # type: unicode
         self.description = None  # type: unicode
@@ -181,8 +181,8 @@ class Struct(common.SourceLocation):
     Not all fields are populated.
     """
 
-    def __init__(self, file_name, line, column, *args, **kwargs):
-        # type: (unicode, int, int, *str, **bool) -> None
+    def __init__(self, file_name, line, column):
+        # type: (unicode, int, int) -> None
         """Construct a Struct."""
         self.name = None  # type: unicode
         self.description = None  # type: unicode
