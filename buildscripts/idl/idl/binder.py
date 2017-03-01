@@ -7,7 +7,6 @@ from . import errors
 from . import bson
 
 
-
 def validate_bson_types_list(ctxt, idl_type):
     # type: (errors.ParserContext, syntax.Type) -> bool
     """Validate each type for its bson serialization type is correct."""

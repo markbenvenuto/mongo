@@ -70,9 +70,7 @@ class Test_Binder(testcase.IDLTestcase):
                 """ % (bson_type)))
 
         # Test supported bindata_subtype
-        for bindata_subtype in [
-        "generic","function","binary","uuid_old","uuid","md5"
-        ]:
+        for bindata_subtype in ["generic", "function", "binary", "uuid_old", "uuid", "md5"]:
             self.assert_bind(
                 textwrap.dedent("""
             type:
@@ -85,7 +83,6 @@ class Test_Binder(testcase.IDLTestcase):
                 deserializer: foo
                 default: foo
                 """ % (bindata_subtype)))
-
 
     def test_type_negative(self):
         # type: () -> None
