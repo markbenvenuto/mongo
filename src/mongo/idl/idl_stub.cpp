@@ -3,8 +3,6 @@
 #include "D:\mongo\buildscripts\idl\example_gen.cc"
 
 
-
-
 std::array<int64_t, 5> list1;
 std::array<int64_t, 3> list2;
 

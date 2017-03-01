@@ -252,14 +252,18 @@ def parse_struct(ctxt, spec, node):
     spec.symbols.add_struct(ctxt, struct)
 
 
-def parse(stream, file_name="unknown"):
+def parse(stream, error_file_name="unknown"):
     # type: (Any, unicode) -> syntax.IDLParsedSpec
-    """Parse a YAML document into an AST."""
+    """
+    Parse a YAML document into an AST.
+    
+    error_file_name just a file name for error messages to use.
+    """
 
     # This will throw if the YAML parse fails
     root_node = yaml.compose(stream)
 
-    ctxt = errors.ParserContext("root", errors.ParserErrorCollection())
+    ctxt = errors.ParserContext(error_file_name, errors.ParserErrorCollection())
 
     spec = syntax.IDLSpec()
 

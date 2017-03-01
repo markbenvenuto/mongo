@@ -105,6 +105,10 @@ class CppFileWriter(object):
         # type: (unicode) -> None
         self._writer.write_unindented_line(msg)
 
+    def write_empty_line(self):
+        # type: () -> None
+        self._writer.write_empty_line()
+
     def gen_include(self, include):
         # type: (unicode) -> None
         """Generate a C++ include line."""
@@ -343,15 +347,20 @@ def generate_header(spec, file_name):
 
     header = CppFileWriter(text_writer)
 
+    # TODO: sort headers
     # Add system includes
     header.gen_include("mongo/bson/bsonobj.h")
-
+    
     # Generate includes
     for include in spec.globals.cpp_includes:
         header.gen_include(include)
+    
+    header.write_empty_line()
 
     # Generate namesapce
     with header.gen_namespace("mongo"):
+        header.write_empty_line()
+
         for struct in spec.structs:
             with header.gen_class_declaration(struct.name):
                 header.write_unindented_line("public:")
@@ -371,6 +380,9 @@ def generate_header(spec, file_name):
                 for field in struct.fields:
                     if not field.ignore:
                         header.gen_member(field)
+    
+            header.write_empty_line()
+
     # Generate structs
     print(stream.getvalue())
     file_handle = io.open(file_name, mode="wb")
@@ -390,15 +402,20 @@ def generate_source(spec, file_name):
 
     # Add system includes
     source.gen_include("mongo/bson/bsonobjbuilder.h")
+    source.write_empty_line()
 
     # Generate namesapce
     with source.gen_namespace("mongo"):
+        source.write_empty_line()
+    
         for struct in spec.structs:
             # Write deserializer
             source.gen_deserializer(struct)
+            source.write_empty_line()
 
             # Write serializer
             source.gen_serializer(struct)
+            source.write_empty_line()
 
     # Generate structs
     print(stream.getvalue())

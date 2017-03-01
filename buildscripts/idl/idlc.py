@@ -13,17 +13,31 @@ def main():
     """Main Entry point"""
     parser = argparse.ArgumentParser(description='MongoDB IDL Compiler.')
 
-    parser.add_argument('--input', type=str, help="IDL input file")
+    parser.add_argument('file', type=str, help="IDL input file")
 
-    parser.add_argument('--output', type=str, help="IDL output file prefix")
+    parser.add_argument('-o', '--output', type=str, help="IDL output file prefix")
 
-    parser.add_argument('--include', type=str, help="Directory to search for IDL import files")
+    parser.add_argument('-i', '--include', type=str, action="append", help="Directory to search for IDL import files")
+
+    parser.add_argument('-v', '--verbose', action='count', help="Enable verbose tracing")
 
     args = parser.parse_args()
 
     print("Hello")
 
-    idl.compiler.compile("""
+    compiler_args = idl.compiler.CompilerArgs()
+
+    compiler_args.input_file = args.file
+    compiler_args.import_directories = args.include
+    
+    compiler_args.output_prefix = args.output
+    compiler_args.output_suffix = "_gen"
+
+    # Compile the IDL document the user specified
+    idl.compiler.compile_idl(compiler_args)
+
+    # idl.compiler.compile(compiler_args,
+    foo =  """
 # TODO: write the code for this
 global:
     cpp_namespace: "mongo::acme::"
@@ -88,7 +102,7 @@ struct:
           type: string
           description: The Bike Shed's nameplate
         writeConcern: FakeWriteConcern
-""")
+"""
 
 
 if __name__ == '__main__':
