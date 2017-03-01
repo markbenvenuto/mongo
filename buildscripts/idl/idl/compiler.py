@@ -11,15 +11,17 @@ from . import parser
 from . import binder
 from . import generator
 
+
 class CompilerArgs(object):
     """Set of compiler arguments."""
+
     def __init__(self):
         # type: () -> None
-        self.import_directories = None # type: List[unicode]
-        self.input_file = None # type: unicode
+        self.import_directories = None  # type: List[unicode]
+        self.input_file = None  # type: unicode
 
-        self.output_prefix = None # type: unicode
-        self.output_suffix = None # type: unicode
+        self.output_prefix = None  # type: unicode
+        self.output_suffix = None  # type: unicode
 
 
 def compile_idl(args):
@@ -28,7 +30,7 @@ def compile_idl(args):
     # Named compile_idl to avoid naming conflict
     if not os.path.exists(args.input_file):
         print("ERROR: File '%s' not found" % (args.input_file))
-    
+
     # TODO: resolve the paths, and log if they do not exist
     #for import_dir in args.import_directories:
     #    if not os.path.exists(args.input_file):

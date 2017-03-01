@@ -17,7 +17,12 @@ def main():
 
     parser.add_argument('-o', '--output', type=str, help="IDL output file prefix")
 
-    parser.add_argument('-i', '--include', type=str, action="append", help="Directory to search for IDL import files")
+    parser.add_argument(
+        '-i',
+        '--include',
+        type=str,
+        action="append",
+        help="Directory to search for IDL import files")
 
     parser.add_argument('-v', '--verbose', action='count', help="Enable verbose tracing")
 
@@ -29,7 +34,7 @@ def main():
 
     compiler_args.input_file = args.file
     compiler_args.import_directories = args.include
-    
+
     compiler_args.output_prefix = args.output
     compiler_args.output_suffix = "_gen"
 
@@ -37,7 +42,7 @@ def main():
     idl.compiler.compile_idl(compiler_args)
 
     # idl.compiler.compile(compiler_args,
-    foo =  """
+    foo = """
 # TODO: write the code for this
 global:
     cpp_namespace: "mongo::acme::"

@@ -50,6 +50,7 @@ class IndentedTextWriter(object):
     Use write_empty_line() instead of write_line('') to avoid lines
     full of blank spaces.
     """
+
     def __init__(self, stream):
         # type: (io.StringIO) -> None
         self._stream = stream
@@ -350,11 +351,11 @@ def generate_header(spec, file_name):
     # TODO: sort headers
     # Add system includes
     header.gen_include("mongo/bson/bsonobj.h")
-    
+
     # Generate includes
     for include in spec.globals.cpp_includes:
         header.gen_include(include)
-    
+
     header.write_empty_line()
 
     # Generate namesapce
@@ -380,7 +381,7 @@ def generate_header(spec, file_name):
                 for field in struct.fields:
                     if not field.ignore:
                         header.gen_member(field)
-    
+
             header.write_empty_line()
 
     # Generate structs
@@ -407,7 +408,7 @@ def generate_source(spec, file_name):
     # Generate namesapce
     with source.gen_namespace("mongo"):
         source.write_empty_line()
-    
+
         for struct in spec.structs:
             # Write deserializer
             source.gen_deserializer(struct)
