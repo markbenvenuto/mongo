@@ -35,12 +35,12 @@ Status addIDLToolOptions(moe::OptionSection* options) {
     options->addOptionChaining("help", "help", moe::Switch, "produce help message");
     options
         ->addOptionChaining(
-            "config", "config,f", moe::String, "configuration file specifying additional options")
-        .setSources(moe::SourceAllLegacy);
+            "input", "input,i", moe::String, "idl file to generate code for.").setSources(moe::SourceAllLegacy);
+
     options
         ->addOptionChaining(
-            "user", "user", moe::String, "user to authenticate and/or acquire roles for")
-        .setSources(moe::SourceAllLegacy);
+            "output", "output", moe::String, "output directory").setSources(moe::SourceAllLegacy);
+
     options->addOptionChaining("color", "color", moe::Bool, "Enable colored output")
         .setSources(moe::SourceAllLegacy);
 
@@ -48,10 +48,16 @@ Status addIDLToolOptions(moe::OptionSection* options) {
 }
 
 Status storeIDLToolOptions(const moe::Environment& params, const std::vector<std::string>& args) {
-    if (!params.count("user")) {
-        return Status(ErrorCodes::BadValue, "Missing required option: \"--user\"");
+
+    if (!params.count("input")) {
+        return Status(ErrorCodes::BadValue, "Missing required option: \"--input\"");
     }
-    globalIDLToolOptions->user = params["user"].as<std::string>();
+    globalIDLToolOptions->inputFile = params["input"].as<std::string>();
+
+    if (!params.count("output")) {
+        return Status(ErrorCodes::BadValue, "Missing required option: \"--output\"");
+    }
+    globalIDLToolOptions->outputDirectory = params["output"].as<std::string>();
 
     if (params.count("color")) {
         globalIDLToolOptions->color = params["color"].as<bool>();

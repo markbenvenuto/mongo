@@ -168,7 +168,7 @@ rule cc
                     cmds = ['cmd.exe /c "uuidgen > ' + dest_path + '"']
 
             # Filter out headers
-            deps = [d for d in deps if not d.endswith(".h") and not d.endswith('.i')]
+            deps = [d for d in deps if not d.endswith(".h") and not d.endswith(".hpp") and not d.endswith('.i')]
             # for d in deps:
                 # print d
 

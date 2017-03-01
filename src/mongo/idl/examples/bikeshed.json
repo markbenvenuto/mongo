@@ -1,0 +1,9 @@
+{
+    "color" : "red",
+    "ns" : "admin.somewhere",
+    "writeConcern" : {
+        "w" : "1",
+        "j" : "true",
+        "wtimeout" : 13,
+    }
+}

@@ -1,0 +1,85 @@
+digraph Couriers {
+fontname = "Bitstream Vera Sans"
+fontsize = 8
+
+node [
+fontname = "Bitstream Vera Sans"
+fontsize = 8
+shape = "record"
+]
+
+edge [
+arrowtail = "empty"
+]
+
+Courier [
+label = "{IDL|+ global : map\l
++ import : string or sequence\l
++ type: map\l
++ struct: map\l
++ struct: command\l
+}"
+]
+
+Global [
+label = "{global|+ cpp_namespace: string\l+ cpp_includes: string or sequence }"
+]
+
+Types
+[
+label = "{type|+ name: string\l
++ description: string\l
++ cpp_type: string\l
++ bson_serialization_type: string or sequence\l
++ bindata_subtype: string\l
++ serializer: string\l
++ deserializer: string\l
++ min: number\l
++ max: number\l
++ default: string or number\l
+}"
+]
+
+Structs
+[
+label = "{struct|+ name: string\l
++ description: string\l
++ strict: bool\l
++ fields: map\l
+}"
+]
+
+Commands
+[
+label = "{command|+ name: string\l
++ description: string\l
++ namespace: string\l
++ strict: bool\l
++ fields: map\l
+}"
+]
+
+Fields
+[
+label = "{field|+ name: string\l
++ description: string\l
++ cpp_type: string\l
++ bson_serialization_type: string or sequence\l
++ bindata_subtype: string\l
++ serializer: string\l
++ deserializer: string\l
++ min: number\l
++ max: number\l
++ default: string or number\l
++ required: bool\l
++ ignore: bool\l
+}"
+]
+
+Courier -> Global [dir=back,arrowtail=odiamond]
+Courier -> Types [dir=back,arrowtail=odiamond]
+Courier -> Structs [dir=back, arrowtail=odiamond]
+Courier -> Commands [dir=back, arrowtail=odiamond]
+Structs -> Fields [dir=back, arrowtail=odiamond]
+Commands -> Fields [dir=back, arrowtail=odiamond]
+}
