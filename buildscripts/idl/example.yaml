@@ -1,0 +1,66 @@
+global:
+    cpp_namespace: "mongo::acme::"
+#    cpp_includes:
+#        - "mongo/db/foo.h"
+# 3 levels of deserialization
+# - 1 readString/toString
+# - 2 BSONelemtn
+# - 3 - full on kitchen
+
+type:
+    name: string
+    bson_serialization_type: string 
+    cpp_type: "std::string"
+    deserializer: "mongo::BSONElement::str"
+    
+type:
+    name: int32
+    bson_serialization_type: numberint
+    cpp_type: "std::int32_t"
+    deserializer: "mongo::BSONElement::numberInt"
+
+type:
+    name: NamespaceString
+    cpp_type: NamepaceString
+    bson_serialization_type: string 
+    serializer: "mongo::NamespaceString::toBSON"
+    deserializer: "mongo::NamepaceString::parseBSON"
+
+type:
+    name: safeInt32
+    description: Accepts any numerical type within int32 range
+    cpp_type: int64_t
+    bson_serialization_type: 
+                            - numberlong
+                            - numberint
+                            - numberdecimal
+                            - numberdouble
+    serializer: "mongo::BSONElement::numberInt??"
+    deserializer: "mongo::BSONElement::numberInt"
+
+struct:
+    name: FakeWriteConcern
+    description: A Fake Write Concern for a command
+    fields:
+        j: int32
+        wtimeout: 
+          type: safeInt32
+          default: 42
+          optional: true
+        wOptime:
+          type: void
+          # A legacy field to ignore now
+          ignore: true
+
+struct:
+    name: bikeShedCmd
+    description: An example command
+    fields:
+        color:
+          type: string
+          description: The Bike Shed's color
+          optional: true
+        nameplate:
+          type: string
+          description: The Bike Shed's nameplate
+        writeConcern: FakeWriteConcern

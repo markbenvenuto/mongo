@@ -10,7 +10,7 @@ import io
 from . import parser
 from . import binder
 from . import generator
-
+from . import errors
 
 class CompilerArgs(object):
     """Set of compiler arguments."""
@@ -37,13 +37,25 @@ def compile_idl(args):
 
     error_file_name = os.path.basename(args.input_file)
 
+    if args.output_prefix is None:
+        if not '.' in error_file_name:
+            raise errors.IDLError("File name '%s' must be contain a period" % error_file_name)
+
+        file_name_prefix = error_file_name.split('.')[0]
+        file_name_prefix += args.output_suffix
+    else:
+        file_name_prefix = args.output_prefix
+
+        if '.' in file_name_prefix:
+            raise errors.IDLError("File name prefix '%s' must not contain a period" % file_name_prefix)
+
     with io.open(args.input_file) as file_stream:
         parsed_doc = parser.parse(file_stream, error_file_name=error_file_name)
 
         if not parsed_doc.errors:
             bound_doc = binder.bind(parsed_doc.spec)
             if not bound_doc.errors:
-                generator.generate_code(bound_doc.spec, "example_gen")
+                generator.generate_code(bound_doc.spec, file_name_prefix)
 
                 return True
             else:

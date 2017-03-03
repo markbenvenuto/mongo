@@ -90,6 +90,39 @@ class IndentedTextWriter(object):
         self._stream.write(u"\n")
 
 
+class ScopedBlock(object):
+    def __init__(self, writer, opening, closing):
+        # type: (IndentedTextWriter, unicode, unicode) -> None
+        self._writer = writer
+        self._opening = opening
+        self._closing = closing
+
+    def __enter__(self):
+        # type: () -> None
+        self._writer.write_unindented_line(self._opening)
+
+    def __exit__(self, *args):
+        # type: (*str) -> None
+        self._writer.write_unindented_line(self._closing)
+
+
+class IndentedScopedBlock(object):
+    def __init__(self, writer, opening, closing):
+        # type: (IndentedTextWriter, unicode, unicode) -> None
+        self._writer = writer
+        self._opening = opening
+        self._closing = closing
+
+    def __enter__(self):
+        # type: () -> None
+        self._writer.write_line(self._opening)
+        self._writer.indent()
+
+    def __exit__(self, *args):
+        # type: (*str) -> None
+        self._writer.unindent()
+        self._writer.write_line(self._closing)
+
 class CppFileWriter(object):
     """
     C++ File writer.
@@ -126,7 +159,7 @@ class CppFileWriter(object):
 
     def gen_serializer_methods(self, class_name):
         # type: (unicode) -> None
-        self._writer.write_line("static %s parse(const BSONObj& object);" % camel_case(class_name))
+        self._writer.write_line("static %s parse(IDLParserErrorContext& ctxt, const BSONObj& object);" % camel_case(class_name))
         self._writer.write_line("void serialize(BSONObjBuilder* builder) const;")
         self._writer.write_empty_line()
 
@@ -212,10 +245,15 @@ class CppFileWriter(object):
     def gen_deserializer(self, struct):
         # type: (ast.Struct) -> None
 
-        with self._block("%s %s::parse(const BSONObj& bsonObject) {" %
+        with self._block("%s %s::parse(IDLParserErrorContext& ctxt, const BSONObj& bsonObject) {" %
                          (camel_case(struct.name), camel_case(struct.name)), "}"):
 
-            # TODO: generate preamble checks
+            # Generate a check to ensure the object is not empty
+            # TODO: handle objects which are entirely optional
+            with self._block("if (bsonObject.isEmpty()) {", "}"):
+                self._writer.write_line('ctxt.throwNotEmptyObject();')
+                #self._writer.write_line('ctxt.throwNotEmptyObject("%s");' % struct.name)
+            self._writer.write_empty_line()
 
             self._writer.write_line("%s object;" % camel_case(struct.name))
 
@@ -239,9 +277,10 @@ class CppFileWriter(object):
                             self._writer.write_line("// ignore field")
                         else:
                             if field.struct_type:
-                                self._writer.write_line("object.%s = %s::parse(element.Obj());" %
+                                self._writer.write_line('object.%s = %s::parse(IDLParserErrorContext("%s", &ctxt), element.Obj());' %
                                                         (self._get_field_member_name(field),
-                                                         camel_case(field.struct_type)))
+                                                         camel_case(field.struct_type),
+                                                         field.name))
                             elif "BSONElement::" in field.deserializer:
                                 method_name = get_method_name(field.deserializer)
                                 self._writer.write_line("object.%s = element.%s();" % (
@@ -307,40 +346,6 @@ class CppFileWriter(object):
                     self._writer.write_empty_line()
 
 
-class ScopedBlock(object):
-    def __init__(self, writer, opening, closing):
-        # type: (IndentedTextWriter, unicode, unicode) -> None
-        self._writer = writer
-        self._opening = opening
-        self._closing = closing
-
-    def __enter__(self):
-        # type: () -> None
-        self._writer.write_unindented_line(self._opening)
-
-    def __exit__(self, *args):
-        # type: (*str) -> None
-        self._writer.write_unindented_line(self._closing)
-
-
-class IndentedScopedBlock(object):
-    def __init__(self, writer, opening, closing):
-        # type: (IndentedTextWriter, unicode, unicode) -> None
-        self._writer = writer
-        self._opening = opening
-        self._closing = closing
-
-    def __enter__(self):
-        # type: () -> None
-        self._writer.write_line(self._opening)
-        self._writer.indent()
-
-    def __exit__(self, *args):
-        # type: (*str) -> None
-        self._writer.unindent()
-        self._writer.write_line(self._closing)
-
-
 def generate_header(spec, file_name):
     # type: (ast.IDLAST, unicode) -> None
     stream = io.StringIO()
@@ -351,6 +356,7 @@ def generate_header(spec, file_name):
     # TODO: sort headers
     # Add system includes
     header.gen_include("mongo/bson/bsonobj.h")
+    header.gen_include("mongo/idl/idl_parser.h")
 
     # Generate includes
     for include in spec.globals.cpp_includes:
@@ -428,6 +434,8 @@ def generate_source(spec, file_name):
 def generate_code(spec, file_prefix):
     # type: (ast.IDLAST, unicode) -> None
     #self._stream = io.open(file_name, mode="w")
+
+    assert '.' not in file_prefix
 
     generate_header(spec, file_prefix + ".hpp")
 

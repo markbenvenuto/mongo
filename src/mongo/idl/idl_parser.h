@@ -13,12 +13,23 @@ namespace mongo {
 
 class IDLParserErrorContext {
 public:
-    IDLParserErrorContext push_back(StringData fieldName);
-    void assertNotEmptyObject(StringData fieldName);
-    void assertType(const BSONElement&, BSONType, StringData fieldName);
+    IDLParserErrorContext(StringData fieldName) : _currentField(fieldName), _predecessor(nullptr) {}
+    IDLParserErrorContext(StringData fieldName, IDLParserErrorContext* predecessor)
+        : _currentField(fieldName), _predecessor(predecessor) {}
+    void throwNotEmptyObject();
+    
+    void assertType(const BSONElement& element, BSONType type);
+    //void assertTypes(const BSONElement&, BSONType, StringData fieldName);
     void throwUnknownField(const BSONElement&, StringData str);
     void throwMissingRequiredField(StringData str);
     //NamespaceString parseCommandNamespace(BSONElement&, StringData str);
+
+private:
+    std::string getElementPath();
+
+private:
+    StringData _currentField;
+    IDLParserErrorContext* _predecessor;
 };
 
 }  //namespace mongo
