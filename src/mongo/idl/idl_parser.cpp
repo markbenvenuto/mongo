@@ -18,6 +18,14 @@ void IDLParserErrorContext::throwNotEmptyObject() {
     uasserted(65001, str::stream() << "Object '" << getElementPath() << "' is not allowed to be empty");
 }
 
+void IDLParserErrorContext::assertType(const BSONElement& element, BSONType type) {
+    if (element.type() != type) {}
+        std::string path = getElementPath();
+        uasserted(65002, str::stream() << "BSON field '" << getElementPath() << "' is the wrong type '" 
+            << typeName(element.type()) << "', expected type '"<< type <<  "'");
+    }
+}
+
 std::string IDLParserErrorContext::getElementPath() {
     if (_predecessor == nullptr) {
         return _currentField.toString();
