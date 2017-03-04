@@ -19,10 +19,32 @@ void IDLParserErrorContext::throwNotEmptyObject() {
 }
 
 void IDLParserErrorContext::assertType(const BSONElement& element, BSONType type) {
-    if (element.type() != type) {}
+    if (element.type() != type) {
         std::string path = getElementPath();
         uasserted(65002, str::stream() << "BSON field '" << getElementPath() << "' is the wrong type '" 
             << typeName(element.type()) << "', expected type '"<< type <<  "'");
+    }
+}
+
+void IDLParserErrorContext::assertBinDataType(const BSONElement& element, BinDataType type) {
+    assertType(element, BinData);
+
+    if (element.binDataType() != type) {
+        std::string path = getElementPath();
+        uasserted(65003, str::stream() << "BSON field '" << getElementPath() << "' is the wrong bindData type '"
+            << typeName(element.type()) << "', expected type '" << type << "'");
+    }
+}
+
+void IDLParserErrorContext::assertTypes(const BSONElement& element, std::vector<BSONType> types) {
+
+    auto type = element.type();
+    auto pos = std::find(types.begin(), types.end(), type);
+    if (pos == types.end()) {
+        std::string path = getElementPath();
+        std::string type_str = "";
+        uasserted(65004, str::stream() << "BSON field '" << getElementPath() << "' is the wrong type '"
+            << typeName(element.type()) << "', expected types '" << type_str << "'");
     }
 }
 

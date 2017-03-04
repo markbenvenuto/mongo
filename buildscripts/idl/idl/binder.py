@@ -203,6 +203,7 @@ def bind_field(ctxt, parsed_spec, field):
     # Copy over only the needed information if this a struct or a type
     if struct:
         ast_field.struct_type = struct.name
+        ast_field.bson_serialization_type = "object"
         validate_field_of_type_struct(ctxt, field)
     else:
         # Produce the union of type information for the type and this field.

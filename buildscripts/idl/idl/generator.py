@@ -230,6 +230,23 @@ class CppFileWriter(object):
 
         self._writer.write_line("%s %s;" % (member_type, member_name))
 
+    def gen_bson_type_check(self, field):
+        # type: (ast.Field) -> None
+        bson_types = field.bson_serialization_type
+        if len(bson_types) == 1:
+            if bson_types[0] == "any":
+                # Skip BSON valiation when any
+                return
+
+            if not bson_types[0] == "bindata":
+                self._writer.write_line('ctxt.assertType(element, %s);' % bson_types[0])
+            else:
+                self._writer.write_line('ctxt.assertBinDataType(element, %s);' % field.bindata_subtype)
+        else:
+            type_list = "{%s}" % (','.join(bson_types))
+            self._writer.write_line('ctxt.assertTypes(element, %s);' % type_list)
+            
+
     def _access_member(self, field):
         # type: (ast.Field) -> unicode
         member_name = self._get_field_member_name(field)
@@ -276,6 +293,10 @@ class CppFileWriter(object):
                         if field.ignore:
                             self._writer.write_line("// ignore field")
                         else:
+                            # TODO: handle bindata
+                            self.gen_bson_type_check(field)
+                            self._writer.write_empty_line()
+
                             if field.struct_type:
                                 self._writer.write_line('object.%s = %s::parse(IDLParserErrorContext("%s", &ctxt), element.Obj());' %
                                                         (self._get_field_member_name(field),

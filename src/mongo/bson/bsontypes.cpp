@@ -127,4 +127,26 @@ bool isValidBSONType(int type) {
     }
 }
 
+/* take a BSONType and return the name of that type as a char* */
+const char* typeName(BinDataType type) {
+    switch (type) {
+    case BinDataGeneral:
+        return "general";
+    case Function:
+        return "Function";
+    case ByteArrayDeprecated:
+        return "ByteArrayDeprecated";
+    case bdtUUID:
+        return "bdtUUID";
+    case newUUID:
+        return "newUUID";
+    case MD5Type:
+        return "MD5Type";
+    case bdtCustom:
+        return "bdtCustom";
+    default:
+        return "invalid";
+    }
+}
+
 }  // namespace mongo

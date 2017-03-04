@@ -18,8 +18,13 @@ public:
         : _currentField(fieldName), _predecessor(predecessor) {}
     void throwNotEmptyObject();
     
-    void assertType(const BSONElement& element, BSONType type);
-    //void assertTypes(const BSONElement&, BSONType, StringData fieldName);
+    void assertType(const BSONElement& element, BSONType type); 
+    void assertBinDataType(const BSONElement& element, BinDataType type);
+
+    //template< std::size_t N>
+    //void assertTypes(const BSONElement& element, std::array<BSONType, N> types) 
+    void assertTypes(const BSONElement& element, std::vector<BSONType> types) 
+
     void throwUnknownField(const BSONElement&, StringData str);
     void throwMissingRequiredField(StringData str);
     //NamespaceString parseCommandNamespace(BSONElement&, StringData str);
