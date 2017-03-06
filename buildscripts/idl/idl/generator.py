@@ -2,6 +2,7 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 from . import ast
+from . import bson
 import io
 import os
 import string
@@ -239,11 +240,11 @@ class CppFileWriter(object):
                 return
 
             if not bson_types[0] == "bindata":
-                self._writer.write_line('ctxt.assertType(element, %s);' % bson_types[0])
+                self._writer.write_line('ctxt.assertType(element, %s);' % bson.cpp_bson_type_name(bson_types[0]))
             else:
-                self._writer.write_line('ctxt.assertBinDataType(element, %s);' % field.bindata_subtype)
+                self._writer.write_line('ctxt.assertBinDataType(element, %s);' % bson.cpp_bindata_subtype_type_name(field.bindata_subtype))
         else:
-            type_list = "{%s}" % (','.join(bson_types))
+            type_list = "{%s}" % (','.join([bson.cpp_bson_type_name(b) for b in bson_types]))
             self._writer.write_line('ctxt.assertTypes(element, %s);' % type_list)
             
 
@@ -293,7 +294,6 @@ class CppFileWriter(object):
                         if field.ignore:
                             self._writer.write_line("// ignore field")
                         else:
-                            # TODO: handle bindata
                             self.gen_bson_type_check(field)
                             self._writer.write_empty_line()
 

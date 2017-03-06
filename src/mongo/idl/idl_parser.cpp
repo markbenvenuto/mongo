@@ -1,5 +1,5 @@
 #include <string>
-#include <stack>
+#include <queue>
 
 #include "mongo/idl/idl_parser.h"
 
@@ -52,7 +52,7 @@ std::string IDLParserErrorContext::getElementPath() {
     if (_predecessor == nullptr) {
         return _currentField.toString();
     } else {
-        std::stack<StringData> pieces;
+        std::queue<StringData> pieces;
         pieces.push(_currentField);
         
         IDLParserErrorContext* head = _predecessor;
@@ -63,7 +63,7 @@ std::string IDLParserErrorContext::getElementPath() {
 
         str::stream builder;
         while (!pieces.empty()) {
-            builder << pieces.top();
+            builder << pieces.front();
             pieces.pop();
 
             if (!pieces.empty()) {

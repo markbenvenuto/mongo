@@ -23,7 +23,7 @@ public:
 
     //template< std::size_t N>
     //void assertTypes(const BSONElement& element, std::array<BSONType, N> types) 
-    void assertTypes(const BSONElement& element, std::vector<BSONType> types) 
+    void assertTypes(const BSONElement& element, std::vector<BSONType> types);
 
     void throwUnknownField(const BSONElement&, StringData str);
     void throwMissingRequiredField(StringData str);
