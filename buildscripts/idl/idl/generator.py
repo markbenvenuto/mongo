@@ -124,6 +124,7 @@ class IndentedScopedBlock(object):
         self._writer.unindent()
         self._writer.write_line(self._closing)
 
+
 class CppFileWriter(object):
     """
     C++ File writer.
@@ -160,7 +161,9 @@ class CppFileWriter(object):
 
     def gen_serializer_methods(self, class_name):
         # type: (unicode) -> None
-        self._writer.write_line("static %s parse(IDLParserErrorContext& ctxt, const BSONObj& object);" % camel_case(class_name))
+        self._writer.write_line(
+            "static %s parse(IDLParserErrorContext& ctxt, const BSONObj& object);" %
+            camel_case(class_name))
         self._writer.write_line("void serialize(BSONObjBuilder* builder) const;")
         self._writer.write_empty_line()
 
@@ -240,13 +243,14 @@ class CppFileWriter(object):
                 return
 
             if not bson_types[0] == "bindata":
-                self._writer.write_line('ctxt.assertType(element, %s);' % bson.cpp_bson_type_name(bson_types[0]))
+                self._writer.write_line('ctxt.assertType(element, %s);' %
+                                        bson.cpp_bson_type_name(bson_types[0]))
             else:
-                self._writer.write_line('ctxt.assertBinDataType(element, %s);' % bson.cpp_bindata_subtype_type_name(field.bindata_subtype))
+                self._writer.write_line('ctxt.assertBinDataType(element, %s);' %
+                                        bson.cpp_bindata_subtype_type_name(field.bindata_subtype))
         else:
             type_list = "{%s}" % (','.join([bson.cpp_bson_type_name(b) for b in bson_types]))
             self._writer.write_line('ctxt.assertTypes(element, %s);' % type_list)
-            
 
     def _access_member(self, field):
         # type: (ast.Field) -> unicode
@@ -298,10 +302,10 @@ class CppFileWriter(object):
                             self._writer.write_empty_line()
 
                             if field.struct_type:
-                                self._writer.write_line('object.%s = %s::parse(IDLParserErrorContext("%s", &ctxt), element.Obj());' %
-                                                        (self._get_field_member_name(field),
-                                                         camel_case(field.struct_type),
-                                                         field.name))
+                                self._writer.write_line(
+                                    'object.%s = %s::parse(IDLParserErrorContext("%s", &ctxt), element.Obj());'
+                                    % (self._get_field_member_name(field),
+                                       camel_case(field.struct_type), field.name))
                             elif "BSONElement::" in field.deserializer:
                                 method_name = get_method_name(field.deserializer)
                                 self._writer.write_line("object.%s = element.%s();" % (
