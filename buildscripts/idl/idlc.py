@@ -15,7 +15,9 @@ def main():
 
     parser.add_argument('file', type=str, help="IDL input file")
 
-    parser.add_argument('-o', '--output', type=str, help="IDL output file prefix")
+    parser.add_argument('-o', '--output', type=str, help="IDL output source file")
+
+    parser.add_argument('--header', type=str, help="IDL output header file")
 
     parser.add_argument(
         '-i',
@@ -35,8 +37,11 @@ def main():
     compiler_args.input_file = args.file
     compiler_args.import_directories = args.include
 
-    compiler_args.output_prefix = args.output
+    compiler_args.output_source = args.output
+    compiler_args.output_header = args.header
     compiler_args.output_suffix = "_gen"
+
+    # TODO require both header and source or none
 
     # Compile the IDL document the user specified
     idl.compiler.compile_idl(compiler_args)

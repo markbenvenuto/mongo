@@ -18,6 +18,7 @@ def validate_bson_types_list(ctxt, idl_type, syntax_type):
         # Any is only valid if it is the only bson type specified
         if bson_types[0] == "any":
             return True
+
         if not bson.is_valid_bson_type(bson_types[0]):
             ctxt.add_bad_bson_type(idl_type, syntax_type, idl_type.name, bson_types[0])
             return False
@@ -25,6 +26,7 @@ def validate_bson_types_list(ctxt, idl_type, syntax_type):
         # Validate bindata_subytpe
         if bson_types[0] == "bindata":
             subtype = idl_type.bindata_subtype
+
             if subtype is None:
                 subtype = "<unknown>"
 
@@ -37,6 +39,7 @@ def validate_bson_types_list(ctxt, idl_type, syntax_type):
         return True
 
     for bson_type in bson_types:
+
         if not bson.is_valid_bson_type(bson_type):
             ctxt.add_bad_bson_type(idl_type, syntax_type, idl_type.name, bson_type)
             return False

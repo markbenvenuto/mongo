@@ -49,12 +49,12 @@ ftdcEnv.InjectThirdPartyIncludePaths(libraries=['yaml'])
     #],
 #)
 
-
 env.CppUnitTest(
     target='idlstub',
     source=[
         'idl_stub.cpp',
         'idl_parser.cpp',
+        env.Idlc('unittest.idl')
 	],
     LIBDEPS=[
         '$BUILD_DIR/mongo/base',

@@ -609,6 +609,7 @@ def variable_tools_converter(val):
         "mongo_integrationtest",
         "mongo_unittest",
         "textfile",
+        'idl_tool',
     ]
 
 def variable_distsrc_converter(val):

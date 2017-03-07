@@ -1,11 +1,13 @@
 """Generator"""
 from __future__ import absolute_import, print_function, unicode_literals
 
-from . import ast
-from . import bson
 import io
 import os
 import string
+from typing import Union
+
+from . import ast
+from . import bson
 
 INDENT_SPACE_COUNT = 4
 
@@ -89,6 +91,22 @@ class IndentedTextWriter(object):
         # type: () -> None
         """Write a line to the stream."""
         self._stream.write(u"\n")
+
+
+class EmptyBlock(object):
+    """Do not generate an indented block stuff."""
+
+    def __init__(self):
+        # type: () -> None
+        pass
+
+    def __enter__(self):
+        # type: () -> None
+        pass
+
+    def __exit__(self, *args):
+        # type: (*str) -> None
+        pass
 
 
 class ScopedBlock(object):
@@ -235,22 +253,22 @@ class CppFileWriter(object):
         self._writer.write_line("%s %s;" % (member_type, member_name))
 
     def gen_bson_type_check(self, field):
-        # type: (ast.Field) -> None
+        # type: (ast.Field) -> unicode
         bson_types = field.bson_serialization_type
         if len(bson_types) == 1:
             if bson_types[0] == "any":
                 # Skip BSON valiation when any
-                return
+                return None
 
             if not bson_types[0] == "bindata":
-                self._writer.write_line('ctxt.assertType(element, %s);' %
-                                        bson.cpp_bson_type_name(bson_types[0]))
+                return 'ctxt.checkAndAssertType(element, %s)' % bson.cpp_bson_type_name(
+                    bson_types[0])
             else:
-                self._writer.write_line('ctxt.assertBinDataType(element, %s);' %
-                                        bson.cpp_bindata_subtype_type_name(field.bindata_subtype))
+                return 'ctxt.assertBinDataType(element, %s)' % bson.cpp_bindata_subtype_type_name(
+                    field.bindata_subtype)
         else:
             type_list = "{%s}" % (','.join([bson.cpp_bson_type_name(b) for b in bson_types]))
-            self._writer.write_line('ctxt.assertTypes(element, %s);' % type_list)
+            return 'ctxt.checkAndAssertTypes(element, %s)' % type_list
 
     def _access_member(self, field):
         # type: (ast.Field) -> unicode
@@ -261,8 +279,18 @@ class CppFileWriter(object):
         return "%s.get()" % member_name
 
     def _block(self, opening, closing):
-        # type: (unicode, unicode) -> IndentedScopedBlock
+        # type: (unicode, unicode) -> Union[IndentedScopedBlock,EmptyBlock]
+        if not opening:
+            return EmptyBlock()
+
         return IndentedScopedBlock(self._writer, opening, closing)
+
+    def _predicate(self, check_str):
+        # type: (unicode) -> Union[IndentedScopedBlock,EmptyBlock]
+        if not check_str:
+            return EmptyBlock()
+
+        return IndentedScopedBlock(self._writer, "if (%s) {" % (check_str), "}")
 
     def gen_deserializer(self, struct):
         # type: (ast.Struct) -> None
@@ -272,7 +300,7 @@ class CppFileWriter(object):
 
             # Generate a check to ensure the object is not empty
             # TODO: handle objects which are entirely optional
-            with self._block("if (bsonObject.isEmpty()) {", "}"):
+            with self._predicate("bsonObject.isEmpty()"):
                 self._writer.write_line('ctxt.throwNotEmptyObject();')
                 #self._writer.write_line('ctxt.throwNotEmptyObject("%s");' % struct.name)
             self._writer.write_empty_line()
@@ -287,34 +315,37 @@ class CppFileWriter(object):
 
                 first_field = True
                 for field in struct.fields:
-                    predicate = 'else if (fieldName == "%s") {' % field.name
+                    field_predicate = 'fieldName == "%s"' % field.name
                     if first_field:
-                        predicate = 'if (fieldName == "%s") {' % field.name
+                        field_predicate = 'fieldName == "%s"' % field.name
                         first_field = False
 
-                    with self._block(predicate, "}"):
-                        # TODO: check type of field
+                    with self._predicate(field_predicate):
                         # TODO: check for duplicates
                         if field.ignore:
                             self._writer.write_line("// ignore field")
                         else:
-                            self.gen_bson_type_check(field)
-                            self._writer.write_empty_line()
 
-                            if field.struct_type:
-                                self._writer.write_line(
-                                    'object.%s = %s::parse(IDLParserErrorContext("%s", &ctxt), element.Obj());'
-                                    % (self._get_field_member_name(field),
-                                       camel_case(field.struct_type), field.name))
-                            elif "BSONElement::" in field.deserializer:
-                                method_name = get_method_name(field.deserializer)
-                                self._writer.write_line("object.%s = element.%s();" % (
-                                    self._get_field_member_name(field), method_name))
-                            else:
-                                # Custom method, call the method on object
-                                method_name = get_method_name(field.deserializer)
-                                self._writer.write_line("object.%s.%s(element);" % (
-                                    self._get_field_member_name(field), method_name))
+                            # May be an empty block if the type is any
+                            type_predicate = self.gen_bson_type_check(field)
+
+                            with self._predicate(type_predicate):
+                                self._writer.write_empty_line()
+
+                                if field.struct_type:
+                                    self._writer.write_line(
+                                        'object.%s = %s::parse(IDLParserErrorContext("%s", &ctxt), element.Obj());'
+                                        % (self._get_field_member_name(field),
+                                           camel_case(field.struct_type), field.name))
+                                elif "BSONElement::" in field.deserializer:
+                                    method_name = get_method_name(field.deserializer)
+                                    self._writer.write_line("object.%s = element.%s();" % (
+                                        self._get_field_member_name(field), method_name))
+                                else:
+                                    # Custom method, call the method on object
+                                    method_name = get_method_name(field.deserializer)
+                                    self._writer.write_line("object.%s.%s(element);" % (
+                                        self._get_field_member_name(field), method_name))
 
                 # TODO: generate strict check for extranous fields
 
@@ -416,7 +447,9 @@ def generate_header(spec, file_name):
             header.write_empty_line()
 
     # Generate structs
-    print(stream.getvalue())
+    #print(stream.getvalue())
+    
+    print("Writing header to: %s" % file_name)
     file_handle = io.open(file_name, mode="wb")
     file_handle.write(stream.getvalue())
 
@@ -450,18 +483,17 @@ def generate_source(spec, file_name):
             source.write_empty_line()
 
     # Generate structs
-    print(stream.getvalue())
+    #print(stream.getvalue())
 
+    print("Writing code to: %s" % file_name)
     file_handle = io.open(file_name, mode="wb")
     file_handle.write(stream.getvalue())
 
 
-def generate_code(spec, file_prefix):
-    # type: (ast.IDLAST, unicode) -> None
+def generate_code(spec, header_file_name, source_file_name):
+    # type: (ast.IDLAST, unicode, unicode) -> None
     #self._stream = io.open(file_name, mode="w")
 
-    assert '.' not in file_prefix
+    generate_header(spec, header_file_name)
 
-    generate_header(spec, file_prefix + ".hpp")
-
-    generate_source(spec, file_prefix + ".cc")
+    generate_source(spec, source_file_name)

@@ -21,9 +21,11 @@ public:
     void assertType(const BSONElement& element, BSONType type); 
     void assertBinDataType(const BSONElement& element, BinDataType type);
 
+    bool checkAndAssertType(const BSONElement& element, BSONType type);
+
     //template< std::size_t N>
     //void assertTypes(const BSONElement& element, std::array<BSONType, N> types) 
-    void assertTypes(const BSONElement& element, std::vector<BSONType> types);
+    bool checkAndAssertTypes(const BSONElement& element, std::vector<BSONType> types);
 
     void throwUnknownField(const BSONElement&, StringData str);
     void throwMissingRequiredField(StringData str);

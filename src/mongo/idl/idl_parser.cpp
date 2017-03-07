@@ -26,26 +26,50 @@ void IDLParserErrorContext::assertType(const BSONElement& element, BSONType type
     }
 }
 
+bool IDLParserErrorContext::checkAndAssertType(const BSONElement& element, BSONType type) {
+    auto elementType = element.type();
+
+    if (elementType != type) {
+        // If the type is wrong, ignore Null and Undefined values
+        if (elementType == jstNULL || elementType == Undefined) {
+            return false;
+        }
+            
+        std::string path = getElementPath();
+        uasserted(65003, str::stream() << "BSON field '" << getElementPath() << "' is the wrong type '"
+            << typeName(element.type()) << "', expected type '" << type << "'");
+    }
+
+    return true;
+}
+
 void IDLParserErrorContext::assertBinDataType(const BSONElement& element, BinDataType type) {
     assertType(element, BinData);
 
     if (element.binDataType() != type) {
         std::string path = getElementPath();
-        uasserted(65003, str::stream() << "BSON field '" << getElementPath() << "' is the wrong bindData type '"
+        uasserted(65004, str::stream() << "BSON field '" << getElementPath() << "' is the wrong bindData type '"
             << typeName(element.type()) << "', expected type '" << type << "'");
     }
 }
 
-void IDLParserErrorContext::assertTypes(const BSONElement& element, std::vector<BSONType> types) {
+bool IDLParserErrorContext::checkAndAssertTypes(const BSONElement& element, std::vector<BSONType> types) {
+    auto elementType = element.type();
 
-    auto type = element.type();
-    auto pos = std::find(types.begin(), types.end(), type);
+    auto pos = std::find(types.begin(), types.end(), elementType);
     if (pos == types.end()) {
+        // If the type is wrong, ignore Null and Undefined values
+        if (elementType == jstNULL || elementType == Undefined) {
+            return false;
+        }
+
         std::string path = getElementPath();
         std::string type_str = "";
-        uasserted(65004, str::stream() << "BSON field '" << getElementPath() << "' is the wrong type '"
+        uasserted(65005, str::stream() << "BSON field '" << getElementPath() << "' is the wrong type '"
             << typeName(element.type()) << "', expected types '" << type_str << "'");
     }
+
+    return true;
 }
 
 std::string IDLParserErrorContext::getElementPath() {
