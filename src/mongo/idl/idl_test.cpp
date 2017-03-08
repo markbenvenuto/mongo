@@ -31,43 +31,68 @@
 #include <map>
 
 #include "mongo/unittest/unittest.h"
-#include "mongo/util/log.h"
+#include "mongo/idl/unittest_gen.hpp"
 
 namespace mongo {
 
+/// Type tests:
+// Positive: Test we can serialize the type out and back again
 TEST(ClientMetadatTest, TestLoopbackTest) {
-}
+    IDLParserErrorContext ctxt("root");
 
-// Mixed: no client metadata document
-TEST(ClientMetadatTest, TestEmptyDoc) {
-}
+    StringData test_value = "test_value";
+    auto testDoc = BSON("value" << test_value);
+    // TODO: assert type of field in this generated document
+    auto testStruct = One_string::parse(ctxt, testDoc);
+    ASSERT_EQUALS(testStruct.getValue(), test_value);
 
-// Positive: test with only required fields
-TEST(ClientMetadatTest, TestRequiredOnlyFields) {
-}
+    {
+    BSONObjBuilder builder;
+    testStruct.serialize(&builder);
+    auto loopbackDoc = builder.obj();
 
-// Positive: test with empty application document
-TEST(ClientMetadatTest, TestWithEmptyNestedStruct) {
-}
+    ASSERT_BSONOBJ_EQ(testDoc, loopbackDoc);    
+    }
 
-// Negative: test with appplication wrong type
-TEST(ClientMetadatTest, TestNegativeWithAppNameWrongType) {
-}
+    {
+    BSONObjBuilder builder;
+    One_string one_new;
+    one_new.setValue(test_value);
+    testStruct.serialize(&builder);
 
-// Positive: test with extra fields
-TEST(ClientMetadatTest, TestExtraFields) {
-}
-
-// Negative: only application specified
-TEST(ClientMetadatTest, TestNegativeOnlyApplication) {
-}
-
-// Negative: all combinations of only missing 1 required field
-TEST(ClientMetadatTest, TestNegativeMissingRequiredOneField) {
+    auto serializedDoc = builder.obj();
+    ASSERT_BSONOBJ_EQ(testDoc, serializedDoc);    
+    }
 }
 
 // Negative: document with wrong types for required fields
 TEST(ClientMetadatTest, TestNegativeWrongTypes) {
+    
 }
+
+// Positive
+// Validate types listed in “Built-in BSON Types” are accepted
+// Validate default works
+
+// Negative
+// Check type mismatch for types listed in “Built-in BSON Types”
+// Check value mismatch for some types listed in “Built-in BSON Types” (like bad NamespaceString)
+
+/// Field tests
+// Positive: check if field is missing, it gets a default value
+// Positive: struct strict, and ignored field works
+
+/// Struct tests:
+// Positive: strict, 3 required fields
+// Positive: non-strict, ensure extra fields work
+// Negative: strict, ensure extra fields fail
+// Negative: strict, duplicate fields
+// Negative: non-strict, duplicate fields
+
+// Positive: test empty optional nested struct
+
+/// Array tests
+// Validate array parsing
+// Check array vs non-array
 
 }  // namespace mongo

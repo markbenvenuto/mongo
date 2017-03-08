@@ -34,7 +34,7 @@ env.CppUnitTest(
     source=[
         'idl_stub.cpp',
         'idl_test.cpp',
-        env.Idlc('unittest.idl')
+        env.Idlc('unittest.idl')[0]
 	],
     LIBDEPS=[
         '$BUILD_DIR/mongo/base',

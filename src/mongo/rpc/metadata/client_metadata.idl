@@ -4,11 +4,13 @@ global:
 type:
     name: string
     bson_serialization_type: string 
+    description: string
     cpp_type: "std::string"
     deserializer: "mongo::BSONElement::valueStringData"
 
 struct:
     name: application
+    description: client metadata application document
     strict: false
     fields:
         name:
@@ -17,6 +19,7 @@ struct:
 
 struct:
     name: driver
+    description: client metadata driver document
     strict: false
     fields:
         name: string
@@ -24,6 +27,7 @@ struct:
 
 struct:
     name: os
+    description: client metadata os document
     fields:
         type: string
 

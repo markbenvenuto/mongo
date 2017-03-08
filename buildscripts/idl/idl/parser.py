@@ -237,12 +237,12 @@ def parse_struct(ctxt, spec, node):
         field_name_set.add(first_name)
 
     if struct.name is None:
-        ctxt.add_missing_required_field(node, "type", "name")
+        ctxt.add_missing_required_field(node, "struct", "name")
     elif len(struct.fields) == 0:
         ctxt.add_empty_struct(node, struct.name)
 
     if struct.description is None:
-        ctxt.add_missing_required_field(node, "type", "description")
+        ctxt.add_missing_required_field(node, "struct", "description")
 
     spec.symbols.add_struct(ctxt, struct)
 
