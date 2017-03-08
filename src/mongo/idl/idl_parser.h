@@ -27,12 +27,16 @@ public:
     //void assertTypes(const BSONElement& element, std::array<BSONType, N> types) 
     bool checkAndAssertTypes(const BSONElement& element, std::vector<BSONType> types);
 
+    void throwDuplicateField(const  BSONElement& element);
+    void throwMissingField(StringData fieldName);
+
     void throwUnknownField(const BSONElement&, StringData str);
     void throwMissingRequiredField(StringData str);
     //NamespaceString parseCommandNamespace(BSONElement&, StringData str);
 
 private:
-    std::string getElementPath();
+    std::string getElementPath(const  BSONElement& element);
+    std::string getElementPath(StringData fieldName);
 
 private:
     StringData _currentField;

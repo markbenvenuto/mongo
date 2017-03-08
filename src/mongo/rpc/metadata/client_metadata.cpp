@@ -43,6 +43,8 @@
 #include "mongo/util/log.h"
 #include "mongo/util/mongoutils/str.h"
 #include "mongo/util/processinfo.h"
+#include "mongo/rpc/metadata/client_metadata_gen.hpp"
+
 
 namespace mongo {
 
@@ -89,195 +91,34 @@ Status ClientMetadata::parseClientMetadataDocument(const BSONObj& doc) {
                                     << "bytes");
     }
 
-    // Get a copy so that we can take a stable reference to the app name inside
-    BSONObj docOwned = doc.getOwned();
+    
+    try {
+        // Get a copy so that we can take a stable reference to the app name inside
+        BSONObj docOwned = doc.getOwned();
 
-    StringData appName;
-    bool foundDriver = false;
-    bool foundOperatingSystem = false;
+        IDLParserErrorContext ctxt("client");
 
-    BSONObjIterator i(docOwned);
-    while (i.more()) {
-        BSONElement e = i.next();
-        StringData name = e.fieldNameStringData();
+        Client_metadata cm = Client_metadata::parse(ctxt, docOwned);
 
-        if (name == kApplication) {
-            // Application is an optional sub-document, but we require it to be a document if
-            // specified.
-            if (!e.isABSONObj()) {
-                return Status(ErrorCodes::TypeMismatch,
-                              str::stream() << "The '" << kApplication
-                                            << "' field is required to be a BSON document in the "
-                                               "client metadata document");
-            }
+        _document = std::move(docOwned);
 
-            auto swAppName = parseApplicationDocument(e.Obj());
-            if (!swAppName.getStatus().isOK()) {
-                return swAppName.getStatus();
-            }
 
-            appName = swAppName.getValue();
-
-        } else if (name == kDriver) {
-            if (!e.isABSONObj()) {
-                return Status(ErrorCodes::TypeMismatch,
-                              str::stream() << "The '" << kDriver << "' field is required to be a "
-                                                                     "BSON document in the client "
-                                                                     "metadata document");
-            }
-
-            Status s = validateDriverDocument(e.Obj());
-            if (!s.isOK()) {
-                return s;
-            }
-
-            foundDriver = true;
-        } else if (name == kOperatingSystem) {
-            if (!e.isABSONObj()) {
-                return Status(ErrorCodes::TypeMismatch,
-                              str::stream() << "The '" << kOperatingSystem
-                                            << "' field is required to be a BSON document in the "
-                                               "client metadata document");
-            }
-
-            Status s = validateOperatingSystemDocument(e.Obj());
-            if (!s.isOK()) {
-                return s;
-            }
-
-            foundOperatingSystem = true;
+        if (cm.getApplication().getName().size() > kMaxApplicationNameByteLength) {
+            return{ErrorCodes::ClientMetadataAppNameTooLarge,
+                str::stream() << "The '" << kApplication << "." << kName
+                << "' field must be less then or equal to "
+                << kMaxApplicationNameByteLength
+                << " bytes in the client metadata document"};
         }
 
-        // Ignore other fields as extra fields are allowed.
+
+        _appName = cm.getApplication().getName();
+
+        return Status::OK();
     }
-
-    // Driver is a required sub document.
-    if (!foundDriver) {
-        return Status(ErrorCodes::ClientMetadataMissingField,
-                      str::stream() << "Missing required sub-document '" << kDriver
-                                    << "' in the client metadata document");
+    catch (std::exception e) {
+        return exceptionToStatus();
     }
-
-    // OS is a required sub document.
-    if (!foundOperatingSystem) {
-        return Status(ErrorCodes::ClientMetadataMissingField,
-                      str::stream() << "Missing required sub-document '" << kOperatingSystem
-                                    << "' in the client metadata document");
-    }
-
-    _document = std::move(docOwned);
-    _appName = std::move(appName);
-
-    return Status::OK();
-}
-
-StatusWith<StringData> ClientMetadata::parseApplicationDocument(const BSONObj& doc) {
-    BSONObjIterator i(doc);
-
-    while (i.more()) {
-        BSONElement e = i.next();
-        StringData name = e.fieldNameStringData();
-
-        // Name is the only required field, and any other fields are simply ignored.
-        if (name == kName) {
-
-            if (e.type() != String) {
-                return {
-                    ErrorCodes::TypeMismatch,
-                    str::stream() << "The '" << kApplication << "." << kName
-                                  << "' field must be a string in the client metadata document"};
-            }
-
-            StringData value = e.checkAndGetStringData();
-
-            if (value.size() > kMaxApplicationNameByteLength) {
-                return {ErrorCodes::ClientMetadataAppNameTooLarge,
-                        str::stream() << "The '" << kApplication << "." << kName
-                                      << "' field must be less then or equal to "
-                                      << kMaxApplicationNameByteLength
-                                      << " bytes in the client metadata document"};
-            }
-
-            return {std::move(value)};
-        }
-    }
-
-    return {StringData()};
-}
-
-Status ClientMetadata::validateDriverDocument(const BSONObj& doc) {
-    bool foundName = false;
-    bool foundVersion = false;
-
-    BSONObjIterator i(doc);
-    while (i.more()) {
-        BSONElement e = i.next();
-        StringData name = e.fieldNameStringData();
-
-        if (name == kName) {
-            if (e.type() != String) {
-                return Status(
-                    ErrorCodes::TypeMismatch,
-                    str::stream() << "The '" << kDriver << "." << kName
-                                  << "' field must be a string in the client metadata document");
-            }
-
-            foundName = true;
-        } else if (name == kVersion) {
-            if (e.type() != String) {
-                return Status(
-                    ErrorCodes::TypeMismatch,
-                    str::stream() << "The '" << kDriver << "." << kVersion
-                                  << "' field must be a string in the client metadata document");
-            }
-
-            foundVersion = true;
-        }
-    }
-
-    if (foundName == false) {
-        return Status(ErrorCodes::ClientMetadataMissingField,
-                      str::stream() << "Missing required field '" << kDriver << "." << kName
-                                    << "' in the client metadata document");
-    }
-
-    if (foundVersion == false) {
-        return Status(ErrorCodes::ClientMetadataMissingField,
-                      str::stream() << "Missing required field '" << kDriver << "." << kVersion
-                                    << "' in the client metadata document");
-    }
-
-    return Status::OK();
-}
-
-Status ClientMetadata::validateOperatingSystemDocument(const BSONObj& doc) {
-    bool foundType = false;
-
-    BSONObjIterator i(doc);
-    while (i.more()) {
-        BSONElement e = i.next();
-        StringData name = e.fieldNameStringData();
-
-        if (name == kType) {
-            if (e.type() != String) {
-                return Status(
-                    ErrorCodes::TypeMismatch,
-                    str::stream() << "The '" << kOperatingSystem << "." << kType
-                                  << "' field must be a string in the client metadata document");
-            }
-
-            foundType = true;
-        }
-    }
-
-    if (foundType == false) {
-        return Status(ErrorCodes::ClientMetadataMissingField,
-                      str::stream() << "Missing required field '" << kOperatingSystem << "."
-                                    << kType
-                                    << "' in the client metadata document");
-    }
-
-    return Status::OK();
 }
 
 void ClientMetadata::serialize(StringData driverName,

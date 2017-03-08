@@ -142,6 +142,36 @@ class IndentedScopedBlock(object):
         self._writer.unindent()
         self._writer.write_line(self._closing)
 
+class FieldUsageChecker(object):
+    # Check for duplicate fields, and required fields as needed
+
+    def __init__(self, writer):
+        # type: (IndentedTextWriter) -> None
+        self._writer = writer  # type: IndentedTextWriter
+        self.fields = set()  # type: Set[ast.Field]
+
+        self._writer.write_line("std::set<StringData> usedFields;")
+
+    def add_store(self):
+        # type: () -> None
+        self._writer.write_line('auto push_result = usedFields.insert(fieldName);')
+        with IndentedScopedBlock(self._writer, "if (push_result.second == false) {", "}"):
+            self._writer.write_line('ctxt.throwDuplicateField(element);')
+
+    def add(self, field):
+        # type: (ast.Field) -> None
+        self.fields.add(field)
+    
+    def add_final_checks(self):
+        # type: () -> None
+        for field in self.fields:
+            if not field.optional:
+                # TODO: improve if we know the storage is optional
+                with IndentedScopedBlock(self._writer, 'if (usedFields.find("%s") == usedFields.end()) {' % field.name, "}"):
+                    self._writer.write_line('ctxt.throwMissingField("%s");'  % field.name )
+                
+
+
 
 class CppFileWriter(object):
     """
@@ -190,7 +220,7 @@ class CppFileWriter(object):
         assert field.cpp_type is not None or field.struct_type is not None
 
         if field.struct_type:
-            cpp_type = field.struct_type
+            cpp_type = camel_case(field.struct_type)
         else:
             cpp_type = field.cpp_type
             if cpp_type == "std::string":
@@ -307,11 +337,16 @@ class CppFileWriter(object):
 
             self._writer.write_line("%s object;" % camel_case(struct.name))
 
+            field_usage_check = FieldUsageChecker(self._writer)
+
             with self._block("for (const auto&& element : bsonObject) {", "}"):
 
                 self._writer.write_line("const auto& fieldName = element.fieldNameStringData();")
+                self._writer.write_empty_line()
 
                 # TODO: generate command namespace string check
+                field_usage_check.add_store()
+                self._writer.write_empty_line()
 
                 first_field = True
                 for field in struct.fields:
@@ -319,6 +354,8 @@ class CppFileWriter(object):
                     if first_field:
                         field_predicate = 'fieldName == "%s"' % field.name
                         first_field = False
+
+                    field_usage_check.add(field)
 
                     with self._predicate(field_predicate):
                         # TODO: check for duplicates
@@ -347,11 +384,12 @@ class CppFileWriter(object):
                                     self._writer.write_line("object.%s.%s(element);" % (
                                         self._get_field_member_name(field), method_name))
 
-                # TODO: generate strict check for extranous fields
+            # Check for required fields
+            field_usage_check.add_final_checks()
+            # TODO: generate strict check for extranous fields
 
-                # TODO: default values
+            # TODO: default values
 
-                # TODO: required fields
 
             self._writer.write_line("return object;")
 
@@ -447,23 +485,22 @@ def generate_header(spec, file_name):
             header.write_empty_line()
 
     # Generate structs
-    #print(stream.getvalue())
+    print(stream.getvalue())
     
     print("Writing header to: %s" % file_name)
     file_handle = io.open(file_name, mode="wb")
     file_handle.write(stream.getvalue())
 
 
-def generate_source(spec, file_name):
-    # type: (ast.IDLAST, unicode) -> None
+def generate_source(spec, file_name, header_file_name):
+    # type: (ast.IDLAST, unicode, unicode) -> None
     stream = io.StringIO()
     text_writer = IndentedTextWriter(stream)
 
     source = CppFileWriter(text_writer)
 
     # Generate includes
-    # TODO: refine
-    source.gen_include(os.path.abspath(file_name.replace(".cc", ".hpp")))
+    source.gen_include(os.path.abspath(header_file_name))
 
     # Add system includes
     source.gen_include("mongo/bson/bsonobjbuilder.h")
@@ -483,7 +520,7 @@ def generate_source(spec, file_name):
             source.write_empty_line()
 
     # Generate structs
-    #print(stream.getvalue())
+    print(stream.getvalue())
 
     print("Writing code to: %s" % file_name)
     file_handle = io.open(file_name, mode="wb")
@@ -496,4 +533,4 @@ def generate_code(spec, header_file_name, source_file_name):
 
     generate_header(spec, header_file_name)
 
-    generate_source(spec, source_file_name)
+    generate_source(spec, source_file_name, header_file_name)

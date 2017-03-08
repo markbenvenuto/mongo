@@ -1,4 +1,9 @@
-python idlc.py example.yaml
+# python idlc.py example.yaml
+# if ($LASTEXITCODE -ne 0) {
+# 	exit 1;
+# }
+
+python idlc.py D:\mongo\src\mongo\idl\unittest.idl
 if ($LASTEXITCODE -ne 0) {
 	exit 1;
 }

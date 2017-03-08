@@ -3,10 +3,6 @@ Import("env")
 
 env = env.Clone()
 
-ftdcEnv = env.Clone()
-#ftdcEnv.InjectThirdPartyIncludePaths(libraries=['zlib'])
-ftdcEnv.InjectThirdPartyIncludePaths(libraries=['yaml'])
-
 # idlc = ftdcEnv.Program(
 #     target='idlc',
 #     source=[
@@ -23,41 +19,25 @@ ftdcEnv.InjectThirdPartyIncludePaths(libraries=['yaml'])
 #     ],
 # )
 
-#ftdcEnv.Install("#/", idlc)
-
-# idl_example_cmd = env.Command(
-# 			"$BUILD_DIR/example_idl.cpp",
-# 			"example1.idl",
-#             '$BUILD_DIR/mongo/idl/idlc.exe --help ${SOURCES}')
-# env.Depends(idl_example_cmd, '$BUILD_DIR/mongo/idl/idlc.exe')
-
-# env.Library(
-#     target='example_idl',
-#     source=[
-#         '$BUILD_DIR/example_idl.cpp',
-#         'example1_idl_user.cpp',
-# 	],
-# 	)
-
-#env.CppUnitTest(
-    #target='ftdc_test',
-    #source=[
-        #'compressor_test.cpp',
-    #],
-    #LIBDEPS=[
-        #'idlc',
-    #],
-#)
+env.Library(
+    target="idl_parser",
+    source=[
+        'idl_parser.cpp'
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/base',
+    ]
+)
 
 env.CppUnitTest(
     target='idlstub',
     source=[
         'idl_stub.cpp',
-        'idl_parser.cpp',
         env.Idlc('unittest.idl')
 	],
     LIBDEPS=[
         '$BUILD_DIR/mongo/base',
+        '$BUILD_DIR/mongo/idl/idl_parser',
         '$BUILD_DIR/mongo/db/service_context',
         "$BUILD_DIR/mongo/util/signal_handlers",
         "$BUILD_DIR/mongo/util/version_impl",

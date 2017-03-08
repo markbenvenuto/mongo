@@ -1,17 +1,11 @@
 global:
     cpp_namespace: "mongo"
-#    cpp_includes:
-#        - "mongo/db/foo.h"
-# 3 levels of deserialization
-# - 1 readString/toString
-# - 2 BSONelemtn
-# - 3 - full on kitchen
 
 type:
     name: string
     bson_serialization_type: string 
     cpp_type: "std::string"
-    deserializer: "mongo::BSONElement::str"
+    deserializer: "mongo::BSONElement::valueStringData"
 
 struct:
     name: application

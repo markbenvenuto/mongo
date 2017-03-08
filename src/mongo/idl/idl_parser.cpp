@@ -1,5 +1,5 @@
 #include <string>
-#include <queue>
+#include <stack>
 
 #include "mongo/idl/idl_parser.h"
 
@@ -14,14 +14,14 @@
 namespace mongo {
 
 void IDLParserErrorContext::throwNotEmptyObject() {
-    std::string path = getElementPath();
-    uasserted(65001, str::stream() << "Object '" << getElementPath() << "' is not allowed to be empty");
+    std::string path = getElementPath(StringData());
+    uasserted(65001, str::stream() << "Object '" << path << "' is not allowed to be empty");
 }
 
 void IDLParserErrorContext::assertType(const BSONElement& element, BSONType type) {
     if (element.type() != type) {
-        std::string path = getElementPath();
-        uasserted(65002, str::stream() << "BSON field '" << getElementPath() << "' is the wrong type '" 
+        std::string path = getElementPath(element);
+        uasserted(65002, str::stream() << "BSON field '" <<path << "' is the wrong type '" 
             << typeName(element.type()) << "', expected type '"<< type <<  "'");
     }
 }
@@ -35,8 +35,8 @@ bool IDLParserErrorContext::checkAndAssertType(const BSONElement& element, BSONT
             return false;
         }
             
-        std::string path = getElementPath();
-        uasserted(65003, str::stream() << "BSON field '" << getElementPath() << "' is the wrong type '"
+        std::string path = getElementPath(element);
+        uasserted(65003, str::stream() << "BSON field '" << path << "' is the wrong type '"
             << typeName(element.type()) << "', expected type '" << type << "'");
     }
 
@@ -47,8 +47,8 @@ void IDLParserErrorContext::assertBinDataType(const BSONElement& element, BinDat
     assertType(element, BinData);
 
     if (element.binDataType() != type) {
-        std::string path = getElementPath();
-        uasserted(65004, str::stream() << "BSON field '" << getElementPath() << "' is the wrong bindData type '"
+        std::string path = getElementPath(element);
+        uasserted(65004, str::stream() << "BSON field '" << path << "' is the wrong bindData type '"
             << typeName(element.type()) << "', expected type '" << type << "'");
     }
 }
@@ -63,20 +63,32 @@ bool IDLParserErrorContext::checkAndAssertTypes(const BSONElement& element, std:
             return false;
         }
 
-        std::string path = getElementPath();
+        std::string path = getElementPath(element);
         std::string type_str = "";
-        uasserted(65005, str::stream() << "BSON field '" << getElementPath() << "' is the wrong type '"
+        uasserted(65005, str::stream() << "BSON field '" << path << "' is the wrong type '"
             << typeName(element.type()) << "', expected types '" << type_str << "'");
     }
 
     return true;
 }
 
-std::string IDLParserErrorContext::getElementPath() {
+
+std::string IDLParserErrorContext::getElementPath(const  BSONElement& element) {
+    return getElementPath(element.fieldNameStringData());
+}
+
+std::string IDLParserErrorContext::getElementPath(StringData fieldName) {
     if (_predecessor == nullptr) {
-        return _currentField.toString();
+        str::stream builder;
+        builder << _currentField;
+
+        if (!fieldName.empty()) {
+            builder << "." << fieldName;
+        }
+
+        return builder;
     } else {
-        std::queue<StringData> pieces;
+        std::stack<StringData> pieces;
         pieces.push(_currentField);
         
         IDLParserErrorContext* head = _predecessor;
@@ -85,9 +97,13 @@ std::string IDLParserErrorContext::getElementPath() {
             head = head->_predecessor;
         }
 
+        if (!fieldName.empty()) {
+            pieces.push(fieldName);
+        }
+
         str::stream builder;
         while (!pieces.empty()) {
-            builder << pieces.front();
+            builder << pieces.top();
             pieces.pop();
 
             if (!pieces.empty()) {
@@ -97,6 +113,17 @@ std::string IDLParserErrorContext::getElementPath() {
 
         return builder;
     }
+}
+
+void IDLParserErrorContext::throwDuplicateField(const  BSONElement& element) {
+    std::string path = getElementPath(element);
+    uasserted(65013, str::stream() << "BSON field '" << path << "' is a duplicate field");
+
+}
+void IDLParserErrorContext::throwMissingField(StringData fieldName) {
+    std::string path = getElementPath(fieldName);
+    uasserted(65014, str::stream() << "BSON field '" << path << "' is missing but required");
+
 }
 
 }  //namespace mongo
