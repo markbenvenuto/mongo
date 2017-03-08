@@ -36,7 +36,7 @@ def parse_global(ctxt, spec, node):
 
         if first_name == "cpp_namespace":
             if ctxt.is_scalar_node(second_node, "cpp_namespace"):
-                # TODO: validate namespace
+                # TODO: validate C++ namespace
                 idlglobal.cpp_namespace = second_node.value
         elif first_name == "cpp_includes":
             if ctxt.is_sequence_or_scalar_node(second_node, "cpp_includes"):
@@ -107,10 +107,9 @@ def parse_type(ctxt, spec, node):
 
     if idltype.cpp_type is None:
         ctxt.add_missing_required_field(node, "type", "cpp_type")
-
-    # TODO: fix
-    #if idltype.description is None:
-    #    ctxt.add_missing_required_field(node, "type", "description")
+    
+    if idltype.description is None:
+        ctxt.add_missing_required_field(node, "type", "description")
 
     if idltype.bson_serialization_type is None:
         ctxt.add_missing_required_field(node, "type", "bson_serialization_type")
@@ -222,7 +221,6 @@ def parse_struct(ctxt, spec, node):
 
         if first_name == "name":
             if ctxt.is_scalar_node(second_node, "name"):
-                # TODO: validate name is not array
                 struct.name = second_node.value
         elif first_name == "description":
             if ctxt.is_scalar_node(second_node, "description"):
@@ -243,9 +241,8 @@ def parse_struct(ctxt, spec, node):
     elif len(struct.fields) == 0:
         ctxt.add_empty_struct(node, struct.name)
 
-    # TODO: fix
-    #if struct.description is None:
-    #    ctxt.add_missing_required_field(node, "type", "description")
+    if struct.description is None:
+        ctxt.add_missing_required_field(node, "type", "description")
 
     spec.symbols.add_struct(ctxt, struct)
 

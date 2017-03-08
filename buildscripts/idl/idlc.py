@@ -5,8 +5,9 @@ IDL Compiler Driver
 from __future__ import absolute_import, print_function
 
 import argparse
-import idl.compiler
+import sys
 
+import idl.compiler
 
 def main():
     # type: () -> None
@@ -44,7 +45,10 @@ def main():
     # TODO require both header and source or none
 
     # Compile the IDL document the user specified
-    idl.compiler.compile_idl(compiler_args)
+    success = idl.compiler.compile_idl(compiler_args)
+
+    if not success:
+        sys.exit(1)
 
     # idl.compiler.compile(compiler_args,
     foo = """

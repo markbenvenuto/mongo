@@ -103,16 +103,16 @@ Status ClientMetadata::parseClientMetadataDocument(const BSONObj& doc) {
         _document = std::move(docOwned);
 
 
-        if (cm.getApplication().getName().size() > kMaxApplicationNameByteLength) {
-            return{ErrorCodes::ClientMetadataAppNameTooLarge,
-                str::stream() << "The '" << kApplication << "." << kName
-                << "' field must be less then or equal to "
-                << kMaxApplicationNameByteLength
-                << " bytes in the client metadata document"};
+        if (cm.getApplication().is_initialized()) {
+            if (cm.getApplication().get().getName().get_value_or(StringData()).size() > kMaxApplicationNameByteLength) {
+                return{ErrorCodes::ClientMetadataAppNameTooLarge,
+                    str::stream() << "The '" << kApplication << "." << kName
+                    << "' field must be less then or equal to "
+                    << kMaxApplicationNameByteLength
+                    << " bytes in the client metadata document"};
+            }
+            _appName = cm.getApplication().get().getName().get_value_or(StringData());
         }
-
-
-        _appName = cm.getApplication().getName();
 
         return Status::OK();
     }
@@ -147,6 +147,13 @@ void ClientMetadata::serializePrivate(StringData driverName,
               !osArchitecture.empty() && !osVersion.empty());
 
     BSONObjBuilder metaObjBuilder(builder->subobjStart(kMetadataDocumentName));
+
+    Client_metadata cm;
+
+    Driver d;
+    d.setName(driverName);
+    d.setVersion(driverVersion);
+
 
     {
         BSONObjBuilder subObjBuilder(metaObjBuilder.subobjStart(kDriver));

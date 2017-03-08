@@ -33,6 +33,7 @@ env.CppUnitTest(
     target='idlstub',
     source=[
         'idl_stub.cpp',
+        'idl_test.cpp',
         env.Idlc('unittest.idl')
 	],
     LIBDEPS=[

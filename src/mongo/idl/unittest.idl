@@ -1,40 +1,127 @@
 global:
     cpp_namespace: "mongo"
-#    cpp_includes:
-#        - "mongo/db/foo.h"
-# 3 levels of deserialization
-# - 1 readString/toString
-# - 2 BSONelemtn
-# - 3 - full on kitchen
 
 type:
     name: string
-    bson_serialization_type: string 
+    bson_serialization_type: string
+    description: "A BSON UTF-8 string"
     cpp_type: "std::string"
-    deserializer: "mongo::BSONElement::str"
+    deserializer: "mongo::BSONElement::valueStringData"
+
+type:
+    name: int
+    bson_serialization_type: int
+    description: "A BSON 32-bit integer"
+    cpp_type: "std::int32_t"
+    deserializer: "mongo::BSONElement::_numberInt"
+
+type:
+    name: long
+    bson_serialization_type: long
+    description: "A BSON 64-bit integer"
+    cpp_type: "std::int64_t"
+    deserializer: "mongo::BSONElement::_numberLong"
+
+type:
+    name: double
+    bson_serialization_type: double
+    description: "A BSON 64-bit floating point number"
+    cpp_type: "double"
+    deserializer: "mongo::BSONElement::_numberDouble"
+
+type:
+    name: decimal
+    bson_serialization_type: double
+    description: "A BSON 128-bit floating point decimal number"
+    cpp_type: "mongo::Decimal128"
+    deserializer: "mongo::BSONElement::_numberDecimal"
+
+type:
+    name: bool
+    bson_serialization_type: bool
+    description: "A BSON bool"
+    cpp_type: "bool"
+    deserializer: "mongo::BSONElement::boolean"
+
+# type:
+#     name: bindata
+#     bson_serialization_type: bindata
+#     cpp_type: "std:"
+#     deserializer: "mongo::BSONElement::str"
+
+type:
+    name: objectid
+    bson_serialization_type: objectid
+    description: "A BSON ObjectID"
+    cpp_type: "mongo::OID"
+    deserializer: "mongo::BSONElement::OID"
+
+
+type:
+    name: date
+    bson_serialization_type: date
+    description: "A BSON UTC DateTime"
+    cpp_type: "mongo::Date_t"
+    deserializer: "mongo::BSONElement::date"
+
+type:
+    name: timestamp
+    bson_serialization_type: timestamp
+    description: "A BSON TimeStamp"
+    cpp_type: "mongo::Timestamp"
+    deserializer: "mongo::BSONElement::timestamp"
+
 
 struct:
-    name: application
-    strict: false
+    name: one_string
+    description: UnitTest for a single string
     fields:
-        name: string
+        value: string
 
 struct:
-    name: driver
-    strict: false
+    name: one_int
+    description: UnitTest for a single int
     fields:
-        name: string
-        version: string
+        value: int
 
 struct:
-    name: os
+    name: one_long
+    description: UnitTest for a single long
     fields:
-        type: string
+        value: long
 
 struct:
-    name: client_metadata
-    description: Client Metadata Sample
+    name: one_double
+    description: UnitTest for a single double
     fields:
-        application: application
-        driver: driver
-        os : os
+        value: double
+
+struct:
+    name: one_decimal
+    description: UnitTest for a single decimal
+    fields:
+        value: decimal
+
+struct:
+    name: one_bool
+    description: UnitTest for a single bool
+    fields:
+        value: bool
+
+struct:
+    name: one_objectid
+    description: UnitTest for a single objectid
+    fields:
+        value: objectid
+
+struct:
+    name: one_date
+    description: UnitTest for a single date
+    fields:
+        value: date
+
+struct:
+    name: one_timestamp
+    description: UnitTest for a single timestamp
+    fields:
+        value: timestamp

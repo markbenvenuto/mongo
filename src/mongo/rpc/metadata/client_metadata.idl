@@ -11,7 +11,9 @@ struct:
     name: application
     strict: false
     fields:
-        name: string
+        name:
+            type: string
+            optional: true
 
 struct:
     name: driver
@@ -29,6 +31,8 @@ struct:
     name: client_metadata
     description: Client Metadata Sample
     fields:
-        application: application
+        application:
+            type: application
+            optional: true
         driver: driver
         os : os

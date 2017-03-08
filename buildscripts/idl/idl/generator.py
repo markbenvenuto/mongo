@@ -315,12 +315,16 @@ class CppFileWriter(object):
 
         return IndentedScopedBlock(self._writer, opening, closing)
 
-    def _predicate(self, check_str):
-        # type: (unicode) -> Union[IndentedScopedBlock,EmptyBlock]
+    def _predicate(self, check_str, use_else_if=False):
+        # type: (unicode, bool) -> Union[IndentedScopedBlock,EmptyBlock]
         if not check_str:
             return EmptyBlock()
 
-        return IndentedScopedBlock(self._writer, "if (%s) {" % (check_str), "}")
+        conditional = "if"
+        if use_else_if:
+            conditional = "else if"
+            
+        return IndentedScopedBlock(self._writer, "%s (%s) {" % (conditional, check_str), "}")
 
     def gen_deserializer(self, struct):
         # type: (ast.Struct) -> None
@@ -330,14 +334,15 @@ class CppFileWriter(object):
 
             # Generate a check to ensure the object is not empty
             # TODO: handle objects which are entirely optional
-            with self._predicate("bsonObject.isEmpty()"):
-                self._writer.write_line('ctxt.throwNotEmptyObject();')
+            #with self._predicate("bsonObject.isEmpty()"):
+                #self._writer.write_line('ctxt.throwNotEmptyObject();')
                 #self._writer.write_line('ctxt.throwNotEmptyObject("%s");' % struct.name)
-            self._writer.write_empty_line()
+            #self._writer.write_empty_line()
 
             self._writer.write_line("%s object;" % camel_case(struct.name))
 
             field_usage_check = FieldUsageChecker(self._writer)
+            self._writer.write_empty_line()
 
             with self._block("for (const auto&& element : bsonObject) {", "}"):
 
@@ -351,13 +356,9 @@ class CppFileWriter(object):
                 first_field = True
                 for field in struct.fields:
                     field_predicate = 'fieldName == "%s"' % field.name
-                    if first_field:
-                        field_predicate = 'fieldName == "%s"' % field.name
-                        first_field = False
-
                     field_usage_check.add(field)
 
-                    with self._predicate(field_predicate):
+                    with self._predicate(field_predicate, not first_field):
                         # TODO: check for duplicates
                         if field.ignore:
                             self._writer.write_line("// ignore field")
@@ -383,9 +384,16 @@ class CppFileWriter(object):
                                     method_name = get_method_name(field.deserializer)
                                     self._writer.write_line("object.%s.%s(element);" % (
                                         self._get_field_member_name(field), method_name))
+            
+                    if first_field:
+                        first_field = False
+
+            self._writer.write_empty_line()
 
             # Check for required fields
             field_usage_check.add_final_checks()
+            self._writer.write_empty_line()
+
             # TODO: generate strict check for extranous fields
 
             # TODO: default values
@@ -400,6 +408,7 @@ class CppFileWriter(object):
                          camel_case(struct.name), "}"):
 
             for field in struct.fields:
+                # If fields are meant to be ignored during deserialization, there is not need to serialize them
                 if field.ignore:
                     continue
 
