@@ -6,9 +6,9 @@ Common error handling code for IDL compiler.
 """
 from __future__ import absolute_import, print_function, unicode_literals
 
-import yaml
-from yaml import nodes
 from typing import List, Union, Any
+from yaml import nodes
+import yaml
 
 from . import common
 

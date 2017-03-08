@@ -4,9 +4,9 @@ from __future__ import absolute_import, print_function, unicode_literals
 from typing import Union
 
 from . import ast
-from . import syntax
-from . import errors
 from . import bson
+from . import errors
+from . import syntax
 
 
 def validate_bson_types_list(ctxt, idl_type, syntax_type):

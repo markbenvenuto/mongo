@@ -7,10 +7,8 @@ Only validates the document is syntatically correct, not semantically.
 from __future__ import absolute_import, print_function, unicode_literals
 
 from typing import List, Union, Any
-
-import pprint
-import yaml
 from yaml import nodes
+import yaml
 
 from . import errors
 from . import syntax
@@ -291,10 +289,6 @@ def parse(stream, error_file_name="unknown"):
             parse_struct(ctxt, spec, second_node)
         else:
             ctxt.add_unknown_root_node_error(first_node)
-
-    #pp = pprint.PrettyPrinter()
-
-    #pp.pprint(spec)
 
     if ctxt.errors.has_errors():
         return syntax.IDLParsedSpec(None, ctxt.errors)

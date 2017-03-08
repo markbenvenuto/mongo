@@ -3,14 +3,14 @@ IDL compiler driver.
 """
 from __future__ import absolute_import, print_function, unicode_literals
 
-from typing import Any
-import os
 import io
+import os
+from typing import Any
 
-from . import parser
 from . import binder
-from . import generator
 from . import errors
+from . import generator
+from . import parser
 
 
 class CompilerArgs(object):
