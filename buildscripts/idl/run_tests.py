@@ -1,14 +1,21 @@
-import unittest
+#!/usr/bin/env python2
+"""
+IDL Unit Test runner
+
+Generates a file called results.xml in the XUnit format.
+"""
+
 import sys
-
-loader = unittest.defaultTestLoader
-
-all_tests = unittest.defaultTestLoader.discover(start_dir="tests")
-
+import unittest
 from xmlrunner import XMLTestRunner
 
-with open("results.xml", "wb") as output:
+if __name__ == '__main__':
 
-    runner = XMLTestRunner(verbosity=2, failfast=False, output=output)
-    result = runner.run(all_tests)
-sys.exit(not result.wasSuccessful())
+    all_tests = unittest.defaultTestLoader.discover(start_dir="tests")
+
+    with open("results.xml", "wb") as output:
+
+        runner = XMLTestRunner(verbosity=2, failfast=False, output=output)
+        result = runner.run(all_tests)
+
+    sys.exit(not result.wasSuccessful())

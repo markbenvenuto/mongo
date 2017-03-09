@@ -9,34 +9,41 @@ from . import errors
 from . import syntax
 
 
+def validate_single_bson_type(ctxt, idl_type, syntax_type):
+    # type: (errors.ParserContext, Union[syntax.Type, ast.Field], unicode) -> bool
+    """Validate bson serialization type is correct for a type."""
+    bson_types = idl_type.bson_serialization_type
+
+    # Any is only valid if it is the only bson type specified
+    if bson_types[0] == "any":
+        return True
+
+    if not bson.is_valid_bson_type(bson_types[0]):
+        ctxt.add_bad_bson_type(idl_type, syntax_type, idl_type.name, bson_types[0])
+        return False
+
+    # Validate bindata_subytpe
+    if bson_types[0] == "bindata":
+        subtype = idl_type.bindata_subtype
+
+        if subtype is None:
+            subtype = "<unknown>"
+
+        if not bson.is_valid_bindata_subtype(subtype):
+            ctxt.add_bad_bson_bindata_subtype_value(idl_type, syntax_type, idl_type.name, subtype)
+    elif idl_type.bindata_subtype is not None:
+        ctxt.add_bad_bson_bindata_subtype(idl_type, syntax_type, idl_type.name, bson_types[0])
+
+    return True
+
+
 def validate_bson_types_list(ctxt, idl_type, syntax_type):
     # type: (errors.ParserContext, Union[syntax.Type, ast.Field], unicode) -> bool
-    """Validate each type for its bson serialization type is correct."""
+    """Validate bson serialization type(s) is correct for a type."""
 
     bson_types = idl_type.bson_serialization_type
     if len(bson_types) == 1:
-        # Any is only valid if it is the only bson type specified
-        if bson_types[0] == "any":
-            return True
-
-        if not bson.is_valid_bson_type(bson_types[0]):
-            ctxt.add_bad_bson_type(idl_type, syntax_type, idl_type.name, bson_types[0])
-            return False
-
-        # Validate bindata_subytpe
-        if bson_types[0] == "bindata":
-            subtype = idl_type.bindata_subtype
-
-            if subtype is None:
-                subtype = "<unknown>"
-
-            if not bson.is_valid_bindata_subtype(subtype):
-                ctxt.add_bad_bson_bindata_subtype_value(idl_type, syntax_type, idl_type.name,
-                                                        subtype)
-        elif idl_type.bindata_subtype is not None:
-            ctxt.add_bad_bson_bindata_subtype(idl_type, syntax_type, idl_type.name, bson_types[0])
-
-        return True
+        return validate_single_bson_type(ctxt, idl_type, syntax_type)
 
     for bson_type in bson_types:
 
@@ -119,7 +126,7 @@ def bind_struct(ctxt, parsed_spec, struct):
     # type: (errors.ParserContext, syntax.IDLSpec, syntax.Struct) -> ast.Struct
     """
     Bind a struct.
-    
+
     - Validating a struct and fields.
     - Create the AST version from the syntax tree.
     """
@@ -241,8 +248,8 @@ def bind_field(ctxt, parsed_spec, field):
     return ast_field
 
 
-def bind_globals(ctxt, parsed_spec):
-    # type: (errors.ParserContext, syntax.IDLSpec) -> ast.Global
+def bind_globals(parsed_spec):
+    # type: (syntax.IDLSpec) -> ast.Global
     """Bind the globals object from the syntax tree into the ast tree by doing a deep copy."""
     if parsed_spec.globals:
         ast_global = ast.Global(parsed_spec.globals.file_name, parsed_spec.globals.line,
@@ -266,7 +273,7 @@ def bind(parsed_spec):
 
     bound_spec = ast.IDLAST()
 
-    bound_spec.globals = bind_globals(ctxt, parsed_spec)
+    bound_spec.globals = bind_globals(parsed_spec)
 
     validate_types(ctxt, parsed_spec)
 

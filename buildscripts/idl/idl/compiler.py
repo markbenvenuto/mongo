@@ -33,7 +33,7 @@ def compile_idl(args):
     if not os.path.exists(args.input_file):
         print("ERROR: File '%s' not found" % (args.input_file))
 
-    # TODO: resolve the paths, and log if they do not exist
+    # TODO: resolve the paths, and log if they do not exist under verbose
     #for import_dir in args.import_directories:
     #    if not os.path.exists(args.input_file):
 
@@ -67,12 +67,3 @@ def compile_idl(args):
             parsed_doc.errors.dump_errors()
 
         return False
-    # TODO: bind and validate the tree
-
-    #spec.dump()
-
-    # Dump code for all the generated files
-    # 1. Generate Header file
-    # 2. Generate C++ file stuff    
-
-    # Create series of classes to generate code for each type

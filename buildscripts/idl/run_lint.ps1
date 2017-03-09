@@ -1,4 +1,4 @@
-$ErrorActionPreference = “Stop”
+$ErrorActionPreference = "Stop"
 
 # Format code
 C:\Python36\Scripts\yapf.exe -i -r .
@@ -12,3 +12,4 @@ if ($LASTEXITCODE -ne 0) {
 # Run pylint
 # Run pydocstyle
 #python -m tests.test_binder
+# pylint -f msvs -r n .\idl

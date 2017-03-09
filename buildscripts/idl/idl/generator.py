@@ -438,8 +438,9 @@ class CppFileWriter(object):
                             # Generate custom serialization
                             method_name = get_method_name(field.serializer)
 
-                            if len(field.bson_serialization_type
-                                   ) == 1 and field.bson_serialization_type[0] == "string":
+                            if len(field.bson_serialization_type) == 1 and \
+                                field.bson_serialization_type[0] == "string":
+                                # TODO: expand this out to be less then a string only hack
                                 self._writer.write_line('auto tempValue = %s.%s();' %
                                                         (self._access_member(field), method_name))
                                 self._writer.write_line('builder->append("%s", tempValue);' %

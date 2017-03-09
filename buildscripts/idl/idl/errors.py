@@ -55,6 +55,7 @@ class ParserError(common.SourceLocation):
     def __init__(self, error_id, msg, file_name, line, column):
         # type: (unicode, unicode, unicode, int, int) -> None
         """"Construct a parser error with source location information."""
+        # pylint: disable=too-many-arguments
         self.error_id = error_id
         self.msg = msg
         super(ParserError, self).__init__(file_name, line, column)
@@ -86,6 +87,7 @@ class ParserErrorCollection(object):
 
     def to_list(self):
         # type: () -> List[unicode]
+        """Return a list of formatted error messages."""
         return [
             "%s: (%d, %d): %s: %s" % (error.file_name, error.line, error.column, error.error_id,
                                       error.msg) for error in self._errors
@@ -117,6 +119,8 @@ class ParserContext(object):
     - keeping track of current file during imports
     - tracking error messages
     """
+
+    # pylint: disable=too-many-public-methods
 
     def __init__(self, file_name, errors):
         # type: (unicode, ParserErrorCollection) -> None
@@ -285,6 +289,7 @@ class ParserContext(object):
     def add_bad_bson_bindata_subtype_value(self, location, ast_type, ast_parent, value):
         # type: (common.SourceLocation, unicode, unicode, unicode) -> None
         """Add an error about a bad value for bindata_subtype."""
+        # pylint: disable=invalid-name
         self._add_error(location, ERROR_ID_BAD_BSON_BINDATA_SUBTYPE_VALUE,
                         ("The bindata_subtype field's value '%s' for %s '%s' is not valid.") %
                         (value, ast_type, ast_parent))

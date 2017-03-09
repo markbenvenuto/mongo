@@ -56,6 +56,7 @@ def parse_global(ctxt, spec, node):
 def parse_type(ctxt, spec, node):
     # type: (errors.ParserContext, syntax.IDLSpec, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> None
     """Parse a type section in the IDL file."""
+    # pylint: disable=too-many-branches
     if not ctxt.is_mapping_node(node, "type"):
         return
 
@@ -120,6 +121,7 @@ def parse_type(ctxt, spec, node):
 def parse_field(ctxt, name, node):
     # type: (errors.ParserContext, str, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> syntax.Field
     """Parse a field in a struct/command in the IDL file."""
+    # pylint: disable=too-many-branches
     field = syntax.Field(ctxt.file_name, node.start_mark.line, node.start_mark.column)
 
     field_name_set = set()  # type: Set[str]
@@ -166,8 +168,8 @@ def parse_field(ctxt, name, node):
     return field
 
 
-def parse_fields(ctxt, spec, node):
-    # type: (errors.ParserContext, syntax.IDLSpec, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> List[syntax.Field]
+def parse_fields(ctxt, node):
+    # type: (errors.ParserContext, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> List[syntax.Field]
     """Parse a fields section in a struct in the IDL file."""
 
     fields = []
@@ -203,6 +205,7 @@ def parse_fields(ctxt, spec, node):
 def parse_struct(ctxt, spec, node):
     # type: (errors.ParserContext, syntax.IDLSpec, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> None
     """Parse a struct section in the IDL file."""
+    # pylint: disable=too-many-branches
     if not ctxt.is_mapping_node(node, "struct"):
         return
 
@@ -230,7 +233,7 @@ def parse_struct(ctxt, spec, node):
                 struct.strict = ctxt.get_bool(second_node)
         elif first_name == "fields":
             if ctxt.is_mapping_node(second_node, "fields"):
-                struct.fields = parse_fields(ctxt, spec, second_node)
+                struct.fields = parse_fields(ctxt, second_node)
         else:
             ctxt.add_unknown_node_error(first_node, "struct")
 
@@ -251,7 +254,7 @@ def parse(stream, error_file_name="unknown"):
     # type: (Any, unicode) -> syntax.IDLParsedSpec
     """
     Parse a YAML document into an AST.
-    
+
     error_file_name just a file name for error messages to use.
     """
 
