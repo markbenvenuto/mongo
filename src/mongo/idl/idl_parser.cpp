@@ -125,5 +125,9 @@ void IDLParserErrorContext::throwMissingField(StringData fieldName) {
     uasserted(65014, str::stream() << "BSON field '" << path << "' is missing but required");
 
 }
+void IDLParserErrorContext::throwUnknownField(StringData fieldName) {
+    std::string path = getElementPath(fieldName);
+    uasserted(65015, str::stream() << "BSON field '" << path << "' is an unknown field.");
 
+}
 }  //namespace mongo

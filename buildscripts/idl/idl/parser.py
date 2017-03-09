@@ -142,10 +142,10 @@ def parse_field(ctxt, name, node):
                 field.type = second_node.value
             elif first_name == "ignore":
                 if ctxt.is_scalar_bool_node(second_node, "ignore"):
-                    field.ignore = second_node.value
+                    field.ignore = ctxt.get_bool(second_node)
             elif first_name == "optional":
                 if ctxt.is_scalar_bool_node(second_node, "optional"):
-                    field.optional = second_node.value
+                    field.optional = ctxt.get_bool(second_node)
             elif first_name == "description":
                 field.description = second_node.value
             elif first_name == "cpp_type":
@@ -227,7 +227,7 @@ def parse_struct(ctxt, spec, node):
                 struct.description = second_node.value
         elif first_name == "strict":
             if ctxt.is_scalar_bool_node(second_node, "strict"):
-                struct.strict = second_node.value
+                struct.strict = ctxt.get_bool(second_node)
         elif first_name == "fields":
             if ctxt.is_mapping_node(second_node, "fields"):
                 struct.fields = parse_fields(ctxt, spec, second_node)

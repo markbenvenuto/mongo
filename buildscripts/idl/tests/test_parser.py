@@ -143,6 +143,7 @@ class Test_parser(testcase.IDLTestcase):
         type:
             name: foo
             bogus: foo
+            description: test
             cpp_type: foo
             bson_serialization_type:
             """), idl.errors.ERROR_ID_UNKNOWN_NODE)
@@ -153,6 +154,7 @@ class Test_parser(testcase.IDLTestcase):
         type:
             name: foo
             name: foo
+            description: test
             cpp_type: foo
             bson_serialization_type:
             """), idl.errors.ERROR_ID_DUPLICATE_NODE)
@@ -173,6 +175,7 @@ class Test_parser(testcase.IDLTestcase):
         type:
             name:
                 foo: bar
+            description: test
             """),
             idl.errors.ERROR_ID_IS_NODE_TYPE,
             multiple=True)
@@ -248,7 +251,7 @@ class Test_parser(testcase.IDLTestcase):
             textwrap.dedent("""
         struct:
             name: foo
-            description: foo
+            descripion: foo
             foo: bar
             fields:
                 foo: bar

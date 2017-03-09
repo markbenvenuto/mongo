@@ -123,6 +123,7 @@ def bind_struct(ctxt, parsed_spec, struct):
     ast_struct = ast.Struct(struct.file_name, struct.line, struct.column)
     ast_struct.name = struct.name
     ast_struct.description = struct.description
+    ast_struct.strict = struct.strict
 
     # Validate naming restrictions
     if ast_struct.name.startswith("array"):

@@ -94,6 +94,7 @@ class Test_Binder(testcase.IDLTestcase):
 
             struct:
                 name: foofoo
+                description: test
                 fields:
                     bar:
                         type: string
@@ -122,6 +123,7 @@ class Test_Binder(testcase.IDLTestcase):
 
             struct:
                 name: foofoo
+                description: test
                 fields:
                     bar:
                         type: string
@@ -133,7 +135,7 @@ class Test_Binder(testcase.IDLTestcase):
 
         # Test supported types
         for bson_type in [
-                "bool", "date", "null", "numberdecimal", "numberdouble", "numberint", "numberlong",
+                "bool", "date", "null", "decimal", "double", "int", "long",
                 "object", "objectid", "regex", "string", "timestamp", "undefined"
         ]:
             self.assert_bind_type_properties(

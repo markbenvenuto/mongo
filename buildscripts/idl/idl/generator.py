@@ -165,7 +165,7 @@ class FieldUsageChecker(object):
     def add_final_checks(self):
         # type: () -> None
         for field in self.fields:
-            if not field.optional:
+            if (not field.optional) and (not field.ignore):
                 # TODO: improve if we know the storage is optional
                 with IndentedScopedBlock(self._writer, 'if (usedFields.find("%s") == usedFields.end()) {' % field.name, "}"):
                     self._writer.write_line('ctxt.throwMissingField("%s");'  % field.name )
@@ -381,13 +381,21 @@ class CppFileWriter(object):
                                         self._get_field_member_name(field), method_name))
                                 else:
                                     # Custom method, call the method on object
-                                    method_name = get_method_name(field.deserializer)
-                                    self._writer.write_line("object.%s.%s(element);" % (
-                                        self._get_field_member_name(field), method_name))
+                                    method_name = "valueStringData"
+                                    self._writer.write_line("auto tempValue = element.%s();" % (method_name))
+
+                                    method_name2 = get_method_name(field.deserializer)
+                                    self._writer.write_line("object.%s = %s(tempValue);" % (
+                                        self._get_field_member_name(field), method_name2))
             
                     if first_field:
                         first_field = False
 
+                #End of fields
+                if struct.strict:
+                    with self._block("else {", "}"):
+                        self._writer.write_line("ctxt.throwUnknownField(fieldName);")
+                        
             self._writer.write_empty_line()
 
             # Check for required fields

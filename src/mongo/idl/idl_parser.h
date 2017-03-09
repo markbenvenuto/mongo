@@ -30,7 +30,7 @@ public:
     void throwDuplicateField(const  BSONElement& element);
     void throwMissingField(StringData fieldName);
 
-    void throwUnknownField(const BSONElement&, StringData str);
+    void throwUnknownField(StringData fieldName);
     void throwMissingRequiredField(StringData str);
     //NamespaceString parseCommandNamespace(BSONElement&, StringData str);
 
