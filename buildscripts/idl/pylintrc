@@ -1,0 +1,5 @@
+[MESSAGES CONTROL]
+# C0301 line-too-long - some of the type annotations are longer then 100 columns
+# R0903 Too few public methods - pylint does not know best
+# W0611 - unused import - typing module is needed for mypy
+disable=C0301,R0903,W0611,I0011

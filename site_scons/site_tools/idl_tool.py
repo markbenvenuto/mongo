@@ -1,7 +1,7 @@
+import os.path
 import sys
 
 import SCons
-import os.path
 
 def idlc_emitter(target, source, env):
     
@@ -19,7 +19,7 @@ def idlc_emitter(target, source, env):
 
 IDLCAction = SCons.Action.Action('$IDLCCOM', '$IDLCCOMSTR')
 
-# TODO - create a scanner for imports when imports are implemented
+# TODO: create a scanner for imports when imports are implemented
 IDLCBuilder = SCons.Builder.Builder(
     action = IDLCAction,
     emitter = idlc_emitter,

@@ -130,6 +130,7 @@ class Type(common.SourceLocation):
 
     Not all fields are populated.
     """
+    # pylint: disable=too-many-instance-attributes
 
     def __init__(self, file_name, line, column):
         # type: (unicode, int, int) -> None
@@ -153,6 +154,7 @@ class Field(common.SourceLocation):
     Name is always populated.
     Other fields may not be populated.
     """
+    # pylint: disable=too-many-instance-attributes
 
     def __init__(self, file_name, line, column):
         # type: (unicode, int, int) -> None

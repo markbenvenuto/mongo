@@ -66,6 +66,7 @@ class Field(common.SourceLocation):
     A struct will either have a struct or a cpp_type, not both.
     Not all fields are set.
     """
+    # pylint: disable=too-many-instance-attributes
 
     def __init__(self, file_name, line, column):
         # type: (unicode, int, int) -> None
