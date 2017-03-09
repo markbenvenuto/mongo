@@ -91,14 +91,18 @@ def validate_type_properties(ctxt, idl_type, syntax_type):
             if idl_type.serializer is None:
                 ctxt.add_missing_ast_required_field(idl_type, syntax_type, idl_type.name,
                                                     "serializer")
+        elif not bson_type == "string":
+            # TODO: Assert this is a BSONElemenet decoder
+            pass
     else:
         # Now, this is a list of scalar types
         if idl_type.deserializer is None:
             ctxt.add_missing_ast_required_field(idl_type, syntax_type, idl_type.name,
                                                 "deserializer")
+        # TODO: Assert this is a BSONElemenet decoder
 
-    # Validate cpp_type
-    # Do not allow StringData, use std::string instead.abs
+        # Validate cpp_type
+        # Do not allow StringData, use std::string instead.abs
     if "StringData" in idl_type.cpp_type:
         ctxt.add_no_string_data(idl_type, syntax_type, idl_type.name)
 

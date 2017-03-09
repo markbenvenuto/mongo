@@ -171,7 +171,7 @@ struct:
 
 ##################################################################################################
 #
-# Test 
+# Test a custom non-BSONElement deserialization and serialization methods
 #
 ##################################################################################################
 
@@ -188,3 +188,27 @@ struct:
     description: UnitTest for a single namespacestring
     fields:
         value: namespacestring
+
+##################################################################################################
+#
+# Test types that accept multiple serialization types
+#
+##################################################################################################
+
+
+type:
+    name: safeInt32
+    description: Accepts any numerical type within int32 range
+    cpp_type: int64_t
+    bson_serialization_type: 
+                            - long
+                            - int
+                            - decimal
+                            - double
+    deserializer: "mongo::BSONElement::numberInt"
+
+struct:
+    name: one_safeint32
+    description: UnitTest for a single safeInt32
+    fields:
+        value: safeInt32

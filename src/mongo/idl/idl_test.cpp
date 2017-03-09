@@ -51,7 +51,7 @@ void TestLoopback(TestT test_value) {
     auto testStruct = ParserT::parse(ctxt, testDoc);
     ASSERT_EQUALS(testStruct.getValue(), test_value);
 
-    // Test we can roundtrip from the just parsed document
+    // Positive: Test we can roundtrip from the just parsed document
     {
         BSONObjBuilder builder;
         testStruct.serialize(&builder);
@@ -60,7 +60,7 @@ void TestLoopback(TestT test_value) {
         ASSERT_BSONOBJ_EQ(testDoc, loopbackDoc);
     }
 
-    // Test we can serialize from nothing the same document
+    // Positive: Test we can serialize from nothing the same document
     {
         BSONObjBuilder builder;
         ParserT one_new;
@@ -126,7 +126,6 @@ void TestParsers() {
     TestParse<ParserT, Parser_bson_type, Timestamp, bsonTimestamp>(Timestamp::max());
 }
 
-
 // Negative: document with wrong types for required field
 TEST(IDLOneTypeTests, TestNegativeWrongTypes) {
     TestParsers<One_string, String>();
@@ -138,6 +137,59 @@ TEST(IDLOneTypeTests, TestNegativeWrongTypes) {
     TestParsers<One_objectid, jstOID>();
     TestParsers<One_date, Date>();
     TestParsers<One_timestamp, bsonTimestamp>();
+}
+
+// Mixed: test a type that accepts multiple bson types
+TEST(IDLOneTypeTests, TestSafeInt32) {
+    TestParse<One_safeint32, NumberInt, StringData, String>("test_value");
+    TestParse<One_safeint32, NumberInt, std::int32_t, NumberInt>(123);
+    TestParse<One_safeint32, NumberLong, std::int64_t, NumberLong>(456);
+    TestParse<One_safeint32, NumberDouble, double, NumberDouble>(3.14159);
+    //TestParse<One_safeint32, Decimal, Decimal,String>("test_value");
+    TestParse<One_safeint32, NumberInt, bool, Bool>(true);
+    TestParse<One_safeint32, NumberInt, OID, jstOID>(OID::max());
+    TestParse<One_safeint32, NumberInt, Date_t, Date>(Date_t::now());
+    TestParse<One_safeint32, NumberInt, Timestamp, bsonTimestamp>(Timestamp::max());
+}
+
+// Mixed: test a type that accepts NamespaceString
+TEST(IDLOneTypeTests, TestNamespaceString) {
+    IDLParserErrorContext ctxt("root");
+
+    auto testDoc = BSON("value" << "foo.bar");
+
+    auto element = testDoc.firstElement();
+    ASSERT_EQUALS(element.type(), String);
+
+    auto testStruct = One_namespacestring::parse(ctxt, testDoc);
+    ASSERT_EQUALS(testStruct.getValue(), NamespaceString("foo.bar"));
+
+    // Positive: Test we can roundtrip from the just parsed document
+    {
+        BSONObjBuilder builder;
+        testStruct.serialize(&builder);
+        auto loopbackDoc = builder.obj();
+
+        ASSERT_BSONOBJ_EQ(testDoc, loopbackDoc);
+    }
+
+    // Positive: Test we can serialize from nothing the same document
+    {
+        BSONObjBuilder builder;
+        One_namespacestring one_new;
+        one_new.setValue(NamespaceString("foo.bar"));
+        testStruct.serialize(&builder);
+
+        auto serializedDoc = builder.obj();
+        ASSERT_BSONOBJ_EQ(testDoc, serializedDoc);
+    }
+
+    // Negative: invalid namespace
+    {
+        auto testBadDoc = BSON("value" << StringData("foo\0bar", 7));
+
+        ASSERT_THROWS(One_namespacestring::parse(ctxt, testBadDoc), UserException);
+    }
 }
 
 // Positive
@@ -270,7 +322,6 @@ TEST(IDLFieldTests, TestStrictStructIgnoredField) {
         auto testDoc = BSON("required_field" << 123 << "ignored_field" << 1234 << "ignored_field" << 1234);
         ASSERT_THROWS(IgnoredField::parse(ctxt, testDoc), UserException);
     }
-
 }
 
 

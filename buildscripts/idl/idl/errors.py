@@ -200,7 +200,7 @@ class ParserContext(object):
         """Return True if this YAML node is a Scalar and a valid boolean."""
         if not self._is_node_type(node, node_name, "scalar"):
             return False
-        
+
         if not (node.value == "true" or node.value == "false"):
             self._add_node_error(node, ERROR_ID_IS_NODE_VALID_BOOL,
                                  "Illegal bool value for '%s', expected either 'true' or 'false'." %

@@ -107,7 +107,7 @@ def parse_type(ctxt, spec, node):
 
     if idltype.cpp_type is None:
         ctxt.add_missing_required_field(node, "type", "cpp_type")
-    
+
     if idltype.description is None:
         ctxt.add_missing_required_field(node, "type", "description")
 

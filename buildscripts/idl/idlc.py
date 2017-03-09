@@ -9,6 +9,7 @@ import sys
 
 import idl.compiler
 
+
 def main():
     # type: () -> None
     """Main Entry point"""
