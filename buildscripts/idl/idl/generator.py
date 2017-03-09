@@ -95,7 +95,7 @@ class IndentedTextWriter(object):
 
 
 class EmptyBlock(object):
-    """Do not generate an indented block stuff."""
+    """Do not generate an indented block."""
 
     def __init__(self):
         # type: () -> None
