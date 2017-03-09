@@ -1,4 +1,4 @@
-"""Generator"""
+"""IDL C++ Code Generator."""
 from __future__ import absolute_import, print_function, unicode_literals
 
 import io
@@ -11,7 +11,6 @@ from . import bson
 
 INDENT_SPACE_COUNT = 4
 
-
 def camel_case(name):
     # type: (unicode) -> unicode
     """Return a camelCased version of a string."""
@@ -22,6 +21,7 @@ def camel_case(name):
 
 def get_method_name(name):
     # type: (unicode) -> unicode
+    """Get a method name from a fully qualified method name."""
     # TODO: in the future, we may want to support full-qualified calls to static methods
     pos = name.rfind("::")
     if pos == -1:
@@ -57,12 +57,13 @@ class IndentedTextWriter(object):
 
     def __init__(self, stream):
         # type: (io.StringIO) -> None
+        """Create an indented text writer."""
         self._stream = stream
         self._indent = 0
 
     def write_unindented_line(self, msg):
         # type: (unicode) -> None
-        """Write a line to the stream"""
+        """Write an unindented line to the stream."""
         self._stream.write(msg)
         self._stream.write(u"\n")
 
@@ -99,56 +100,70 @@ class EmptyBlock(object):
 
     def __init__(self):
         # type: () -> None
+        """Create an empty block."""
         pass
 
     def __enter__(self):
         # type: () -> None
+        """Do nothing."""
         pass
 
     def __exit__(self, *args):
         # type: (*str) -> None
+        """Do nothing."""
         pass
 
 
 class ScopedBlock(object):
+    """Generate a block that is not indented."""
+
     def __init__(self, writer, opening, closing):
         # type: (IndentedTextWriter, unicode, unicode) -> None
+        """Create a block."""
         self._writer = writer
         self._opening = opening
         self._closing = closing
 
     def __enter__(self):
         # type: () -> None
+        """Write the beginning of the block and do not indent."""
         self._writer.write_unindented_line(self._opening)
 
     def __exit__(self, *args):
         # type: (*str) -> None
+        """Write the end of the block and do not change indentation."""
         self._writer.write_unindented_line(self._closing)
 
 
 class IndentedScopedBlock(object):
+    """Generate a block that is not indented."""
+
     def __init__(self, writer, opening, closing):
         # type: (IndentedTextWriter, unicode, unicode) -> None
+        """Create a block."""
         self._writer = writer
         self._opening = opening
         self._closing = closing
 
     def __enter__(self):
         # type: () -> None
+        """Write the beginning of the block and then indent."""
         self._writer.write_line(self._opening)
         self._writer.indent()
 
     def __exit__(self, *args):
         # type: (*str) -> None
+        """Unindent the block and print the ending."""
         self._writer.unindent()
         self._writer.write_line(self._closing)
 
 
 class FieldUsageChecker(object):
-    # Check for duplicate fields, and required fields as needed
+    """Check for duplicate fields, and required fields as needed."""
 
     def __init__(self, writer):
         # type: (IndentedTextWriter) -> None
+        """Create a field usage checker."""
         self._writer = writer  # type: IndentedTextWriter
         self.fields = set()  # type: Set[ast.Field]
 
@@ -156,16 +171,19 @@ class FieldUsageChecker(object):
 
     def add_store(self):
         # type: () -> None
+        """Create the C++ store initialization code."""
         self._writer.write_line('auto push_result = usedFields.insert(fieldName);')
         with IndentedScopedBlock(self._writer, "if (push_result.second == false) {", "}"):
             self._writer.write_line('ctxt.throwDuplicateField(element);')
 
     def add(self, field):
         # type: (ast.Field) -> None
+        """Add a field to track."""
         self.fields.add(field)
 
     def add_final_checks(self):
         # type: () -> None
+        """Output the code to check for missing fields."""
         for field in self.fields:
             if (not field.optional) and (not field.ignore):
                 # TODO: improve if we know the storage is optional
@@ -185,14 +203,17 @@ class CppFileWriter(object):
 
     def __init__(self, writer):
         # type: (IndentedTextWriter) -> None
+        """Create a C++ code writer."""
         self._writer = writer  # type: IndentedTextWriter
 
     def write_unindented_line(self, msg):
         # type: (unicode) -> None
+        """Write an unindented line to the stream."""
         self._writer.write_unindented_line(msg)
 
     def write_empty_line(self):
         # type: () -> None
+        """Write an empty line to the stream."""
         self._writer.write_empty_line()
 
     def gen_include(self, include):
@@ -200,17 +221,20 @@ class CppFileWriter(object):
         """Generate a C++ include line."""
         self._writer.write_unindented_line('#include "%s"' % include)
 
-    def gen_namespace(self, namespace):
+    def gen_namespace_block(self, namespace):
         # type: (unicode) -> ScopedBlock
+        """Generate a namespace block."""
         return ScopedBlock(self._writer, "namespace %s {" % namespace,
                            "}  // namespace %s" % namespace)
 
-    def gen_class_declaration(self, class_name):
+    def gen_class_declaration_block(self, class_name):
         # type: (unicode) -> IndentedScopedBlock
+        """Generate a class declaration block."""
         return IndentedScopedBlock(self._writer, "class %s {" % camel_case(class_name), "};")
 
     def gen_serializer_methods(self, class_name):
         # type: (unicode) -> None
+        """Generate a serializer method declarations."""
         self._writer.write_line(
             "static %s parse(IDLParserErrorContext& ctxt, const BSONObj& object);" %
             camel_case(class_name))
@@ -219,6 +243,7 @@ class CppFileWriter(object):
 
     def _get_field_cpp_type(self, field):
         # type: (ast.Field) -> unicode
+        """Get the C++ type name for a field."""
         assert field.cpp_type is not None or field.struct_type is not None
 
         if field.struct_type:
@@ -232,6 +257,7 @@ class CppFileWriter(object):
 
     def _get_field_parameter_type(self, field):
         # type: (ast.Field) -> unicode
+        """Get the C++ type name for a parameter for a field."""
         assert field.cpp_type is not None or field.struct_type is not None
 
         cpp_type = self._get_field_cpp_type(field)
@@ -243,14 +269,17 @@ class CppFileWriter(object):
 
     def _get_field_member_type(self, field):
         # type: (ast.Field) -> unicode
+        """Get the C++ type name for a class member for a field."""
         return self._get_field_parameter_type(field)
 
     def _get_field_member_name(self, field):
         # type: (ast.Field) -> unicode
+        """Get the C++ class member name for a field."""
         return "_" + field.name
 
     def gen_getter(self, field):
         # type: (ast.Field) -> None
+        """Generate the C++ getter definition for a field."""
         cpp_type = self._get_field_cpp_type(field)
         param_type = self._get_field_parameter_type(field)
         member_name = self._get_field_member_name(field)
@@ -270,6 +299,7 @@ class CppFileWriter(object):
 
     def gen_setter(self, field):
         # type: (ast.Field) -> None
+        """Generate the C++ setter definition for a field."""
         param_type = self._get_field_parameter_type(field)
         member_name = self._get_field_member_name(field)
 
@@ -279,13 +309,15 @@ class CppFileWriter(object):
 
     def gen_member(self, field):
         # type: (ast.Field) -> None
+        """Generate the C++ class member definition for a field."""
         member_type = self._get_field_member_type(field)
         member_name = self._get_field_member_name(field)
 
         self._writer.write_line("%s %s;" % (member_type, member_name))
 
-    def gen_bson_type_check(self, field):
+    def get_bson_type_check(self, field):
         # type: (ast.Field) -> unicode
+        """Get the C++ bson type check for a field."""
         bson_types = field.bson_serialization_type
         if len(bson_types) == 1:
             if bson_types[0] == "any":
@@ -304,6 +336,7 @@ class CppFileWriter(object):
 
     def _access_member(self, field):
         # type: (ast.Field) -> unicode
+        """Get the declaration to access a member for a field."""
         member_name = self._get_field_member_name(field)
         if not field.optional:
             return "%s" % member_name
@@ -312,6 +345,7 @@ class CppFileWriter(object):
 
     def _block(self, opening, closing):
         # type: (unicode, unicode) -> Union[IndentedScopedBlock,EmptyBlock]
+        """Generate an indented block if opening is not empty."""
         if not opening:
             return EmptyBlock()
 
@@ -319,6 +353,11 @@ class CppFileWriter(object):
 
     def _predicate(self, check_str, use_else_if=False):
         # type: (unicode, bool) -> Union[IndentedScopedBlock,EmptyBlock]
+        """
+        Generate an if block if the condition is not-empty.
+
+        Generate 'else if' instead of use_else_if is True.
+        """
         if not check_str:
             return EmptyBlock()
 
@@ -331,7 +370,7 @@ class CppFileWriter(object):
     def gen_field_deserializer(self, field):
         # type: (ast.Field) -> None
         # May be an empty block if the type is any
-        type_predicate = self.gen_bson_type_check(field)
+        type_predicate = self.get_bson_type_check(field)
 
         with self._predicate(type_predicate):
 
@@ -483,11 +522,11 @@ def generate_header(spec, file_name):
     header.write_empty_line()
 
     # Generate namesapce
-    with header.gen_namespace("mongo"):
+    with header.gen_namespace_block("mongo"):
         header.write_empty_line()
 
         for struct in spec.structs:
-            with header.gen_class_declaration(struct.name):
+            with header.gen_class_declaration_block(struct.name):
                 header.write_unindented_line("public:")
 
                 # Write constructor
@@ -531,7 +570,7 @@ def generate_source(spec, file_name, header_file_name):
     source.write_empty_line()
 
     # Generate namesapce
-    with source.gen_namespace("mongo"):
+    with source.gen_namespace_block("mongo"):
         source.write_empty_line()
 
         for struct in spec.structs:
