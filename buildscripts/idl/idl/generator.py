@@ -292,7 +292,7 @@ class CppFileWriter(object):
             optional_ampersand = ""
             body = "return %s(%s);" % (param_type, member_name)
 
-        # TODO: generate xvalue 
+        # TODO: generate xvalue
         #  WriteConcernWriteField getW() && { return std::move(_w); } = delete
 
         self._writer.write_line("const %s%s get%s() const { %s }" %
@@ -370,6 +370,7 @@ class CppFileWriter(object):
 
     def gen_field_deserializer(self, field):
         # type: (ast.Field) -> None
+        """Generate the C++ deserializer piece for a few field."""
         # May be an empty block if the type is any
         type_predicate = self.get_bson_type_check(field)
 
@@ -399,6 +400,7 @@ class CppFileWriter(object):
 
     def gen_deserializer_method(self, struct):
         # type: (ast.Struct) -> None
+        """Generate the C++ deserializer method definition."""
 
         with self._block("%s %s::parse(IDLParserErrorContext& ctxt, const BSONObj& bsonObject) {" %
                          (camel_case(struct.name), camel_case(struct.name)), "}"):
@@ -456,6 +458,7 @@ class CppFileWriter(object):
 
     def gen_serializer_method(self, struct):
         # type: (ast.Struct) -> None
+        """Generate the serialize method definition."""
 
         with self._block("void %s::serialize(BSONObjBuilder* builder) const {" %
                          camel_case(struct.name), "}"):
@@ -506,6 +509,7 @@ class CppFileWriter(object):
 
 def generate_header(spec, file_name):
     # type: (ast.IDLAST, unicode) -> None
+    """Generate a C++ header."""
     stream = io.StringIO()
     text_writer = IndentedTextWriter(stream)
 
@@ -558,6 +562,7 @@ def generate_header(spec, file_name):
 
 def generate_source(spec, file_name, header_file_name):
     # type: (ast.IDLAST, unicode, unicode) -> None
+    """Generate a C++ source file."""
     stream = io.StringIO()
     text_writer = IndentedTextWriter(stream)
 
@@ -593,6 +598,7 @@ def generate_source(spec, file_name, header_file_name):
 
 def generate_code(spec, header_file_name, source_file_name):
     # type: (ast.IDLAST, unicode, unicode) -> None
+    """Generate a C++ header and source file."""
     #self._stream = io.open(file_name, mode="w")
 
     generate_header(spec, header_file_name)
