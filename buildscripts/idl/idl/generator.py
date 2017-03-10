@@ -11,6 +11,7 @@ from . import bson
 
 INDENT_SPACE_COUNT = 4
 
+
 def camel_case(name):
     # type: (unicode) -> unicode
     """Return a camelCased version of a string."""
