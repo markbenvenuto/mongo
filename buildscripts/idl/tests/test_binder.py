@@ -232,6 +232,22 @@ class TestBinder(testcase.IDLTestcase):
                     bson_serialization_type: int
                     """ % (cpp_type)), idl.errors.ERROR_ID_BAD_NUMERIC_CPP_TYPE)
 
+        # Test the std prefix 8 and 16-byte integers fail
+        for std_cpp_type in [
+                "std::int8_t",
+                "std::int16_t",
+                "std::uint8_t",
+                "std::uint16_t"]:
+            self.assert_bind_fail(
+                textwrap.dedent("""
+                type:
+                    name: foofoo
+                    description: foo
+                    cpp_type: %s
+                    bson_serialization_type: int
+                    """ % (cpp_type)), idl.errors.ERROR_ID_BAD_NUMERIC_CPP_TYPE)
+
+
         # Test bindata_subtype missing
         self.assert_bind_fail(
             textwrap.dedent("""
