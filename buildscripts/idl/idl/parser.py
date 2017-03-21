@@ -101,6 +101,9 @@ def _generic_parser(
         if not rule_desc.required == _RuleDesc.REQUIRED:
             continue
 
+        # A bool is never "None" like other types, it simply defaults to "false".
+        # It means "if bool is None" will always return false and there is no support for required
+        # 'bool' at this time.
         if not rule_desc.node_type == 'bool_scalar':
             if syntax_node.__dict__[name] is None:
                 ctxt.add_missing_required_field_error(node, syntax_node_name, name)
