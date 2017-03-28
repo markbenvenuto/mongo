@@ -193,13 +193,13 @@ TEST(IDLOneTypeTests, TestAnyType) {
     {
         auto testDoc = BSON("value"
                             << "Foo");
-        auto testStruct = One_any_basic_type::parse(ctxt, testDoc);
+        constOne_any_basic_type::parse(ctxt, testDoc);
     }
 
     // Positive: int field
     {
         auto testDoc = BSON("value" << 12);
-        auto testStruct = One_any_basic_type::parse(ctxt, testDoc);
+        constOne_any_basic_type::parse(ctxt, testDoc);
     }
 }
 
@@ -211,7 +211,7 @@ TEST(IDLOneTypeTests, TestObjectType) {
     {
         auto testDoc = BSON("value" << BSON("value"
                                             << "foo"));
-        auto testStruct = One_any_basic_type::parse(ctxt, testDoc);
+        constOne_any_basic_type::parse(ctxt, testDoc);
     }
 }
 
@@ -224,13 +224,13 @@ TEST(IDLOneTypeTests, TestObjectTypeNegative) {
     {
         auto testDoc = BSON("value"
                             << "Foo");
-        auto testStruct = One_any_basic_type::parse(ctxt, testDoc);
+        constOne_any_basic_type::parse(ctxt, testDoc);
     }
 
     // Negative: int field
     {
         auto testDoc = BSON("value" << 12);
-        auto testStruct = One_any_basic_type::parse(ctxt, testDoc);
+        constOne_any_basic_type::parse(ctxt, testDoc);
     }
 }
 
@@ -244,7 +244,7 @@ TEST(IDLStructTests, TestStrictStruct) {
     // Positive: Just 3 required fields
     {
         auto testDoc = BSON("field1" << 12 << "field2" << 123 << "field3" << 1234);
-        auto testStruct = RequiredStrictField3::parse(ctxt, testDoc);
+        constRequiredStrictField3::parse(ctxt, testDoc);
     }
 
     // Negative: Missing 1 required field
@@ -283,7 +283,7 @@ TEST(IDLStructTests, TestNonStrictStruct) {
     // Positive: Just 3 required fields
     {
         auto testDoc = BSON("field1" << 12 << "field2" << 123 << "field3" << 1234);
-        auto testStruct = RequiredNonStrictField3::parse(ctxt, testDoc);
+        constRequiredNonStrictField3::parse(ctxt, testDoc);
     }
 
     // Negative: Missing 1 required field
@@ -304,7 +304,7 @@ TEST(IDLStructTests, TestNonStrictStruct) {
     {
         auto testDoc =
             BSON("field1" << 12 << "field2" << 123 << "field3" << 1234 << "field4" << 1234);
-        auto testStruct = RequiredNonStrictField3::parse(ctxt, testDoc);
+        constRequiredNonStrictField3::parse(ctxt, testDoc);
     }
 
     // Negative: Duplicate field
@@ -331,13 +331,13 @@ TEST(IDLFieldTests, TestStrictStructIgnoredField) {
     // Positive: Test ignored field is ignored
     {
         auto testDoc = BSON("required_field" << 12 << "ignored_field" << 123);
-        auto testStruct = IgnoredField::parse(ctxt, testDoc);
+        constIgnoredField::parse(ctxt, testDoc);
     }
 
     // Positive: Test ignored field is not required
     {
         auto testDoc = BSON("required_field" << 12);
-        auto testStruct = IgnoredField::parse(ctxt, testDoc);
+        constIgnoredField::parse(ctxt, testDoc);
     }
 }
 
