@@ -74,11 +74,6 @@ def compile_idl(args):
         source_file_name = args.output_source
         header_file_name = args.output_header
 
-    output_base_dir = None
-    if args.output_base_dir:
-        output_base_dir = args.output_base_dir
-        output_base_dir = output_base_dir.replace("#", "")
-
     # Compile the IDL through the 3 passes
     with io.open(args.input_file) as file_stream:
         parsed_doc = parser.parse(file_stream, error_file_name=error_file_name)
@@ -86,7 +81,7 @@ def compile_idl(args):
         if not parsed_doc.errors:
             bound_doc = binder.bind(parsed_doc.spec)
             if not bound_doc.errors:
-                generator.generate_code(bound_doc.spec, output_base_dir, header_file_name,
+                generator.generate_code(bound_doc.spec, args.output_base_dir, header_file_name,
                                         source_file_name)
 
                 return True
