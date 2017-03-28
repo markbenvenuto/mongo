@@ -49,6 +49,7 @@ namespace mongo {
  */
 class IDLParserErrorContext {
     MONGO_DISALLOW_COPYING(IDLParserErrorContext);
+
 public:
     IDLParserErrorContext(StringData fieldName) : _currentField(fieldName), _predecessor(nullptr) {}
 
