@@ -216,9 +216,6 @@ private:
     ClientMetadata() = default;
 
     Status parseClientMetadataDocument(const BSONObj& doc);
-    static Status validateDriverDocument(const BSONObj& doc);
-    static Status validateOperatingSystemDocument(const BSONObj& doc);
-    static StatusWith<StringData> parseApplicationDocument(const BSONObj& doc);
 
 private:
     // Parsed Client Metadata document

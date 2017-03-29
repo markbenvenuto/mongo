@@ -72,12 +72,12 @@ TEST(ClientMetadatTest, TestLoopbackTest) {
     // Serialize without application name
     {
         BSONObjBuilder builder;
-        ASSERT_OK(ClientMetadata::serializePrivate("a", "b", "c", "d", "e", "f", "g", &builder));
+        ASSERT_OK(ClientMetadata::serializePrivate("a", "b", "c", "d", "e", "f", "ggg", &builder));
 
         auto obj = builder.obj();
         auto swParseStatus = ClientMetadata::parse(obj[kMetadataDoc]);
         ASSERT_OK(swParseStatus.getStatus());
-        ASSERT_EQUALS("g", swParseStatus.getValue().get().getApplicationName());
+        ASSERT_EQUALS("ggg", swParseStatus.getValue().get().getApplicationName());
 
         BSONObj outDoc =
             BSON(kMetadataDoc << BSON(

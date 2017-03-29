@@ -1,0 +1,58 @@
+# Copyright (C) 2017 MongoDB Inc.
+#
+# This program is free software: you can redistribute it and/or  modify
+# it under the terms of the GNU Affero General Public License, version 3,
+# as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+# IDL for Client Metadata
+global:
+    cpp_namespace: "mongo"
+
+types:
+    string:
+        bson_serialization_type: string
+        description: "A BSON UTF-8 string"
+        cpp_type: "std::string"
+        deserializer: "mongo::BSONElement::str"
+
+
+structs:
+    application:
+        description: client metadata application document
+        strict: false
+        fields:
+            name:
+                type: string
+                optional: true
+
+    driver:
+        description: client metadata driver document
+        strict: false
+        fields:
+            name: string
+            version: string
+
+    os:
+        description: client metadata os document
+        strict: false
+        fields:
+            type: string
+
+    client_metadata:
+        description: Client Metadata Sample
+        strict: false
+        fields:
+            application:
+                type: application
+                optional: true
+            driver: driver
+            os : os

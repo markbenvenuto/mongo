@@ -233,10 +233,12 @@ env.Library(
     target='client_metadata',
     source=[
         'metadata/client_metadata.cpp',
+        env.Idlc('metadata/client_metadata.idl')[0],
         'metadata/client_metadata_ismaster.cpp',
     ],
     LIBDEPS=[
         '$BUILD_DIR/mongo/base',
+        '$BUILD_DIR/mongo/idl/idl_parser',
         '$BUILD_DIR/mongo/transport/transport_layer_legacy',
         "$BUILD_DIR/mongo/util/concurrency/spin_lock",
         '$BUILD_DIR/mongo/util/decorable',
