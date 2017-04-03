@@ -93,14 +93,25 @@ public:
     void throwDuplicateField(const BSONElement& element) const;
 
     /**
-     * Throw an error message about the required field missing form the document.
+     * Throw an error message about the required field missing from the document.
      */
     void throwMissingField(StringData fieldName) const;
 
     /**
-     * Throw an error message about the required field missing form the document.
+     * Throw an error message about an unknown field in a document.
      */
     void throwUnknownField(StringData fieldName) const;
+
+    /**
+     * Throw an error message about an array field name not being a valid unsigned integer.
+     */
+    void throwBadArrayFieldNumberValue(StringData value) const;
+
+    /**
+     * Throw an error message about the array field name not being the next number in the sequence.
+     */
+    void throwBadArrayFieldNumberSequence(std::uint32_t actualValue,
+                                          std::uint32_t expectedValue) const;
 
 private:
     /**
@@ -123,5 +134,13 @@ private:
     // field with an error.
     const IDLParserErrorContext* _predecessor;
 };
+
+/**
+ * Transform a vector of TIn to a vector of TOut.
+ *
+ * Used by the IDL generated code to transform between vectors of view, and non-view types.
+ */
+template <typename TIn, typename TOut>
+std::vector<TOut> transformVector(const std::vector<TIn>& input);
 
 }  // namespace mongo

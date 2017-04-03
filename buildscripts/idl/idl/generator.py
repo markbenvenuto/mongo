@@ -120,12 +120,28 @@ def _qualify_optional_type(cpp_type, field):
     return cpp_type
 
 
+def _qualify_array_type(cpp_type, field):
+    # type: (unicode, ast.Field) -> unicode
+    """Qualify the type if the field is an array."""
+    if field.array:
+        cpp_type = "std::vector<%s>" % (cpp_type)
+
+    return cpp_type
+
+
 def _get_field_parameter_type(field):
     # type: (ast.Field) -> unicode
     """Get the C++ type name for a parameter for a field."""
     assert field.cpp_type is not None or field.struct_type is not None
 
-    cpp_type = _get_view_type(_get_field_cpp_type(field))
+    if field.struct_type:
+        cpp_type = _title_case(field.struct_type)
+    else:
+        cpp_type = field.cpp_type
+
+    cpp_type = _get_view_type(cpp_type)
+
+    cpp_type = _qualify_array_type(cpp_type, field)
 
     return _qualify_optional_type(cpp_type, field)
 
@@ -134,6 +150,8 @@ def _get_field_member_type(field):
     # type: (ast.Field) -> unicode
     """Get the C++ type name for a class member for a field."""
     cpp_type = _get_field_cpp_type(field)
+
+    cpp_type = _qualify_array_type(cpp_type, field)
 
     return _qualify_optional_type(cpp_type, field)
 
@@ -144,8 +162,8 @@ def _get_field_member_name(field):
     return '_%s' % (_camel_case(field.name))
 
 
-def _get_bson_type_check(field):
-    # type: (ast.Field) -> unicode
+def _get_bson_type_check(param1, ctxt_name, field):
+    # type: (unicode, unicode, ast.Field) -> unicode
     """Get the C++ bson type check for a field."""
     bson_types = field.bson_serialization_type
     if len(bson_types) == 1:
@@ -154,13 +172,14 @@ def _get_bson_type_check(field):
             return None
 
         if not bson_types[0] == 'bindata':
-            return 'ctxt.checkAndAssertType(element, %s)' % bson.cpp_bson_type_name(bson_types[0])
+            return '%s.checkAndAssertType(%s, %s)' % (ctxt_name, param1,
+                                                      bson.cpp_bson_type_name(bson_types[0]))
         else:
-            return 'ctxt.checkAndAssertBinDataType(element, %s)' % bson.cpp_bindata_subtype_type_name(
-                field.bindata_subtype)
+            return '%s.checkAndAssertBinDataType(%s, %s)' % (
+                ctxt_name, param1, bson.cpp_bindata_subtype_type_name(field.bindata_subtype))
     else:
         type_list = '{%s}' % (', '.join([bson.cpp_bson_type_name(b) for b in bson_types]))
-        return 'ctxt.checkAndAssertTypes(element, %s)' % type_list
+        return '%s.checkAndAssertTypes(%s, %s)' % (ctxt_name, param1, type_list)
 
 
 def _access_member(field):
@@ -457,13 +476,36 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
         optional_ampersand = ""
         disable_xvalue = False
         if not _is_view_type(cpp_type):
-            if not field.optional and not _is_primitive_type(cpp_type):
+            # For non-view types, return a reference for types:
+            #  1. arrays
+            #  2. nested structs
+            # But do not return a reference for:
+            #  1. std::int32_t and other primitive types
+            #  2. optional types
+            if not field.optional and (not _is_primitive_type(cpp_type) or field.array):
                 optional_ampersand = '&'
                 disable_xvalue = True
+
             body = 'return %s;' % (member_name)
         else:
-            body = 'return %s{%s};' % (param_type, member_name)
+            # For view types like StringData, the return type and member storage types are different
+            # so returning a reference is not supported.
             disable_xvalue = True
+
+            if field.array:
+                # Delegate to a function to the do the transformation between vectors.
+                if field.optional:
+                    body = """\
+                    if (%s.is_initialized()) {
+                        return transformVector<std::string, StringData>(%s.get());
+                    } else {
+                        return boost::none;
+                    }
+                    """ % (member_name, member_name)
+                else:
+                    body = 'return transformVector<std::string, StringData>(%s);' % (member_name)
+            else:
+                body = 'return %s{%s};' % (param_type, member_name)
 
         # Generate a getter that disables xvalue for view types (i.e. StringData), constructed
         # optional types, and non-primitive types.
@@ -484,28 +526,49 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
         member_name = _get_field_member_name(field)
 
         if _is_view_type(cpp_type):
-            if not field.optional:
-                self._writer.write_line('void set%s(%s value) & { %s = value.%s(); }' %
-                                        (_title_case(field.name), param_type, member_name,
-                                         _get_view_type_to_base_method(cpp_type)))
-
-            else:
-                # We need to convert between two different types of optional<T> and yet retain the
-                # ability for the user to specific an uninitialized optional. This occurs for
-                # mongo::StringData and std::string paired together.
-                with self._block('void set%s(%s value) {' % (_title_case(field.name), param_type),
-                                 "}"):
+            if field.array:
+                if not field.optional:
                     self._writer.write_line(
-                        textwrap.dedent("""\
-                    if (value.is_initialized()) {
-                        %s = value.get().%s();
-                    } else {
-                        %s = boost::none;
-                    }
-                    """ % (member_name, _get_view_type_to_base_method(cpp_type), member_name)))
+                        'void set%s(%s value) & { %s = transformVector<StringData, std::string>(value); }'
+                        % (_title_case(field.name), param_type, member_name))
+
+                else:
+                    # We need to convert between two different types of optional<T> and yet retain the
+                    # ability for the user to specific an uninitialized optional. This occurs for
+                    # vector<mongo::StringData> and vector<std::string> paired together.
+                    with self._block('void set%s(%s value) & {' %
+                                     (_title_case(field.name), param_type), "}"):
+                        self._writer.write_line(
+                            textwrap.dedent("""\
+                        if (value.is_initialized()) {
+                            %s = transformVector<StringData, std::string>(value.get());
+                        } else {
+                            %s = boost::none;
+                        }
+                        """ % (member_name, member_name)))
+            else:
+                if not field.optional:
+                    self._writer.write_line('void set%s(%s value) & { %s = value.%s(); }' %
+                                            (_title_case(field.name), param_type, member_name,
+                                             _get_view_type_to_base_method(cpp_type)))
+
+                else:
+                    # We need to convert between two different types of optional<T> and yet retain the
+                    # ability for the user to specific an uninitialized optional. This occurs for
+                    # mongo::StringData and std::string paired together.
+                    with self._block('void set%s(%s value) & {' %
+                                     (_title_case(field.name), param_type), "}"):
+                        self._writer.write_line(
+                            textwrap.dedent("""\
+                        if (value.is_initialized()) {
+                            %s = value.get().%s();
+                        } else {
+                            %s = boost::none;
+                        }
+                        """ % (member_name, _get_view_type_to_base_method(cpp_type), member_name)))
 
         else:
-            self._writer.write_line('void set%s(%s value) { %s = std::move(value); }' %
+            self._writer.write_line('void set%s(%s value) & { %s = std::move(value); }' %
                                     (_title_case(field.name), param_type, member_name))
         self._writer.write_empty_line()
 
@@ -592,57 +655,106 @@ class _CppSourceFileWriter(_CppFileWriterBase):
         """Create a C++ .cpp file code writer."""
         super(_CppSourceFileWriter, self).__init__(writer)
 
+    def _gen_field_deserializer_top(self, element_name, field):
+        # type: (unicode, ast.Field) -> unicode
+        """
+        Generate the C++ deserializer piece for a field.
+
+        Make print multiple lines into the generated file.
+        Returns the final statement to access the deserialized value.
+        """
+
+        if field.struct_type:
+            self._writer.write_line('IDLParserErrorContext tempContext("%s", &ctxt);' %
+                                    (field.name))
+            self._writer.write_line('const auto localObject = %s.Obj();' % (element_name))
+            return '%s::parse(tempContext, localObject);' % (_title_case(field.struct_type))
+        elif 'BSONElement::' in field.deserializer:
+            method_name = _get_method_name(field.deserializer)
+            return '%s.%s()' % (element_name, method_name)
+        else:
+            # Custom method, call the method on object.
+            # TODO: avoid this string hack in the future
+            if len(field.bson_serialization_type) == 1 and field.bson_serialization_type[
+                    0] == 'string':
+                # Call a method like: Class::method(StringData value)
+                self._writer.write_line('auto tempValue = %s.valueStringData();' % (element_name))
+
+                method_name = _get_method_name(field.deserializer)
+
+                return '%s(tempValue)' % (method_name)
+            elif len(field.bson_serialization_type) == 1 and field.bson_serialization_type[
+                    0] == 'object':
+                # Call a method like: Class::method(const BSONObj& value)
+                method_name = _get_method_name_from_qualified_method_name(field.deserializer)
+                self._writer.write_line('const BSONObj localObject = %s.Obj();' % (element_name))
+                return '%s(localObject)' % (method_name)
+            else:
+                # Call a method like: Class::method(const BSONElement& value)
+                method_name = _get_method_name_from_qualified_method_name(field.deserializer)
+
+                return '%s(%s)' % (method_name, element_name)
+
+    def _gen_array_deserializer(self, field):
+        # type: (ast.Field) -> None
+        """Generate the C++ deserializer piece for an array field."""
+        cpp_type = _get_field_cpp_type(field)
+
+        self._writer.write_line('std::uint32_t expectedFieldNumber{0};')
+        self._writer.write_line('const IDLParserErrorContext arrayCtxt("%s", &ctxt);' %
+                                (field.name))
+        self._writer.write_line('std::vector<%s> values;' % (cpp_type))
+        self._writer.write_empty_line()
+
+        self._writer.write_line('const BSONObj arrayObject = element.Obj();')
+
+        with self._block('for (const auto& arrayElement : arrayObject) {', '}'):
+
+            self._writer.write_line(
+                'const auto arrayFieldName = arrayElement.fieldNameStringData();')
+            self._writer.write_line('std::uint32_t fieldNumber;')
+            self._writer.write_empty_line()
+
+            # Check the array field names are integers
+            self._writer.write_line(
+                'Status status = parseNumberFromString(arrayFieldName, &fieldNumber);')
+            with self._predicate('status.isOK()'):
+
+                # Check the array field names are sequential
+                with self._predicate('fieldNumber != expectedFieldNumber'):
+                    self._writer.write_line('arrayCtxt.throwBadArrayFieldNumberSequence(' +
+                                            'fieldNumber, expectedFieldNumber);')
+
+                with self._predicate(_get_bson_type_check('arrayElement', 'arrayCtxt', field)):
+                    array_value = self._gen_field_deserializer_top('arrayElement', field)
+                    self._writer.write_line('values.emplace_back(%s);' % (array_value))
+            with self._block('else {', '}'):
+                self._writer.write_line('arrayCtxt.throwBadArrayFieldNumberValue(arrayFieldName);')
+            self._writer.write_line('++expectedFieldNumber;')
+
+        self._writer.write_line('object.%s = std::move(values);' % (_get_field_member_name(field)))
+
     def gen_field_deserializer(self, field):
         # type: (ast.Field) -> None
-        """Generate the C++ deserializer piece for a few field."""
+        """Generate the C++ deserializer piece for a field."""
+        if field.array:
+            self._gen_array_deserializer(field)
+            return
+
         # May be an empty block if the type is any
-        type_predicate = _get_bson_type_check(field)
+        with self._predicate(_get_bson_type_check('element', 'ctxt', field)):
 
-        with self._predicate(type_predicate):
-
-            if field.struct_type:
-                self._writer.write_line('IDLParserErrorContext tempContext("%s", &ctxt);' %
-                                        (field.name))
-                self._writer.write_line('const auto localObject = element.Obj();')
-                self._writer.write_line('object.%s = %s::parse(tempContext, localObject);' % (
-                    _get_field_member_name(field), _title_case(field.struct_type)))
-            elif 'BSONElement::' in field.deserializer:
-                method_name = _get_method_name(field.deserializer)
-                self._writer.write_line('object.%s = element.%s();' %
-                                        (_get_field_member_name(field), method_name))
-            else:
-                # Custom method, call the method on object
-                # TODO: avoid this string hack in the future
-                if len(field.bson_serialization_type) == 1 and field.bson_serialization_type[
-                        0] == 'string':
-                    # Call a method like: Class::method(StringData value)
-                    self._writer.write_line('auto tempValue = element.valueStringData();')
-
-                    method_name = _get_method_name(field.deserializer)
-
-                    self._writer.write_line('object.%s = %s(tempValue);' %
-                                            (_get_field_member_name(field), method_name))
-                elif len(field.bson_serialization_type) == 1 and field.bson_serialization_type[
-                        0] == 'object':
-                    # Call a method like: Class::method(const BSONObj& value)
-                    method_name = _get_method_name_from_qualified_method_name(field.deserializer)
-                    self._writer.write_line('const BSONObj localObject = element.Obj();')
-                    self._writer.write_line('object.%s = %s(localObject);' %
-                                            (_get_field_member_name(field), method_name))
-                else:
-                    # Call a method like: Class::method(const BSONElement& value)
-                    method_name = _get_method_name_from_qualified_method_name(field.deserializer)
-
-                    self._writer.write_line('object.%s = %s(element);' %
-                                            (_get_field_member_name(field), method_name))
+            object_value = self._gen_field_deserializer_top('element', field)
+            self._writer.write_line('object.%s = %s;' %
+                                    (_get_field_member_name(field), object_value))
 
     def gen_deserializer_method(self, struct):
         # type: (ast.Struct) -> None
         """Generate the C++ deserializer method definition."""
 
-        with self._block(
-                '%s %s::parse(const IDLParserErrorContext& ctxt, const BSONObj& bsonObject) {' %
-            (_title_case(struct.name), _title_case(struct.name)), '}'):
+        func_def = '%s %s::parse(const IDLParserErrorContext& ctxt, const BSONObj& bsonObject)' % (
+            _title_case(struct.name), _title_case(struct.name))
+        with self._block('%s {' % (func_def), '}'):
 
             self._writer.write_line('%s object;' % _title_case(struct.name))
 
@@ -686,6 +798,54 @@ class _CppSourceFileWriter(_CppFileWriterBase):
 
             self._writer.write_line('return object;')
 
+    def _gen_serializer_method_custom(self, field):
+        # type: (ast.Field) -> None
+        """Generate the serialize method definition for a custom type."""
+
+        # Generate custom serialization
+        method_name = _get_method_name(field.serializer)
+
+        if len(field.bson_serialization_type) == 1 and \
+            field.bson_serialization_type[0] == 'string':
+            # TODO: expand this out to be less then a string only hack
+
+            if field.array:
+                self._writer.write_line(
+                    'BSONArrayBuilder arrayBuilder(builder->subarrayStart("%s"));' % (field.name))
+                with self._block('for (const auto& item : %s) {' % (_access_member(field)), '}'):
+                    self._writer.write_line('auto tempValue = item.%s();' % (method_name))
+                    self._writer.write_line('arrayBuilder.append(std::move(tempValue));')
+            else:
+                self._writer.write_line('auto tempValue = %s.%s();' %
+                                        (_access_member(field), method_name))
+                self._writer.write_line('builder->append("%s", std::move(tempValue));' %
+                                        (field.name))
+        else:
+            if field.array:
+                self._writer.write_line(
+                    'BSONArrayBuilder arrayBuilder(builder->subarrayStart("%s"));' % (field.name))
+                with self._block('for (const auto& item : %s) {' % (_access_member(field)), '}'):
+                    self._writer.write_line(
+                        'BSONObjBuilder subObjBuilder(arrayBuilder.subobjStart());')
+                    self._writer.write_line('item.%s(&subObjBuilder);' % (method_name))
+            else:
+                self._writer.write_line('%s.%s(builder);' % (_access_member(field), method_name))
+
+    def _gen_serializer_method_struct(self, field):
+        # type: (ast.Field) -> None
+        """Generate the serialize method definition for a struct type."""
+
+        if field.array:
+            self._writer.write_line('BSONArrayBuilder arrayBuilder(builder->subarrayStart("%s"));' %
+                                    (field.name))
+            with self._block('for (const auto& item : %s) {' % (_access_member(field)), '}'):
+                self._writer.write_line('BSONObjBuilder subObjBuilder(arrayBuilder.subobjStart());')
+                self._writer.write_line('item.serialize(&subObjBuilder);')
+        else:
+            self._writer.write_line('BSONObjBuilder subObjBuilder(builder->subobjStart("%s"));' %
+                                    (field.name))
+            self._writer.write_line('%s.serialize(&subObjBuilder);' % (_access_member(field)))
+
     def gen_serializer_method(self, struct):
         # type: (ast.Struct) -> None
         """Generate the serialize method definition."""
@@ -703,7 +863,7 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                 optional_block_start = None
                 if field.optional:
                     optional_block_start = 'if (%s) {' % (member_name)
-                elif field.struct_type:
+                elif field.struct_type or field.serializer:
                     # Introduce a new scope for required nested object serialization.
                     optional_block_start = '{'
 
@@ -711,31 +871,15 @@ class _CppSourceFileWriter(_CppFileWriterBase):
 
                     if not field.struct_type:
                         if field.serializer:
-                            # Generate custom serialization
-                            method_name = _get_method_name(field.serializer)
-
-                            if len(field.bson_serialization_type) == 1 and \
-                                field.bson_serialization_type[0] == 'string':
-                                # TODO: expand this out to be less then a string only hack
-                                self._writer.write_line('auto tempValue = %s.%s();' %
-                                                        (_access_member(field), method_name))
-                                self._writer.write_line(
-                                    'builder->append("%s", std::move(tempValue));' % (field.name))
-                            else:
-                                self._writer.write_line('%s.%s(builder);' %
-                                                        (_access_member(field), method_name))
-
+                            self._gen_serializer_method_custom(field)
                         else:
                             # Generate default serialization using BSONObjBuilder::append
+                            # Note: BSONObjBuilder::append has overrides for std::vector also
                             self._writer.write_line('builder->append("%s", %s);' %
                                                     (field.name, _access_member(field)))
-
                     else:
-                        self._writer.write_line(
-                            'BSONObjBuilder subObjBuilder(builder->subobjStart("%s"));' %
-                            (field.name))
-                        self._writer.write_line('%s.serialize(&subObjBuilder);' %
-                                                (_access_member(field)))
+                        self._gen_serializer_method_struct(field)
+
                 # Add a blank line after each block
                 self._writer.write_empty_line()
 
@@ -806,8 +950,11 @@ def generate_code(spec, output_base_dir, header_file_name, source_file_name):
 
     _generate_header(spec, header_file_name)
 
-    include_h_file_name = os.path.relpath(
-        os.path.normpath(header_file_name), os.path.normpath(output_base_dir))
+    if output_base_dir:
+        include_h_file_name = os.path.relpath(
+            os.path.normpath(header_file_name), os.path.normpath(output_base_dir))
+    else:
+        include_h_file_name = header_file_name
 
     # Normalize to POSIX style for consistency across Windows and POSIX.
     include_h_file_name = include_h_file_name.replace("\\", "/")

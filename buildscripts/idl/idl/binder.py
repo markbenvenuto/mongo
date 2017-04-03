@@ -245,10 +245,16 @@ def _bind_field(ctxt, parsed_spec, field):
         _validate_ignored_field(ctxt, field)
         return ast_field
 
-    # TODO: support array
     (struct, idltype) = parsed_spec.symbols.resolve_field_type(ctxt, field)
     if not struct and not idltype:
         return None
+
+    # If the field type is an array, mark the AST version as such.
+    if syntax.parse_array_type(field.type):
+        ast_field.array = True
+
+        if field.default or (idltype and idltype.default):
+            ctxt.add_array_no_default(field, field.name)
 
     # Copy over only the needed information if this a struct or a type
     if struct:
