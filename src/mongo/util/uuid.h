@@ -47,7 +47,7 @@ class UUID {
     using UUIDStorage = std::array<unsigned char, 16>;
 
 public:
-    UUID() = delete;
+    UUID() {}
 
     /**
      * The number of bytes contained in a UUID.
@@ -80,6 +80,8 @@ public:
      * Append to builder as BinData(4, "...") element with the given name.
      */
     void appendToBuilder(BSONObjBuilder* builder, StringData name) const;
+
+    ConstDataRange serialize() const;
 
     /**
      * Return a BSON object of the form { uuid: BinData(4, "...") }.

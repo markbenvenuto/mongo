@@ -721,6 +721,14 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                                                         (_access_member(field), method_name))
                                 self._writer.write_line(
                                     'builder->append("%s", std::move(tempValue));' % (field.name))
+                            elif len(field.bson_serialization_type) == 1 and \
+                                field.bson_serialization_type[0] == 'bindata':
+                                # TODO: expand this out to be less then a bindata only hack
+                                self._writer.write_line('ConstDataRange tempCDR = %s.%s();' %
+                                                        (_access_member(field), method_name))
+                                self._writer.write_line(
+                                    'builder->appendBinData("%s", tempCDR.length(), %s, tempCDR.data());' 
+                                        % (field.name, bson.cpp_bindata_subtype_type_name(field.bindata_subtype)))
                             else:
                                 self._writer.write_line('%s.%s(builder);' %
                                                         (_access_member(field), method_name))

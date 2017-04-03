@@ -30,6 +30,7 @@
 
 #include <string>
 
+#include "mongo/base/data_range.h"
 #include "mongo/base/status_with.h"
 #include "mongo/util/uuid.h"
 
@@ -42,7 +43,8 @@ class TxnId;
  */
 class LogicalSessionId {
 public:
-    LogicalSessionId() = delete;
+    LogicalSessionId() // = delete;
+     {}
 
     /**
      * Construct a new LogicalSessionId out of a txnId received with an operation.
@@ -50,10 +52,20 @@ public:
     static StatusWith<LogicalSessionId> parse(const TxnId& txnId);
 
     /**
+     * Construct a new LogicalSessionId out of a BSONElement
+     */
+    static LogicalSessionId parse(const BSONElement& element);
+
+    /**
      * If the given string represents a valid LogicalSessionId, constructs and returns,
      * the id, otherwise returns an error.
      */
     static StatusWith<LogicalSessionId> parse(const std::string& s);
+
+    /**
+     * Construct a new LogicalSessionId out 
+     */
+    ConstDataRange serialize() const;
 
     /**
      * Returns a string representation of this session id.

@@ -97,10 +97,11 @@ _BINDATA_SUBTYPE = {
         'scalar': True,
         'bindata_enum': 'Function'
     },
-    "binary": {
-        'scalar': False,
-        'bindata_enum': 'ByteArrayDeprecated'
-    },
+    # Also simply known as type 2, requires special handling which IDL does not do
+    #"binary": {
+    #    'scalar': False,
+    #    'bindata_enum': 'ByteArrayDeprecated'
+    #},
     "uuid_old": {
         'scalar': False,
         'bindata_enum': 'bdtUUID'

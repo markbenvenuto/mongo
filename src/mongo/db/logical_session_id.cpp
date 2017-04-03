@@ -50,6 +50,21 @@ StatusWith<LogicalSessionId> LogicalSessionId::parse(const std::string& s) {
     return LogicalSessionId{std::move(res.getValue())};
 }
 
+LogicalSessionId LogicalSessionId::parse(const BSONElement& element) {
+    auto res = UUID::parse(element);
+    if (!res.isOK()) {
+        uassertStatusOK(res.getStatus());
+    }
+
+    return LogicalSessionId{std::move(res.getValue())};
+}
+
+
+ConstDataRange LogicalSessionId::serialize() const {
+    return _id.serialize();
+}
+
+
 std::string LogicalSessionId::toString() const {
     return _id.toString();
 }

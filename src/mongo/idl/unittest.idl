@@ -17,9 +17,11 @@
 global:
     cpp_namespace: "mongo"
     cpp_includes:
+        - "mongo/db/logical_session_id.h"
         - "mongo/db/namespace_string.h"
         - "mongo/idl/idl_test_types.h"
-
+        - "mongo/util/uuid.h"
+        
 types:
     string:
         bson_serialization_type: string
@@ -136,6 +138,19 @@ types:
                                 - double
         deserializer: "mongo::BSONElement::numberInt"
 
+##################################################################################################
+#
+# Test BinData types
+#
+##################################################################################################
+
+    LogicalSessionId:
+        description: Accepts a BinData UUID for logical sessions
+        bson_serialization_type: bindata
+        bindata_subtype: uuid
+        cpp_type: "mongo::LogicalSessionId"
+        deserializer: "mongo::LogicalSessionId::parse"
+        serializer: "mongo::LogicalSessionId::serialize"
 
 ##################################################################################################
 #
@@ -309,3 +324,15 @@ structs:
             field2:
                 type: int
                 optional: true
+
+##################################################################################################
+#
+# Test fields with bindata type
+#
+##################################################################################################
+
+    bindata_field:
+        description: UnitTest for a bindata field
+        fields:
+            field1:
+                type: LogicalSessionId
