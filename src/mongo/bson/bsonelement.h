@@ -37,6 +37,7 @@
 
 #include "mongo/base/data_type_endian.h"
 #include "mongo/base/data_view.h"
+#include "mongo/base/data_range.h"
 #include "mongo/base/string_data_comparator_interface.h"
 #include "mongo/bson/bson_comparator_interface_base.h"
 #include "mongo/bson/bsontypes.h"
@@ -468,6 +469,15 @@ public:
         return (BinDataType)c;
     }
 
+    ConstDataRange _binData() const {
+        if (binDataType() != ByteArrayDeprecated) {
+            return ConstDataRange(value() + 5, valuestrsize());
+        } else {
+            // Skip the extra int32 size
+            return ConstDataRange(value() + 4, valuestrsize() - 4);
+        }
+    }
+
     /** Retrieve the regex std::string for a Regex element */
     const char* regex() const {
         verify(type() == RegEx);
@@ -589,6 +599,19 @@ public:
         memcpy(&result, data, len);
         return result;
     }
+
+    const std::array<unsigned char, 16> md5() const {
+        int len = 0;
+        const char* data = nullptr;
+        if (type() == BinData && binDataType() == BinDataType::MD5Type)
+            data = binData(len);
+        uassert(40418, "md5 must be a 16-byte binary field with MD5 (5) subtype", len == 16);
+        std::array<unsigned char, 16> result;
+        memcpy(&result, data, len);
+        return result;
+    }
+
+
 
     Date_t timestampTime() const {
         unsigned long long t = ConstDataView(value() + 4).read<LittleEndian<unsigned int>>();

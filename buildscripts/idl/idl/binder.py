@@ -121,6 +121,13 @@ def _validate_cpp_type(ctxt, idl_type, syntax_type):
     if idl_type.cpp_type in ["std::int32_t", "std::int64_t", "std::uint32_t", "std::uint64_t"]:
         return
 
+    # TODO: match on list of support types for bindata
+    if idl_type.cpp_type.startswith("std::array<std::uint8_t,"):
+        return
+
+    if idl_type.cpp_type.startswith("std::vector<std::uint8_t>"):
+        return
+
     # Check for std fixed integer types which are not allowed. These are not allowed even if they
     # have the "std::" prefix.
     for std_numeric_type in [
@@ -143,7 +150,7 @@ def _validate_type_properties(ctxt, idl_type, syntax_type):
     if len(idl_type.bson_serialization_type) == 1:
         bson_type = idl_type.bson_serialization_type[0]
         if bson_type == "any":
-            # For any, a deserialer is required but the user can try to get away with the default
+            # For any, a deserializer is required but the user can try to get away with the default
             # serialization for their C++ type.
             if idl_type.deserializer is None:
                 ctxt.add_missing_ast_required_field_error(idl_type, syntax_type, idl_type.name,
@@ -156,7 +163,7 @@ def _validate_type_properties(ctxt, idl_type, syntax_type):
             if idl_type.serializer is None:
                 ctxt.add_missing_ast_required_field_error(idl_type, syntax_type, idl_type.name,
                                                           "serializer")
-        elif not bson_type == "string":
+        elif not bson_type == "string" and not bson_type == "bindata":
             if idl_type.deserializer is not None and "BSONElement" not in idl_type.deserializer:
                 ctxt.add_not_custom_scalar_serialization_not_supported_error(
                     idl_type, syntax_type, idl_type.name, bson_type)
@@ -164,6 +171,11 @@ def _validate_type_properties(ctxt, idl_type, syntax_type):
             if idl_type.serializer is not None:
                 ctxt.add_not_custom_scalar_serialization_not_supported_error(
                     idl_type, syntax_type, idl_type.name, bson_type)
+
+        if bson_type == "bindata" and idl_type.default:
+                ctxt.add_bindata_no_default(
+                    idl_type, syntax_type, idl_type.name)
+
     else:
         # Now, this is a list of scalar types
         if idl_type.deserializer is None:

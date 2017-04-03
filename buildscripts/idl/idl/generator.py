@@ -78,6 +78,9 @@ def _is_view_type(cpp_type):
     if cpp_type == 'std::string':
         return True
 
+    if cpp_type == 'std::vector<std::uint8_t>':
+        return True
+
     return False
 
 
@@ -87,6 +90,9 @@ def _get_view_type(cpp_type):
     if cpp_type == 'std::string':
         cpp_type = 'StringData'
 
+    if cpp_type == 'std::vector<std::uint8_t>':
+        cpp_type = 'mongo::ConstDataRange'
+
     return cpp_type
 
 
@@ -94,6 +100,9 @@ def _get_view_type_to_base_method(cpp_type):
     # type: (unicode) -> unicode
     """Map a C++ View type to its C++ base type."""
     assert _is_view_type(cpp_type)
+
+    if cpp_type == 'std::vector<std::uint8_t>':
+        return "True"
 
     return "toString"
 
@@ -673,7 +682,12 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
         member_type = _get_field_storage_type(field)
         member_name = _get_field_member_name(field)
 
-        self._writer.write_line('%s %s;' % (member_type, member_name))
+        # TODO: make this smarter
+        optional_initializer = ""
+        if "mongo::ConstDataRange" == member_type:
+            optional_initializer = "{nullptr, nullptr}"
+
+        self._writer.write_line('%s %s%s;' % (member_type, member_name, optional_initializer))
 
     def generate(self, spec):
         # type: (ast.IDLAST) -> None
@@ -703,6 +717,7 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
         header_list = [
             'mongo/base/string_data.h',
             'mongo/bson/bsonobj.h',
+            'mongo/bson/bsonobjbuilder.h',
             'mongo/idl/idl_parser.h',
         ] + spec.globals.cpp_includes
 
@@ -924,6 +939,14 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                         'auto tempValue = ${access_member}.${method_name}();')
                     self._writer.write_template(
                         'builder->append("${field_name}", std::move(tempValue));')
+            elif len(field.bson_serialization_type) == 1 and \
+                field.bson_serialization_type[0] == 'bindata':
+                # TODO: expand this out to be less then a bindata only hack
+                self._writer.write_line('ConstDataRange tempCDR = %s.%s();' %
+                                        (_access_member(field), method_name))
+                self._writer.write_line(
+                    'builder->appendBinData("%s", tempCDR.length(), %s, tempCDR.data());' 
+                        % (field.name, bson.cpp_bindata_subtype_type_name(field.bindata_subtype)))
             else:
                 if field.array:
                     self._writer.write_template(
@@ -933,7 +956,17 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                             'BSONObjBuilder subObjBuilder(arrayBuilder.subobjStart());')
                         self._writer.write_template('item.${method_name}(&subObjBuilder);')
                 else:
-                    self._writer.write_template('${access_member}.${method_name}(builder);')
+                    if field.bson_serialization_type[0] == 'bindata':
+                        # Generate default serialization using BSONObjBuilder::append
+                        if field.cpp_type == "mongo::ConstDataRange":
+                            self._writer.write_line('builder->appendBinData("%s", %s.length(), %s, %s.data());' %
+                                                (field.name, _access_member(field), bson.cpp_bindata_subtype_type_name(field.bindata_subtype),_access_member(field) ))
+                        else:
+                            self._writer.write_line('builder->appendBinData("%s", %s.size(), %s, %s.data());' %
+                                                (field.name, _access_member(field), bson.cpp_bindata_subtype_type_name(field.bindata_subtype),_access_member(field) ))
+                            
+                    else:
+                        self._writer.write_template('${access_member}.${method_name}(builder);')
 
     def _gen_serializer_method_struct(self, field):
         # type: (ast.Field) -> None
@@ -983,11 +1016,49 @@ class _CppSourceFileWriter(_CppFileWriterBase):
 
                     if not field.struct_type:
                         if field.serializer:
+<<<<<<< HEAD
                             self._gen_serializer_method_custom(field)
                         else:
                             # Generate default serialization using BSONObjBuilder::append
                             # Note: BSONObjBuilder::append has overrides for std::vector also
                             self._writer.write_line('builder->append("%s", %s);' %
+=======
+                            # Generate custom serialization
+                            method_name = _get_method_name(field.serializer)
+
+                            if len(field.bson_serialization_type) == 1 and \
+                                field.bson_serialization_type[0] == 'string':
+                                # TODO: expand this out to be less then a string only hack
+                                self._writer.write_line('auto tempValue = %s.%s();' %
+                                                        (_access_member(field), method_name))
+                                self._writer.write_line(
+                                    'builder->append("%s", std::move(tempValue));' % (field.name))
+                            elif len(field.bson_serialization_type) == 1 and \
+                                field.bson_serialization_type[0] == 'bindata':
+                                # TODO: expand this out to be less then a bindata only hack
+                                self._writer.write_line('ConstDataRange tempCDR = %s.%s();' %
+                                                        (_access_member(field), method_name))
+                                self._writer.write_line(
+                                    'builder->appendBinData("%s", tempCDR.length(), %s, tempCDR.data());' 
+                                        % (field.name, bson.cpp_bindata_subtype_type_name(field.bindata_subtype)))
+                            else:
+                                self._writer.write_line('%s.%s(builder);' %
+                                                        (_access_member(field), method_name))
+
+                        else:
+                            if field.bson_serialization_type[0] == 'bindata':
+                                # Generate default serialization using BSONObjBuilder::append
+                                if field.cpp_type == "mongo::ConstDataRange":
+                                    self._writer.write_line('builder->appendBinData("%s", %s.length(), %s, %s.data());' %
+                                                        (field.name, _access_member(field), bson.cpp_bindata_subtype_type_name(field.bindata_subtype),_access_member(field) ))
+                                else:
+                                    self._writer.write_line('builder->appendBinData("%s", %s.size(), %s, %s.data());' %
+                                                        (field.name, _access_member(field), bson.cpp_bindata_subtype_type_name(field.bindata_subtype),_access_member(field) ))
+                                    
+                            else:
+                                # Generate default serialization using BSONObjBuilder::append
+                                self._writer.write_line('builder->append("%s", %s);' %
+>>>>>>> ba89460... BinData for IDL
                                                     (field.name, _access_member(field)))
                     else:
                         self._gen_serializer_method_struct(field)
@@ -1066,7 +1137,7 @@ def generate_code(spec, output_base_dir, header_file_name, source_file_name):
         include_h_file_name = os.path.relpath(
             os.path.normpath(header_file_name), os.path.normpath(output_base_dir))
     else:
-        include_h_file_name = header_file_name
+        include_h_file_name = os.path.abspath(header_file_name)
 
     # Normalize to POSIX style for consistency across Windows and POSIX.
     include_h_file_name = include_h_file_name.replace("\\", "/")
