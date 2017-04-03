@@ -184,4 +184,43 @@ void IDLParserErrorContext::throwUnknownField(StringData fieldName) const {
     std::string path = getElementPath(fieldName);
     uasserted(40415, str::stream() << "BSON field '" << path << "' is an unknown field.");
 }
+
+void IDLParserErrorContext::throwBadArrayFieldNumberValue(StringData value) const {
+    std::string path = getElementPath(StringData());
+    uasserted(40416,
+              str::stream() << "BSON array field '" << path << "' has an invalid value '" << value
+                            << "' for an array field name.");
+}
+void IDLParserErrorContext::throwBadArrayFieldNumberSequence(std::uint32_t actualValue,
+                                                             std::uint32_t expectedValue) const {
+    std::string path = getElementPath(StringData());
+    uasserted(40417,
+              str::stream() << "BSON array field '" << path << "' has a non-sequential value '"
+                            << actualValue
+                            << "' for an array field name, expected value '"
+                            << expectedValue
+                            << "'.");
+}
+
+template <typename TIn, typename TOut>
+std::vector<TOut> transformVector(const std::vector<TIn>& input) {
+    return std::vector<TOut>(begin(input), end(input));
+}
+
+template std::vector<StringData> transformVector<std::string, StringData>(
+    const std::vector<std::string>& input);
+
+template <>
+std::vector<std::string> transformVector<StringData, std::string>(
+    const std::vector<StringData>& input) {
+    std::vector<std::string> output;
+
+    output.reserve(input.size());
+
+    std::transform(begin(input), end(input), std::back_inserter(output), [](auto&& str) {
+        return str.toString();
+    });
+
+	return output;
+}
 }  // namespace mongo
