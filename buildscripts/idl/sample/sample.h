@@ -11,6 +11,7 @@
 #include <boost/optional.hpp>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobj.h"
@@ -44,7 +45,7 @@ public:
     const std::int32_t getIntfield() const {
         return _intfield;
     }
-    void setIntfield(std::int32_t value) {
+    void setIntfield(std::int32_t value) & {
         _intfield = std::move(value);
     }
 
@@ -54,7 +55,7 @@ public:
     const std::int64_t getNumericfield() const {
         return _numericfield;
     }
-    void setNumericfield(std::int64_t value) {
+    void setNumericfield(std::int64_t value) & {
         _numericfield = std::move(value);
     }
 
@@ -65,7 +66,7 @@ public:
         return _nsfield;
     }
     const mongo::NamespaceString& getNsfield() && = delete;
-    void setNsfield(mongo::NamespaceString value) {
+    void setNsfield(mongo::NamespaceString value) & {
         _nsfield = std::move(value);
     }
 
@@ -76,12 +77,23 @@ public:
         return boost::optional<StringData>{_optionalField};
     }
     const boost::optional<StringData> getOptionalField() && = delete;
-    void setOptionalField(boost::optional<StringData> value) {
+    void setOptionalField(boost::optional<StringData> value) & {
         if (value.is_initialized()) {
             _optionalField = value.get().toString();
         } else {
             _optionalField = boost::none;
         }
+    }
+
+    /**
+     * An example int array field with default value
+     */
+    const std::vector<std::int32_t>& getVectorField() const& {
+        return _vectorField;
+    }
+    const std::vector<std::int32_t>& getVectorField() && = delete;
+    void setVectorField(std::vector<std::int32_t> value) & {
+        _vectorField = std::move(value);
     }
 
 private:
@@ -90,6 +102,7 @@ private:
     std::int64_t _numericfield;
     mongo::NamespaceString _nsfield;
     boost::optional<std::string> _optionalField;
+    std::vector<std::int32_t> _vectorField;
 };
 
 }  // namespace mongo
