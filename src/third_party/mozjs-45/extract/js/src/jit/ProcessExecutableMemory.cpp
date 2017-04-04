@@ -266,8 +266,16 @@ ReserveProcessExecutableMemory(size_t bytes)
     // Note that randomAddr is just a hint: if the address is not available
     // mmap will pick a different address.
     void* randomAddr = ComputeRandomAllocationAddress();
+#ifdef SOLARIS
+    // Do not reserve swap space for the entire allocation. Regardless of what mmap(2) says, this
+    // Solaris reserves swap space even though this allocation is not marked as writable.
+    void* p = MozTaggedAnonymousMmap(randomAddr, bytes, PROT_NONE, MAP_PRIVATE | MAP_ANON | MAP_NORESERVE,
+                                     -1, 0, "js-executable-memory");
+#else
     void* p = MozTaggedAnonymousMmap(randomAddr, bytes, PROT_NONE, MAP_PRIVATE | MAP_ANON,
                                      -1, 0, "js-executable-memory");
+#endif
+    if (p == MAP_FAILED)
     if (p == MAP_FAILED)
         return nullptr;
     return p;
