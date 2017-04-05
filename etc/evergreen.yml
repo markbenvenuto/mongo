@@ -802,9 +802,6 @@ functions:
           set -o errexit
 
           ${python|/opt/mongodbtoolchain/v2/bin/python2} buildscripts/idl/run_tests.py
-    - command: attach.xunit_results
-      params:
-        file: "buildscripts/idl/results.xml"
 
   "do multiversion setup" :
     command: shell.exec
@@ -996,6 +993,9 @@ post:
   - command: attach.results
     params:
       file_location: src/report.json
+  - command: attach.xunit_results
+    params:
+      file: "buildscripts/idl/results.xml"
   - func: "kill processes"
   # Print out any Out of Memory killed process messages.
   - command: shell.exec
