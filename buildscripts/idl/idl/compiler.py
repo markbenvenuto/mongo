@@ -117,7 +117,7 @@ def compile_idl(args):
             if not parsed_doc.spec.globals:
                 parsed_doc.spec.globals = syntax.Global(args.input_file, -1, -1)
 
-            print(header_file_name)
+            print(resolved_file_name)
             for resolved_file_name in parsed_doc.spec.imports.resolved_imports:
                 print(resolved_file_name)
                 print(args.output_base_dir)

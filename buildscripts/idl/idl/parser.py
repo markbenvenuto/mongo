@@ -410,12 +410,5 @@ def parse(stream, input_file_name, resolver):
         if ctxt.errors.has_errors():
             return syntax.IDLParsedSpec(None, ctxt.errors) 
 
-    # Resolve all the imports for root document so they can be translated into include file paths.
-    if root_doc.spec.imports:
-        for import_file_name in root_doc.spec.imports.imports:
-            resolved_file_name = resolver.resolve(base_file_name, imported_file_name)
-            root_doc.spec.imports.resolved_imports.append(resolved_file_name)
-            
-
 
     return root_doc
