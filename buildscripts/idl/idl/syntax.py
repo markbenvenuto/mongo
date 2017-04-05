@@ -52,7 +52,7 @@ class IDLSpec(object):
         """Construct an IDL spec."""
         self.symbols = SymbolTable()  # type: SymbolTable
         self.globals = None  # type: Optional[Global]
-        #TODO self.imports = None # type: Optional[Imports]
+        self.imports = None # type: Optional[Import]
 
 
 class SymbolTable(object):
@@ -103,6 +103,21 @@ class SymbolTable(object):
         # TODO: add commands
         pass
 
+    def add_imported_symbol_table(self, ctxt, symbols):
+        # type: (errors.ParserContext, SymbolTable) -> None
+        """
+        Add all the symbols in the symbol table and merge them into this symbol table.
+        
+        Marks imported structs as imported, and errors on duplicate symbols.
+        """
+        for struct in symbols.structs:
+            if not self._is_duplicate(ctxt, struct, struct.name, "struct"):
+                struct.imported = True
+                self.structs.append(struct)
+                
+        for idltype in symbols.types:
+            self.add_type(ctxt, idltype)
+
     def resolve_field_type(self, ctxt, field):
         # type: (errors.ParserContext, Field) -> Tuple[Optional[Struct], Optional[Type]]
         """Find the type or struct a field refers to or log an error."""
@@ -136,11 +151,16 @@ class Global(common.SourceLocation):
         super(Global, self).__init__(file_name, line, column)
 
 
-# TODO: add support for imports
 class Import(common.SourceLocation):
     """IDL imports object."""
 
-    pass
+    def __init__(self, file_name, line, column):
+        # type: (unicode, int, int) -> None
+        """Construct an Imports section."""
+        self.imports = []  # type: List[unicode]
+        self.resolved_imports = []  # type: List[unicode]
+
+        super(Import, self).__init__(file_name, line, column)
 
 
 class Type(common.SourceLocation):
@@ -207,6 +227,11 @@ class Struct(common.SourceLocation):
         self.description = None  # type: unicode
         self.strict = True  # type: bool
         self.fields = None  # type: List[Field]
+
+        # Internal property that is not represented as syntax. An imported struct is read from an
+        # imported file, and no code is generated for it.
+        self.imported = False # type: bool
+
         super(Struct, self).__init__(file_name, line, column)
 
 

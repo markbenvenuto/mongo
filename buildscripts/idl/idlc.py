@@ -18,6 +18,7 @@
 from __future__ import absolute_import, print_function
 
 import argparse
+import logging
 import sys
 
 import idl.compiler
@@ -46,6 +47,10 @@ def main():
     parser.add_argument('--base_dir', type=str, help="IDL output relative base directory")
 
     args = parser.parse_args()
+
+    if args.verbose:
+        logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.DEBUG)
 
     compiler_args = idl.compiler.CompilerArgs()
 
