@@ -794,13 +794,14 @@ functions:
 
   "run idl tests" :
     - command: shell.exec
+      type: test
       params:
-      working_dir: src
-      script: |
-        set -o verbose
-        set -o errexit
+        working_dir: src
+        script: |
+          set -o verbose
+          set -o errexit
 
-        ${python|/opt/mongodbtoolchain/v2/bin/python2} buildscripts/idl/run_tests.py
+          ${python|/opt/mongodbtoolchain/v2/bin/python2} buildscripts/idl/run_tests.py
     - command: attach.xunit_results
       params:
         file: "buildscripts/idl/results.xml"
