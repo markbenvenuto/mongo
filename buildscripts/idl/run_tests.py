@@ -18,7 +18,9 @@ IDL Unit Test runner
 
 Generates a file called results.xml in the XUnit format.
 """
+from __future__ import absolute_import, print_function
 
+import os
 import sys
 import unittest
 from xmlrunner import XMLTestRunner
@@ -32,10 +34,13 @@ def run_tests():
     # my-py type information.
     all_tests = unittest.defaultTestLoader.discover(start_dir="tests")  # type: ignore
 
-    with open("results.xml", "wb") as output:
+    results_file = os.path.abspath("results.xml")
+    with open(results_file, "wb") as output:
 
         runner = XMLTestRunner(verbosity=2, failfast=False, output=output)
         result = runner.run(all_tests)
+
+    print("Test results written to %s" % (results_file))
 
     sys.exit(not result.wasSuccessful())
 

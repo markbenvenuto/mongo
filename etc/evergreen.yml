@@ -995,7 +995,7 @@ post:
       file_location: src/report.json
   - command: attach.xunit_results
     params:
-      file: "buildscripts/idl/results.xml"
+      file: "results.xml"
   - func: "kill processes"
   # Print out any Out of Memory killed process messages.
   - command: shell.exec
