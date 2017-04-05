@@ -69,12 +69,16 @@ class IDLTestcase(unittest.TestCase):
             raise
             self.fail("Failed to parse document:\n%s" % (doc_str))
 
-    def _assert_parse(self, doc_str, parsed_doc, resolver=NothingImportResolver()):
+    def _assert_parse(self,
+                      doc_str,
+                      parsed_doc,
+                      resolver=NothingImportResolver()):
         # type: (unicode, idl.syntax.IDLParsedSpec, idl.parser.ImportResolverBase) -> None
         """Assert a document parsed correctly by the IDL compiler and returned no errors."""
-        self.assertIsNone(parsed_doc.errors,
-                          "Expected no parser errors\nFor document:\n%s\nReceived errors:\n\n%s" %
-                          (doc_str, errors_to_str(parsed_doc.errors)))
+        self.assertIsNone(
+            parsed_doc.errors,
+            "Expected no parser errors\nFor document:\n%s\nReceived errors:\n\n%s"
+            % (doc_str, errors_to_str(parsed_doc.errors)))
         self.assertIsNotNone(parsed_doc.spec, "Expected a parsed doc")
 
     def assert_parse(self, doc_str, resolver=NothingImportResolver()):
@@ -83,7 +87,11 @@ class IDLTestcase(unittest.TestCase):
         parsed_doc = self._parse(doc_str, resolver)
         self._assert_parse(doc_str, parsed_doc)
 
-    def assert_parse_fail(self, doc_str, error_id, multiple=False, resolver=NothingImportResolver()):
+    def assert_parse_fail(self,
+                          doc_str,
+                          error_id,
+                          multiple=False,
+                          resolver=NothingImportResolver()):
         # type: (unicode, unicode, bool, idl.parser.ImportResolverBase) -> None
         """
         Assert a document parsed correctly by the YAML parser, but not the by the IDL compiler.
@@ -104,8 +112,8 @@ class IDLTestcase(unittest.TestCase):
 
         self.assertTrue(
             parsed_doc.errors.contains(error_id),
-            "For document:\n%s\nExpected error message '%s' but received only errors:\n %s" %
-            (doc_str, error_id, errors_to_str(parsed_doc.errors)))
+            "For document:\n%s\nExpected error message '%s' but received only errors:\n %s"
+            % (doc_str, error_id, errors_to_str(parsed_doc.errors)))
 
     def assert_bind(self, doc_str, resolver=NothingImportResolver()):
         # type: (unicode, idl.parser.ImportResolverBase) -> idl.ast.IDLBoundSpec
@@ -115,14 +123,18 @@ class IDLTestcase(unittest.TestCase):
 
         bound_doc = idl.binder.bind(parsed_doc.spec)
 
-        self.assertIsNone(bound_doc.errors,
-                          "Expected no binder errors\nFor document:\n%s\nReceived errors:\n\n%s" %
-                          (doc_str, errors_to_str(bound_doc.errors)))
+        self.assertIsNone(
+            bound_doc.errors,
+            "Expected no binder errors\nFor document:\n%s\nReceived errors:\n\n%s"
+            % (doc_str, errors_to_str(bound_doc.errors)))
         self.assertIsNotNone(bound_doc.spec, "Expected a bound doc")
 
         return bound_doc.spec
 
-    def assert_bind_fail(self, doc_str, error_id, resolver=NothingImportResolver()):
+    def assert_bind_fail(self,
+                         doc_str,
+                         error_id,
+                         resolver=NothingImportResolver()):
         # type: (unicode, unicode, idl.parser.ImportResolverBase) -> None
         """
         Assert a document parsed correctly by the YAML parser and IDL parser, but not bound by the IDL binder.
@@ -134,7 +146,9 @@ class IDLTestcase(unittest.TestCase):
 
         bound_doc = idl.binder.bind(parsed_doc.spec)
 
-        self.assertIsNone(bound_doc.spec, "Expected no bound doc\nFor document:\n%s\n" % (doc_str))
+        self.assertIsNone(bound_doc.spec,
+                          "Expected no bound doc\nFor document:\n%s\n" %
+                          (doc_str))
         self.assertIsNotNone(bound_doc.errors, "Expected binder errors")
 
         # Assert that negative test cases are only testing one fault in a test.
@@ -145,5 +159,5 @@ class IDLTestcase(unittest.TestCase):
 
         self.assertTrue(
             bound_doc.errors.contains(error_id),
-            "For document:\n%s\nExpected error message '%s' but received only errors:\n %s" %
-            (doc_str, error_id, errors_to_str(bound_doc.errors)))
+            "For document:\n%s\nExpected error message '%s' but received only errors:\n %s"
+            % (doc_str, error_id, errors_to_str(bound_doc.errors)))

@@ -83,17 +83,20 @@ def _generic_parser(
                     syntax_node.__dict__[first_name] = second_node.value
             elif rule_desc.node_type == "bool_scalar":
                 if ctxt.is_scalar_bool_node(second_node, first_name):
-                    syntax_node.__dict__[first_name] = ctxt.get_bool(second_node)
+                    syntax_node.__dict__[first_name] = ctxt.get_bool(
+                        second_node)
             elif rule_desc.node_type == "scalar_or_sequence":
                 if ctxt.is_sequence_or_scalar_node(second_node, first_name):
-                    syntax_node.__dict__[first_name] = ctxt.get_list(second_node)
+                    syntax_node.__dict__[first_name] = ctxt.get_list(
+                        second_node)
             elif rule_desc.node_type == "mapping":
                 if ctxt.is_mapping_node(second_node, first_name):
-                    syntax_node.__dict__[first_name] = rule_desc.mapping_parser_func(ctxt,
-                                                                                     second_node)
+                    syntax_node.__dict__[
+                        first_name] = rule_desc.mapping_parser_func(
+                            ctxt, second_node)
             else:
-                raise errors.IDLError("Unknown node_type '%s' for parser rule" %
-                                      (rule_desc.node_type))
+                raise errors.IDLError("Unknown node_type '%s' for parser rule"
+                                      % (rule_desc.node_type))
         else:
             ctxt.add_unknown_node_error(first_node, syntax_node_name)
 
@@ -109,10 +112,12 @@ def _generic_parser(
         # 'bool' at this time.
         if not rule_desc.node_type == 'bool_scalar':
             if syntax_node.__dict__[name] is None:
-                ctxt.add_missing_required_field_error(node, syntax_node_name, name)
+                ctxt.add_missing_required_field_error(node, syntax_node_name,
+                                                      name)
         else:
-            raise errors.IDLError("Unknown node_type '%s' for parser required rule" %
-                                  (rule_desc.node_type))
+            raise errors.IDLError(
+                "Unknown node_type '%s' for parser required rule" %
+                (rule_desc.node_type))
 
 
 def _parse_global(ctxt, spec, node):
@@ -121,7 +126,8 @@ def _parse_global(ctxt, spec, node):
     if not ctxt.is_mapping_node(node, "global"):
         return
 
-    idlglobal = syntax.Global(ctxt.file_name, node.start_mark.line, node.start_mark.column)
+    idlglobal = syntax.Global(ctxt.file_name, node.start_mark.line,
+                              node.start_mark.column)
 
     _generic_parser(ctxt, node, "global", idlglobal, {
         "cpp_namespace": _RuleDesc("scalar"),
@@ -134,19 +140,22 @@ def _parse_global(ctxt, spec, node):
 
     spec.globals = idlglobal
 
+
 def _parse_imports(ctxt, spec, node):
     # type: (errors.ParserContext, syntax.IDLSpec, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> None
     """Parse a global section in the IDL file."""
     if not ctxt.is_sequence_node(node, "imports"):
         return
-    
+
     if spec.imports:
         ctxt.add_duplicate_error(node, "imports")
         return
 
-    imports = syntax.Import(ctxt.file_name, node.start_mark.line, node.start_mark.column)
+    imports = syntax.Import(ctxt.file_name, node.start_mark.line,
+                            node.start_mark.column)
     imports.imports = ctxt.get_list(node)
     spec.imports = imports
+
 
 def _parse_type(ctxt, spec, name, node):
     # type: (errors.ParserContext, syntax.IDLSpec, unicode, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> None
@@ -154,17 +163,25 @@ def _parse_type(ctxt, spec, name, node):
     if not ctxt.is_mapping_node(node, "type"):
         return
 
-    idltype = syntax.Type(ctxt.file_name, node.start_mark.line, node.start_mark.column)
+    idltype = syntax.Type(ctxt.file_name, node.start_mark.line,
+                          node.start_mark.column)
     idltype.name = name
 
     _generic_parser(ctxt, node, "type", idltype, {
-        "description": _RuleDesc('scalar', _RuleDesc.REQUIRED),
-        "cpp_type": _RuleDesc('scalar', _RuleDesc.REQUIRED),
-        "bson_serialization_type": _RuleDesc('scalar_or_sequence', _RuleDesc.REQUIRED),
-        "bindata_subtype": _RuleDesc('scalar'),
-        "serializer": _RuleDesc('scalar'),
-        "deserializer": _RuleDesc('scalar'),
-        "default": _RuleDesc('scalar'),
+        "description":
+        _RuleDesc('scalar', _RuleDesc.REQUIRED),
+        "cpp_type":
+        _RuleDesc('scalar', _RuleDesc.REQUIRED),
+        "bson_serialization_type":
+        _RuleDesc('scalar_or_sequence', _RuleDesc.REQUIRED),
+        "bindata_subtype":
+        _RuleDesc('scalar'),
+        "serializer":
+        _RuleDesc('scalar'),
+        "deserializer":
+        _RuleDesc('scalar'),
+        "default":
+        _RuleDesc('scalar'),
     })
 
     spec.symbols.add_type(ctxt, idltype)
@@ -188,7 +205,8 @@ def _parse_types(ctxt, spec, node):
 def _parse_field(ctxt, name, node):
     # type: (errors.ParserContext, str, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> syntax.Field
     """Parse a field in a struct/command in the IDL file."""
-    field = syntax.Field(ctxt.file_name, node.start_mark.line, node.start_mark.column)
+    field = syntax.Field(ctxt.file_name, node.start_mark.line,
+                         node.start_mark.column)
     field.name = name
 
     _generic_parser(ctxt, node, "field", field, {
@@ -222,7 +240,8 @@ def _parse_fields(ctxt, node):
 
         # Simple Type
         if second_node.id == "scalar":
-            field = syntax.Field(ctxt.file_name, node.start_mark.line, node.start_mark.column)
+            field = syntax.Field(ctxt.file_name, node.start_mark.line,
+                                 node.start_mark.column)
             field.name = first_name
             field.type = second_node.value
             fields.append(field)
@@ -241,13 +260,17 @@ def _parse_struct(ctxt, spec, name, node):
     if not ctxt.is_mapping_node(node, "struct"):
         return
 
-    struct = syntax.Struct(ctxt.file_name, node.start_mark.line, node.start_mark.column)
+    struct = syntax.Struct(ctxt.file_name, node.start_mark.line,
+                           node.start_mark.column)
     struct.name = name
 
     _generic_parser(ctxt, node, "struct", struct, {
-        "description": _RuleDesc('scalar', _RuleDesc.REQUIRED),
-        "fields": _RuleDesc('mapping', mapping_parser_func=_parse_fields),
-        "strict": _RuleDesc("bool_scalar"),
+        "description":
+        _RuleDesc('scalar', _RuleDesc.REQUIRED),
+        "fields":
+        _RuleDesc('mapping', mapping_parser_func=_parse_fields),
+        "strict":
+        _RuleDesc("bool_scalar"),
     })
 
     if struct.fields is None:
@@ -283,7 +306,8 @@ def _parse(stream, error_file_name="unknown"):
     # This will raise an exception if the YAML parse fails
     root_node = yaml.compose(stream)
 
-    ctxt = errors.ParserContext(error_file_name, errors.ParserErrorCollection())
+    ctxt = errors.ParserContext(error_file_name,
+                                errors.ParserErrorCollection())
 
     spec = syntax.IDLSpec()
 
@@ -293,8 +317,8 @@ def _parse(stream, error_file_name="unknown"):
 
     if not root_node.id == "mapping":
         raise errors.IDLError(
-            "Expected a YAML mapping node as root node of IDL document, got '%s' instead" %
-            root_node.id)
+            "Expected a YAML mapping node as root node of IDL document, got '%s' instead"
+            % root_node.id)
 
     field_name_set = set()  # type: Set[str]
 
@@ -326,6 +350,7 @@ def _parse(stream, error_file_name="unknown"):
     else:
         return syntax.IDLParsedSpec(spec, None)
 
+
 class ImportResolverBase(object):
     """Base class for resolving imported files."""
 
@@ -348,6 +373,7 @@ class ImportResolverBase(object):
         """Return an io.Stream for the requested file."""
         pass
 
+
 def parse(stream, input_file_name, resolver):
     # type: (Any, unicode, ImportResolverBase) -> syntax.IDLParsedSpec
     """
@@ -362,13 +388,16 @@ def parse(stream, input_file_name, resolver):
     if root_doc.errors:
         return root_doc
 
-    imports = [] # type: List[Tuple[common.SourceLocation, unicode, unicode]]
+    imports = []  # type: List[Tuple[common.SourceLocation, unicode, unicode]]
+    needs_include = []  # type: List[unicode]
     if root_doc.spec.imports:
-        imports = [(root_doc.spec.imports, input_file_name, import_file_name) for import_file_name in root_doc.spec.imports.imports]
-    
-    resolved_file_names = [] # type: List[unicode]
+        imports = [(root_doc.spec.imports, input_file_name, import_file_name)
+                   for import_file_name in root_doc.spec.imports.imports]
 
-    ctxt = errors.ParserContext(input_file_name, errors.ParserErrorCollection())
+    resolved_file_names = []  # type: List[unicode]
+
+    ctxt = errors.ParserContext(input_file_name,
+                                errors.ParserErrorCollection())
 
     while True:
         # Process imports
@@ -383,10 +412,11 @@ def parse(stream, input_file_name, resolver):
         imported_file_name = file_import_tuple[2]
 
         # Check for already resolved file
-        resolved_file_name = resolver.resolve(base_file_name, imported_file_name)
+        resolved_file_name = resolver.resolve(base_file_name,
+                                              imported_file_name)
         if not resolved_file_name:
             ctxt.add_cannot_find_import(import_location, imported_file_name)
-            return syntax.IDLParsedSpec(None, ctxt.errors) 
+            return syntax.IDLParsedSpec(None, ctxt.errors)
 
         if resolved_file_name in resolved_file_names:
             continue
@@ -401,14 +431,28 @@ def parse(stream, input_file_name, resolver):
         if parsed_doc.errors:
             return parsed_doc
 
+        # We need to generate includes for import IDL files which have structs
+        if base_file_name == input_file_name and len(
+                parsed_doc.spec.symbols.structs):
+            needs_include.append(imported_file_name)
+
         if parsed_doc.spec.imports:
-            imports += [ (parsed_doc.spec.imports, base_file_name, import_file_name) for import_file_name in parsed_doc.spec.imports.imports]
-            #imports += parsed_doc.spec.imports.imports
+            imports += [
+                (parsed_doc.spec.imports, base_file_name, import_file_name)
+                for import_file_name in parsed_doc.spec.imports.imports
+            ]
 
         # Merge symbol tables
-        root_doc.spec.symbols.add_imported_symbol_table(ctxt, parsed_doc.spec.symbols)
+        root_doc.spec.symbols.add_imported_symbol_table(
+            ctxt, parsed_doc.spec.symbols)
         if ctxt.errors.has_errors():
-            return syntax.IDLParsedSpec(None, ctxt.errors) 
+            return syntax.IDLParsedSpec(None, ctxt.errors)
 
+    # Resolve all the imports for root document so they can be translated into include file paths.
+    if len(needs_include):
+        for needs_include_name in needs_include:
+            resolved_file_name = resolver.resolve(base_file_name,
+                                                  needs_include_name)
+            root_doc.spec.imports.resolved_imports.append(resolved_file_name)
 
     return root_doc

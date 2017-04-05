@@ -33,6 +33,7 @@ else:
     from .context import idl
     from . import testcase
 
+
 class DcitionaryImportResolver(idl.parser.ImportResolverBase):
     """An import resolver that does nothing."""
 
@@ -58,6 +59,7 @@ class DcitionaryImportResolver(idl.parser.ImportResolverBase):
 
         return io.StringIO(self._import_dict[imported_file_name])
 
+
 class TestImport(testcase.IDLTestcase):
     """Test cases for the IDL binder."""
 
@@ -78,13 +80,13 @@ class TestImport(testcase.IDLTestcase):
             b: "b.idl"
             """), idl.errors.ERROR_ID_IS_NODE_TYPE)
 
-
     def test_import_positive(self):
         # type: () -> None
         """Postive import tests."""
 
         import_dict = {
-            "basetypes.idl" : textwrap.dedent("""
+            "basetypes.idl":
+            textwrap.dedent("""
             global:
                 cpp_namespace: 'something'
 
@@ -104,7 +106,8 @@ class TestImport(testcase.IDLTestcase):
                     fields:
                         foo: string
             """),
-            "recurse1.idl" : textwrap.dedent("""
+            "recurse1.idl":
+            textwrap.dedent("""
             imports:
                 - "basetypes.idl"
 
@@ -114,7 +117,8 @@ class TestImport(testcase.IDLTestcase):
                     cpp_type: foo
                     bson_serialization_type: int
             """),
-            "recurse2.idl" : textwrap.dedent("""
+            "recurse2.idl":
+            textwrap.dedent("""
             imports:
                 - "recurse1.idl"
 
@@ -124,7 +128,8 @@ class TestImport(testcase.IDLTestcase):
                     cpp_type: foo
                     bson_serialization_type: double
             """),
-            "recurse1b.idl" : textwrap.dedent("""
+            "recurse1b.idl":
+            textwrap.dedent("""
             imports:
                 - "basetypes.idl"
 
@@ -134,7 +139,7 @@ class TestImport(testcase.IDLTestcase):
                     cpp_type: foo
                     bson_serialization_type: bool
             """),
-            }
+        }
 
         resolver = DcitionaryImportResolver(import_dict)
 
@@ -153,7 +158,8 @@ class TestImport(testcase.IDLTestcase):
                 strict: false
                 fields:
                     foo: string
-            """), resolver = resolver)
+            """),
+            resolver=resolver)
 
         # Test nested import
         spec = self.assert_bind(
@@ -172,9 +178,9 @@ class TestImport(testcase.IDLTestcase):
                     foo: string
                     foo1: int
                     foo2: double
-            """), resolver = resolver)
+            """),
+            resolver=resolver)
 
-        
         # Test diamond import
         spec = self.assert_bind(
             textwrap.dedent("""
@@ -194,14 +200,16 @@ class TestImport(testcase.IDLTestcase):
                     foo1: int
                     foo2: double
                     foo3: bool
-            """), resolver = resolver)
+            """),
+            resolver=resolver)
 
     def test_import_negative(self):
         # type: () -> None
         """Negative import tests."""
 
         import_dict = {
-            "basetypes.idl" : textwrap.dedent("""
+            "basetypes.idl":
+            textwrap.dedent("""
             global:
                 cpp_namespace: 'something'
 
@@ -221,17 +229,18 @@ class TestImport(testcase.IDLTestcase):
                     fields:
                         foo: string
             """)
-            }
+        }
 
         resolver = DcitionaryImportResolver(import_dict)
-        
+
         # Bad import
         spec = self.assert_parse_fail(
             textwrap.dedent("""
         imports:
             - "notfound.idl"
-            """), idl.errors.ERROR_ID_BAD_IMPORT, resolver = resolver)
-
+            """),
+            idl.errors.ERROR_ID_BAD_IMPORT,
+            resolver=resolver)
 
         # Duplicate types
         spec = self.assert_parse_fail(
@@ -244,7 +253,9 @@ class TestImport(testcase.IDLTestcase):
                 description: foo
                 cpp_type: foo
                 bson_serialization_type: string
-            """), idl.errors.ERROR_ID_DUPLICATE_SYMBOL, resolver = resolver)
+            """),
+            idl.errors.ERROR_ID_DUPLICATE_SYMBOL,
+            resolver=resolver)
 
         # Duplicate structs
         spec = self.assert_parse_fail(
@@ -257,7 +268,9 @@ class TestImport(testcase.IDLTestcase):
                 description: foo
                 fields:
                     foo1: string
-            """), idl.errors.ERROR_ID_DUPLICATE_SYMBOL, resolver = resolver)
+            """),
+            idl.errors.ERROR_ID_DUPLICATE_SYMBOL,
+            resolver=resolver)
 
         # Duplicate struct and type
         spec = self.assert_parse_fail(
@@ -270,7 +283,9 @@ class TestImport(testcase.IDLTestcase):
                 description: foo
                 fields:
                     foo1: string
-            """), idl.errors.ERROR_ID_DUPLICATE_SYMBOL, resolver = resolver)
+            """),
+            idl.errors.ERROR_ID_DUPLICATE_SYMBOL,
+            resolver=resolver)
 
         # Duplicate type and struct
         spec = self.assert_parse_fail(
@@ -283,7 +298,9 @@ class TestImport(testcase.IDLTestcase):
                 description: foo
                 cpp_type: foo
                 bson_serialization_type: string
-            """), idl.errors.ERROR_ID_DUPLICATE_SYMBOL, resolver = resolver)
+            """),
+            idl.errors.ERROR_ID_DUPLICATE_SYMBOL,
+            resolver=resolver)
 
 
 if __name__ == '__main__':

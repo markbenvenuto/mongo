@@ -46,6 +46,7 @@ class CompilerArgs(object):
         self.output_base_dir = None  # type: unicode
         self.output_suffix = None  # type: unicode
 
+
 class CompilerImportResolver(parser.ImportResolverBase):
     """Class for the IDL compile to resolve imported files."""
 
@@ -64,19 +65,21 @@ class CompilerImportResolver(parser.ImportResolverBase):
         # type: (unicode, unicode) -> unicode
         """Return the complete path to a imported file name."""
 
-        logging.debug("Resolving imported file '%s' for file '%s'", imported_file_name, base_file)
+        logging.debug("Resolving imported file '%s' for file '%s'",
+                      imported_file_name, base_file)
 
         # Fully-qualify file
         base_file = os.path.abspath(os.path.normpath(base_file))
 
-
         base_dir = os.path.dirname(base_file)
         resolved_file_name = os.path.join(base_dir, imported_file_name)
         if os.path.exists(resolved_file_name):
-            logging.debug("Found imported file '%s' for file '%s' at '%s'", imported_file_name, base_file, resolved_file_name)
+            logging.debug("Found imported file '%s' for file '%s' at '%s'",
+                          imported_file_name, base_file, resolved_file_name)
             return resolved_file_name
 
-        logging.error("Cannot find imported file '%s' for file '%s'", imported_file_name, base_file)
+        logging.error("Cannot find imported file '%s' for file '%s'",
+                      imported_file_name, base_file)
 
         raise ValueError()
 
@@ -84,6 +87,49 @@ class CompilerImportResolver(parser.ImportResolverBase):
         # type: (unicode) -> Any
         """Return an io.Stream for the requested file."""
         return io.open(resolved_file_name)
+
+
+def _update_import_includes(args, spec, header_file_name):
+    # type: (CompilerArgs, syntax.IDLSpec, unicode) -> None
+    """Update the list of imports with a list of include files for each import with structs."""
+    # This function is fragile:
+    # In order to try to generate headers with an "include what you use" set of headers, the IDL
+    # compiler needs to include statements to headers for import files with structs. The problem
+    # with this is we must guess:
+    # 1. The layout of build vs source directory.
+    # 2. The file naming suffix rules for all IDL invocations are consistent.
+    if not spec.imports:
+        return
+
+    base_include_h_file_name = os.path.relpath(
+        os.path.normpath(header_file_name),
+        os.path.normpath(args.output_base_dir))
+
+    # Normalize to POSIX style for consistency across Windows and POSIX.
+    base_include_h_file_name = base_include_h_file_name.replace("\\", "/")
+
+    # Modify the includes list of the root_doc to include all of its direct imports
+    if not spec.globals:
+        spec.globals = syntax.Global(args.input_file, -1, -1)
+
+    first_dir = base_include_h_file_name.split('/')[0]
+
+    for resolved_file_name in spec.imports.resolved_imports:
+        # Guess the file naming rules
+        include_h_file_name = resolved_file_name.split('.')[
+            0] + args.output_suffix + ".h"
+        include_h_file_name = os.path.relpath(
+            os.path.normpath(include_h_file_name),
+            os.path.normpath(args.output_base_dir))
+        # Normalize to POSIX style for consistency across Windows and POSIX.
+        include_h_file_name = include_h_file_name.replace("\\", "/")
+
+        # Guess: The layout of build vs source directory
+        include_h_file_name = include_h_file_name[include_h_file_name.find(
+            first_dir):]
+
+        spec.globals.cpp_includes.append(include_h_file_name)
+
 
 def compile_idl(args):
     # type: (CompilerArgs) -> bool
@@ -94,8 +140,9 @@ def compile_idl(args):
 
     if args.output_source is None:
         if not '.' in args.input_file:
-            logging.error("File name '%s' must be end with a filename extension, such as '%s.idl'",
-                          args.input_file, args.input_file)
+            logging.error(
+                "File name '%s' must be end with a filename extension, such as '%s.idl'",
+                args.input_file, args.input_file)
             return False
 
         file_name_prefix = args.input_file.split('.')[0]
@@ -109,34 +156,17 @@ def compile_idl(args):
 
     # Compile the IDL through the 3 passes
     with io.open(args.input_file) as file_stream:
-        parsed_doc = parser.parse(file_stream, args.input_file, CompilerImportResolver(args.import_directories))
+        parsed_doc = parser.parse(
+            file_stream, args.input_file,
+            CompilerImportResolver(args.import_directories))
 
         if not parsed_doc.errors:
-
-            # Modify the includes list of the root_doc to include all of its direct imports
-            if not parsed_doc.spec.globals:
-                parsed_doc.spec.globals = syntax.Global(args.input_file, -1, -1)
-
-            print(resolved_file_name)
-            for resolved_file_name in parsed_doc.spec.imports.resolved_imports:
-                print(resolved_file_name)
-                print(args.output_base_dir)
-                include_h_file_name = resolved_file_name.split('.')[0] + args.output_suffix + ".h"
-                include_h_file_name = os.path.relpath(
-                    os.path.normpath(include_h_file_name), os.path.normpath(args.output_base_dir))
-
-                # Normalize to POSIX style for consistency across Windows and POSIX.
-                include_h_file_name = include_h_file_name.replace("\\", "/")
-
-                parsed_doc.spec.globals.cpp_includes.append(include_h_file_name)
-
-            print(parsed_doc.spec.globals.cpp_includes)
+            _update_import_includes(args, parsed_doc.spec, header_file_name)
 
             bound_doc = binder.bind(parsed_doc.spec)
             if not bound_doc.errors:
-                print(parsed_doc.spec.globals.cpp_includes)
-                generator.generate_code(bound_doc.spec, args.output_base_dir, header_file_name,
-                                        source_file_name)
+                generator.generate_code(bound_doc.spec, args.output_base_dir,
+                                        header_file_name, source_file_name)
 
                 return True
             else:

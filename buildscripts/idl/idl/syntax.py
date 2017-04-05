@@ -34,8 +34,8 @@ class IDLParsedSpec(object):
     def __init__(self, spec, error_collection):
         # type: (IDLSpec, errors.ParserErrorCollection) -> None
         """Must specify either an IDL document or errors, not both."""
-        assert (spec is None and error_collection is not None) or (spec is not None and
-                                                                   error_collection is None)
+        assert (spec is None and error_collection is not None) or (
+            spec is not None and error_collection is None)
         self.spec = spec
         self.errors = error_collection
 
@@ -52,7 +52,7 @@ class IDLSpec(object):
         """Construct an IDL spec."""
         self.symbols = SymbolTable()  # type: SymbolTable
         self.globals = None  # type: Optional[Global]
-        self.imports = None # type: Optional[Import]
+        self.imports = None  # type: Optional[Import]
 
 
 class SymbolTable(object):
@@ -75,12 +75,14 @@ class SymbolTable(object):
         """Return true if the given item already exist in the symbol table."""
         for struct in self.structs:
             if struct.name == name:
-                ctxt.add_duplicate_symbol_error(location, name, duplicate_class_name, 'struct')
+                ctxt.add_duplicate_symbol_error(location, name,
+                                                duplicate_class_name, 'struct')
                 return True
 
         for idltype in self.types:
             if idltype.name == name:
-                ctxt.add_duplicate_symbol_error(location, name, duplicate_class_name, 'type')
+                ctxt.add_duplicate_symbol_error(location, name,
+                                                duplicate_class_name, 'type')
                 return True
 
         return False
@@ -114,7 +116,7 @@ class SymbolTable(object):
             if not self._is_duplicate(ctxt, struct, struct.name, "struct"):
                 struct.imported = True
                 self.structs.append(struct)
-                
+
         for idltype in symbols.types:
             self.add_type(ctxt, idltype)
 
@@ -230,7 +232,7 @@ class Struct(common.SourceLocation):
 
         # Internal property that is not represented as syntax. An imported struct is read from an
         # imported file, and no code is generated for it.
-        self.imported = False # type: bool
+        self.imported = False  # type: bool
 
         super(Struct, self).__init__(file_name, line, column)
 

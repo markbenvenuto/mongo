@@ -93,7 +93,8 @@ class ParserError(common.SourceLocation):
         Example error message:
         test.idl: (17, 4): ID0008: Unknown IDL node 'cpp_namespac' for YAML entity 'global'.
         """
-        msg = "%s: (%d, %d): %s: %s" % (os.path.basename(self.file_name), self.line, self.column, self.error_id,
+        msg = "%s: (%d, %d): %s: %s" % (os.path.basename(self.file_name),
+                                        self.line, self.column, self.error_id,
                                         self.msg)
         return msg  # type: ignore
 
@@ -110,7 +111,8 @@ class ParserErrorCollection(object):
         # type: (common.SourceLocation, unicode, unicode) -> None
         """Add an error message with file (line, column) information."""
         self._errors.append(
-            ParserError(error_id, msg, location.file_name, location.line, location.column))
+            ParserError(error_id, msg, location.file_name, location.line,
+                        location.column))
 
     def has_errors(self):
         # type: () -> bool
@@ -175,23 +177,26 @@ class ParserContext(object):
         # type: (yaml.nodes.Node, unicode, unicode) -> None
         """Add an error with source location information based on a YAML node."""
         self.errors.add(
-            common.SourceLocation(self.file_name, node.start_mark.line, node.start_mark.column),
-            error_id, msg)
+            common.SourceLocation(self.file_name, node.start_mark.line,
+                                  node.start_mark.column), error_id, msg)
 
     def add_unknown_root_node_error(self, node):
         # type: (yaml.nodes.Node) -> None
         """Add an error about an unknown YAML root node."""
         self._add_node_error(node, ERROR_ID_UNKNOWN_ROOT, (
             "Unrecognized IDL specification root level node '%s', only " +
-            " (global, import, types, commands, and structs) are accepted") % (node.value))
+            " (global, import, types, commands, and structs) are accepted") %
+                             (node.value))
 
     def add_unknown_node_error(self, node, name):
         # type: (yaml.nodes.Node, unicode) -> None
         """Add an error about an unknown node."""
         self._add_node_error(node, ERROR_ID_UNKNOWN_NODE,
-                             "Unknown IDL node '%s' for YAML entity '%s'" % (node.value, name))
+                             "Unknown IDL node '%s' for YAML entity '%s'" %
+                             (node.value, name))
 
-    def add_duplicate_symbol_error(self, location, name, duplicate_class_name, original_class_name):
+    def add_duplicate_symbol_error(self, location, name, duplicate_class_name,
+                                   original_class_name):
         # type: (common.SourceLocation, unicode, unicode, unicode) -> None
         """Add an error about a duplicate symbol."""
         self._add_error(location, ERROR_ID_DUPLICATE_SYMBOL,
@@ -202,7 +207,8 @@ class ParserContext(object):
         # type: (common.SourceLocation, unicode, unicode) -> None
         """Add an error about an unknown type."""
         self._add_error(location, ERROR_ID_UNKNOWN_TYPE,
-                        "'%s' is an unknown type for field '%s'" % (type_name, field_name))
+                        "'%s' is an unknown type for field '%s'" %
+                        (type_name, field_name))
 
     def _is_node_type(self, node, node_name, expected_node_type):
         # type: (Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode], unicode, unicode) -> bool
@@ -210,8 +216,8 @@ class ParserContext(object):
         if not node.id == expected_node_type:
             self._add_node_error(
                 node, ERROR_ID_IS_NODE_TYPE,
-                "Illegal YAML node type '%s' for '%s', expected YAML node type '%s'" %
-                (node.id, node_name, expected_node_type))
+                "Illegal YAML node type '%s' for '%s', expected YAML node type '%s'"
+                % (node.id, node_name, expected_node_type))
             return False
         return True
 
@@ -248,9 +254,10 @@ class ParserContext(object):
             return False
 
         if not (node.value == "true" or node.value == "false"):
-            self._add_node_error(node, ERROR_ID_IS_NODE_VALID_BOOL,
-                                 "Illegal bool value for '%s', expected either 'true' or 'false'." %
-                                 node_name)
+            self._add_node_error(
+                node, ERROR_ID_IS_NODE_VALID_BOOL,
+                "Illegal bool value for '%s', expected either 'true' or 'false'."
+                % node_name)
             return False
 
         return True
@@ -283,9 +290,10 @@ class ParserContext(object):
     def add_empty_struct_error(self, node, name):
         # type: (yaml.nodes.Node, unicode) -> None
         """Add an error about a struct without fields."""
-        self._add_node_error(node, ERROR_ID_EMPTY_FIELDS,
-                             "Struct '%s' must have fields specified but no fields were found" %
-                             (name))
+        self._add_node_error(
+            node, ERROR_ID_EMPTY_FIELDS,
+            "Struct '%s' must have fields specified but no fields were found" %
+            (name))
 
     def add_missing_required_field_error(self, node, node_parent, node_name):
         # type: (yaml.nodes.Node, unicode, unicode) -> None
@@ -295,7 +303,8 @@ class ParserContext(object):
                              "IDL node '%s' is missing required scalar '%s'" %
                              (node_parent, node_name))
 
-    def add_missing_ast_required_field_error(self, location, ast_type, ast_parent, ast_name):
+    def add_missing_ast_required_field_error(self, location, ast_type,
+                                             ast_parent, ast_name):
         # type: (common.SourceLocation, unicode, unicode, unicode) -> None
         """Add an error about a AST node missing a required child."""
         # pylint: disable=invalid-name
@@ -307,96 +316,108 @@ class ParserContext(object):
         # type: (common.SourceLocation, unicode, unicode) -> None
         """Add an error about a 'array' not being a valid type name."""
         self._add_error(location, ERROR_ID_ARRAY_NOT_VALID_TYPE,
-                        "The %s '%s' cannot be named 'array'" % (ast_type, name))
+                        "The %s '%s' cannot be named 'array'" %
+                        (ast_type, name))
 
-    def add_bad_bson_type_error(self, location, ast_type, ast_parent, bson_type_name):
+    def add_bad_bson_type_error(self, location, ast_type, ast_parent,
+                                bson_type_name):
         # type: (common.SourceLocation, unicode, unicode, unicode) -> None
         """Add an error about a bad bson type."""
         self._add_error(location, ERROR_ID_BAD_BSON_TYPE,
                         "BSON Type '%s' is not recognized for %s '%s'." %
                         (bson_type_name, ast_type, ast_parent))
 
-    def add_bad_bson_scalar_type_error(self, location, ast_type, ast_parent, bson_type_name):
+    def add_bad_bson_scalar_type_error(self, location, ast_type, ast_parent,
+                                       bson_type_name):
         # type: (common.SourceLocation, unicode, unicode, unicode) -> None
         """Add an error about a bad list of bson types."""
-        self._add_error(location, ERROR_ID_BAD_BSON_TYPE_LIST,
-                        ("BSON Type '%s' is not a scalar bson type for %s '%s'" +
-                         " and cannot be used in a list of bson serialization types.") %
+        self._add_error(location, ERROR_ID_BAD_BSON_TYPE_LIST, (
+            "BSON Type '%s' is not a scalar bson type for %s '%s'" +
+            " and cannot be used in a list of bson serialization types.") %
                         (bson_type_name, ast_type, ast_parent))
 
-    def add_bad_bson_bindata_subtype_error(self, location, ast_type, ast_parent, bson_type_name):
+    def add_bad_bson_bindata_subtype_error(self, location, ast_type,
+                                           ast_parent, bson_type_name):
         # type: (common.SourceLocation, unicode, unicode, unicode) -> None
         """Add an error about a bindata_subtype associated with a type that is not bindata."""
         # pylint: disable=invalid-name
-        self._add_error(location, ERROR_ID_BAD_BSON_BINDATA_SUBTYPE_TYPE,
-                        ("The bindata_subtype field for %s '%s' is not valid for bson type '%s'") %
-                        (ast_type, ast_parent, bson_type_name))
+        self._add_error(location, ERROR_ID_BAD_BSON_BINDATA_SUBTYPE_TYPE, (
+            "The bindata_subtype field for %s '%s' is not valid for bson type '%s'"
+        ) % (ast_type, ast_parent, bson_type_name))
 
-    def add_bad_bson_bindata_subtype_value_error(self, location, ast_type, ast_parent, value):
+    def add_bad_bson_bindata_subtype_value_error(self, location, ast_type,
+                                                 ast_parent, value):
         # type: (common.SourceLocation, unicode, unicode, unicode) -> None
         """Add an error about a bad value for bindata_subtype."""
         # pylint: disable=invalid-name
-        self._add_error(location, ERROR_ID_BAD_BSON_BINDATA_SUBTYPE_VALUE,
-                        ("The bindata_subtype field's value '%s' for %s '%s' is not valid") %
-                        (value, ast_type, ast_parent))
+        self._add_error(
+            location, ERROR_ID_BAD_BSON_BINDATA_SUBTYPE_VALUE,
+            ("The bindata_subtype field's value '%s' for %s '%s' is not valid")
+            % (value, ast_type, ast_parent))
 
     def add_no_string_data_error(self, location, ast_type, ast_parent):
         # type: (common.SourceLocation, unicode, unicode) -> None
         """Add an error about using StringData for cpp_type."""
-        self._add_error(location, ERROR_ID_NO_STRINGDATA,
-                        ("Do not use mongo::StringData for %s '%s', use std::string instead") %
-                        (ast_type, ast_parent))
+        self._add_error(location, ERROR_ID_NO_STRINGDATA, (
+            "Do not use mongo::StringData for %s '%s', use std::string instead"
+        ) % (ast_type, ast_parent))
 
-    def add_ignored_field_must_be_empty_error(self, location, name, field_name):
+    def add_ignored_field_must_be_empty_error(self, location, name,
+                                              field_name):
         # type: (common.SourceLocation, unicode, unicode) -> None
         """Add an error about field must be empty for ignored fields."""
         # pylint: disable=invalid-name
         self._add_error(location, ERROR_ID_FIELD_MUST_BE_EMPTY_FOR_IGNORED, (
-            "Field '%s' cannot contain a value for property '%s' when a field is marked as ignored")
-                        % (name, field_name))
+            "Field '%s' cannot contain a value for property '%s' when a field is marked as ignored"
+        ) % (name, field_name))
 
     def add_struct_field_must_be_empty_error(self, location, name, field_name):
         # type: (common.SourceLocation, unicode, unicode) -> None
         """Add an error about field must be empty for fields of type struct."""
         # pylint: disable=invalid-name
         self._add_error(location, ERROR_ID_FIELD_MUST_BE_EMPTY_FOR_IGNORED, (
-            "Field '%s' cannot contain a value for property '%s' when a field's type is a struct") %
-                        (name, field_name))
+            "Field '%s' cannot contain a value for property '%s' when a field's type is a struct"
+        ) % (name, field_name))
 
-    def add_not_custom_scalar_serialization_not_supported_error(self, location, ast_type,
-                                                                ast_parent, bson_type_name):
+    def add_not_custom_scalar_serialization_not_supported_error(
+            self, location, ast_type, ast_parent, bson_type_name):
         # type: (common.SourceLocation, unicode, unicode, unicode) -> None
         # pylint: disable=invalid-name
         """Add an error about field must be empty for fields of type struct."""
-        self._add_error(location, ERROR_ID_CUSTOM_SCALAR_SERIALIZATION_NOT_SUPPORTED, (
-            "Custom serialization for a scalar is only supported for 'string'. The %s '%s' cannot" +
-            " use bson type '%s', use a bson_serialization_type of 'any' instead.") %
-                        (ast_type, ast_parent, bson_type_name))
+        self._add_error(
+            location, ERROR_ID_CUSTOM_SCALAR_SERIALIZATION_NOT_SUPPORTED,
+            ("Custom serialization for a scalar is only supported for 'string'. The %s '%s' cannot"
+             +
+             " use bson type '%s', use a bson_serialization_type of 'any' instead."
+             ) % (ast_type, ast_parent, bson_type_name))
 
     def add_bad_any_type_use_error(self, location, ast_type, ast_parent):
         # type: (common.SourceLocation, unicode, unicode) -> None
         # pylint: disable=invalid-name
         """Add an error about any being used in a list of bson types."""
         self._add_error(location, ERROR_ID_BAD_ANY_TYPE_USE, (
-            "The BSON Type 'any' is not allowed in a list of bson serialization types for" +
-            "%s '%s'. It must be only a single bson type.") % (ast_type, ast_parent))
+            "The BSON Type 'any' is not allowed in a list of bson serialization types for"
+            + "%s '%s'. It must be only a single bson type.") %
+                        (ast_type, ast_parent))
 
-    def add_bad_cpp_numeric_type_use_error(self, location, ast_type, ast_parent, cpp_type):
+    def add_bad_cpp_numeric_type_use_error(self, location, ast_type,
+                                           ast_parent, cpp_type):
         # type: (common.SourceLocation, unicode, unicode, unicode) -> None
         # pylint: disable=invalid-name
         """Add an error about any being used in a list of bson types."""
         self._add_error(location, ERROR_ID_BAD_NUMERIC_CPP_TYPE, (
-            "The C++ numeric type '%s' is not allowed for %s '%s'. Only 'std::int32_t'," +
-            " 'std::uint32_t', 'std::uint64_t', and 'std::int64_t' are supported.") %
-                        (cpp_type, ast_type, ast_parent))
-
+            "The C++ numeric type '%s' is not allowed for %s '%s'. Only 'std::int32_t',"
+            +
+            " 'std::uint32_t', 'std::uint64_t', and 'std::int64_t' are supported."
+        ) % (cpp_type, ast_type, ast_parent))
 
     def add_cannot_find_import(self, location, imported_file_name):
         # type: (common.SourceLocation, unicode) -> None
         """Add an error about not being able to find an import."""
-        self._add_error(location, ERROR_ID_BAD_IMPORT, 
-            "Could not resolve import '%s', file not found"  %
+        self._add_error(location, ERROR_ID_BAD_IMPORT,
+                        "Could not resolve import '%s', file not found" %
                         (imported_file_name))
+
 
 def _assert_unique_error_messages():
     # type: () -> None
@@ -408,7 +429,8 @@ def _assert_unique_error_messages():
 
     error_ids_set = set(error_ids)
     if len(error_ids) != len(error_ids_set):
-        raise IDLError("IDL error codes prefixed with ERRROR_ID are not unique.")
+        raise IDLError(
+            "IDL error codes prefixed with ERRROR_ID are not unique.")
 
 
 # On file import, check the error messages are unique
