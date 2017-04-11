@@ -44,6 +44,8 @@ from string import digits as string_digits
 import SCons.Warnings
 
 import common
+from . import setup_configuration
+enumerate_visual_studio = setup_configuration.enumerate_visual_studio
 
 debug = common.debug
 
@@ -83,6 +85,8 @@ _ARCH_TO_CANONICAL = {
     "x86"       : "x86",
     "x86_64"    : "amd64",
     "x86_amd64" : "x86_amd64", # Cross compile to 64 bit from 32bits
+    "arm"       : "arm",
+    "arm64"     : "arm64",
 }
 
 # Given a (host, target) tuple, return the argument for the bat file. Both host
@@ -91,9 +95,13 @@ _HOST_TARGET_ARCH_TO_BAT_ARCH = {
     ("x86", "x86"): "x86",
     ("x86", "amd64"): "x86_amd64",
     ("x86", "x86_amd64"): "x86_amd64",
+    ("x86", "arm"): "x86_arm",
+    ("x86", "arm64"): "x86_arm64",
     ("amd64", "x86_amd64"): "x86_amd64", # This is present in (at least) VS2012 express
     ("amd64", "amd64"): "amd64",
     ("amd64", "x86"): "x86",
+    ("amd64", "arm"): "amd64_arm",
+    ("amd64", "arm64"): "amd64_arm64",
     ("x86", "ia64"): "x86_ia64"
 }
 
@@ -158,11 +166,28 @@ class RegistryFinder(object):
         return None
 
 
+class ComSetupFinder(object):
+    _vs_instances = None
+
+    def __init__(self, version):
+        self.version = version
+
+    def __call__(self, *args, **kwargs):
+        if ComSetupFinder._vs_instances is None:
+            ComSetupFinder._vs_instances = enumerate_visual_studio()
+
+        for instance in ComSetupFinder._vs_instances:
+            if instance.version.startswith(self.version):
+                return instance.installation_path
+
 # If you update this, update SupportedVSList in Tool/MSCommon/vs.py, and the
 # MSVC_VERSION documentation in Tool/msvc.xml.
-_VCVER = ["14.0", "14.0Exp", "12.0", "12.0Exp", "11.0", "11.0Exp", "10.0", "10.0Exp", "9.0", "9.0Exp","8.0", "8.0Exp","7.1", "7.0", "6.0"]
+_VCVER = ["15.0", "14.0", "14.0Exp", "12.0", "12.0Exp", "11.0", "11.0Exp", "10.0", "10.0Exp", "9.0", "9.0Exp","8.0", "8.0Exp","7.1", "7.0", "6.0"]
 
 _VCVER_TO_PRODUCT_DIR = {
+    '15.0': [
+        ComSetupFinder('15')
+    ],
     '14.0': [
         RegistryFinder([
             (SCons.Util.HKEY_LOCAL_MACHINE, r'Microsoft\VisualStudio\14.0\Setup\VC\ProductDir')
@@ -316,14 +341,16 @@ def find_batch_file(env,msvc_version,host_arch,target_arch):
     # filter out e.g. "Exp" from the version name
     msvc_ver_numeric = ''.join([x for x in msvc_version if x in string_digits + "."])
     vernum = float(msvc_ver_numeric)
-    if 7 <= vernum < 8:
-        pdir = os.path.join(pdir, os.pardir, "Common7", "Tools")
-        batfilename = os.path.join(pdir, "vsvars32.bat")
-    elif vernum < 7:
+    if vernum < 7:
         pdir = os.path.join(pdir, "Bin")
         batfilename = os.path.join(pdir, "vcvars32.bat")
-    else: # >= 8
+    elif vernum < 8:
+        pdir = os.path.join(pdir, os.pardir, "Common7", "Tools")
+        batfilename = os.path.join(pdir, "vsvars32.bat")
+    elif vernum < 15:
         batfilename = os.path.join(pdir, "vcvarsall.bat")
+    else:  # vernum >= 15
+        batfilename = os.path.join(pdir, "VC", "Auxiliary", "Build", "vcvarsall.bat")
 
     if not os.path.exists(batfilename):
         debug("Not found: %s" % batfilename)

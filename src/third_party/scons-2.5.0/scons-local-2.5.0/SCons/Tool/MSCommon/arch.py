@@ -57,6 +57,11 @@ SupportedArchitectureList = [
         ['ARM'],
     ),
 
+    ArchitectureDefinition(
+        'arm64',
+        ['ARM64'],
+    ),
+
 ]
 
 SupportedArchitectureMap = {}
