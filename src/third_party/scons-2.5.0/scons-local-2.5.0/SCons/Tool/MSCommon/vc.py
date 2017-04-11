@@ -323,8 +323,6 @@ def find_vc_pdir(msvc_version):
         if comps:
             return comps
 
-     return None
-
     return None
 
 def find_batch_file(env,msvc_version,host_arch,target_arch):
