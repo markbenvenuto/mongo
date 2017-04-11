@@ -35,6 +35,22 @@ describe service('mongod') do
   it { should be_running }
 end
 
+ulimits = {
+  'Max file size'     => 'unlimited',
+  'Max cpu time'      => 'unlimited',
+  'Max address space' => 'unlimited',
+  'Max open files'    => '64000',
+  'Max resident set'  => 'unlimited',
+  'Max processes'     => '64000'
+}
+ulimits_cmd = 'cat /proc/self/limits'
+
+ulimits.each do |limit, value|
+  describe command("#{ulimits_cmd} | grep \"#{limit}\"") do
+    its('stdout') { should match(/#{limit}\s+#{value}/) }
+  end
+end
+
 # wait to make sure mongod is ready
 describe command("/inspec_wait.sh") do
   its('exit_status') { should eq 0 }
