@@ -483,12 +483,7 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
         member_type = cpp_type_info.get_storage_type()
         member_name = _get_field_member_name(field)
 
-        # TODO: make this smarter
-        optional_initializer = ""
-        if "mongo::ConstDataRange" == member_type:
-            optional_initializer = "{nullptr, nullptr}"
-
-        self._writer.write_line('%s %s%s;' % (member_type, member_name, optional_initializer))
+        self._writer.write_line('%s %s;' % (member_type, member_name))
 
     def generate(self, spec):
         # type: (ast.IDLAST) -> None
