@@ -101,14 +101,6 @@ def fill_spaces(count):
     return fill
 
 
-def _template_format(template, template_params):
-    # type: (unicode, Mapping[unicode,unicode]) -> unicode
-    """Write a template to the stream."""
-    # Ignore the types since we use unicode literals and this expects str but works fine with
-    # unicode.
-    # See https://docs.python.org/2/library/string.html#template-strings
-    return string.Template(template).substitute(template_params)  # type: ignore
-
 
 def indent_text(count, unindented_text):
     # type: (int, unicode) -> unicode
@@ -172,7 +164,7 @@ class _IndentedTextWriter(object):
     def write_template(self, template):
         # type: (unicode) -> None
         """Write a template to the stream."""
-        msg = _template_format(template, self._template_context)
+        msg = common.template_format(template, self._template_context)
         self._stream.write(indent_text(self._indent, msg))
         self._stream.write("\n")
 
@@ -433,20 +425,7 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
         if not cpp_type_info.is_view_type():
             body_template = 'return $member_name;'
         else:
-            if field.array:
-                # Delegate to a function to the do the transformation between vectors.
-                if field.optional:
-                    body_template = """\
-                    if (${member_name}.is_initialized()) {
-                        return transformVector<std::string, StringData>(${member_name}.get());
-                    } else {
-                        return boost::none;
-                    }
-                    """
-                else:
-                    body_template = 'return transformVector<std::string, StringData>(${member_name});'
-            else:
-                body_template = 'return ${param_type}{${member_name}};'
+            body_template = cpp_type_info.get_getter_body(member_name)
 
         template_params = {
             'method_name': common.title_case(field.name),
@@ -455,7 +434,7 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
             'param_type': param_type,
         }
 
-        body = _template_format(body_template, template_params)
+        body = common.template_format(body_template, template_params)
 
         # Generate a getter that disables xvalue for view types (i.e. StringData), constructed
         # optional types, and non-primitive types.
