@@ -19,7 +19,7 @@ from __future__ import absolute_import, print_function, unicode_literals
 from abc import ABCMeta, abstractmethod
 import string
 import textwrap
-from typing import Any, List, Mapping, Union, cast
+from typing import Any, Optional
 
 from . import ast
 from . import common
@@ -62,79 +62,75 @@ class CppTypeBase(object):
 
     def __init__(self, field):
         # type: (ast.Field) -> None
+        """Construct a CppTypeBase."""
         self._field = field
 
     @abstractmethod
     def get_type_name(self):
         # type: () -> unicode
+        """Get the C++ type name for a field."""
         pass
 
     @abstractmethod
     def get_storage_type(self):
         # type: () -> unicode
-        # _get_field_storage_type
+        """Get the C++ type name for the storage of class member for a field."""
         pass
 
     @abstractmethod
     def get_getter_setter_type(self):
         # type: () -> unicode
-        # _get_field_getter_setter_type
+        """Get the C++ type name for the getter/setter parameter for a field."""
         pass
 
     @abstractmethod
     def return_by_reference(self):
         # type: () -> bool
-        # _get_return_by_reference
+        """Return True if the type should be returned by reference."""
         pass
 
     @abstractmethod
     def disable_xvalue(self):
         # type: () -> bool
-        # _get_disable_xvalue
+        """Return True if the type should have the xvalue getter disabled."""
         pass
 
     @abstractmethod
     def is_view_type(self):
         # type: () -> bool
-        # _is_view_type
+        """Return True if the C++ is returned as a view type from an IDL class."""
         pass
     
     @abstractmethod
-    def get_view_type_to_base_method(self):
-        # type: () -> unicode
-        # _get_view_type_to_base_method
-        pass
-
-    @abstractmethod
-    def needs_cast_to(self):
-        # type: () -> bool
-        return False
-
-    @abstractmethod
     def get_getter_body(self, member_name):
         # type: (unicode) -> unicode
+        """Get the body of the getter."""
         pass
 
     @abstractmethod
     def get_setter_body(self, member_name):
         # type: (unicode) -> unicode
+        """Get the body of the setter."""
         pass
 
     @abstractmethod
     def get_transform_to_getter_type(self, expression):
         # type: (unicode) -> Optional[unicode]
+        """Get the expression to transform the input expression into the getter type."""
         pass
 
     @abstractmethod
     def get_transform_to_storage_type(self, expression):
         # type: (unicode) -> Optional[unicode]
+        """Get the expression to transform the input expression into the setter type."""
         pass
 
-class CppTypeBasic(CppTypeBase):
+class _CppTypeBasic(CppTypeBase):
     """Base type for C++ Type information."""
 
     def __init__(self, field):
         # type: (ast.Field) -> None
+        """Construct a CppTypeBasic."""
         self._field = field
 
     def get_type_name(self):
@@ -169,43 +165,37 @@ class CppTypeBasic(CppTypeBase):
 
     def is_view_type(self):
         # type: () -> bool
-        # _is_view_type
+        """Return True if the C++ is returned as a view type from an IDL class."""
         return False
     
-    def get_view_type_to_base_method(self):
-        # type: () -> unicode
-        # _get_view_type_to_base_method
-        return _get_view_type_to_base_method(self.get_type_name())
-
-
-    def needs_cast_to(self):
-        # type: () -> bool
-        return False
-
     def get_getter_body(self, member_name):
         # type: (unicode) -> unicode
+        """Get the body of the getter."""
         return common.template_args('return $member_name;', member_name=member_name)
 
     def get_setter_body(self, member_name):
         # type: (unicode) -> unicode
+        """Get the body of the setter."""
         return common.template_args('${member_name} = std::move(value);', member_name=member_name)
 
     def get_transform_to_getter_type(self, expression):
         # type: (unicode) -> Optional[unicode]
+        """Get the expression to transform the input expression into the getter type."""
         return None
 
     def get_transform_to_storage_type(self, expresion):
         # type: (unicode) -> Optional[unicode]
+        """Get the expression to transform the input expression into the setter type."""
         return None
 
-class CppTypeView(CppTypeBase):
-    """Base type for C++ Type information."""
+class _CppTypeView(CppTypeBase):
+    """Base type for C++ View Types information."""
 
     def __init__(self, field, storage_type, view_type):
         # type: (ast.Field, unicode, unicode) -> None
         self._storage_type = storage_type
         self._view_type = view_type
-        super(CppTypeView, self).__init__(field)
+        super(_CppTypeView, self).__init__(field)
 
     def get_type_name(self):
         # type: () -> unicode
@@ -213,38 +203,24 @@ class CppTypeView(CppTypeBase):
 
     def get_storage_type(self):
         # type: () -> unicode
-        # _get_field_storage_type
         return self._storage_type
 
     def get_getter_setter_type(self):
         # type: () -> unicode
-        # _get_field_getter_setter_type
         return self._view_type
 
     def return_by_reference(self):
         # type: () -> bool
-        # _get_return_by_reference
         return False
 
     def disable_xvalue(self):
         # type: () -> bool
-        # _get_disable_xvalue
         return True
 
     def is_view_type(self):
         # type: () -> bool
-        # _is_view_type
         return True
     
-    def get_view_type_to_base_method(self):
-        # type: () -> unicode
-        # _get_view_type_to_base_method
-        return "toString"
-
-    def needs_cast_to(self):
-        # type: () -> bool
-        return True
-
     def get_getter_body(self, member_name):
         # type: (unicode) -> unicode
         return common.template_args('return $member_name;', member_name=member_name)
@@ -264,13 +240,13 @@ class CppTypeView(CppTypeBase):
             expression = expression,
             )
 
-class CppTypeDelegating(CppTypeBase):
-    """Base type for C++ Type information."""
+class _CppTypeDelegating(CppTypeBase):
+    """Delegating to contained type."""
 
     def __init__(self, base, field):
         # type: (CppTypeBase, ast.Field) -> None
         self._base = base
-        super(CppTypeDelegating, self).__init__(field)
+        super(_CppTypeDelegating, self).__init__(field)
 
     def get_type_name(self):
         # type: () -> unicode
@@ -296,14 +272,6 @@ class CppTypeDelegating(CppTypeBase):
         # type: () -> bool
         return self._base.is_view_type()
     
-    def get_view_type_to_base_method(self):
-        # type: () -> unicode
-        return self._base.get_view_type_to_base_method()
-
-    def needs_cast_to(self):
-        # type: () -> bool
-        return self._base.needs_cast_to()
-        
     def get_getter_body(self, member_name):
         # type: (unicode) -> unicode
         return self._base.get_getter_body(member_name)
@@ -321,21 +289,19 @@ class CppTypeDelegating(CppTypeBase):
         return self._base.get_transform_to_storage_type(expression)
 
 
-class CppTypeArray(CppTypeDelegating):
-    """Base type for C++ Type information."""
+class _CppTypeArray(_CppTypeDelegating):
+    """C++ Array type for wrapping a base C++ Type information."""
 
     def __init__(self, base, field):
         # type: (CppTypeBase, ast.Field) -> None
-        super(CppTypeArray, self).__init__(base, field)
+        super(_CppTypeArray, self).__init__(base, field)
 
     def get_storage_type(self):
         # type: () -> unicode
-        # _get_field_storage_type
         return _qualify_array_type(self._base.get_storage_type())
 
     def get_getter_setter_type(self):
         # type: () -> unicode
-        # _get_field_getter_setter_type
         return _qualify_array_type(self._base.get_getter_setter_type())
 
     def return_by_reference(self):
@@ -355,7 +321,7 @@ class CppTypeArray(CppTypeDelegating):
             return common.template_args(
                 'return ${convert};', convert=convert)
         else:
-            return self._base.get_getter_body(convert_base)
+            return self._base.get_getter_body(member_name)
 
     def get_setter_body(self, member_name):
         # type: (unicode) -> unicode
@@ -364,7 +330,7 @@ class CppTypeArray(CppTypeDelegating):
             return common.template_args(
                 '${member_name} = ${convert};', member_name=member_name, convert=convert)
         else:
-            return self._base.get_getter_body(convert_base)
+            return self._base.get_getter_body("value")
 
     def get_transform_to_getter_type(self, expression):
         # type: (unicode) -> Optional[unicode]
@@ -392,21 +358,19 @@ class CppTypeArray(CppTypeDelegating):
             return None
 
 
-class CppTypeOptional(CppTypeDelegating):
-    """Base type for C++ Type information."""
+class _CppTypeOptional(_CppTypeDelegating):
+    """Base type for Optional C++ Type information which wraps C++ types."""
 
     def __init__(self, base, field):
         # type: (CppTypeBase, ast.Field) -> None
-        super(CppTypeOptional, self).__init__(base, field)
+        super(_CppTypeOptional, self).__init__(base, field)
 
     def get_storage_type(self):
         # type: () -> unicode
-        # _get_field_storage_type
         return _qualify_optional_type(self._base.get_storage_type())
 
     def get_getter_setter_type(self):
         # type: () -> unicode
-        # _get_field_getter_setter_type
         return _qualify_optional_type(self._base.get_getter_setter_type())
 
     def disable_xvalue(self):
@@ -461,16 +425,16 @@ def get_cpp_type(field):
     cpp_type_info = None # type: Any
 
     if field.cpp_type == 'std::string':
-        cpp_type_info = CppTypeView(field, 'std::string', 'StringData')
+        cpp_type_info = _CppTypeView(field, 'std::string', 'StringData')
     #elif field.cpp_type == 'std::vector<std::uint8_t>':
     #    cpp_type_info = CppTypeView(field, 'std::vector<std::uint8_t>', 'ConstDataRange')
     else:
-        cpp_type_info = CppTypeBasic(field)
+        cpp_type_info = _CppTypeBasic(field)
 
     if field.array:
-        cpp_type_info = CppTypeArray(cpp_type_info, field)
+        cpp_type_info = _CppTypeArray(cpp_type_info, field)
 
     if field.optional:
-        cpp_type_info = CppTypeOptional(cpp_type_info, field)
+        cpp_type_info = _CppTypeOptional(cpp_type_info, field)
 
     return cpp_type_info
