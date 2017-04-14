@@ -640,10 +640,9 @@ class _CppSourceFileWriter(_CppFileWriterBase):
         # type: (ast.Struct) -> None
         """Generate the C++ deserializer method definition."""
 
-        with self._block(
-                '%s %s::parse(const IDLParserErrorContext& ctxt, const BSONObj& bsonObject) {' %
-            (_title_case(struct.name), _title_case(struct.name)), '}'):
-
+        func_def = '%s %s::parse(const IDLParserErrorContext& ctxt, const BSONObj& bsonObject)' % (
+            _title_case(struct.name), _title_case(struct.name))
+        with self._block('%s {' % (func_def), '}'):
             self._writer.write_line('%s object;' % _title_case(struct.name))
 
             field_usage_check = _FieldUsageChecker(self._writer)

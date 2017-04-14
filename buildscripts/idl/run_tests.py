@@ -14,7 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 """
-IDL Unit Test runner
+IDL Unit Test runner.
 
 Generates a file called results.xml in the XUnit format.
 """

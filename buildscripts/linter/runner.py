@@ -71,6 +71,10 @@ def _find_linter(linter, config_dict):
         cmd_str += ".exe"
         cmd = [cmd_str]
     else:
+        # On Mac and with Homebrew, check for the binaries in /usr/local instead of sys.executable.
+        if sys.platform == 'darwin' and python_dir.startswith('/usr/local/opt'):
+            python_dir = '/usr/local/bin'
+
         # On Linux, these scripts are installed in %PYTHONDIR%\bin like
         # '/opt/mongodbtoolchain/v2/bin', but they may point to the wrong interpreter.
         cmd_str = os.path.join(python_dir, linter.cmd_name)
