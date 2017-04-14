@@ -423,23 +423,19 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
         disable_xvalue = cpp_type_info.disable_xvalue()
 
         if not cpp_type_info.is_view_type():
-            body_template = 'return $member_name;'
+            body = common.template_args('return $member_name;', member_name=member_name)
         else:
-            body_template = cpp_type_info.get_getter_body(member_name)
+            body = cpp_type_info.get_getter_body(member_name)
 
         template_params = {
             'method_name': common.title_case(field.name),
-            'member_name': member_name,
             'optional_ampersand': optional_ampersand,
             'param_type': param_type,
+            'body' : body,
         }
-
-        body = common.template_format(body_template, template_params)
 
         # Generate a getter that disables xvalue for view types (i.e. StringData), constructed
         # optional types, and non-primitive types.
-        template_params['body'] = body
-
         with self._with_template(template_params):
 
             if disable_xvalue:
@@ -466,49 +462,12 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
         }
 
         if cpp_type_info.is_view_type():
-            template_params['view_to_base_method'] = cpp_type_info.get_view_type_to_base_method()
+            template_params['body'] = cpp_type_info.get_setter_body(member_name)
 
             with self._with_template(template_params):
-
-                if field.array:
-                    if not field.optional:
-                        self._writer.write_template(
-                            'void set${method_name}(${param_type} value) & { ${member_name} = transformVector<StringData, std::string>(value); }'
-                        )
-
-                    else:
-                        # We need to convert between two different types of optional<T> and yet provide
-                        # the ability for the user to specific an uninitialized optional. This occurs
-                        # for vector<mongo::StringData> and vector<std::string> paired together.
-                        with self._block('void set${method_name}(${param_type} value) & {', "}"):
-                            self._writer.write_template(
-                                textwrap.dedent("""\
-                            if (value.is_initialized()) {
-                                ${member_name} = transformVector<StringData, std::string>(value.get());
-                            } else {
-                                ${member_name} = boost::none;
-                            }
-                            """))
-                else:
-                    if not field.optional:
-                        self._writer.write_template(
-                            'void set${method_name}(${param_type} value) & { ${member_name} = value.${view_to_base_method}(); }'
-                        )
-
-                    else:
-                        # We need to convert between two different types of optional<T> and yet provide
-                        # the ability for the user to specific an uninitialized optional. This occurs
-                        # for mongo::StringData and std::string paired together.
-                        with self._block('void set${method_name}(${param_type} value) & {', "}"):
-                            self._writer.write_template(
-                                textwrap.dedent("""\
-                            if (value.is_initialized()) {
-                                ${member_name} = value.get().${view_to_base_method}();
-                            } else {
-                                ${member_name} = boost::none;
-                            }
-                            """))
-
+                self._writer.write_template(
+                    'void set${method_name}(${param_type} value) & { ${body} }'
+                )
         else:
             with self._with_template(template_params):
                 self._writer.write_template(
