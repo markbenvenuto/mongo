@@ -28,6 +28,9 @@
 
 #pragma once
 
+#include <vector>
+
+#include "mongo/base/data_range.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
 
@@ -56,6 +59,34 @@ public:
     }
 
     void serialize(BSONObjBuilder* builder) const {}
+};
+
+/**
+ * Simple class that demonstrates the contract a class must implement to parse a BSON "bindata"
+ * variable length type
+ * from the IDL parser.
+ */
+class BinDataCustomType {
+public:
+    BinDataCustomType() {}
+    BinDataCustomType(std::vector<std::uint8_t>& vec) : _vec(std::move(vec)) {}
+
+    static BinDataCustomType parse(std::vector<std::uint8_t>& vec) {
+        BinDataCustomType b;
+        b._vec = std::move(vec);
+        return b;
+    }
+
+    ConstDataRange serialize() const {
+        return makeCDR(_vec);
+    }
+
+    const std::vector<std::uint8_t>& getVector() const {
+        return _vec;
+    }
+
+private:
+    std::vector<std::uint8_t> _vec;
 };
 
 }  // namespace mongo

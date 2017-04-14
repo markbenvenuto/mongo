@@ -110,6 +110,8 @@ class TestBinder(testcase.IDLTestcase):
                 "std::uint32_t",
                 "std::int32_t",
                 "std::uint64_t",
+                "std::vector<std::uint8_t>",
+                "std::array<std::uint8_t, 16>",
         ]:
             self.assert_bind(
                 textwrap.dedent("""
@@ -147,7 +149,7 @@ class TestBinder(testcase.IDLTestcase):
             """))
 
         # Test supported bindata_subtype
-        for bindata_subtype in ["generic", "function", "binary", "uuid_old", "uuid", "md5"]:
+        for bindata_subtype in ["generic", "function", "uuid", "md5"]:
             self.assert_bind(
                 textwrap.dedent("""
             types:
@@ -156,7 +158,6 @@ class TestBinder(testcase.IDLTestcase):
                     cpp_type: foo
                     bson_serialization_type: bindata
                     bindata_subtype: %s
-                    default: foo
                 """ % (bindata_subtype)))
 
     def test_type_negative(self):
@@ -253,7 +254,7 @@ class TestBinder(testcase.IDLTestcase):
                     bson_serialization_type: bindata
             """), idl.errors.ERROR_ID_BAD_BSON_BINDATA_SUBTYPE_VALUE)
 
-        # Test bindata_subtype wrong
+        # Test fake bindata_subtype is wrong
         self.assert_bind_fail(
             textwrap.dedent("""
             types:
@@ -262,6 +263,27 @@ class TestBinder(testcase.IDLTestcase):
                     cpp_type: foo
                     bson_serialization_type: bindata
                     bindata_subtype: foo
+            """), idl.errors.ERROR_ID_BAD_BSON_BINDATA_SUBTYPE_VALUE)
+
+        # Test deprecated bindata_subtype 'binary', and 'uuid_old' are wrong
+        self.assert_bind_fail(
+            textwrap.dedent("""
+            types:
+                foofoo:
+                    description: foo
+                    cpp_type: foo
+                    bson_serialization_type: bindata
+                    bindata_subtype: binary
+            """), idl.errors.ERROR_ID_BAD_BSON_BINDATA_SUBTYPE_VALUE)
+
+        self.assert_bind_fail(
+            textwrap.dedent("""
+            types:
+                foofoo:
+                    description: foo
+                    cpp_type: foo
+                    bson_serialization_type: bindata
+                    bindata_subtype: uuid_old
             """), idl.errors.ERROR_ID_BAD_BSON_BINDATA_SUBTYPE_VALUE)
 
         # Test bindata_subtype on wrong type
@@ -274,6 +296,18 @@ class TestBinder(testcase.IDLTestcase):
                     bson_serialization_type: string
                     bindata_subtype: generic
             """), idl.errors.ERROR_ID_BAD_BSON_BINDATA_SUBTYPE_TYPE)
+
+        # Test bindata_subtype on wrong type
+        self.assert_bind_fail(
+            textwrap.dedent("""
+            types:
+                foofoo:
+                    description: foo
+                    cpp_type: foo
+                    bson_serialization_type: bindata
+                    bindata_subtype: uuid
+                    default: 42
+            """), idl.errors.ERROR_ID_BAD_BINDATA_DEFAULT)
 
         # Test bindata in list of types
         self.assert_bind_fail(
@@ -310,6 +344,30 @@ class TestBinder(testcase.IDLTestcase):
                                 - any
                                 - int
             """), idl.errors.ERROR_ID_BAD_ANY_TYPE_USE)
+
+        # Test object in list of types
+        self.assert_bind_fail(
+            textwrap.dedent("""
+            types:
+                foofoo:
+                    description: foo
+                    cpp_type: foo
+                    bson_serialization_type: 
+                                - object
+                                - int
+            """), idl.errors.ERROR_ID_BAD_BSON_TYPE_LIST)
+
+        # Test fake in list of types
+        self.assert_bind_fail(
+            textwrap.dedent("""
+            types:
+                foofoo:
+                    description: foo
+                    cpp_type: foo
+                    bson_serialization_type: 
+                                - int
+                                - fake
+            """), idl.errors.ERROR_ID_BAD_BSON_TYPE)
 
         # Test unsupported serialization
         for bson_type in [
@@ -533,7 +591,30 @@ class TestBinder(testcase.IDLTestcase):
                 serializer: foo
                 deserializer: foo
                 default: foo
+
+            bindata:
+                description: foo
+                cpp_type: foo
+                bson_serialization_type: bindata
+                bindata_subtype: uuid
         """)
+
+        # Test field of a struct type with a default
+        self.assert_bind_fail(test_preamble + textwrap.dedent("""
+            structs:
+                foo: 
+                    description: foo
+                    fields:
+                        field1: string
+
+                bar:
+                    description: foo
+                    fields:
+                        field2:
+                            type: foo
+                            default: foo
+
+            """), idl.errors.ERROR_ID_FIELD_MUST_BE_EMPTY_FOR_IGNORED)
 
         # Test array as field name
         self.assert_bind_fail(test_preamble + textwrap.dedent("""
@@ -586,11 +667,24 @@ class TestBinder(testcase.IDLTestcase):
                             default: 123
             """), idl.errors.ERROR_ID_ARRAY_NO_DEFAULT)
 
+        # Test bindata with default
+        self.assert_bind_fail(test_preamble + textwrap.dedent("""
+            structs:
+                foo: 
+                    description: foo
+                    strict: true
+                    fields:
+                        foo:
+                            type: bindata
+                            default: 42
+            """), idl.errors.ERROR_ID_BAD_BINDATA_DEFAULT)
+
     def test_ignored_field_negative(self):
         # type: () -> None
         """Test that if a field is marked as ignored, no other properties are set."""
         for test_value in [
                 "optional: true",
+                "default: foo",
         ]:
             self.assert_bind_fail(
                 textwrap.dedent("""

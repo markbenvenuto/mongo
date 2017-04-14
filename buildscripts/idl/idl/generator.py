@@ -244,10 +244,8 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
 
             if cpp_type_info.disable_xvalue():
                 self._writer.write_template(
-                    'const ${param_type} get${method_name}() const& { ${body} }'
-                )
-                self._writer.write_template(
-                    'const ${param_type} get${method_name}() && = delete;')
+                    'const ${param_type} get${method_name}() const& { ${body} }')
+                self._writer.write_template('void get${method_name}() && = delete;')
             else:
                 self._writer.write_template(
                     'const ${param_type} get${method_name}() const { ${body} }')
@@ -263,13 +261,11 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
             'method_name': common.title_case(field.name),
             'member_name': member_name,
             'param_type': param_type,
-            'body' : cpp_type_info.get_setter_body(member_name)
+            'body': cpp_type_info.get_setter_body(member_name)
         }
 
         with self._with_template(template_params):
-            self._writer.write_template(
-                'void set${method_name}(${param_type} value) & { ${body} }'
-            )
+            self._writer.write_template('void set${method_name}(${param_type} value) & { ${body} }')
 
         self._writer.write_empty_line()
 
@@ -309,6 +305,7 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
         # Generate user includes second
         header_list = [
             'mongo/base/string_data.h',
+            'mongo/base/data_range.h',
             'mongo/bson/bsonobj.h',
             'mongo/bson/bsonobjbuilder.h',
             'mongo/idl/idl_parser.h',
@@ -373,7 +370,7 @@ class _CppSourceFileWriter(_CppFileWriterBase):
             self._writer.write_line('IDLParserErrorContext tempContext("%s", &ctxt);' %
                                     (field.name))
             self._writer.write_line('const auto localObject = %s.Obj();' % (element_name))
-            return '%s::parse(tempContext, localObject);' % (common.title_case(field.struct_type))
+            return '%s::parse(tempContext, localObject)' % (common.title_case(field.struct_type))
         elif 'BSONElement::' in field.deserializer:
             method_name = writer.get_method_name(field.deserializer)
             return '%s.%s()' % (element_name, method_name)
@@ -386,8 +383,7 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                 # or
                 # Call a method like: Class::method(const BSONObj& value)
                 method_name = writer.get_method_name_from_qualified_method_name(field.deserializer)
-                expression = bson_cpp_type.gen_deserializer_expression(self._writer,
-                                                                                    element_name)
+                expression = bson_cpp_type.gen_deserializer_expression(self._writer, element_name)
                 return common.template_args(
                     "$method_name(${expression})", method_name=method_name, expression=expression)
             else:
@@ -559,7 +555,7 @@ class _CppSourceFileWriter(_CppFileWriterBase):
 
             if field.array:
                 self._writer.write_template(
-                    'BSONArrayBuilder arrayBuilder(builder->subarrayStart(""${field_name}"));')
+                    'BSONArrayBuilder arrayBuilder(builder->subarrayStart("${field_name}"));')
                 with self._block('for (const auto& item : ${access_member}) {', '}'):
                     self._writer.write_line(
                         'BSONObjBuilder subObjBuilder(arrayBuilder.subobjStart());')
