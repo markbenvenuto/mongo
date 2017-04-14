@@ -21,7 +21,7 @@ import os
 import string
 import sys
 import textwrap
-# from typing import List, Union
+from typing import List, Union
 
 from . import ast
 from . import bson
