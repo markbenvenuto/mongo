@@ -632,6 +632,7 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                 with self._predicate('fieldNumber != expectedFieldNumber'):
                     self._writer.write_line('arrayCtxt.throwBadArrayFieldNumberSequence(' +
                                             'fieldNumber, expectedFieldNumber);')
+                self._writer.write_empty_line()
 
                 with self._predicate(_get_bson_type_check('arrayElement', 'arrayCtxt', field)):
                     array_value = self._gen_field_deserializer_top('arrayElement', field)

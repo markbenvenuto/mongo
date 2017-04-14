@@ -406,6 +406,10 @@ structs:
                 type: array<int>
             field3:
                 type: array<double>
+            # field4:
+            #     type: array<bindata_generic>
+            # field5:
+            #     type: array<bindata_uuid>
 
     optional_array_fields:
         description: UnitTest for arrays of optional simple types
@@ -449,29 +453,5 @@ structs:
             field4o:
                 type: array<object_basic_type>
                 optional: true
-#  
-#  
-#  
-#  
-#  
-#  
-#  
-#  
-#  
-#  
-#  
-#  
-#  
-#  
-#  
-#  
-#  
-#  
-#  
-#  
-#  
-#  
-#  
-#  
 #  
 #  

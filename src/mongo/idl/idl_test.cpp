@@ -33,9 +33,39 @@
 #include "mongo/idl/unittest_gen.h"
 #include "mongo/unittest/unittest.h"
 
+namespace {
+template <typename T>
+void vectorToString(std::ostream& os, const std::vector<T>& v) {
+    bool needComma = false;
+
+    os << "{";
+
+    for (auto& e : v) {
+        if (needComma) {
+            os << ", ";
+        }
+
+        os << e;
+        needComma = true;
+    }
+
+    os << "}";
+}
+} // namespace
+
+namespace std {
+// Since this is used with non-class types like int, we need to put this in std namespace to enable
+// ADL. https://clang.llvm.org/compatibility.html#dep_lookup
+template <typename T>
+std::ostream& operator<<(std::ostream& os, const std::vector<T>& v) {
+    vectorToString(os, v);
+    return os;
+}   
+} // namespace std
+
 namespace mongo {
 
-// Use a seperate function to get better error messages when types do not match.
+// Use a separate function to get better error messages when types do not match.
 template <typename T1, typename T2>
 void assert_same_types() {
     MONGO_STATIC_ASSERT(std::is_same<T1, T2>::value);
@@ -479,29 +509,6 @@ TEST(IDLNestedStruct, TestDuplicatTypes) {
     }
 }
 
-template <typename T>
-void vectorToString(std::ostream& os, std::vector<T> v) {
-    bool needComma = false;
-
-    os << "{";
-
-    for (auto& e : v) {
-        if (needComma) {
-            os << ", ";
-        }
-
-        os << e;
-        needComma = true;
-    }
-
-    os << "}";
-}
-
-template <typename T>
-std::ostream& operator<<(std::ostream& os, std::vector<T> v) {
-    vectorToString(os, v);
-    return os;
-}
 
 // Positive: Arrays of simple types
 TEST(IDLArrayTests, TestSimpleArrays) {
