@@ -324,6 +324,7 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
         # Generate user includes second
         header_list = [
             'mongo/base/string_data.h',
+            'mongo/base/data_range.h',
             'mongo/bson/bsonobj.h',
             'mongo/bson/bsonobjbuilder.h',
             'mongo/idl/idl_parser.h',

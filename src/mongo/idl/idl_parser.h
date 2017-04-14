@@ -142,5 +142,13 @@ private:
  */
 std::vector<StringData> transformVector(const std::vector<std::string>& input);
 std::vector<std::string> transformVector(const std::vector<StringData>& input);
+std::vector<ConstDataRange> transformVector(const std::vector<std::vector<std::uint8_t>>& input);
+std::vector<std::vector<std::uint8_t>> transformVector(const std::vector<ConstDataRange>& input);
+
+/**
+ * Get a ConstDataRange from a vector or an array of bytes.
+ */
+ConstDataRange makeCDR(const std::vector<uint8_t>& value);
+ConstDataRange makeCDR(const std::array<uint8_t, 16>& value);
 
 }  // namespace mongo

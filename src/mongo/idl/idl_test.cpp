@@ -35,7 +35,41 @@
 
 namespace mongo {
 
-// Use a seperate function to get better error messages when types do not match.
+namespace {
+
+bool isEquals(ConstDataRange left, const std::vector<uint8_t>& right) {
+    auto rightCDR = makeCDR(right);
+    return std::equal(left.data(),
+                      left.data() + left.length(),
+                      rightCDR.data(),
+                      rightCDR.data() + rightCDR.length());
+}
+
+bool isEquals(const std::array<uint8_t, 16>& left, const std::array<uint8_t, 16>& right) {
+    return std::equal(
+        left.data(), left.data() + left.size(), right.data(), right.data() + right.size());
+}
+
+bool isEqual(const ConstDataRange& left, const ConstDataRange& right) {
+    return std::equal(
+        left.data(), left.data() + left.length(), right.data(), right.data() + right.length());
+}
+
+bool isEquals(const std::vector<ConstDataRange>& left,
+              const std::vector<std::vector<std::uint8_t>>& rightVector) {
+    auto right = transformVector<std::vector<std::uint8_t>, ConstDataRange>(rightVector);
+    return std::equal(
+        left.data(), left.data() + left.size(), right.data(), right.data() + right.size(), isEqual);
+}
+
+bool isEquals(const std::vector<std::array<std::uint8_t, 16>> left,
+              const std::vector<std::array<std::uint8_t, 16>>& right) {
+    return std::equal(
+        left.data(), left.data() + left.size(), right.data(), right.data() + right.size());
+}
+
+
+// Use a separate function to get better error messages when types do not match.
 template <typename T1, typename T2>
 void assert_same_types() {
     MONGO_STATIC_ASSERT(std::is_same<T1, T2>::value);
@@ -380,6 +414,10 @@ TEST(IDLFieldTests, TestOptionalFields) {
         assert_same_types<decltype(testStruct.getField2()), const boost::optional<std::int32_t>>();
         assert_same_types<decltype(testStruct.getField1()),
                           const boost::optional<mongo::StringData>>();
+        assert_same_types<decltype(testStruct.getField3()),
+                          const boost::optional<ConstDataRange>>();
+        assert_same_types<decltype(testStruct.getField4()),
+                          const boost::optional<std::array<std::uint8_t, 16>>>();
 
         ASSERT_EQUALS("Foo", testStruct.getField1().get());
         ASSERT_FALSE(testStruct.getField2().is_initialized());
@@ -420,9 +458,8 @@ TEST(IDLFieldTests, TestOptionalFields) {
     }
 }
 
-
 // Positive: Test a nested struct
-TEST(IDLNestedStruct, TestDuplicatTypes) {
+TEST(IDLNestedStruct, TestDuplicateTypes) {
     IDLParserErrorContext ctxt("root");
 
 
@@ -484,6 +521,12 @@ TEST(IDLArrayTests, TestSimpleArrays) {
     IDLParserErrorContext ctxt("root");
 
     // Positive: Test document
+    uint8_t array1[] = {1, 2, 3};
+    uint8_t array2[] = {4, 6, 8};
+
+    uint8_t array15[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+    uint8_t array16[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+
     auto testDoc = BSON("field1" << BSON_ARRAY("Foo"
                                                << "Bar"
                                                << "???")
@@ -491,13 +534,20 @@ TEST(IDLArrayTests, TestSimpleArrays) {
                                  << BSON_ARRAY(1 << 2 << 3)
                                  << "field3"
                                  << BSON_ARRAY(1.2 << 3.4 << 5.6)
-
-                            );
+                                 << "field4"
+                                 << BSON_ARRAY(BSONBinData(array1, 3, BinDataGeneral)
+                                               << BSONBinData(array2, 3, BinDataGeneral))
+                                 << "field5"
+                                 << BSON_ARRAY(BSONBinData(array15, 16, newUUID)
+                                               << BSONBinData(array16, 16, newUUID)));
     auto testStruct = Simple_array_fields::parse(ctxt, testDoc);
 
     assert_same_types<decltype(testStruct.getField1()), const std::vector<mongo::StringData>>();
     assert_same_types<decltype(testStruct.getField2()), const std::vector<std::int32_t>&>();
     assert_same_types<decltype(testStruct.getField3()), const std::vector<double>&>();
+    assert_same_types<decltype(testStruct.getField4()), const std::vector<ConstDataRange>>();
+    assert_same_types<decltype(testStruct.getField5()),
+                      const std::vector<std::array<std::uint8_t, 16>>&>();
 
     std::vector<StringData> field1{"Foo", "Bar", "???"};
     ASSERT_TRUE(field1 == testStruct.getField1());
@@ -505,6 +555,14 @@ TEST(IDLArrayTests, TestSimpleArrays) {
     ASSERT_TRUE(field2 == testStruct.getField2());
     std::vector<double> field3{1.2, 3.4, 5.6};
     ASSERT_TRUE(field3 == testStruct.getField3());
+
+    std::vector<std::vector<uint8_t>> field4{{1, 2, 3}, {4, 6, 8}};
+    ASSERT_TRUE(isEquals(testStruct.getField4(), field4));
+
+    std::vector<std::array<uint8_t, 16>> field5{
+        {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+        {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}};
+    ASSERT_TRUE(isEquals(testStruct.getField5(), field5));
 
     // Positive: Test we can roundtrip from the just parsed document
     {
@@ -522,6 +580,8 @@ TEST(IDLArrayTests, TestSimpleArrays) {
         array_fields.setField1(field1);
         array_fields.setField2(field2);
         array_fields.setField3(field3);
+        array_fields.setField4(transformVector<std::vector<std::uint8_t>, ConstDataRange>(field4));
+        array_fields.setField5(field5);
         testStruct.serialize(&builder);
 
         auto serializedDoc = builder.obj();
@@ -551,6 +611,10 @@ TEST(IDLArrayTests, TestSimpleOptionalArrays) {
                       const boost::optional<std::vector<std::int32_t>>>();
     assert_same_types<decltype(testStruct.getField3()),
                       const boost::optional<std::vector<double>>>();
+    assert_same_types<decltype(testStruct.getField4()),
+                      const boost::optional<std::vector<ConstDataRange>>>();
+    assert_same_types<decltype(testStruct.getField5()),
+                      const boost::optional<std::vector<std::array<std::uint8_t, 16>>>>();
 
     std::vector<StringData> field1{"Foo", "Bar", "???"};
     ASSERT_TRUE(field1 == testStruct.getField1().get());
@@ -707,4 +771,128 @@ TEST(IDLArrayTests, TestArraysOfComplexTypes) {
     ASSERT_TRUE(field2 == testStruct.getField2());
 }
 
+template <typename ParserT, BinDataType bindata_type>
+void TestBinDataVector() {
+    IDLParserErrorContext ctxt("root");
+
+    // Positive: Test document with only a generic bindata field
+    uint8_t testData[] = {1, 2, 3};
+    auto testDoc = BSON("value" << BSONBinData(testData, 3, bindata_type));
+    auto testStruct = ParserT::parse(ctxt, testDoc);
+
+    assert_same_types<decltype(testStruct.getValue()), const ConstDataRange>();
+
+    std::vector<std::uint8_t> expected{1, 2, 3};
+
+    ASSERT_TRUE(isEquals(testStruct.getValue(), expected));
+
+    // Positive: Test we can roundtrip from the just parsed document
+    {
+        BSONObjBuilder builder;
+        testStruct.serialize(&builder);
+        auto loopbackDoc = builder.obj();
+
+        ASSERT_BSONOBJ_EQ(testDoc, loopbackDoc);
+    }
+
+    // Positive: Test we can serialize from nothing the same document
+    {
+        BSONObjBuilder builder;
+        ParserT one_new;
+        one_new.setValue(makeCDR(expected));
+        testStruct.serialize(&builder);
+
+        auto serializedDoc = builder.obj();
+        ASSERT_BSONOBJ_EQ(testDoc, serializedDoc);
+    }
+}
+
+TEST(IDLBinData, TestGeneric) {
+    TestBinDataVector<One_bindata, BinDataGeneral>();
+}
+
+TEST(IDLBinData, TestFunction) {
+    TestBinDataVector<One_function, Function>();
+}
+
+template <typename ParserT, BinDataType bindata_type>
+void TestBinDataArray() {
+    IDLParserErrorContext ctxt("root");
+
+    // Positive: Test document with only a generic bindata field
+    uint8_t testData[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+    auto testDoc = BSON("value" << BSONBinData(testData, 16, bindata_type));
+    auto testStruct = ParserT::parse(ctxt, testDoc);
+
+    assert_same_types<decltype(testStruct.getValue()), const std::array<uint8_t, 16>&>();
+
+    std::array<std::uint8_t, 16> expected{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+
+    ASSERT_TRUE(isEquals(testStruct.getValue(), expected));
+
+    // Positive: Test we can roundtrip from the just parsed document
+    {
+        BSONObjBuilder builder;
+        testStruct.serialize(&builder);
+        auto loopbackDoc = builder.obj();
+
+        ASSERT_BSONOBJ_EQ(testDoc, loopbackDoc);
+    }
+
+    // Positive: Test we can serialize from nothing the same document
+    {
+        BSONObjBuilder builder;
+        ParserT one_new;
+        one_new.setValue(expected);
+        testStruct.serialize(&builder);
+
+        auto serializedDoc = builder.obj();
+        ASSERT_BSONOBJ_EQ(testDoc, serializedDoc);
+    }
+}
+
+TEST(IDLBinData, TestUUID) {
+    TestBinDataArray<One_uuid, newUUID>();
+}
+
+TEST(IDLBinData, TestMD5) {
+    TestBinDataArray<One_md5, MD5Type>();
+}
+
+// Test if a given value for a given bson document parses successfully or fails if the bson types
+// mismatch.
+template <typename ParserT, BinDataType Parser_bindata_type, BinDataType Test_bindata_type>
+void TestBinDataParse() {
+    IDLParserErrorContext ctxt("root");
+
+    uint8_t testData[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+    auto testDoc = BSON("value" << BSONBinData(testData, 16, Test_bindata_type));
+
+    auto element = testDoc.firstElement();
+    ASSERT_EQUALS(element.type(), BinData);
+    ASSERT_EQUALS(element.binDataType(), Test_bindata_type);
+
+    if (Parser_bindata_type != Test_bindata_type) {
+        ASSERT_THROWS(ParserT::parse(ctxt, testDoc), UserException);
+    } else {
+        (void)ParserT::parse(ctxt, testDoc);
+    }
+}
+
+template <typename ParserT, BinDataType Parser_bindata_type>
+void TestBinDataParser() {
+    TestBinDataParse<ParserT, Parser_bindata_type, BinDataGeneral>();
+    TestBinDataParse<ParserT, Parser_bindata_type, Function>();
+    TestBinDataParse<ParserT, Parser_bindata_type, MD5Type>();
+    TestBinDataParse<ParserT, Parser_bindata_type, newUUID>();
+}
+
+TEST(IDLBinData, TestParse) {
+    TestBinDataParser<One_bindata, BinDataGeneral>();
+    TestBinDataParser<One_function, Function>();
+    TestBinDataParser<One_uuid, newUUID>();
+    TestBinDataParser<One_md5, MD5Type>();
+}
+
+}  // namespace
 }  // namespace mongo

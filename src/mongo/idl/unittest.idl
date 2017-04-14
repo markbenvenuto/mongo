@@ -57,11 +57,33 @@ types:
         cpp_type: "bool"
         deserializer: "mongo::BSONElement::boolean"
 
-    # TODO: support bindata
-    # bindata:
-    #     bson_serialization_type: bindata
-    #     cpp_type: "std:"
-    #     deserializer: "mongo::BSONElement::str"
+    bindata_generic:
+        bson_serialization_type: bindata
+        bindata_subtype: generic
+        description: "A BSON bindata of "
+        cpp_type: "std::vector<std::uint8_t>"
+        deserializer: "mongo::BSONElement::_binDataVector"
+
+    bindata_function:
+        bson_serialization_type: bindata
+        bindata_subtype: function
+        description: "A BSON bindata of function sub type"
+        cpp_type: "std::vector<std::uint8_t>"
+        deserializer: "mongo::BSONElement::_binDataVector"
+
+    bindata_uuid:
+        bson_serialization_type: bindata
+        bindata_subtype: uuid
+        description: "A BSON bindata of uuid sub type"
+        cpp_type: "std::array<std::uint8_t, 16>"
+        deserializer: "mongo::BSONElement::uuid"
+
+    bindata_md5:
+        bson_serialization_type: bindata
+        bindata_subtype: md5
+        description: "A BSON bindata of uuid sub type"
+        cpp_type: "std::array<std::uint8_t, 16>"
+        deserializer: "mongo::BSONElement::md5"
 
     objectid:
         bson_serialization_type: objectid
@@ -136,7 +158,6 @@ types:
                                 - double
         deserializer: "mongo::BSONElement::numberInt"
 
-
 ##################################################################################################
 #
 # Unit test structs for a single value to ensure type validation works correctly
@@ -173,6 +194,26 @@ structs:
         description: UnitTest for a single bool
         fields:
             value: bool
+
+    one_bindata:
+        description: UnitTest for a single bindata_generic
+        fields:
+            value: bindata_generic
+
+    one_function:
+        description: UnitTest for a single bindata_function
+        fields:
+            value: bindata_function
+
+    one_uuid:
+        description: UnitTest for a single bindata_uuid
+        fields:
+            value: bindata_uuid
+
+    one_md5:
+        description: UnitTest for a single bindata_md5
+        fields:
+            value: bindata_md5
 
     one_objectid:
         description: UnitTest for a single objectid
@@ -324,6 +365,12 @@ structs:
             field2:
                 type: int
                 optional: true
+            field3:
+                type: bindata_generic
+                optional: true
+            field4:
+                type: bindata_uuid
+                optional: true
 
 ##################################################################################################
 #
@@ -345,6 +392,10 @@ structs:
                 type: array<int>
             field3:
                 type: array<double>
+            field4:
+                type: array<bindata_generic>
+            field5:
+                type: array<bindata_uuid>
 
     optional_array_fields:
         description: UnitTest for arrays of optional simple types
@@ -357,6 +408,12 @@ structs:
                 optional: true
             field3:
                 type: array<double>
+                optional: true
+            field4:
+                type: array<bindata_generic>
+                optional: true
+            field5:
+                type: array<bindata_uuid>
                 optional: true
 
 ##################################################################################################
