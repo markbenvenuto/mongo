@@ -56,7 +56,7 @@ class LinterBase(object):
         # type: () -> bool
         # pylint: disable=no-self-use
         """
-        Check if we should ignore the interpeter when searching for the linter to run.
+        Check if we should ignore the interpreter when searching for the linter to run.
 
         This applies to mypy specifically since the pylinters are executed under Python 2 but mypy
         is executed by python 3.

@@ -23,7 +23,7 @@ def _check_version(linter, cmd_path, args):
         logging.debug(str(cmd))
         output = subprocess.check_output(cmd)
 
-        required_version = linter.required_version.replace(r".", r"\.")
+        required_version = re.escape(linter.required_version)
         pattern = r"\b%s\b" % (required_version)
         if not re.search(pattern, output):
             logging.info("Linter %s has wrong version for '%s'. Expected '%s', received '%s'",
@@ -162,7 +162,13 @@ class LintRunner(object):
 
                     return False
             else:
-                subprocess.check_output(cmd)
+                output = subprocess.check_output(cmd)
+
+                # On Windows, mypy.bat returns 0 even if there are length failures so we need to
+                # check if there was any output
+                if output and sys.platform == "win32":
+                    self._safe_print("CMD [%s] output:\n%s" % (cmd, output))
+                    return False
 
         except subprocess.CalledProcessError as cpe:
             self._safe_print("CMD [%s] failed:\n%s" % (cmd, cpe.output))
@@ -173,6 +179,8 @@ class LintRunner(object):
     def run(self, cmd):
         # type: (List[str]) -> bool
         """Check the specified cmd succeeds."""
+
+        logging.debug(str(cmd))
 
         try:
             subprocess.check_output(cmd)

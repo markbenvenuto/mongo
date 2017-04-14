@@ -107,16 +107,12 @@ def lint(linters, config_dict, file_names):
 
 
 def lint_all(linters, config_dict, file_names):
-    # type: (str, Dict[str, str], List[str]) -> bool
+    # type: (str, Dict[str, str], List[str]) -> None
     # pylint: disable=unused-argument
     """Lint files command entry point based on working tree."""
     all_file_names = git.get_files_to_check_working_tree(is_interesting_file)
 
     _lint_files(linters, config_dict, all_file_names)
-
-    # Return True so the "scons lint" knows the lint was succesfull. On failure, it the _lint_files
-    # terminates scons.
-    return True
 
 
 def _fix_files(linters, config_dict, file_names):
