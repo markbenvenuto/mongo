@@ -421,7 +421,6 @@ TEST(IDLFieldTests, TestOptionalFields) {
     }
 }
 
-
 // Positive: Test a nested struct
 TEST(IDLNestedStruct, TestDuplicatTypes) {
     IDLParserErrorContext ctxt("root");
@@ -585,6 +584,29 @@ TEST(IDLArrayTests, TestSimpleOptionalArrays) {
     std::vector<double> field3{1.2, 3.4, 5.6};
     ASSERT_EQUALS(field3, testStruct.getField3().get());
 
+// BinData Tests
+// Generic
+// Function
+// UUID
+// MD5
+
+TEST(IDLBinData, TestGeneric) {
+    IDLParserErrorContext ctxt("root");
+
+    // Positive: Test document with only a generic bindata field
+    {
+        auto testDoc = BSON("value"
+                            << BSONBinData("123", 3, BinDataGeneral));
+        auto testStruct = One_bindata::parse(ctxt, testDoc);
+
+        static_assert(std::is_same<decltype(testStruct.getValue()),
+                                   const ConstDataRange>::value,
+                      "expected int32");
+
+        ASSERT_EQUALS("Foo", testStruct.getField1().get());
+        ASSERT_FALSE(testStruct.getField2().is_initialized());
+    }
+
     // Positive: Test we can roundtrip from the just parsed document
     {
         BSONObjBuilder builder;
@@ -732,6 +754,48 @@ TEST(IDLArrayTests, TestArraysOfComplexTypes) {
     ASSERT_EQUALS(field1, testStruct.getField1());
     std::vector<NamespaceString> field2{{"a", "b"}, {"c", "d"}};
     ASSERT_EQUALS(field2, testStruct.getField2());
+}
+// BinData Tests
+// Generic
+// Function
+// UUID
+// MD5
+
+TEST(IDLBinData, TestGeneric) {
+    IDLParserErrorContext ctxt("root");
+
+    // Positive: Test document with only a generic bindata field
+    {
+        auto testDoc = BSON("value"
+                            << BSONBinData("123", 3, BinDataGeneral));
+        auto testStruct = One_bindata::parse(ctxt, testDoc);
+
+        static_assert(std::is_same<decltype(testStruct.getValue()),
+                                   const ConstDataRange>::value,
+                      "expected int32");
+
+        ASSERT_EQUALS("Foo", testStruct.getField1().get());
+        ASSERT_FALSE(testStruct.getField2().is_initialized());
+    }
+
+    // Positive: Test we can roundtrip from the just parsed document
+    {
+        BSONObjBuilder builder;
+        testStruct.serialize(&builder);
+        auto loopbackDoc = builder.obj();
+
+        ASSERT_BSONOBJ_EQ(testDoc, loopbackDoc);
+    }
+
+    // Positive: Test we can serialize from nothing the same document
+    {
+        BSONObjBuilder builder;
+        one_new.setValue(NamespaceString("foo.bar"));
+        testStruct.serialize(&builder);
+
+        auto serializedDoc = builder.obj();
+        ASSERT_BSONOBJ_EQ(testDoc, serializedDoc);
+    }
 }
 
 }  // namespace mongo

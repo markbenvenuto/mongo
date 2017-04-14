@@ -57,7 +57,7 @@ ERROR_ID_BAD_ANY_TYPE_USE = "ID0021"
 ERROR_ID_BAD_NUMERIC_CPP_TYPE = "ID0022"
 ERROR_ID_BAD_ARRAY_TYPE_NAME = "ID0023"
 ERROR_ID_ARRAY_NO_DEFAULT = "ID0024"
-
+ERROR_ID_BAD_BINDATA_DEFAULT = "ID0025"
 
 class IDLError(Exception):
     """Base class for all IDL exceptions."""
@@ -404,6 +404,14 @@ class ParserContext(object):
             location, ERROR_ID_ARRAY_NO_DEFAULT,
             "Field '%s' is not allowed to have both a default value and be an array type" %
             (field_name))
+
+    def add_bindata_no_default(self, location, ast_type, ast_parent):
+        # type: (common.SourceLocation, unicode, unicode) -> None
+        # pylint: disable=invalid-name
+        """Add an error about any being used in a list of bson types."""
+        self._add_error(location, ERROR_ID_BAD_BINDATA_DEFAULT, (
+            "Default values are not allowed for %s '%s'") %
+                        (ast_type, ast_parent))
 
 
 def _assert_unique_error_messages():
