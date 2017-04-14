@@ -25,7 +25,6 @@ from . import ast
 from . import common
 
 
-
 def _is_primitive_type(cpp_type):
     # type: (unicode) -> bool
     """Return True if a cpp_type is a primitive type and should not be returned as reference."""
@@ -100,7 +99,7 @@ class CppTypeBase(object):
         # type: () -> bool
         """Return True if the C++ is returned as a view type from an IDL class."""
         pass
-    
+
     @abstractmethod
     def get_getter_body(self, member_name):
         # type: (unicode) -> unicode
@@ -125,13 +124,14 @@ class CppTypeBase(object):
         """Get the expression to transform the input expression into the setter type."""
         pass
 
+
 class _CppTypeBasic(CppTypeBase):
     """Base type for C++ Type information."""
 
     def __init__(self, field):
         # type: (ast.Field) -> None
         """Construct a CppTypeBasic."""
-        self._field = field
+        super(_CppTypeBasic, self).__init__(field)
 
     def get_type_name(self):
         # type: () -> unicode
@@ -167,7 +167,7 @@ class _CppTypeBasic(CppTypeBase):
         # type: () -> bool
         """Return True if the C++ is returned as a view type from an IDL class."""
         return False
-    
+
     def get_getter_body(self, member_name):
         # type: (unicode) -> unicode
         """Get the body of the getter."""
@@ -183,10 +183,11 @@ class _CppTypeBasic(CppTypeBase):
         """Get the expression to transform the input expression into the getter type."""
         return None
 
-    def get_transform_to_storage_type(self, expresion):
+    def get_transform_to_storage_type(self, expression):
         # type: (unicode) -> Optional[unicode]
         """Get the expression to transform the input expression into the setter type."""
         return None
+
 
 class _CppTypeView(CppTypeBase):
     """Base type for C++ View Types information."""
@@ -220,14 +221,17 @@ class _CppTypeView(CppTypeBase):
     def is_view_type(self):
         # type: () -> bool
         return True
-    
+
     def get_getter_body(self, member_name):
         # type: (unicode) -> unicode
         return common.template_args('return $member_name;', member_name=member_name)
 
     def get_setter_body(self, member_name):
         # type: (unicode) -> unicode
-        return common.template_args('$member_name = ${value};', member_name=member_name, value = self.get_transform_to_storage_type("value"))
+        return common.template_args(
+            '$member_name = ${value};',
+            member_name=member_name,
+            value=self.get_transform_to_storage_type("value"))
 
     def get_transform_to_getter_type(self, expression):
         # type: (unicode) -> Optional[unicode]
@@ -236,9 +240,9 @@ class _CppTypeView(CppTypeBase):
     def get_transform_to_storage_type(self, expression):
         # type: (unicode) -> Optional[unicode]
         return common.template_args(
-            '$expression.toString()', 
-            expression = expression,
-            )
+            '$expression.toString()',
+            expression=expression, )
+
 
 class _CppTypeDelegating(CppTypeBase):
     """Delegating to contained type."""
@@ -271,7 +275,7 @@ class _CppTypeDelegating(CppTypeBase):
     def is_view_type(self):
         # type: () -> bool
         return self._base.is_view_type()
-    
+
     def get_getter_body(self, member_name):
         # type: (unicode) -> unicode
         return self._base.get_getter_body(member_name)
@@ -318,8 +322,7 @@ class _CppTypeArray(_CppTypeDelegating):
         # type: (unicode) -> unicode
         convert = self.get_transform_to_getter_type(member_name)
         if convert:
-            return common.template_args(
-                'return ${convert};', convert=convert)
+            return common.template_args('return ${convert};', convert=convert)
         else:
             return self._base.get_getter_body(member_name)
 
@@ -334,26 +337,23 @@ class _CppTypeArray(_CppTypeDelegating):
 
     def get_transform_to_getter_type(self, expression):
         # type: (unicode) -> Optional[unicode]
-        if( self._base.get_storage_type() != self._base.get_getter_setter_type()):
+        if self._base.get_storage_type() != self._base.get_getter_setter_type():
             return common.template_args(
-                'transformVector<${storage_type}, ${param_type}>($expression)', 
-                storage_type = self._base.get_storage_type(),
-                param_type = self._base.get_getter_setter_type(),
-                expression = expression,
-                )
+                'transformVector<${storage_type}, ${param_type}>($expression)',
+                storage_type=self._base.get_storage_type(),
+                param_type=self._base.get_getter_setter_type(),
+                expression=expression, )
         else:
             return None
 
-
     def get_transform_to_storage_type(self, expression):
         # type: (unicode) -> Optional[unicode]
-        if( self._base.get_storage_type() != self._base.get_getter_setter_type()):
+        if self._base.get_storage_type() != self._base.get_getter_setter_type():
             return common.template_args(
-                'transformVector<${param_type}, ${storage_type}>($expression)', 
-                storage_type = self._base.get_storage_type(),
-                param_type = self._base.get_getter_setter_type(),
-                expression = expression,
-                )
+                'transformVector<${param_type}, ${storage_type}>($expression)',
+                storage_type=self._base.get_storage_type(),
+                param_type=self._base.get_getter_setter_type(),
+                expression=expression, )
         else:
             return None
 
@@ -397,10 +397,13 @@ class _CppTypeOptional(_CppTypeDelegating):
                 } else {
                     return boost::none;
                 }
-                """), member_name=member_name, convert = convert)
+                """),
+                member_name=member_name,
+                convert=convert)
         else:
-            return common.template_args('return ${param_type}{${member_name}};', 
-                param_type = self.get_getter_setter_type(),
+            return common.template_args(
+                'return ${param_type}{${member_name}};',
+                param_type=self.get_getter_setter_type(),
                 member_name=member_name)
 
     def get_setter_body(self, member_name):
@@ -408,21 +411,24 @@ class _CppTypeOptional(_CppTypeDelegating):
         convert = self._base.get_transform_to_storage_type("value.get()")
         if convert:
             return common.template_args(
-                                                textwrap.dedent("""\
+                textwrap.dedent("""\
                             if (value.is_initialized()) {
                                 ${member_name} = ${convert};
                             } else {
                                 ${member_name} = boost::none;
                             }
-                            """),  member_name=member_name, convert = convert)
+                            """),
+                member_name=member_name,
+                convert=convert)
         else:
             return self._base.get_setter_body(member_name)
+
 
 def get_cpp_type(field):
     # type: (ast.Field) -> CppTypeBase
     """Get the C++ Type information for the given field."""
 
-    cpp_type_info = None # type: Any
+    cpp_type_info = None  # type: Any
 
     if field.cpp_type == 'std::string':
         cpp_type_info = _CppTypeView(field, 'std::string', 'StringData')
