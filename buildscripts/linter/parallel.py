@@ -1,3 +1,4 @@
+"""Utility code to execute code in parallel."""
 from __future__ import absolute_import
 from __future__ import print_function
 
@@ -5,16 +6,18 @@ import Queue
 import threading
 import time
 from multiprocessing import cpu_count
+from typing import Any, Callable, List
+
 
 def parallel_process(items, func):
-    """Run a set of work items to completion
-    """
+    # type: (List[Any], Callable[[Any], bool]) -> bool
+    """Run a set of work items to completion and wait."""
     try:
         cpus = cpu_count()
     except NotImplementedError:
         cpus = 1
 
-    task_queue = Queue.Queue()
+    task_queue = Queue.Queue()  # type: Queue.Queue
 
     # Use a list so that worker function will capture this variable
     pp_event = threading.Event()
@@ -22,8 +25,8 @@ def parallel_process(items, func):
     pp_lock = threading.Lock()
 
     def worker():
-        """Worker thread to process work items in parallel
-        """
+        # type: () -> None
+        """Worker thread to process work items in parallel."""
         while not pp_event.is_set():
             try:
                 item = task_queue.get_nowait()
@@ -52,7 +55,7 @@ def parallel_process(items, func):
 
     # Process all the work
     threads = []
-    for cpu in range(cpus):
+    for _ in range(cpus):
         thread = threading.Thread(target=worker)
 
         thread.daemon = True
@@ -61,7 +64,9 @@ def parallel_process(items, func):
 
     # Wait for the threads to finish
     # Loop with a timeout so that we can process Ctrl-C interrupts
-    while not pp_event.wait(1):
+    # Note: On Python 2.6 wait always returns None so we check is_set also,
+    #  This works because we only set the event once, and never reset it
+    while not pp_event.wait(1) and not pp_event.is_set():
         time.sleep(1)
 
     for thread in threads:
