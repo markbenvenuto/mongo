@@ -560,74 +560,29 @@ TEST(IDLArrayTests, TestSimpleOptionalArrays) {
 
     // Positive: Test document
     auto testDoc = BSON("field1" << BSON_ARRAY("Foo"
-                                               << "Bar"
-                                               << "???")
-                                 << "field2"
-                                 << BSON_ARRAY(1 << 2 << 3)
-                                 << "field3"
-                                 << BSON_ARRAY(1.2 << 3.4 << 5.6)
+        << "Bar"
+        << "???")
+        << "field2"
+        << BSON_ARRAY(1 << 2 << 3)
+        << "field3"
+        << BSON_ARRAY(1.2 << 3.4 << 5.6)
 
-                            );
+    );
     auto testStruct = Optional_array_fields::parse(ctxt, testDoc);
 
     assert_same_types<decltype(testStruct.getField1()),
-                                     const boost::optional<std::vector<mongo::StringData>>>();
+        const boost::optional<std::vector<mongo::StringData>>>();
     assert_same_types<decltype(testStruct.getField2()),
-                                     const boost::optional<std::vector<std::int32_t>>>();
+        const boost::optional<std::vector<std::int32_t>>>();
     assert_same_types<decltype(testStruct.getField3()),
-                                     const boost::optional<std::vector<double>>>();
+        const boost::optional<std::vector<double>>>();
 
-    std::vector<StringData> field1{"Foo", "Bar", "???"};
+    std::vector<StringData> field1{ "Foo", "Bar", "???" };
     ASSERT_EQUALS(field1, testStruct.getField1().get());
-    std::vector<std::int32_t> field2{1, 2, 3};
+    std::vector<std::int32_t> field2{ 1, 2, 3 };
     ASSERT_EQUALS(field2, testStruct.getField2().get());
-    std::vector<double> field3{1.2, 3.4, 5.6};
+    std::vector<double> field3{ 1.2, 3.4, 5.6 };
     ASSERT_EQUALS(field3, testStruct.getField3().get());
-
-// BinData Tests
-// Generic
-// Function
-// UUID
-// MD5
-
-TEST(IDLBinData, TestGeneric) {
-    IDLParserErrorContext ctxt("root");
-
-    // Positive: Test document with only a generic bindata field
-    {
-        auto testDoc = BSON("value"
-                            << BSONBinData("123", 3, BinDataGeneral));
-        auto testStruct = One_bindata::parse(ctxt, testDoc);
-
-        static_assert(std::is_same<decltype(testStruct.getValue()),
-                                   const ConstDataRange>::value,
-                      "expected int32");
-
-        ASSERT_EQUALS("Foo", testStruct.getField1().get());
-        ASSERT_FALSE(testStruct.getField2().is_initialized());
-    }
-
-    // Positive: Test we can roundtrip from the just parsed document
-    {
-        BSONObjBuilder builder;
-        testStruct.serialize(&builder);
-        auto loopbackDoc = builder.obj();
-
-        ASSERT_BSONOBJ_EQ(testDoc, loopbackDoc);
-    }
-
-    // Positive: Test we can serialize from nothing the same document
-    {
-        BSONObjBuilder builder;
-        Optional_array_fields array_fields;
-        array_fields.setField1(field1);
-        array_fields.setField2(field2);
-        array_fields.setField3(field3);
-        testStruct.serialize(&builder);
-
-        auto serializedDoc = builder.obj();
-        ASSERT_BSONOBJ_EQ(testDoc, serializedDoc);
-    }
 }
 
 // Negative: Test mixed type arrays
@@ -761,6 +716,13 @@ TEST(IDLArrayTests, TestArraysOfComplexTypes) {
 // UUID
 // MD5
 
+// BinData Tests
+// Generic
+// Function
+// UUID
+// MD5
+#if 0
+
 TEST(IDLBinData, TestGeneric) {
     IDLParserErrorContext ctxt("root");
 
@@ -797,5 +759,6 @@ TEST(IDLBinData, TestGeneric) {
         ASSERT_BSONOBJ_EQ(testDoc, serializedDoc);
     }
 }
+#endif
 
 }  // namespace mongo

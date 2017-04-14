@@ -21,6 +21,18 @@ Classes which are shared among both the IDL idl.syntax and idl.AST trees.
 from __future__ import absolute_import, print_function, unicode_literals
 
 
+def title_case(name):
+    # type: (unicode) -> unicode
+    """Return a CapitalCased version of a string."""
+    return name[0:1].upper() + name[1:]
+
+
+def camel_case(name):
+    # type: (unicode) -> unicode
+    """Return a camelCased version of a string."""
+    return name[0:1].lower() + name[1:]
+
+
 class SourceLocation(object):
     """Source location information about an idl.syntax or idl.AST object."""
 

@@ -25,22 +25,11 @@ from typing import List, Mapping, Union
 
 from . import ast
 from . import bson
+from . import common
+from . import cpp_types
 
 # Number of spaces to indent code
 _INDENT_SPACE_COUNT = 4
-
-
-def _title_case(name):
-    # type: (unicode) -> unicode
-    """Return a CapitalCased version of a string."""
-    return name[0:1].upper() + name[1:]
-
-
-def _camel_case(name):
-    # type: (unicode) -> unicode
-    """Return a camelCased version of a string."""
-    return name[0:1].lower() + name[1:]
-
 
 def _get_method_name(name):
     # type: (unicode) -> unicode
@@ -64,137 +53,22 @@ def _get_method_name_from_qualified_method_name(name):
     return name[len(prefix):]
 
 
-def _is_primitive_type(cpp_type):
-    # type: (unicode) -> bool
-    """Return True if a cpp_type is a primitive type and should not be returned as reference."""
-    return cpp_type in [
-        'bool', 'double', 'std::int32_t', 'std::uint32_t', 'std::uint64_t', 'std::int64_t'
-    ]
-
-
-def _is_view_type(cpp_type):
-    # type: (unicode) -> bool
-    """Return True if a cpp_type should be returned as a view type from an IDL class."""
-    if cpp_type == 'std::string':
-        return True
-
-    if cpp_type == 'std::vector<std::uint8_t>':
-        return True
-
-    return False
-
-
-def _get_view_type(cpp_type):
-    # type: (unicode) -> unicode
-    """Map a C++ type to its C++ view type if needed."""
-    if cpp_type == 'std::string':
-        cpp_type = 'StringData'
-
-    if cpp_type == 'std::vector<std::uint8_t>':
-        cpp_type = 'mongo::ConstDataRange'
-
-    return cpp_type
-
-
-def _get_view_type_to_base_method(cpp_type):
-    # type: (unicode) -> unicode
-    """Map a C++ View type to its C++ base type."""
-    assert _is_view_type(cpp_type)
-
-    if cpp_type == 'std::vector<std::uint8_t>':
-        return "True"
-
-    return "toString"
-
-
-def _get_field_cpp_type(field):
-    # type: (ast.Field) -> unicode
-    """Get the C++ type name for a field."""
-    assert field.cpp_type is not None or field.struct_type is not None
-
-    if field.struct_type:
-        cpp_type = _title_case(field.struct_type)
-    else:
-        cpp_type = field.cpp_type
-
-    return cpp_type
-
-
-def _qualify_optional_type(cpp_type, field):
-    # type: (unicode, ast.Field) -> unicode
-    """Qualify the type if the field is optional."""
-    if field.optional:
-        return 'boost::optional<%s>' % (cpp_type)
-
-    return cpp_type
-
-
-def _qualify_array_type(cpp_type, field):
-    # type: (unicode, ast.Field) -> unicode
-    """Qualify the type if the field is an array."""
-    if field.array:
-        cpp_type = "std::vector<%s>" % (cpp_type)
-
-    return cpp_type
-
-
-def _get_field_getter_setter_type(field):
-    # type: (ast.Field) -> unicode
-    """Get the C++ type name for the getter/setter parameter for a field."""
-    assert field.cpp_type is not None or field.struct_type is not None
-
-    cpp_type = _get_field_cpp_type(field)
-
-    cpp_type = _get_view_type(cpp_type)
-
-    cpp_type = _qualify_array_type(cpp_type, field)
-
-    return _qualify_optional_type(cpp_type, field)
-
-
-def _get_field_storage_type(field):
-    # type: (ast.Field) -> unicode
-    """Get the C++ type name for the storage of class member for a field."""
-    cpp_type = _get_field_cpp_type(field)
-
-    cpp_type = _qualify_array_type(cpp_type, field)
-
-    return _qualify_optional_type(cpp_type, field)
-
-
 def _get_field_member_name(field):
     # type: (ast.Field) -> unicode
     """Get the C++ class member name for a field."""
-    return '_%s' % (_camel_case(field.name))
+    return '_%s' % (common.camel_case(field.name))
 
 
-def _get_return_by_reference(field):
-    # type: (ast.Field) -> bool
-    """Return True if the type should be returned by reference."""
-    # For non-view types, return a reference for types:
-    #  1. arrays
-    #  2. nested structs
-    # But do not return a reference for:
-    #  1. std::int32_t and other primitive types
-    #  2. optional types
-    cpp_type = _get_field_cpp_type(field)
+def _access_member(field):
+    # type: (ast.Field) -> unicode
+    """Get the declaration to access a member for a field."""
+    member_name = _get_field_member_name(field)
 
-    if not _is_view_type(cpp_type) and (not field.optional and
-                                        (not _is_primitive_type(cpp_type) or field.array)):
-        return True
+    if not field.optional:
+        return '%s' % (member_name)
 
-    return False
-
-
-def _get_disable_xvalue(field):
-    # type: (ast.Field) -> bool
-    """Return True if the type should have the xvalue getter disabled."""
-    # Any we return references or view types, we should disable the xvalue.
-    # For view types like StringData, the return type and member storage types are different
-    # so returning a reference is not supported.
-    cpp_type = _get_field_cpp_type(field)
-
-    return _is_view_type(cpp_type) or _get_return_by_reference(field)
+    # optional types need a method call to access their values
+    return '%s.get()' % (member_name)
 
 
 def _get_bson_type_check(bson_element, ctxt_name, field):
@@ -215,18 +89,6 @@ def _get_bson_type_check(bson_element, ctxt_name, field):
     else:
         type_list = '{%s}' % (', '.join([bson.cpp_bson_type_name(b) for b in bson_types]))
         return '%s.checkAndAssertTypes(%s, %s)' % (ctxt_name, bson_element, type_list)
-
-
-def _access_member(field):
-    # type: (ast.Field) -> unicode
-    """Get the declaration to access a member for a field."""
-    member_name = _get_field_member_name(field)
-
-    if not field.optional:
-        return '%s' % (member_name)
-
-    # optional types need a method call to access their values
-    return '%s.get()' % (member_name)
 
 
 def fill_spaces(count):
@@ -544,31 +406,31 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
     def gen_class_declaration_block(self, class_name):
         # type: (unicode) -> _IndentedScopedBlock
         """Generate a class declaration block."""
-        return _IndentedScopedBlock(self._writer, 'class %s {' % _title_case(class_name), '};')
+        return _IndentedScopedBlock(self._writer, 'class %s {' % common.title_case(class_name), '};')
 
     def gen_serializer_methods(self, class_name):
         # type: (unicode) -> None
         """Generate a serializer method declarations."""
         self._writer.write_line(
             'static %s parse(const IDLParserErrorContext& ctxt, const BSONObj& object);' %
-            (_title_case(class_name)))
+            (common.title_case(class_name)))
         self._writer.write_line('void serialize(BSONObjBuilder* builder) const;')
         self._writer.write_empty_line()
 
     def gen_getter(self, field):
         # type: (ast.Field) -> None
         """Generate the C++ getter definition for a field."""
-        cpp_type = _get_field_cpp_type(field)
-        param_type = _get_field_getter_setter_type(field)
+        cpp_type_info = cpp_types.get_cpp_type(field)
+        param_type = cpp_type_info.get_getter_setter_type()
         member_name = _get_field_member_name(field)
 
         optional_ampersand = ""
-        if _get_return_by_reference(field):
+        if cpp_type_info.return_by_reference():
             optional_ampersand = "&"
 
-        disable_xvalue = _get_disable_xvalue(field)
+        disable_xvalue = cpp_type_info.disable_xvalue()
 
-        if not _is_view_type(cpp_type):
+        if not cpp_type_info.is_view_type():
             body_template = 'return $member_name;'
         else:
             if field.array:
@@ -587,7 +449,7 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
                 body_template = 'return ${param_type}{${member_name}};'
 
         template_params = {
-            'method_name': _title_case(field.name),
+            'method_name': common.title_case(field.name),
             'member_name': member_name,
             'optional_ampersand': optional_ampersand,
             'param_type': param_type,
@@ -614,18 +476,18 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
     def gen_setter(self, field):
         # type: (ast.Field) -> None
         """Generate the C++ setter definition for a field."""
-        cpp_type = _get_field_cpp_type(field)
-        param_type = _get_field_getter_setter_type(field)
+        cpp_type_info = cpp_types.get_cpp_type(field)
+        param_type = cpp_type_info.get_getter_setter_type()
         member_name = _get_field_member_name(field)
 
         template_params = {
-            'method_name': _title_case(field.name),
+            'method_name': common.title_case(field.name),
             'member_name': member_name,
             'param_type': param_type,
         }
 
-        if _is_view_type(cpp_type):
-            template_params['view_to_base_method'] = _get_view_type_to_base_method(cpp_type)
+        if cpp_type_info.is_view_type():
+            template_params['view_to_base_method'] = cpp_type_info.get_view_type_to_base_method()
 
             with self._with_template(template_params):
 
@@ -679,7 +541,8 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
     def gen_member(self, field):
         # type: (ast.Field) -> None
         """Generate the C++ class member definition for a field."""
-        member_type = _get_field_storage_type(field)
+        cpp_type_info = cpp_types.get_cpp_type(field)
+        member_type = cpp_type_info.get_storage_type()
         member_name = _get_field_member_name(field)
 
         # TODO: make this smarter
@@ -779,7 +642,7 @@ class _CppSourceFileWriter(_CppFileWriterBase):
             self._writer.write_line('IDLParserErrorContext tempContext("%s", &ctxt);' %
                                     (field.name))
             self._writer.write_line('const auto localObject = %s.Obj();' % (element_name))
-            return '%s::parse(tempContext, localObject);' % (_title_case(field.struct_type))
+            return '%s::parse(tempContext, localObject);' % (common.title_case(field.struct_type))
         elif 'BSONElement::' in field.deserializer:
             method_name = _get_method_name(field.deserializer)
             return '%s.%s()' % (element_name, method_name)
@@ -809,7 +672,8 @@ class _CppSourceFileWriter(_CppFileWriterBase):
     def _gen_array_deserializer(self, field):
         # type: (ast.Field) -> None
         """Generate the C++ deserializer piece for an array field."""
-        cpp_type = _get_field_cpp_type(field)
+        cpp_type_info = cpp_types.get_cpp_type(field)
+        cpp_type = cpp_type_info.get_type_name()
 
         self._writer.write_line('std::uint32_t expectedFieldNumber{0};')
         self._writer.write_line('const IDLParserErrorContext arrayCtxt("%s", &ctxt);' %
@@ -864,10 +728,10 @@ class _CppSourceFileWriter(_CppFileWriterBase):
         """Generate the C++ deserializer method definition."""
 
         func_def = '%s %s::parse(const IDLParserErrorContext& ctxt, const BSONObj& bsonObject)' % (
-            _title_case(struct.name), _title_case(struct.name))
+            common.title_case(struct.name), common.title_case(struct.name))
         with self._block('%s {' % (func_def), '}'):
 
-            self._writer.write_line('%s object;' % _title_case(struct.name))
+            self._writer.write_line('%s object;' % common.title_case(struct.name))
 
             field_usage_check = _FieldUsageChecker(self._writer)
             self._writer.write_empty_line()
@@ -996,7 +860,7 @@ class _CppSourceFileWriter(_CppFileWriterBase):
         """Generate the serialize method definition."""
 
         with self._block('void %s::serialize(BSONObjBuilder* builder) const {' %
-                         _title_case(struct.name), '}'):
+                         common.title_case(struct.name), '}'):
 
             for field in struct.fields:
                 # If fields are meant to be ignored during deserialization, there is not need to serialize them
