@@ -242,9 +242,16 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   virtual void MarkThreadBusy();
 
   // Gets the size of this thread's cache in bytes.
-  // MONGODB ADDITION
+  // MONGODB ADDITIONS
   virtual size_t GetThreadCacheSize();
 
+  // Like MarkThreadIdle, but does not destroy the internal data
+  // structures of the thread cache. When the thread resumes, it wil
+  // have an empty cache but will not need to pay to reconstruct the
+  // cache data structures.
+  virtual void MarkThreadTemporarilyIdle();
+  // END MONGODB ADDITIONS
+ 
   // Gets the system allocator used by the malloc extension instance. Returns
   // NULL for malloc implementations that do not support pluggable system
   // allocators.

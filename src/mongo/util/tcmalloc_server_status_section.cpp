@@ -79,8 +79,12 @@ void threadStateChange() {
     // terrible runaway if we're not careful.
     stdx::lock_guard<stdx::mutex> lk(tcmallocCleanupLock);
 #endif
+#if MONGO_HAVE_GPERFTOOLS_MARK_THREAD_TEMPORARILY_IDLE
+    MallocExtension::instance()->MarkThreadTemporarilyIdle();
+#else
     MallocExtension::instance()->MarkThreadIdle();
     MallocExtension::instance()->MarkThreadBusy();
+#endif
 }
 
 // Register threadStateChange callback
