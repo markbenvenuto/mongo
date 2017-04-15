@@ -50,6 +50,7 @@
 
 namespace mongo {
 
+#if 0
 // Test a full buffer
 TEST(FTDCFileManagerTest, TestFull) {
     Client* client = &cc();
@@ -384,5 +385,5 @@ TEST(FTDCFileManagerTest, TestNormalCrashInterim) {
     std::vector<BSONObj> docs2 = {sdoc2, sdoc2, sdoc2, sdoc2};
     ValidateDocumentList(files[1], docs2);
 }
-
+#endif
 }  // namespace mongo

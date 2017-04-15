@@ -46,7 +46,7 @@ namespace mongo {
 
 const char* kTestFile = "metrics.test";
 const char* kTestFileCopy = "metrics.test.copy";
-
+#if 0
 // File Sanity check
 TEST(FTDCFileTest, TestFileBasicMetadata) {
     unittest::TempDir tempdir("metrics_testpath");
@@ -355,5 +355,5 @@ TEST(FTDCFileTest, TestBadFile) {
     auto sw = reader.hasNext();
     ASSERT_NOT_OK(sw);
 }
-
+#endif
 }  // namespace mongo

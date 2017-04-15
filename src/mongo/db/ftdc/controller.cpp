@@ -47,9 +47,18 @@
 
 namespace mongo {
 
-void FTDCController::setEnabled(bool enabled) {
+Status FTDCController::setEnabled(bool enabled) {
     stdx::lock_guard<stdx::mutex> lock(_mutex);
+
+    if (_path.empty()) {
+        return Status(ErrorCodes::FTDCPathNotSet,
+                      str::stream() << "FTDC cannot be enabled without setting the set parameter "
+                                       "'diagnosticDataCollectionDirectoryPath' first.");
+    }
+
     _configTemp.enabled = enabled;
+
+    return Status::OK();
 }
 
 void FTDCController::setPeriod(Milliseconds millis) {
@@ -81,6 +90,22 @@ void FTDCController::setMaxSamplesPerInterimMetricChunk(size_t size) {
     _configTemp.maxSamplesPerInterimMetricChunk = size;
     _condvar.notify_one();
 }
+
+Status FTDCController::setDirectory(const boost::filesystem::path& path) {
+    stdx::lock_guard<stdx::mutex> lock(_mutex);
+
+    if (!_path.empty()) {
+        return Status(ErrorCodes::FTDCPathAlreadySet,
+                      str::stream() << "FTDC path has already been set to '" << _path.string()
+                                    << "'.");
+    }
+    _path = path;
+
+    _condvar.notify_one();
+
+    return Status::OK();
+}
+
 
 void FTDCController::addPeriodicCollector(std::unique_ptr<FTDCCollectorInterface> collector) {
     {
@@ -208,8 +233,16 @@ void FTDCController::doLoop() {
                 // Delay initialization of FTDCFileManager until we are sure the user has enabled
                 // FTDC
                 if (!_mgr) {
+                    boost::filesystem::path path;
+
+                    // Copy the path, and then initialize FTDC
+                    {
+                        stdx::lock_guard<stdx::mutex> lock(_mutex);
+                        path = _path;
+                    }
+
                     auto swMgr =
-                        FTDCFileManager::create(&_config, _path, &_rotateCollectors, client);
+                        FTDCFileManager::create(&_config, path, &_rotateCollectors, client);
 
                     _mgr = uassertStatusOK(std::move(swMgr));
                 }

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2016 MongoDB Inc.
+ * Copyright (C) 2017 MongoDB Inc.
  *
  * This program is free software: you can redistribute it and/or  modify
  * it under the terms of the GNU Affero General Public License, version 3,
@@ -25,41 +25,68 @@
  * delete this exception statement from all source files in the program,
  * then also delete it in the license file.
  */
+
 #pragma once
 
 #include <string>
 
+#include "mongo/base/init.h"
 #include "mongo/base/status.h"
 #include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/db/commands.h"
+#include "mongo/db/ftdc/collector.h"
+#include "mongo/db/ftdc/config.h"
 #include "mongo/db/ftdc/controller.h"
-#include "mongo/db/ftdc/controller.h"
+#include "mongo/db/jsobj.h"
+#include "mongo/db/server_parameters.h"
+#include "mongo/db/service_context.h"
+#include "mongo/stdx/functional.h"
+#include "mongo/stdx/memory.h"
 
 namespace mongo {
 
-class FTDCController;
+/**
+ * Function that allows FTDC server components to register their own collectors as needed.
+ */
+using RegisterCollectorsFunction = stdx::function<void(FTDCController*)>;
 
 /**
- * Base class for system metrics collectors. Sets collector name to a common name all system metrics
- * collectors to use.
+ * Start Full Time Data Capture
+ * Starts 1 thread.
+ *
+ * See MongoD and MongoS specific functions.
  */
-class SystemMetricsCollector : public FTDCCollectorInterface {
+void startFTDC(boost::filesystem::path& path,
+               bool enableFTDC,
+               RegisterCollectorsFunction registerCollectors);
+
+/**
+ * Stop Full Time Data Capture
+ *
+ * See MongoD and MongoS specific functions.
+ */
+void stopFTDC();
+
+/**
+ * A simple FTDC Collector that runs Commands.
+ */
+class FTDCSimpleInternalCommandCollector final : public FTDCCollectorInterface {
 public:
-    std::string name() const final;
+    FTDCSimpleInternalCommandCollector(StringData command,
+                                       StringData name,
+                                       StringData ns,
+                                       BSONObj cmdObj);
 
-protected:
-    /**
-     * Convert any errors we see into BSON for the user to see in the final FTDC document. It is
-     * acceptable for the collector to fail, but we do not want to shutdown the FTDC loop because
-     * of it. We assume that the BSONBuilder is not corrupt on non-OK Status but nothing else with
-     * regards to the final document output.
-     */
-    static void processStatusErrors(Status s, BSONObjBuilder* builder);
+    void collect(OperationContext* opCtx, BSONObjBuilder& builder) override;
+    std::string name() const override;
+
+private:
+    std::string _name;
+    std::string _ns;
+    BSONObj _cmdObj;
+
+    // Not owned
+    Command* _command;
 };
-
-
-/**
- * Install a system metrics collector if it exists as a periodic collector.
- */
-void installSystemMetricsCollector(FTDCController* controller);
 
 }  // namespace mongo
