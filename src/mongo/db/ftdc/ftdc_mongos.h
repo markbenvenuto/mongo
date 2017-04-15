@@ -28,60 +28,17 @@
 
 #pragma once
 
-#include <string>
-
-#include "mongo/bson/bsonobjbuilder.h"
-#include "mongo/db/commands.h"
-#include "mongo/db/ftdc/collector.h"
-#include "mongo/db/ftdc/controller.h"
-#include "mongo/db/jsobj.h"
-#include "mongo/db/operation_context.h"
-#include "mongo/stdx/functional.h"
-
 namespace mongo {
-
-/**
- * Function that allows FTDC server components to register their own collectors as needed.
- */
-using RegisterCollectorsFunction = stdx::function<void(FTDCController*)>;
 
 /**
  * Start Full Time Data Capture
  * Starts 1 thread.
- *
- * See MongoD and MongoS specific functions.
  */
-void startFTDC(boost::filesystem::path& path,
-               bool enableFTDC,
-               RegisterCollectorsFunction registerCollectors);
+void startMongoSFTDC();
 
 /**
  * Stop Full Time Data Capture
- *
- * See MongoD and MongoS specific functions.
  */
-void stopFTDC();
-
-/**
- * A simple FTDC Collector that runs Commands.
- */
-class FTDCSimpleInternalCommandCollector final : public FTDCCollectorInterface {
-public:
-    FTDCSimpleInternalCommandCollector(StringData command,
-                                       StringData name,
-                                       StringData ns,
-                                       BSONObj cmdObj);
-
-    void collect(OperationContext* opCtx, BSONObjBuilder& builder) override;
-    std::string name() const override;
-
-private:
-    std::string _name;
-    std::string _ns;
-    BSONObj _cmdObj;
-
-    // Not owned
-    Command* _command;
-};
+void stopMongoSFTDC();
 
 }  // namespace mongo
