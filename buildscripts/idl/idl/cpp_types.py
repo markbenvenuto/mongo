@@ -23,7 +23,7 @@ from typing import Any, Optional
 
 from . import ast
 from . import common
-
+from . import writer
 
 def _is_primitive_type(cpp_type):
     # type: (unicode) -> bool
@@ -444,3 +444,68 @@ def get_cpp_type(field):
         cpp_type_info = _CppTypeOptional(cpp_type_info, field)
 
     return cpp_type_info
+
+class BsonCppTypeBase(object):
+    """Base type for C++ Types for BSON Types information."""
+
+    __metaclass__ = ABCMeta
+
+    def __init__(self):
+        # type: () -> None
+        """Construct a BsonCppTypeBase."""
+        pass
+
+
+    def gen_deserializer_expression(self, indented_writer, object_instance):
+        pass
+
+class _StringBsonCppTypeBase(BsonCppTypeBase):
+    def __init__(self):
+        pass
+
+    def gen_deserializer_expression(self, indented_writer, object_instance):
+        return common.template_args(
+                '${object_instance}.valueStringData()',
+                object_instance=object_instance)
+
+    def gen_serializer_expression(self, indented_writer, expression):
+        # type: (writer.IndentedTextWriter, unicode) -> unicode
+        return common.template_args(
+                'transformVector<${param_type}, ${storage_type}>($expression)',
+                expression=expression)
+
+
+class _ObjectBsonCppTypeBase(BsonCppTypeBase):
+    def __init__(self):
+        pass
+
+    def gen_deserializer_expression(self, indented_writer, object_instance):
+        with writer.TemplateContext(indented_writer, { 'object_instance' : object_instance}):
+            indented_writer.write_template('const BSONObj localObject = ${object_instance}.Obj();')
+        return "localObject"
+
+    def gen_serializer_expression(self, indented_writer, expression):
+        # type: (writer.IndentedTextWriter, unicode) -> unicode
+        return common.template_args(
+                'transformVector<${param_type}, ${storage_type}>($expression)',
+                expression=expression)
+
+
+
+# For some fields, we want to support custom serialization but defer most of the serialization to
+# the core BSONElement class. This means that callers need to only process a string, a vector of
+# bytes, or a integer, not a BSONElement or BSONObj.
+def get_bson_cpp_type(field):
+    # (ast.Field) -> BsonCppTypeBase
+
+    if  len(field.bson_serialization_type) > 1:
+        return None
+
+    if field.bson_serialization_type[0] == 'string':
+        return _StringBsonCppTypeBase()
+
+    if field.bson_serialization_type[0] == 'object':
+        return _ObjectBsonCppTypeBase()
+    
+    # Unsupported type
+    return None

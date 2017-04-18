@@ -182,19 +182,19 @@ void IDLParserErrorContext::throwMissingField(StringData fieldName) const {
 
 void IDLParserErrorContext::throwUnknownField(StringData fieldName) const {
     std::string path = getElementPath(fieldName);
-    uasserted(40415, str::stream() << "BSON field '" << path << "' is an unknown field.");
+    uasserted(540415, str::stream() << "BSON field '" << path << "' is an unknown field.");
 }
 
 void IDLParserErrorContext::throwBadArrayFieldNumberValue(StringData value) const {
     std::string path = getElementPath(StringData());
-    uasserted(40416,
+    uasserted(540416,
               str::stream() << "BSON array field '" << path << "' has an invalid value '" << value
                             << "' for an array field name.");
 }
 void IDLParserErrorContext::throwBadArrayFieldNumberSequence(std::uint32_t actualValue,
                                                              std::uint32_t expectedValue) const {
     std::string path = getElementPath(StringData());
-    uasserted(40417,
+    uasserted(540417,
               str::stream() << "BSON array field '" << path << "' has a non-sequential value '"
                             << actualValue
                             << "' for an array field name, expected value '"
