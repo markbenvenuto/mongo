@@ -22,6 +22,7 @@ import textwrap
 from typing import Any, Optional
 
 from . import ast
+from . import bson
 from . import common
 from . import writer
 
@@ -450,47 +451,79 @@ class BsonCppTypeBase(object):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self):
-        # type: () -> None
+    def __init__(self, field):
+        # type: (ast.Field) -> None
         """Construct a BsonCppTypeBase."""
+        self._field = field
+
+    @abstractmethod
+    def gen_deserializer_expression(self, indented_writer, object_instance):
+        pass
+    
+    @abstractmethod
+    def has_serializer(self):
         pass
 
-
-    def gen_deserializer_expression(self, indented_writer, object_instance):
+    @abstractmethod
+    def gen_serializer_expression(self, indented_writer, expression):
         pass
 
 class _StringBsonCppTypeBase(BsonCppTypeBase):
-    def __init__(self):
-        pass
+    def __init__(self, field):
+        super(_StringBsonCppTypeBase, self).__init__(field)
 
     def gen_deserializer_expression(self, indented_writer, object_instance):
         return common.template_args(
                 '${object_instance}.valueStringData()',
                 object_instance=object_instance)
 
+    def has_serializer(self):
+        return True
+
     def gen_serializer_expression(self, indented_writer, expression):
         # type: (writer.IndentedTextWriter, unicode) -> unicode
-        return common.template_args(
-                'transformVector<${param_type}, ${storage_type}>($expression)',
-                expression=expression)
+        method_name = writer.get_method_name(self._field.serializer)
+        return common.template_args('${expression}.${method_name}()', expression = expression, method_name = method_name)
 
 
 class _ObjectBsonCppTypeBase(BsonCppTypeBase):
+    def __init__(self, field):
+        super(_ObjectBsonCppTypeBase, self).__init__(field)
+
+    def gen_deserializer_expression(self, indented_writer, object_instance):
+        indented_writer.write_line(common.template_args('const BSONObj localObject = ${object_instance}.Obj();', object_instance=  object_instance))
+        return "localObject"
+
+    def has_serializer(self):
+        return False
+
+    def gen_serializer_expression(self, indented_writer, expression):
+        # type: (writer.IndentedTextWriter, unicode) -> unicode
+        raise NotImplementedError()
+
+
+class _BinDataBsonCppTypeBase(BsonCppTypeBase):
     def __init__(self):
         pass
 
     def gen_deserializer_expression(self, indented_writer, object_instance):
-        with writer.TemplateContext(indented_writer, { 'object_instance' : object_instance}):
-            indented_writer.write_template('const BSONObj localObject = ${object_instance}.Obj();')
+        indented_writer.write_line(common.template_args('const BSONObj localObject = ${object_instance}.Obj();', object_instance=  object_instance))
         return "localObject"
+
+    def has_serializer(self):
+        return True
 
     def gen_serializer_expression(self, indented_writer, expression):
         # type: (writer.IndentedTextWriter, unicode) -> unicode
+        method_name = writer.get_method_name(self._field.serializer)
+
+        indented_writer.write_line(common.template_args('ConstDataRange tempCDR = ${expression}.${method_name}();',
+                                expression = expression, method_name = method_name))
+        # self._writer.write_line('builder->appendBinData("%s", %s.size(), %s, %s.data());' %
+
         return common.template_args(
-                'transformVector<${param_type}, ${storage_type}>($expression)',
-                expression=expression)
-
-
+                'BSONBinData(tempCDR.data, tempCDR.length(),${bindata_subtype})',
+                bindata_subtype = bson.cpp_bindata_subtype_type_name(self._field.bindata_subtype))
 
 # For some fields, we want to support custom serialization but defer most of the serialization to
 # the core BSONElement class. This means that callers need to only process a string, a vector of
@@ -502,10 +535,14 @@ def get_bson_cpp_type(field):
         return None
 
     if field.bson_serialization_type[0] == 'string':
-        return _StringBsonCppTypeBase()
+        return _StringBsonCppTypeBase(field)
 
     if field.bson_serialization_type[0] == 'object':
-        return _ObjectBsonCppTypeBase()
+        return _ObjectBsonCppTypeBase(field)
+  
+
+    if field.bson_serialization_type[0] == 'bindata':
+        return _BinDataBsonCppTypeBase()
     
     # Unsupported type
     return None

@@ -30,28 +30,6 @@ from . import cpp_types
 from . import writer
 
 
-def _get_method_name(name):
-    # type: (unicode) -> unicode
-    """Get a method name from a fully qualified method name."""
-    pos = name.rfind('::')
-    if pos == -1:
-        return name
-    return name[pos + 2:]
-
-
-def _get_method_name_from_qualified_method_name(name):
-    # type: (unicode) -> unicode
-    # pylint: disable=invalid-name
-    """Get a method name from a fully qualified method name."""
-    # TODO: in the future, we may want to support full-qualified calls to static methods
-    prefix = 'mongo::'
-    pos = name.find(prefix)
-    if pos == -1:
-        return name
-
-    return name[len(prefix):]
-
-
 def _get_field_member_name(field):
     # type: (ast.Field) -> unicode
     """Get the C++ class member name for a field."""
@@ -411,7 +389,7 @@ class _CppSourceFileWriter(_CppFileWriterBase):
             self._writer.write_line('const auto localObject = %s.Obj();' % (element_name))
             return '%s::parse(tempContext, localObject);' % (common.title_case(field.struct_type))
         elif 'BSONElement::' in field.deserializer:
-            method_name = _get_method_name(field.deserializer)
+            method_name = writer.get_method_name(field.deserializer)
             return '%s.%s()' % (element_name, method_name)
         else:
             # Custom method, call the method on object.
@@ -421,14 +399,14 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                 # Call a method like: Class::method(StringData value)
                 # or
                 # Call a method like: Class::method(const BSONObj& value)
-                method_name = _get_method_name_from_qualified_method_name(field.deserializer)
+                method_name = writer.get_method_name_from_qualified_method_name(field.deserializer)
                 expression = expression=bson_cpp_type.gen_deserializer_expression(self._writer, element_name)
                 return common.template_args("$method_name(${expression})",
                     method_name=method_name,
                     expression=expression)
             else:
                 # Call a method like: Class::method(const BSONElement& value)
-                method_name = _get_method_name_from_qualified_method_name(field.deserializer)
+                method_name = writer.get_method_name_from_qualified_method_name(field.deserializer)
 
                 return '%s(%s)' % (method_name, element_name)
 
@@ -542,7 +520,7 @@ class _CppSourceFileWriter(_CppFileWriterBase):
         """Generate the serialize method definition for a custom type."""
 
         # Generate custom serialization
-        method_name = _get_method_name(field.serializer)
+        method_name = writer.get_method_name(field.serializer)
 
         template_params = {
             'field_name': field.name,
@@ -551,33 +529,24 @@ class _CppSourceFileWriter(_CppFileWriterBase):
         }
 
         with self._with_template(template_params):
+            # Is this a scalar bson C++ type?
             bson_cpp_type = cpp_types.get_bson_cpp_type(field)
 
-            if bson_cpp_type:
-
-            if len(field.bson_serialization_type) == 1 and \
-                field.bson_serialization_type[0] == 'string':
-                # TODO: expand this out to be less then a string only hack
-
+            # Object types need to go through the generic custom serialization code below
+            if bson_cpp_type and bson_cpp_type.has_serializer():
                 if field.array:
                     self._writer.write_template(
                         'BSONArrayBuilder arrayBuilder(builder->subarrayStart("${field_name}"));')
                     with self._block('for (const auto& item : ${access_member}) {', '}'):
-                        self._writer.write_template('auto tempValue = item.${method_name}();')
-                        self._writer.write_line('arrayBuilder.append(std::move(tempValue));')
+                        expression = bson_cpp_type.gen_serializer_expression(self._writer, 'item')
+                        template_params['expression'] = expression
+                        self._writer.write_template('arrayBuilder.append(${expression});')
                 else:
+                    expression = bson_cpp_type.gen_serializer_expression(self._writer, _access_member(field))
+                    template_params['expression'] = expression
                     self._writer.write_template(
-                        'auto tempValue = ${access_member}.${method_name}();')
-                    self._writer.write_template(
-                        'builder->append("${field_name}", std::move(tempValue));')
-            elif len(field.bson_serialization_type) == 1 and \
-                field.bson_serialization_type[0] == 'bindata':
-                # TODO: expand this out to be less then a bindata only hack
-                self._writer.write_line('ConstDataRange tempCDR = %s.%s();' %
-                                        (_access_member(field), method_name))
-                self._writer.write_line(
-                    'builder->appendBinData("%s", tempCDR.length(), %s, tempCDR.data());' 
-                        % (field.name, bson.cpp_bindata_subtype_type_name(field.bindata_subtype)))
+                        'builder->append("${field_name}", ${expression});')
+                
             else:
                 if field.array:
                     self._writer.write_template(
@@ -587,17 +556,7 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                             'BSONObjBuilder subObjBuilder(arrayBuilder.subobjStart());')
                         self._writer.write_template('item.${method_name}(&subObjBuilder);')
                 else:
-                    if field.bson_serialization_type[0] == 'bindata':
-                        # Generate default serialization using BSONObjBuilder::append
-                        if field.cpp_type == "mongo::ConstDataRange":
-                            self._writer.write_line('builder->appendBinData("%s", %s.length(), %s, %s.data());' %
-                                                (field.name, _access_member(field), bson.cpp_bindata_subtype_type_name(field.bindata_subtype),_access_member(field) ))
-                        else:
-                            self._writer.write_line('builder->appendBinData("%s", %s.size(), %s, %s.data());' %
-                                                (field.name, _access_member(field), bson.cpp_bindata_subtype_type_name(field.bindata_subtype),_access_member(field) ))
-                            
-                    else:
-                        self._writer.write_template('${access_member}.${method_name}(builder);')
+                    self._writer.write_template('${access_member}.${method_name}(builder);')
 
     def _gen_serializer_method_struct(self, field):
         # type: (ast.Field) -> None

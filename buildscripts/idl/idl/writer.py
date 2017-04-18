@@ -44,6 +44,29 @@ def _indent_text(count, unindented_text):
     return '\n'.join(fill + line for line in lines)
 
 
+def get_method_name(name):
+    # type: (unicode) -> unicode
+    """Get a method name from a fully qualified method name."""
+    pos = name.rfind('::')
+    if pos == -1:
+        return name
+    return name[pos + 2:]
+
+
+def get_method_name_from_qualified_method_name(name):
+    # type: (unicode) -> unicode
+    # pylint: disable=invalid-name
+    """Get a method name from a fully qualified method name."""
+    # TODO: in the future, we may want to support full-qualified calls to static methods
+    prefix = 'mongo::'
+    pos = name.find(prefix)
+    if pos == -1:
+        return name
+
+    return name[len(prefix):]
+
+
+
 class IndentedTextWriter(object):
     """
     A simple class to manage writing indented lines of text.
