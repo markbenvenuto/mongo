@@ -62,14 +62,14 @@ types:
         bindata_subtype: generic
         description: "A BSON bindata of "
         cpp_type: "std::vector<std::uint8_t>"
-        deserializer: "mongo::BSONElement::_binData"
+        deserializer: "mongo::BSONElement::_binDataVector"
 
     bindata_function:
         bson_serialization_type: bindata
         bindata_subtype: function
         description: "A BSON bindata of function sub type"
         cpp_type: "std::vector<std::uint8_t>"
-        deserializer: "mongo::BSONElement::_binData"
+        deserializer: "mongo::BSONElement::_binDataVector"
 
     bindata_uuid:
         bson_serialization_type: bindata
@@ -209,15 +209,15 @@ structs:
         fields:
             value: bool
 
-    # one_bindata:
-    #     description: UnitTest for a single bindata_generic
-    #     fields:
-    #         value: bindata_generic
+    one_bindata:
+        description: UnitTest for a single bindata_generic
+        fields:
+            value: bindata_generic
 
-    # one_function:
-    #     description: UnitTest for a single bindata_function
-    #     fields:
-    #         value: bindata_function
+    one_function:
+        description: UnitTest for a single bindata_function
+        fields:
+            value: bindata_function
 
     # one_uuid:
     #     description: UnitTest for a single bindata_uuid
@@ -453,5 +453,12 @@ structs:
             field4o:
                 type: array<object_basic_type>
                 optional: true
+#  
+#  
+#  
+#  
+#  
+#  
+#  
 #  
 #  

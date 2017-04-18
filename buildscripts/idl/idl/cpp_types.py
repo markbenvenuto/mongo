@@ -244,6 +244,59 @@ class _CppTypeView(CppTypeBase):
             '$expression.toString()',
             expression=expression, )
 
+class _CppTypeVector(CppTypeBase):
+    """Base type for C++ Std::Vector Types information."""
+
+    def __init__(self, field, storage_type, view_type):
+        # type: (ast.Field, unicode, unicode) -> None
+        self._storage_type = storage_type
+        self._view_type = view_type
+        super(_CppTypeVector, self).__init__(field)
+
+    def get_type_name(self):
+        # type: () -> unicode
+        return self._storage_type
+
+    def get_storage_type(self):
+        # type: () -> unicode
+        return self._storage_type
+
+    def get_getter_setter_type(self):
+        # type: () -> unicode
+        return self._view_type
+
+    def return_by_reference(self):
+        # type: () -> bool
+        return False
+
+    def disable_xvalue(self):
+        # type: () -> bool
+        return True
+
+    def is_view_type(self):
+        # type: () -> bool
+        return True
+
+    def get_getter_body(self, member_name):
+        # type: (unicode) -> unicode
+        return common.template_args('return ConstDataRange(reinterpret_cast<const char*>($member_name.data()), $member_name.size());', member_name=member_name)
+
+    def get_setter_body(self, member_name):
+        # type: (unicode) -> unicode
+        return common.template_args(
+            '$member_name = ${value};',
+            member_name=member_name,
+            value=self.get_transform_to_storage_type("value"))
+
+    def get_transform_to_getter_type(self, expression):
+        # type: (unicode) -> Optional[unicode]
+        return None
+
+    def get_transform_to_storage_type(self, expression):
+        # type: (unicode) -> Optional[unicode]
+        return common.template_args(
+            'std::vector<std::uint8_t>(reinterpret_cast<const uint8_t*>(${expression}.data()), reinterpret_cast<const uint8_t*>(${expression}.data()) + ${expression}.length())',
+            expression=expression )
 
 class _CppTypeDelegating(CppTypeBase):
     """Delegating to contained type."""
@@ -433,8 +486,8 @@ def get_cpp_type(field):
 
     if field.cpp_type == 'std::string':
         cpp_type_info = _CppTypeView(field, 'std::string', 'StringData')
-    #elif field.cpp_type == 'std::vector<std::uint8_t>':
-    #    cpp_type_info = CppTypeView(field, 'std::vector<std::uint8_t>', 'ConstDataRange')
+    elif field.cpp_type == 'std::vector<std::uint8_t>':
+        cpp_type_info = _CppTypeVector(field, 'std::vector<std::uint8_t>', 'ConstDataRange')
     else:
         cpp_type_info = _CppTypeBasic(field)
 
@@ -540,7 +593,6 @@ def get_bson_cpp_type(field):
     if field.bson_serialization_type[0] == 'object':
         return _ObjectBsonCppTypeBase(field)
   
-
     if field.bson_serialization_type[0] == 'bindata':
         return _BinDataBsonCppTypeBase()
     

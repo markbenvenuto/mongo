@@ -478,6 +478,16 @@ public:
         }
     }
 
+    
+    std::vector<uint8_t> _binDataVector() const {
+        if (binDataType() != ByteArrayDeprecated) {
+            return std::vector<uint8_t>(reinterpret_cast<const uint8_t*>(value()) + 5, reinterpret_cast<const uint8_t*>(value()) + 5 + valuestrsize());
+        } else {
+            // Skip the extra int32 size
+            return std::vector<uint8_t>(reinterpret_cast<const uint8_t*>(value()) + 4, reinterpret_cast<const uint8_t*>(value()) + 4 + valuestrsize() - 4);
+        }
+    }
+
     /** Retrieve the regex std::string for a Regex element */
     const char* regex() const {
         verify(type() == RegEx);

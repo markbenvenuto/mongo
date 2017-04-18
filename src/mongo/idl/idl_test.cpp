@@ -728,8 +728,6 @@ TEST(IDLArrayTests, TestArraysOfComplexTypes) {
 // Function
 // UUID
 // MD5
-#if 0
-
 TEST(IDLBinData, TestGeneric) {
     IDLParserErrorContext ctxt("root");
 
@@ -766,6 +764,5 @@ TEST(IDLBinData, TestGeneric) {
         ASSERT_BSONOBJ_EQ(testDoc, serializedDoc);
     }
 }
-#endif
 
 }  // namespace mongo
