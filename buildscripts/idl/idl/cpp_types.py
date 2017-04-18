@@ -290,7 +290,10 @@ class _CppTypeVector(CppTypeBase):
 
     def get_transform_to_getter_type(self, expression):
         # type: (unicode) -> Optional[unicode]
-        return None
+        return common.template_args(
+            'makeCDR(${expression});',
+            expression=expression,
+            )
 
     def get_transform_to_storage_type(self, expression):
         # type: (unicode) -> Optional[unicode]
@@ -531,7 +534,7 @@ class _StringBsonCppTypeBase(BsonCppTypeBase):
                 object_instance=object_instance)
 
     def has_serializer(self):
-        return True
+        return self._field.serializer
 
     def gen_serializer_expression(self, indented_writer, expression):
         # type: (writer.IndentedTextWriter, unicode) -> unicode
@@ -556,8 +559,8 @@ class _ObjectBsonCppTypeBase(BsonCppTypeBase):
 
 
 class _BinDataBsonCppTypeBase(BsonCppTypeBase):
-    def __init__(self):
-        pass
+    def __init__(self, field):
+        super(_BinDataBsonCppTypeBase, self).__init__(field)
 
     def gen_deserializer_expression(self, indented_writer, object_instance):
         indented_writer.write_line(common.template_args('const BSONObj localObject = ${object_instance}.Obj();', object_instance=  object_instance))
@@ -568,21 +571,26 @@ class _BinDataBsonCppTypeBase(BsonCppTypeBase):
 
     def gen_serializer_expression(self, indented_writer, expression):
         # type: (writer.IndentedTextWriter, unicode) -> unicode
-        method_name = writer.get_method_name(self._field.serializer)
 
-        indented_writer.write_line(common.template_args('ConstDataRange tempCDR = ${expression}.${method_name}();',
-                                expression = expression, method_name = method_name))
+        if self._field.serializer:
+            method_name = writer.get_method_name(self._field.serializer)
+            expression = common.template_args('${expression}.${method_name}()',
+                                expression = expression, method_name = method_name)
+
+        indented_writer.write_line(common.template_args('ConstDataRange tempCDR = makeCDR(${expression});',
+                                expression = expression))
+
         # self._writer.write_line('builder->appendBinData("%s", %s.size(), %s, %s.data());' %
 
         return common.template_args(
-                'BSONBinData(tempCDR.data, tempCDR.length(),${bindata_subtype})',
+                'BSONBinData(tempCDR.data(), tempCDR.length(), ${bindata_subtype})',
                 bindata_subtype = bson.cpp_bindata_subtype_type_name(self._field.bindata_subtype))
 
 # For some fields, we want to support custom serialization but defer most of the serialization to
 # the core BSONElement class. This means that callers need to only process a string, a vector of
 # bytes, or a integer, not a BSONElement or BSONObj.
 def get_bson_cpp_type(field):
-    # (ast.Field) -> BsonCppTypeBase
+    # type: (ast.Field) -> Optional[BsonCppTypeBase]
 
     if  len(field.bson_serialization_type) > 1:
         return None
@@ -594,7 +602,7 @@ def get_bson_cpp_type(field):
         return _ObjectBsonCppTypeBase(field)
   
     if field.bson_serialization_type[0] == 'bindata':
-        return _BinDataBsonCppTypeBase()
+        return _BinDataBsonCppTypeBase(field)
     
     # Unsupported type
     return None

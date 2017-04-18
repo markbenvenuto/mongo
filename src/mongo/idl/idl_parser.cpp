@@ -210,6 +210,37 @@ std::vector<TOut> transformVector(const std::vector<TIn>& input) {
 template std::vector<StringData> transformVector<std::string, StringData>(
     const std::vector<std::string>& input);
 
+
+template <>
+std::vector<ConstDataRange> 
+transformVector<std::vector<std::uint8_t>, ConstDataRange>(
+    const std::vector<std::vector<std::uint8_t>>& input) {
+    std::vector<ConstDataRange> output;
+
+    output.reserve(input.size());
+
+    std::transform(begin(input), end(input), std::back_inserter(output), [](auto&& vec) {
+        return makeCDR(vec);
+    });
+
+	return output;
+}
+
+template <>
+std::vector<std::vector<std::uint8_t>> 
+transformVector< ConstDataRange, std::vector<std::uint8_t>>(
+    const std::vector<ConstDataRange>& input) {
+    std::vector<std::vector<std::uint8_t>>  output;
+
+    output.reserve(input.size());
+
+    std::transform(begin(input), end(input), std::back_inserter(output), [](auto&& cdr) {
+        return std::vector<std::uint8_t>(reinterpret_cast<const uint8_t*>(cdr.data()), reinterpret_cast<const uint8_t*>(cdr.data()) + cdr.length());
+    });
+
+	return output;
+}
+
 template <>
 std::vector<std::string> transformVector<StringData, std::string>(
     const std::vector<StringData>& input) {
@@ -222,5 +253,13 @@ std::vector<std::string> transformVector<StringData, std::string>(
     });
 
 	return output;
+}
+
+ConstDataRange makeCDR(const std::vector<uint8_t> &value) {
+    return ConstDataRange(reinterpret_cast<const char*>(value.data()), value.size());
+}
+
+ConstDataRange makeCDR(const std::array<uint8_t, 16> &value) {
+    return ConstDataRange(reinterpret_cast<const char*>(value.data()), value.size());
 }
 }  // namespace mongo

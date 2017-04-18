@@ -521,11 +521,8 @@ class _CppSourceFileWriter(_CppFileWriterBase):
         """Generate the serialize method definition for a custom type."""
 
         # Generate custom serialization
-        method_name = writer.get_method_name(field.serializer)
-
         template_params = {
             'field_name': field.name,
-            'method_name': method_name,
             'access_member': _access_member(field),
         }
 
@@ -549,6 +546,9 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                         'builder->append("${field_name}", ${expression});')
                 
             else:
+                method_name = writer.get_method_name(field.serializer)
+                template_params['method_name'] = method_name
+
                 if field.array:
                     self._writer.write_template(
                         'BSONArrayBuilder arrayBuilder(builder->subarrayStart("${field_name}"));')
@@ -595,18 +595,28 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                     continue
 
                 member_name = _get_field_member_name(field)
+                # Is this a scalar bson C++ type?
+                bson_cpp_type = cpp_types.get_bson_cpp_type(field)
+
+                needs_custom_serializer = field.serializer or (bson_cpp_type and bson_cpp_type.has_serializer())
 
                 optional_block_start = None
                 if field.optional:
                     optional_block_start = 'if (%s) {' % (member_name)
-                elif field.struct_type or field.serializer:
+                elif field.struct_type or needs_custom_serializer or field.array:
                     # Introduce a new scope for required nested object serialization.
                     optional_block_start = '{'
 
                 with self._block(optional_block_start, '}'):
 
                     if not field.struct_type:
-                        if field.serializer:
+                        # Is this a scalar bson C++ type?
+                        bson_cpp_type = cpp_types.get_bson_cpp_type(field)
+
+
+                        needs_custom_serializer = field.serializer or (bson_cpp_type and bson_cpp_type.has_serializer())
+
+                        if needs_custom_serializer:
                             self._gen_serializer_method_custom(field)
                         else:
                             # Generate default serialization using BSONObjBuilder::append

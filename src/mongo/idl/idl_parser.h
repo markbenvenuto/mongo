@@ -143,4 +143,10 @@ private:
 template <typename TIn, typename TOut>
 std::vector<TOut> transformVector(const std::vector<TIn>& input);
 
+/**
+ * Get a ConstDataRange from vector or array of bytes.
+ */
+ConstDataRange makeCDR(const std::vector<uint8_t> &value);
+ConstDataRange makeCDR(const std::array<uint8_t, 16> &value);
+
 }  // namespace mongo

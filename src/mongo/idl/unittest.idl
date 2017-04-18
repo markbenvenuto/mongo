@@ -219,15 +219,15 @@ structs:
         fields:
             value: bindata_function
 
-    # one_uuid:
-    #     description: UnitTest for a single bindata_uuid
-    #     fields:
-    #         value: bindata_uuid
+    one_uuid:
+        description: UnitTest for a single bindata_uuid
+        fields:
+            value: bindata_uuid
 
-    # one_md5:
-    #     description: UnitTest for a single bindata_md5
-    #     fields:
-    #         value: bindata_md5
+    one_md5:
+        description: UnitTest for a single bindata_md5
+        fields:
+            value: bindata_md5
 
     one_objectid:
         description: UnitTest for a single objectid
@@ -379,12 +379,12 @@ structs:
             field2:
                 type: int
                 optional: true
-            # field3:
-            #     type: bindata_generic
-            #     optional: true
-            # field4:
-            #     type: bindata_uuid
-            #     optional: true
+            field3:
+                type: bindata_generic
+                optional: true
+            field4:
+                type: bindata_uuid
+                optional: true
 
 ##################################################################################################
 #
@@ -406,10 +406,10 @@ structs:
                 type: array<int>
             field3:
                 type: array<double>
-            # field4:
-            #     type: array<bindata_generic>
-            # field5:
-            #     type: array<bindata_uuid>
+            field4:
+                type: array<bindata_generic>
+            field5:
+                type: array<bindata_uuid>
 
     optional_array_fields:
         description: UnitTest for arrays of optional simple types
@@ -422,6 +422,12 @@ structs:
                 optional: true
             field3:
                 type: array<double>
+                optional: true
+            field4:
+                type: array<bindata_generic>
+                optional: true
+            field5:
+                type: array<bindata_uuid>
                 optional: true
 
 ##################################################################################################
@@ -453,7 +459,6 @@ structs:
             field4o:
                 type: array<object_basic_type>
                 optional: true
-#  
 #  
 #  
 #  
