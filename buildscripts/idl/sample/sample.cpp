@@ -47,6 +47,31 @@ Default_values Default_values::parse(const IDLParserErrorContext& ctxt, const BS
             if (ctxt.checkAndAssertType(element, String)) {
                 object._optionalField = element.str();
             }
+        } else if (fieldName == "vectorField") {
+            std::uint32_t expectedFieldNumber{0};
+            const IDLParserErrorContext arrayCtxt("vectorField", &ctxt);
+            std::vector<std::int32_t> values;
+
+            const BSONObj arrayObject = element.Obj();
+            for (const auto& arrayElement : arrayObject) {
+                const auto arrayFieldName = arrayElement.fieldNameStringData();
+                std::uint32_t fieldNumber;
+
+                Status status = parseNumberFromString(arrayFieldName, &fieldNumber);
+                if (status.isOK()) {
+                    if (fieldNumber != expectedFieldNumber) {
+                        arrayCtxt.throwBadArrayFieldNumberSequence(fieldNumber,
+                                                                   expectedFieldNumber);
+                    }
+                    if (arrayCtxt.checkAndAssertType(arrayElement, NumberInt)) {
+                        values.emplace_back(arrayElement._numberInt());
+                    }
+                } else {
+                    arrayCtxt.throwBadArrayFieldNumberValue(arrayFieldName);
+                }
+                ++expectedFieldNumber;
+            }
+            object._vectorField = std::move(values);
         } else {
             ctxt.throwUnknownField(fieldName);
         }
@@ -64,6 +89,9 @@ Default_values Default_values::parse(const IDLParserErrorContext& ctxt, const BS
     if (usedFields.find("nsfield") == usedFields.end()) {
         ctxt.throwMissingField("nsfield");
     }
+    if (usedFields.find("vectorField") == usedFields.end()) {
+        ctxt.throwMissingField("vectorField");
+    }
 
     return object;
 }
@@ -75,12 +103,13 @@ void Default_values::serialize(BSONObjBuilder* builder) const {
 
     builder->append("numericfield", _numericfield);
 
-    auto tempValue = _nsfield.toString();
-    builder->append("nsfield", std::move(tempValue));
+    { builder->append("nsfield", _nsfield.toString()); }
 
     if (_optionalField) {
         builder->append("optionalField", _optionalField.get());
     }
+
+    builder->append("vectorField", _vectorField);
 }
 
 }  // namespace mongo

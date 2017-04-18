@@ -919,11 +919,8 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                     self._writer.write_template(
                         'BSONArrayBuilder arrayBuilder(builder->subarrayStart("${field_name}"));')
                     with self._block('for (const auto& item : ${access_member}) {', '}'):
-                        # self._writer.write_template('auto tempValue = ;')
                         self._writer.write_template('arrayBuilder.append(item.${method_name}());')
                 else:
-                    # self._writer.write_template(
-                    #     'auto tempValue = ;')
                     self._writer.write_template(
                         'builder->append("${field_name}", ${access_member}.${method_name}());')
             else:
