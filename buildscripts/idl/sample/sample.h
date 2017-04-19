@@ -13,6 +13,7 @@
 #include <string>
 #include <vector>
 
+#include "mongo/base/data_range.h"
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
@@ -96,6 +97,30 @@ public:
         _vectorField = std::move(value);
     }
 
+    /**
+     * A binData of generic subtype
+     */
+    const ConstDataRange getBinDataField() const& {
+        return ConstDataRange(reinterpret_cast<const char*>(_binDataField.data()),
+                              _binDataField.size());
+    }
+    const ConstDataRange getBinDataField() && = delete;
+    void setBinDataField(ConstDataRange value) & {
+        _binDataField = std::vector<std::uint8_t>(reinterpret_cast<const uint8_t*>(value.data()),
+                                                  reinterpret_cast<const uint8_t*>(value.data()) +
+                                                      value.length());
+    }
+
+    /**
+     * A binData of uuid subtype
+     */
+    const std::array<std::uint8_t, 16>& getUuidField() const {
+        return _uuidField;
+    }
+    void setUuidField(std::array<std::uint8_t, 16> value)& {
+        _uuidField = std::move(value);
+    }
+
 private:
     std::string _stringfield;
     std::int32_t _intfield;
@@ -103,6 +128,8 @@ private:
     mongo::NamespaceString _nsfield;
     boost::optional<std::string> _optionalField;
     std::vector<std::int32_t> _vectorField;
+    std::vector<std::uint8_t> _binDataField;
+    std::array<std::uint8_t, 16> _uuidField;
 };
 
 }  // namespace mongo

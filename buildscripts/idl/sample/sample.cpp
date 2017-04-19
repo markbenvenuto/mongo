@@ -72,6 +72,14 @@ Default_values Default_values::parse(const IDLParserErrorContext& ctxt, const BS
                 ++expectedFieldNumber;
             }
             object._vectorField = std::move(values);
+        } else if (fieldName == "binDataField") {
+            if (ctxt.checkAndAssertBinDataType(element, BinDataGeneral)) {
+                object._binDataField = element._binDataVector();
+            }
+        } else if (fieldName == "uuidField") {
+            if (ctxt.checkAndAssertBinDataType(element, newUUID)) {
+                object._uuidField = element.uuid();
+            }
         } else {
             ctxt.throwUnknownField(fieldName);
         }
@@ -92,6 +100,12 @@ Default_values Default_values::parse(const IDLParserErrorContext& ctxt, const BS
     if (usedFields.find("vectorField") == usedFields.end()) {
         ctxt.throwMissingField("vectorField");
     }
+    if (usedFields.find("binDataField") == usedFields.end()) {
+        ctxt.throwMissingField("binDataField");
+    }
+    if (usedFields.find("uuidField") == usedFields.end()) {
+        ctxt.throwMissingField("uuidField");
+    }
 
     return object;
 }
@@ -110,6 +124,17 @@ void Default_values::serialize(BSONObjBuilder* builder) const {
     }
 
     { builder->append("vectorField", _vectorField); }
+
+    {
+        ConstDataRange tempCDR = makeCDR(_binDataField);
+        builder->append("binDataField",
+                        BSONBinData(tempCDR.data(), tempCDR.length(), BinDataGeneral));
+    }
+
+    {
+        ConstDataRange tempCDR = makeCDR(_uuidField);
+        builder->append("uuidField", BSONBinData(tempCDR.data(), tempCDR.length(), newUUID));
+    }
 }
 
 }  // namespace mongo
