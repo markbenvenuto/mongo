@@ -176,25 +176,25 @@ void IDLParserErrorContext::throwDuplicateField(const BSONElement& element) cons
 
 void IDLParserErrorContext::throwMissingField(StringData fieldName) const {
     std::string path = getElementPath(fieldName);
-    uasserted(40414,
+    uasserted(50414,
               str::stream() << "BSON field '" << path << "' is missing but a required field");
 }
 
 void IDLParserErrorContext::throwUnknownField(StringData fieldName) const {
     std::string path = getElementPath(fieldName);
-    uasserted(40415, str::stream() << "BSON field '" << path << "' is an unknown field.");
+    uasserted(50415, str::stream() << "BSON field '" << path << "' is an unknown field.");
 }
 
 void IDLParserErrorContext::throwBadArrayFieldNumberValue(StringData value) const {
     std::string path = getElementPath(StringData());
-    uasserted(40416,
+    uasserted(50416,
               str::stream() << "BSON array field '" << path << "' has an invalid value '" << value
                             << "' for an array field name.");
 }
 void IDLParserErrorContext::throwBadArrayFieldNumberSequence(std::uint32_t actualValue,
                                                              std::uint32_t expectedValue) const {
     std::string path = getElementPath(StringData());
-    uasserted(40417,
+    uasserted(50417,
               str::stream() << "BSON array field '" << path << "' has a non-sequential value '"
                             << actualValue
                             << "' for an array field name, expected value '"
