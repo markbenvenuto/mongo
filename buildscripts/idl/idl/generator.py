@@ -468,6 +468,16 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
 
         self._writer.write_line('%s %s;' % (member_type, member_name))
 
+    def gen_string_constants_declaration(self, field_name):
+        # type: (unicode) -> None
+        # pylint: disable=invalid-name
+        """Generate a StringData constant for field name."""
+        self._writer.write_line(
+            common.template_args(
+                'static constexpr auto k${constant_name}FieldName = "${field_name}"_sd;',
+                constant_name=common.title_case(field_name),
+                field_name=field_name))
+
     def generate(self, spec):
         # type: (ast.IDLAST) -> None
         """Generate the C++ header to a stream."""
@@ -514,6 +524,13 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
                 self.gen_description_comment(struct.description)
                 with self.gen_class_declaration_block(struct.name):
                     self.write_unindented_line('public:')
+
+                    # Generate a sort list of string constants
+                    field_names = sorted(
+                        [field.name for field in struct.fields if not field.ignore])
+                    for field_name in field_names:
+                        self.gen_string_constants_declaration(field_name)
+                    self.write_empty_line()
 
                     # Write constructor
                     self.gen_serializer_methods(struct.name)
