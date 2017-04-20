@@ -688,21 +688,9 @@ class TestBinder(testcase.IDLTestcase):
         structs:
             bar1:
                 description: foo
-                strict: true
+                strict: false
                 chained_types:
                     - foo1
-        """))
-
-        # Chaining and fields only with same name
-        self.assert_bind(test_preamble + textwrap.dedent("""
-        structs:
-            bar1:
-                description: foo
-                strict: true
-                chained_types:
-                    - foo1
-                fields:
-                    foo1: string
         """))
 
 
@@ -738,15 +726,15 @@ class TestBinder(testcase.IDLTestcase):
                 description: foo
                 strict: true
                 chained_types:
-                    - string
-        """), idl.errors.ERROR_ID_CHAINED_TYPE_WRONG_BSON_TYPE)
+                    - foo1
+        """), idl.errors.ERROR_ID_CHAINED_NO_STRICT)
 
         # Non-any type as chained type
         self.assert_bind_fail(test_preamble + textwrap.dedent("""
         structs:
             bar1:
                 description: foo
-                strict: true
+                strict: false
                 chained_types:
                     - string
         """), idl.errors.ERROR_ID_CHAINED_TYPE_WRONG_BSON_TYPE)
@@ -756,12 +744,23 @@ class TestBinder(testcase.IDLTestcase):
         structs:
             bar1:
                 description: foo
-                strict: true
+                strict: false
                 chained_types:
                     - foo1
                     - foo1
-        """), idl.errors.ERROR_ID_CHAINED_TYPE_WRONG_BSON_TYPE)
+        """), idl.errors.ERROR_ID_CHAINED_DUPLICATE_FIELD)
 
+        # Chaining and fields only with same name
+        self.assert_bind_fail(test_preamble + textwrap.dedent("""
+        structs:
+            bar1:
+                description: foo
+                strict: false
+                chained_types:
+                    - foo1
+                fields:
+                    foo1: string
+        """), idl.errors.ERROR_ID_CHAINED_DUPLICATE_FIELD)
 
     def test_chained_struct_positive(self):
         # type: () -> None
@@ -817,7 +816,7 @@ class TestBinder(testcase.IDLTestcase):
         structs:
             bar1:
                 description: foo
-                strict: true
+                strict: false
                 chained_types:
                     - foo1
                 chained_structs:

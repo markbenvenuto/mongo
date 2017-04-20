@@ -440,8 +440,8 @@ class ParserContext(object):
         # type: (common.SourceLocation, unicode) -> None
         """Add an error about strict parser validate and chained types."""
         self._add_error(location, ERROR_ID_CHAINED_NO_STRICT,
-                        ("Strict IDL parser validation is not supported with chained types for" + 
-                        "struct '%s'.") % (struct_name))
+                        ("Strict IDL parser validation is not supported with chained types for " + 
+                        "struct '%s'. Specify 'strict: false' for this struct.") % (struct_name))
 
 
 def _assert_unique_error_messages():

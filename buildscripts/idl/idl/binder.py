@@ -194,8 +194,9 @@ def _is_duplicate_field(ctxt, fields, ast_field):
     # type: (errors.ParserContext, List[ast.Field], ast.Field) -> bool
     if len([duplicate_field for duplicate_field in fields if duplicate_field.name == ast_field.name]):
         ctxt.add_duplicate_field_error(ast_field, ast_field.name)
-        return False
-    return True
+        return True
+        
+    return False
 
 
 def _bind_struct(ctxt, parsed_spec, struct):

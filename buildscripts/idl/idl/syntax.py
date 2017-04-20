@@ -138,7 +138,7 @@ class SymbolTable(object):
         if type_name.startswith('array<'):
             array_type_name = parse_array_type(type_name)
             if not array_type_name:
-                ctxt.add_bad_array_type_name(location, field_name, type_name)
+                ctxt.add_bad_array_type_name_error(location, field_name, type_name)
                 return (None, None)
 
             return self._resolve_field_type(ctxt, location, field_name, array_type_name)
