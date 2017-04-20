@@ -45,6 +45,7 @@ class IDLTestcase(unittest.TestCase):
         try:
             return idl.parser.parse(doc_str)
         except:  # pylint: disable=bare-except
+            raise
             self.fail("Failed to parse document:\n%s" % (doc_str))
 
     def _assert_parse(self, doc_str, parsed_doc):

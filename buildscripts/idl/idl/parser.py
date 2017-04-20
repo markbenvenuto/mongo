@@ -84,6 +84,9 @@ def _generic_parser(
             elif rule_desc.node_type == "scalar_or_sequence":
                 if ctxt.is_sequence_or_scalar_node(second_node, first_name):
                     syntax_node.__dict__[first_name] = ctxt.get_list(second_node)
+            elif rule_desc.node_type == "sequence":
+                if ctxt.is_sequence_node(second_node, first_name):
+                    syntax_node.__dict__[first_name] = ctxt.get_list(second_node)
             elif rule_desc.node_type == "mapping":
                 if ctxt.is_mapping_node(second_node, first_name):
                     syntax_node.__dict__[first_name] = rule_desc.mapping_parser_func(ctxt,
@@ -231,10 +234,13 @@ def _parse_struct(ctxt, spec, name, node):
     _generic_parser(ctxt, node, "struct", struct, {
         "description": _RuleDesc('scalar', _RuleDesc.REQUIRED),
         "fields": _RuleDesc('mapping', mapping_parser_func=_parse_fields),
+        "chained_types": _RuleDesc('sequence'),
+        "chained_structs": _RuleDesc('sequence'),
         "strict": _RuleDesc("bool_scalar"),
     })
 
-    if struct.fields is None:
+    # TODO: SHOULD WE ALLOW STRUCTS ONLY WITH CHAINED STUFF
+    if struct.fields is None and struct.chained_types is None and struct.chained_structs is None:
         ctxt.add_empty_struct_error(node, struct.name)
 
     spec.symbols.add_struct(ctxt, struct)

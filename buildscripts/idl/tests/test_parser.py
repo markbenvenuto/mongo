@@ -461,61 +461,60 @@ class TestParser(testcase.IDLTestcase):
     def test_chained_type_negative(self):
         # type: () -> None
         """Negative parser chaining test cases."""
-        self.assert_parse(textwrap.dedent("""
+        self.assert_parse_fail(textwrap.dedent("""
         structs:
             foo1:
                 description: foo
                 chained_types: foo1
-        """))
+                fields:
+                    foo: bar
+        """), idl.errors.ERROR_ID_IS_NODE_TYPE)
 
-        self.assert_parse(textwrap.dedent("""
+        self.assert_parse_fail(textwrap.dedent("""
         structs:
             foo1:
                 description: foo
                 chained_types:
                     foo1: bar
-        """))
+                fields:
+                    foo: bar
+        """), idl.errors.ERROR_ID_IS_NODE_TYPE)
 
+    def test_chained_struct_positive(self):
+        # type: () -> None
+        """Positive parser chaining test cases."""
         self.assert_parse(textwrap.dedent("""
-        types:
-            string:
-                description: foo
-                cpp_type: foo
-                bson_serialization_type: string
-                serializer: foo
-                deserializer: foo
-                default: foo
-
-
-            foo1:
-                description: foo
-                cpp_type: foo
-                bson_serialization_type: any
-                serializer: foo
-                deserializer: foo
-                default: foo
-
         structs:
             foo1:
                 description: foo
-                strict: true
-                chained_types:
+                chained_structs:
                     - foo1
-                fields:
-                    foo: string
+                    - foo2
         """))
 
-        # Test duplicate fields
-        self.assert_parse_fail(
-            textwrap.dedent("""
+
+    def test_chained_struct_negative(self):
+        # type: () -> None
+        """Negative parser chaining test cases."""
+        self.assert_parse_fail(textwrap.dedent("""
         structs:
-            foo:
+            foo1:
                 description: foo
-                strict: false
+                chained_structs: foo1
                 fields:
-                    foo: short
-                    foo: int
-            """), idl.errors.ERROR_ID_DUPLICATE_NODE)
+                    foo: bar
+        """), idl.errors.ERROR_ID_IS_NODE_TYPE)
+
+        self.assert_parse_fail(textwrap.dedent("""
+        structs:
+            foo1:
+                description: foo
+                chained_structs:
+                    foo1: bar
+                fields:
+                    foo: bar
+        """), idl.errors.ERROR_ID_IS_NODE_TYPE)
+
 
 
 if __name__ == '__main__':

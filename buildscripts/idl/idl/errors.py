@@ -58,7 +58,10 @@ ERROR_ID_BAD_NUMERIC_CPP_TYPE = "ID0022"
 ERROR_ID_BAD_ARRAY_TYPE_NAME = "ID0023"
 ERROR_ID_ARRAY_NO_DEFAULT = "ID0024"
 ERROR_ID_BAD_BINDATA_DEFAULT = "ID0025"
-
+ERROR_ID_CHAINED_TYPE_NOT_FOUND = "ID0026"
+ERROR_ID_CHAINED_TYPE_WRONG_BSON_TYPE = "ID0027"
+ERROR_ID_CHAINED_DUPLICATE_FIELD = "ID0028"
+ERROR_ID_CHAINED_NO_STRICT = "ID0029"
 
 class IDLError(Exception):
     """Base class for all IDL exceptions."""
@@ -285,7 +288,8 @@ class ParserContext(object):
         # type: (yaml.nodes.Node, unicode) -> None
         """Add an error about a struct without fields."""
         self._add_node_error(node, ERROR_ID_EMPTY_FIELDS,
-                             "Struct '%s' must have fields specified but no fields were found" %
+                             ("Struct '%s' must either have fields, chained_types, or " +
+                             " chained_structs specified but neither were found") %
                              (name))
 
     def add_missing_required_field_error(self, node, node_parent, node_name):
@@ -391,14 +395,14 @@ class ParserContext(object):
             " 'std::uint32_t', 'std::uint64_t', and 'std::int64_t' are supported.") %
                         (cpp_type, ast_type, ast_parent))
 
-    def add_bad_array_type_name(self, location, field_name, type_name):
+    def add_bad_array_type_name_error(self, location, field_name, type_name):
         # type: (common.SourceLocation, unicode, unicode) -> None
         """Add an error about a field type having a malformed type name."""
         self._add_error(location, ERROR_ID_BAD_ARRAY_TYPE_NAME,
                         ("'%s' is not a valid array type for field '%s'. A valid array type" +
                          " is in the form 'array<type_name>'.") % (type_name, field_name))
 
-    def add_array_no_default(self, location, field_name):
+    def add_array_no_default_error(self, location, field_name):
         # type: (common.SourceLocation, unicode) -> None
         """Add an error about an array having a type with a default value."""
         self._add_error(
@@ -406,12 +410,38 @@ class ParserContext(object):
             "Field '%s' is not allowed to have both a default value and be an array type" %
             (field_name))
 
-    def add_bindata_no_default(self, location, ast_type, ast_parent):
+    def add_bindata_no_default_error(self, location, ast_type, ast_parent):
         # type: (common.SourceLocation, unicode, unicode) -> None
         # pylint: disable=invalid-name
         """Add an error about any being used in a list of bson types."""
         self._add_error(location, ERROR_ID_BAD_BINDATA_DEFAULT,
                         ("Default values are not allowed for %s '%s'") % (ast_type, ast_parent))
+
+    def add_chained_type_not_found_error(self, location, type_name):
+        # type: (common.SourceLocation, unicode) -> None
+        """Add an error about a chained_type not found."""
+        self._add_error(location, ERROR_ID_CHAINED_TYPE_NOT_FOUND,
+                        ("Type '%s' is not a valid chained type") % (type_name))
+
+    def add_chained_type_wrong_type_error(self, location, type_name, bson_type_name):
+        # type: (common.SourceLocation, unicode, unicode) -> None
+        """Add an error about a chained_type being the wrong type."""
+        self._add_error(location, ERROR_ID_CHAINED_TYPE_WRONG_BSON_TYPE,
+                        ("Chained Type '%s' has the wrong bson type '%s', only 'any' is supported" +
+                        " for chained types.") % (type_name, bson_type_name))
+
+    def add_duplicate_field_error(self, location, field_name):
+        # type: (common.SourceLocation, unicode) -> None
+        """Add an error about duplicate fields as a result of chained structs/types."""
+        self._add_error(location, ERROR_ID_CHAINED_DUPLICATE_FIELD,
+                        ("Chained Struct or Type '%s' duplicates an existing field.") % (field_name))
+
+    def add_chained_type_no_strict_error(self, location, struct_name):
+        # type: (common.SourceLocation, unicode) -> None
+        """Add an error about strict parser validate and chained types."""
+        self._add_error(location, ERROR_ID_CHAINED_NO_STRICT,
+                        ("Strict IDL parser validation is not supported with chained types for" + 
+                        "struct '%s'.") % (struct_name))
 
 
 def _assert_unique_error_messages():
