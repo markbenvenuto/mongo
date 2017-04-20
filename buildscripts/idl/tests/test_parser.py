@@ -445,6 +445,78 @@ class TestParser(testcase.IDLTestcase):
                 default: foo
             """), idl.errors.ERROR_ID_DUPLICATE_SYMBOL)
 
+    def test_chained_type_positive(self):
+        # type: () -> None
+        """Positive parser chaining test cases."""
+        self.assert_parse(textwrap.dedent("""
+        structs:
+            foo1:
+                description: foo
+                chained_types:
+                    - foo1
+                    - foo2
+        """))
+
+
+    def test_chained_type_negative(self):
+        # type: () -> None
+        """Negative parser chaining test cases."""
+        self.assert_parse(textwrap.dedent("""
+        structs:
+            foo1:
+                description: foo
+                chained_types: foo1
+        """))
+
+        self.assert_parse(textwrap.dedent("""
+        structs:
+            foo1:
+                description: foo
+                chained_types:
+                    foo1: bar
+        """))
+
+        self.assert_parse(textwrap.dedent("""
+        types:
+            string:
+                description: foo
+                cpp_type: foo
+                bson_serialization_type: string
+                serializer: foo
+                deserializer: foo
+                default: foo
+
+
+            foo1:
+                description: foo
+                cpp_type: foo
+                bson_serialization_type: any
+                serializer: foo
+                deserializer: foo
+                default: foo
+
+        structs:
+            foo1:
+                description: foo
+                strict: true
+                chained_types:
+                    - foo1
+                fields:
+                    foo: string
+        """))
+
+        # Test duplicate fields
+        self.assert_parse_fail(
+            textwrap.dedent("""
+        structs:
+            foo:
+                description: foo
+                strict: false
+                fields:
+                    foo: short
+                    foo: int
+            """), idl.errors.ERROR_ID_DUPLICATE_NODE)
+
 
 if __name__ == '__main__':
 

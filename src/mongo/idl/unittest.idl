@@ -160,6 +160,28 @@ types:
 
 ##################################################################################################
 #
+# Test types used in parser chaining testing
+#
+##################################################################################################
+
+    ChainedType:
+        bson_serialization_type: any
+        description: "An Any Type"
+        cpp_type: "mongo::ChainedType"
+        serializer: mongo::ChainedType::serialize
+        deserializer: mongo::ChainedType::parse
+
+
+    AnotherChainedType:
+        bson_serialization_type: any
+        description: "An Any Type"
+        cpp_type: "mongo::AnotherChainedType"
+        serializer: mongo::AnotherChainedType::serialize
+        deserializer: mongo::AnotherChainedType::parse
+
+
+##################################################################################################
+#
 # Unit test structs for a single value to ensure type validation works correctly
 #
 ##################################################################################################
@@ -445,3 +467,44 @@ structs:
             field4o:
                 type: array<object_basic_type>
                 optional: true
+
+##################################################################################################
+#
+# Test Chained Types
+#
+##################################################################################################
+    chained_struct_only:
+        description: UnitTest for arrays of complex optional and non-optional simple types
+        chained_types:
+            - ChainedType
+            - AnotherChainedType
+
+
+    chained_struct_mixed:
+        description: UnitTest for arrays of complex optional and non-optional simple types
+        chained_types:
+            - ChainedType
+            - AnotherChainedType
+        fields:
+            field1:
+                type: string
+            field2:
+                type: array<namespacestring>
+            field3:
+                type: array<any_basic_type>
+            field4:
+                type: array<object_basic_type>
+            field1o:
+                type: array<safeInt32>
+                optional: true
+            field2o:
+                type: array<namespacestring>
+                optional: true
+            field3o:
+                type: array<any_basic_type>
+                optional: true
+            field4o:
+                type: array<object_basic_type>
+                optional: true
+
+

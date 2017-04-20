@@ -658,6 +658,112 @@ class TestBinder(testcase.IDLTestcase):
                 """ % (test_value)), idl.errors.ERROR_ID_FIELD_MUST_BE_EMPTY_FOR_IGNORED)
 
 
+    def test_chained_type_positive(self):
+        # type: () -> None
+        """Positive parser chaining test cases."""
+        # Setup some common types
+        test_preamble = textwrap.dedent("""
+        types:
+            string:
+                description: foo
+                cpp_type: foo
+                bson_serialization_type: string
+                serializer: foo
+                deserializer: foo
+                default: foo
+
+
+            foo1:
+                description: foo
+                cpp_type: foo
+                bson_serialization_type: any
+                serializer: foo
+                deserializer: foo
+                default: foo
+
+        """)
+
+        # Chaining only
+        self.assert_bind(textwrap.dedent(test_preamble + """
+        structs:
+            foo1:
+                description: foo
+                strict: true
+                chained_types:
+                    - foo1
+        """))
+
+        # Chaining and fields only with same name
+        self.assert_bind(textwrap.dedent(test_preamble + """
+        structs:
+            foo1:
+                description: foo
+                strict: true
+                chained_types:
+                    - foo1
+                fields:
+                    foo1: string
+        """))
+
+
+    def test_chained_type_negative(self):
+        # type: () -> None
+        """Negative parser chaining test cases."""
+        # Setup some common types
+        test_preamble = textwrap.dedent("""
+        types:
+            string:
+                description: foo
+                cpp_type: foo
+                bson_serialization_type: string
+                serializer: foo
+                deserializer: foo
+                default: foo
+
+
+            foo1:
+                description: foo
+                cpp_type: foo
+                bson_serialization_type: any
+                serializer: foo
+                deserializer: foo
+                default: foo
+
+        """)
+
+        # Chaining with strict struct
+        self.assert_bind(textwrap.dedent(test_preamble + """
+        structs:
+            foo1:
+                description: foo
+                strict: true
+                chained_types:
+                    - string
+        """))
+
+        # Non-any type as chained type
+        self.assert_bind(textwrap.dedent(test_preamble + """
+        structs:
+            foo1:
+                description: foo
+                strict: true
+                chained_types:
+                    - string
+        """))
+
+        # Duplicate chained types
+        self.assert_bind(textwrap.dedent(test_preamble + """
+        structs:
+            foo1:
+                description: foo
+                strict: true
+                chained_types:
+                    - foo1
+                    - foo1
+        """))
+
+
+
 if __name__ == '__main__':
 
     unittest.main()
