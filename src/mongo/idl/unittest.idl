@@ -69,6 +69,11 @@ types:
         cpp_type: "mongo::OID"
         deserializer: "mongo::BSONElement::OID"
 
+    object:
+        bson_serialization_type: object
+        description: "A BSONObj"
+        cpp_type: "mongo::BSONObj"
+
     date:
         bson_serialization_type: date
         description: "A BSON UTC DateTime"
@@ -188,6 +193,12 @@ structs:
         description: UnitTest for a single timestamp
         fields:
             value: timestamp
+
+    one_plain_object:
+        description: UnitTest for a single BSONObj
+        fields:
+            value: object
+
 
 ##################################################################################################
 #
@@ -324,6 +335,9 @@ structs:
             field2:
                 type: int
                 optional: true
+            field3:
+                type: object
+                optional: true
 
 ##################################################################################################
 #
@@ -376,6 +390,8 @@ structs:
                 type: array<any_basic_type>
             field4:
                 type: array<object_basic_type>
+            field5:
+                type: array<object>
             field1o:
                 type: array<safeInt32>
                 optional: true
@@ -387,4 +403,7 @@ structs:
                 optional: true
             field4o:
                 type: array<object_basic_type>
+                optional: true
+            field5o:
+                type: array<object>
                 optional: true

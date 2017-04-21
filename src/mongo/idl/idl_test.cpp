@@ -674,6 +674,8 @@ TEST(IDLArrayTests, TestArraysOfComplexTypes) {
                                  << BSON_ARRAY(1 << "2")
                                  << "field4"
                                  << BSON_ARRAY(BSONObj() << BSONObj())
+                                 << "field5"
+                                 << BSON_ARRAY(BSONObj() << BSONObj()<< BSONObj())
                                  << "field1o"
                                  << BSON_ARRAY(1 << 2 << 3)
                                  << "field2o"

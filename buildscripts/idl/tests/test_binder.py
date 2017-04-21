@@ -338,27 +338,6 @@ class TestBinder(testcase.IDLTestcase):
                     """ % (bson_type)),
                 idl.errors.ERROR_ID_CUSTOM_SCALAR_SERIALIZATION_NOT_SUPPORTED)
 
-        # Test object serialization needs deserializer & serializer
-        self.assert_bind_fail(
-            textwrap.dedent("""
-            types:
-                foofoo:
-                    description: foo
-                    cpp_type: foo
-                    bson_serialization_type: object
-                    serializer: foo
-            """), idl.errors.ERROR_ID_MISSING_AST_REQUIRED_FIELD)
-
-        self.assert_bind_fail(
-            textwrap.dedent("""
-            types:
-                foofoo:
-                    description: foo
-                    cpp_type: foo
-                    bson_serialization_type: object
-                    deserializer: foo
-            """), idl.errors.ERROR_ID_MISSING_AST_REQUIRED_FIELD)
-
         # Test any serialization needs deserializer
         self.assert_bind_fail(
             textwrap.dedent("""

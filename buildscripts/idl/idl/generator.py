@@ -559,7 +559,7 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                                     (field.name))
             self._writer.write_line('const auto localObject = %s.Obj();' % (element_name))
             return '%s::parse(tempContext, localObject);' % (common.title_case(field.struct_type))
-        elif 'BSONElement::' in field.deserializer:
+        elif field.deserializer and 'BSONElement::' in field.deserializer:
             method_name = writer.get_method_name(field.deserializer)
             return '%s.%s()' % (element_name, method_name)
         else:
@@ -575,10 +575,13 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                 return '%s(tempValue)' % (method_name)
             elif len(field.bson_serialization_type) == 1 and field.bson_serialization_type[
                     0] == 'object':
-                # Call a method like: Class::method(const BSONObj& value)
-                method_name = writer.get_method_name_from_qualified_method_name(field.deserializer)
-                self._writer.write_line('const BSONObj localObject = %s.Obj();' % (element_name))
-                return '%s(localObject)' % (method_name)
+                if field.deserializer:
+                    # Call a method like: Class::method(const BSONObj& value)
+                    method_name = writer.get_method_name_from_qualified_method_name(field.deserializer)
+                    self._writer.write_line('const BSONObj localObject = %s.Obj();' % (element_name))
+                    return '%s(localObject)' % (method_name)
+                else:
+                    return ('%s.Obj()' % (element_name))
             else:
                 # Call a method like: Class::method(const BSONElement& value)
                 method_name = writer.get_method_name_from_qualified_method_name(field.deserializer)
