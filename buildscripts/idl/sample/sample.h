@@ -25,6 +25,13 @@ namespace mongo {
  */
 class Default_values {
 public:
+    static constexpr auto kIntfieldFieldName = "intfield"_sd;
+    static constexpr auto kNsfieldFieldName = "nsfield"_sd;
+    static constexpr auto kNumericfieldFieldName = "numericfield"_sd;
+    static constexpr auto kOptionalFieldFieldName = "optionalField"_sd;
+    static constexpr auto kStringfieldFieldName = "stringfield"_sd;
+    static constexpr auto kVectorFieldFieldName = "vectorField"_sd;
+
     static Default_values parse(const IDLParserErrorContext& ctxt, const BSONObj& object);
     void serialize(BSONObjBuilder* builder) const;
 
