@@ -120,7 +120,7 @@ def _parse_mapping(
         spec,  # type: syntax.IDLSpec
         node,  # type: Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]
         syntax_node_name,  # type: unicode
-        func # type: Callable[[errors.ParserContext,syntax.IDLSpec,unicode,Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]], None]
+        func  # type: Callable[[errors.ParserContext,syntax.IDLSpec,unicode,Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]], None]
 ):
     """Parse a top-level mapping section in the IDL file."""
     if not ctxt.is_mapping_node(node, syntax_node_name):
@@ -264,6 +264,36 @@ def _parse_struct(ctxt, spec, name, node):
     spec.symbols.add_struct(ctxt, struct)
 
 
+def _parse_command(ctxt, spec, name, node):
+    # type: (errors.ParserContext, syntax.IDLSpec, unicode, Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> None
+    """Parse a command section in the IDL file."""
+    if not ctxt.is_mapping_node(node, "command"):
+        return
+
+    command = syntax.Command(ctxt.file_name, node.start_mark.line, node.start_mark.column)
+    command.name = name
+
+    _generic_parser(ctxt, node, "command", command, {
+        "description": _RuleDesc('scalar', _RuleDesc.REQUIRED),
+        "fields": _RuleDesc('mapping', mapping_parser_func=_parse_fields),
+        "namespace": _RuleDesc('scalar', _RuleDesc.REQUIRED),
+        "strict": _RuleDesc("bool_scalar"),
+    })
+
+    # TODO: support the first argument as UUID depending on outcome of uuid as namespaces
+    valid_commands = [
+        common.COMMAND_NAMESPACE_CONCATENATE_WITH_DB, common.COMMAND_NAMESPACE_IGNORED
+    ]
+    if command.namespace and command.namespace not in valid_commands:
+        ctxt.add_bad_command_namespace_error(command, command.name, command.namespace,
+                                             valid_commands)
+
+    if command.fields is None:
+        ctxt.add_empty_struct_error(node, command.name)
+
+    spec.symbols.add_command(ctxt, command)
+
+
 def _parse(stream, error_file_name):
     # type: (Any, unicode) -> syntax.IDLParsedSpec
     """
@@ -309,6 +339,8 @@ def _parse(stream, error_file_name):
             _parse_mapping(ctxt, spec, second_node, 'types', _parse_type)
         elif first_name == "structs":
             _parse_mapping(ctxt, spec, second_node, 'structs', _parse_struct)
+        elif first_name == "commands":
+            _parse_mapping(ctxt, spec, second_node, 'commands', _parse_command)
         else:
             ctxt.add_unknown_root_node_error(first_node)
 

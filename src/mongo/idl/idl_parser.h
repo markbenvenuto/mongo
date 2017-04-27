@@ -34,6 +34,7 @@
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsontypes.h"
+#include "mongo/db/namespace_string.h"
 
 namespace mongo {
 
@@ -112,6 +113,11 @@ public:
      */
     void throwBadArrayFieldNumberSequence(std::uint32_t actualValue,
                                           std::uint32_t expectedValue) const;
+
+    /**
+     * Equivalent to Command::parseNsCollectionRequired
+     */
+    static NamespaceString parseNSCollectionRequired(StringData dbName, const BSONElement& element);
 
 private:
     /**

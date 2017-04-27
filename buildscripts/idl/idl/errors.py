@@ -59,6 +59,8 @@ ERROR_ID_BAD_NUMERIC_CPP_TYPE = "ID0022"
 ERROR_ID_BAD_ARRAY_TYPE_NAME = "ID0023"
 ERROR_ID_ARRAY_NO_DEFAULT = "ID0024"
 ERROR_ID_BAD_IMPORT = "ID0025"
+ERROR_ID_BAD_COMMAND_NAMESPACE = "ID0026"
+ERROR_ID_FIELD_NO_COMMAND = "ID0027"
 
 
 class IDLError(Exception):
@@ -412,6 +414,22 @@ class ParserContext(object):
         """Add an error about not being able to find an import."""
         self._add_error(location, ERROR_ID_BAD_IMPORT,
                         "Could not resolve import '%s', file not found" % (imported_file_name))
+
+    def add_bad_command_namespace_error(self, location, command_name, command_namespace,
+                                        valid_commands):
+        # type: (common.SourceLocation, unicode, unicode, List[unicode]) -> None
+        """Add an error about the namespace value not being a valid choice."""
+        self._add_error(
+            location, ERROR_ID_BAD_COMMAND_NAMESPACE,
+            "Command namespace '%s' for command '%s' is not a valid choice. Valid options are '%s'."
+            % (command_namespace, command_name, valid_commands))
+
+    def add_bad_command_as_field_error(self, location, command_name):
+        # type: (common.SourceLocation, unicode) -> None
+        """Add an error about using a command for a field."""
+        self._add_error(location, ERROR_ID_FIELD_NO_COMMAND,
+                        ("Command '%s' cannot be used as a field type'. Commands must be top-level"
+                         + " types due to there serialization rules.") % (command_name))
 
 
 def _assert_unique_error_messages():

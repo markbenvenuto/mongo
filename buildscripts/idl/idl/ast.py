@@ -49,6 +49,7 @@ class IDLAST(object):
         """Construct an IDLAST."""
         self.globals = None  # type: Global
         self.structs = []  # type: List[Struct]
+        self.commands = []  # type: List[Command]
 
 
 class Global(common.SourceLocation):
@@ -118,3 +119,17 @@ class Field(common.SourceLocation):
         self.array = False  # type: bool
 
         super(Field, self).__init__(file_name, line, column)
+
+
+class Command(Struct):
+    """
+    IDL commmand information.
+
+    All fields are either required or have a non-None default.
+    """
+
+    def __init__(self, file_name, line, column):
+        # type: (unicode, int, int) -> None
+        """Construct a command."""
+        self.namespace = None  # type: unicode
+        super(Command, self).__init__(file_name, line, column)
