@@ -595,6 +595,133 @@ class TestBinder(testcase.IDLTestcase):
                             %s
                 """ % (test_value)), idl.errors.ERROR_ID_FIELD_MUST_BE_EMPTY_FOR_IGNORED)
 
+    def test_enum_positive(self):
+        # type: () -> None
+        """Positive enum test cases."""
+
+        # Test int
+        self.assert_bind(
+            textwrap.dedent("""
+        enums:
+            foo:
+                description: foo
+                type: int
+                values:
+                    v1: 3
+                    v2: 1
+                    v3: 2
+            """))
+
+        # Test string
+        self.assert_bind(
+            textwrap.dedent("""
+        enums:
+            foo:
+                description: foo
+                type: string
+                values:
+                    v1: 0
+                    v2: 1
+                    v3: 2
+            """))
+
+    def test_enum_negative(self):
+        # type: () -> None
+        """Negative enum test cases."""
+
+        # Test wrong type
+        self.assert_bind_fail(
+            textwrap.dedent("""
+        enums:
+            foo:
+                description: foo
+                type: foo
+                values:
+                    v1: 0
+            """), idl.errors.ERROR_ID_ENUM_BAD_TYPE)
+
+        # Test int - non continuous
+        self.assert_bind_fail(
+            textwrap.dedent("""
+        enums:
+            foo:
+                description: foo
+                type: int
+                values:
+                    v1: 0
+                    v3: 2
+            """), idl.errors.ERROR_ID_ENUM_NON_CONTINUOUS_RANGE)
+
+        # Test int - dups
+        self.assert_bind_fail(
+            textwrap.dedent("""
+        enums:
+            foo:
+                description: foo
+                type: int
+                values:
+                    v1: 1
+                    v3: 1
+            """), idl.errors.ERROR_ID_ENUM_NON_UNIQUE_VALUES)
+
+        # Test int - non-integer value
+        self.assert_bind_fail(
+            textwrap.dedent("""
+        enums:
+            foo:
+                description: foo
+                type: int
+                values:
+                    v1: foo
+                    v3: 1
+            """), idl.errors.ERROR_ID_ENUM_BAD_INT_VAUE)
+
+        # Test string - dups
+        self.assert_bind_fail(
+            textwrap.dedent("""
+        enums:
+            foo:
+                description: foo
+                type: string
+                values:
+                    v1: foo
+                    v3: foo
+            """), idl.errors.ERROR_ID_ENUM_NON_UNIQUE_VALUES)
+
+    def test_struct_enum_negative(self):
+        # type: () -> None
+        """Negative enum test cases."""
+
+        test_preamble = textwrap.dedent("""
+        enums:
+            foo:
+                description: foo
+                type: int
+                values:
+                    v1: 0
+                    v2: 1
+        """)
+
+        # Test array of enums
+        self.assert_bind_fail(test_preamble + textwrap.dedent("""
+        structs:
+            foo1:
+                description: foo
+                fields:
+                    foo1: array<foo>
+            """), idl.errors.ERROR_ID_NO_ARRAY_ENUM)
+
+        # Test default
+        self.assert_bind_fail(test_preamble + textwrap.dedent("""
+        structs:
+            foo1:
+                description: foo
+                fields:
+                    foo1:
+                        type: foo
+                        default: 1
+            """), idl.errors.ERROR_ID_FIELD_MUST_BE_EMPTY_FOR_ENUM)
+
 
 if __name__ == '__main__':
 

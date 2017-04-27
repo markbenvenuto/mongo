@@ -28,6 +28,7 @@ from . import ast
 from . import bson
 from . import common
 from . import cpp_types
+from . import enum_types
 from . import writer
 
 
@@ -262,7 +263,7 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
         param_type = cpp_type_info.get_getter_setter_type()
         member_name = _get_field_member_name(field)
 
-        if cpp_type_info.return_by_reference():
+        if cpp_type_info.return_by_reference() and not field.enum_type:
             param_type += "&"
 
         template_params = {
@@ -311,6 +312,29 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
 
         self._writer.write_line('%s %s;' % (member_type, member_name))
 
+    def gen_enum_functions(self, idlenum):
+        # type: (ast.Enum) -> None
+        """Generate the declaration for an enum's supporting functions."""
+        enum_type_info = enum_types.get_type_info(idlenum)
+
+        self._writer.write_line("%s;" % (enum_type_info.get_deserializer_declaration()))
+
+        self._writer.write_line("%s;" % (enum_type_info.get_serializer_declaration()))
+
+    def gen_enum_declaration(self, idlenum):
+        # type: (ast.Enum) -> None
+        """Generate the declaration for an enum."""
+        enum_type_info = enum_types.get_type_info(idlenum)
+
+        with self._block('enum class %s : std::int32_t {' % (enum_type_info.get_cpp_type_name()),
+                         '};'):
+            for enum_value in idlenum.values:
+                self._writer.write_line(
+                    common.template_args(
+                        '${name} ${value},',
+                        name=enum_value.name,
+                        value=enum_type_info.get_cpp_value(enum_value)))
+
     def generate(self, spec):
         # type: (ast.IDLAST) -> None
         """Generate the C++ header to a stream."""
@@ -353,6 +377,14 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
         # Generate namesapce
         with self.gen_namespace_block(spec.globals.cpp_namespace):
             self.write_empty_line()
+
+            for idlenum in spec.enums:
+                self.gen_description_comment(idlenum.description)
+                self.gen_enum_declaration(idlenum)
+                self._writer.write_empty_line()
+
+                self.gen_enum_functions(idlenum)
+                self._writer.write_empty_line()
 
             for struct in spec.structs:
                 self.gen_description_comment(struct.description)
@@ -421,10 +453,20 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                 if field.deserializer:
                     method_name = writer.get_method_name_from_qualified_method_name(
                         field.deserializer)
-                    return common.template_args(
-                        "$method_name(${expression})",
-                        method_name=method_name,
-                        expression=expression)
+
+                    # For fields which are enums, pass a IDLParserErrorContext
+                    if field.enum_type:
+                        self._writer.write_line('IDLParserErrorContext tempContext("%s", &ctxt);' %
+                                                (field.name))
+                        return common.template_args(
+                            "$method_name(tempContext, ${expression})",
+                            method_name=method_name,
+                            expression=expression)
+                    else:
+                        return common.template_args(
+                            "$method_name(${expression})",
+                            method_name=method_name,
+                            expression=expression)
                 else:
                     # BSONObjects are allowed to be pass through without deserialization
                     assert len(
@@ -662,6 +704,18 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                 # Add a blank line after each block
                 self._writer.write_empty_line()
 
+    def gen_enum_definition(self, idlenum):
+        # type: (ast.Enum) -> None
+        """Generate the definitions for an enum's supporting functions."""
+        #TODO: generate string constants and function names
+        enum_type_info = enum_types.get_type_info(idlenum)
+
+        enum_type_info.gen_deserializer_definition(self._writer)
+        self._writer.write_empty_line()
+
+        enum_type_info.gen_serializer_definition(self._writer)
+        self._writer.write_empty_line()
+
     def generate(self, spec, header_file_name):
         # type: (ast.IDLAST, unicode) -> None
         """Generate the C++ header to a stream."""
@@ -682,6 +736,10 @@ class _CppSourceFileWriter(_CppFileWriterBase):
         # Generate namesapce
         with self.gen_namespace_block(spec.globals.cpp_namespace):
             self.write_empty_line()
+
+            for idlenum in spec.enums:
+                self.gen_description_comment(idlenum.description)
+                self.gen_enum_definition(idlenum)
 
             for struct in spec.structs:
                 # Write deserializer

@@ -451,17 +451,38 @@ class BsonCppTypeBase(object):
         pass
 
 
-class _StringBsonCppTypeBase(BsonCppTypeBase):
-    """Custom C++ support for string BSON types."""
+def _call_method_or_global_function(expression, method_name):
+    # type: (unicode, unicode) -> unicode
+    """
+    Given a fully-qualified method name, call it correctly.
 
-    def __init__(self, field):
-        # type: (ast.Field) -> None
-        super(_StringBsonCppTypeBase, self).__init__(field)
+    A function is prefixed with "::" and use it to indicate a function instead of a method. It is
+    not treated as a global C++ function though. This notion of functions is designed to support
+    enum deserializers/serializers which are not methods.
+    """
+    short_method_name = writer.get_method_name(method_name)
+    if writer.is_function(method_name):
+        return common.template_args(
+            '${method_name}(${expression})', expression=expression, method_name=short_method_name)
+
+    return common.template_args(
+        '${expression}.${method_name}()', expression=expression, method_name=short_method_name)
+
+
+class _CommonBsonCppTypeBase(BsonCppTypeBase):
+    """Custom C++ support for basic BSON types."""
+
+    def __init__(self, field, deserialize_method_name):
+        # type: (ast.Field, unicode) -> None
+        self._deserialize_method_name = deserialize_method_name
+        super(_CommonBsonCppTypeBase, self).__init__(field)
 
     def gen_deserializer_expression(self, indented_writer, object_instance):
         # type: (writer.IndentedTextWriter, unicode) -> unicode
         return common.template_args(
-            '${object_instance}.valueStringData()', object_instance=object_instance)
+            '${object_instance}.${method_name}()',
+            object_instance=object_instance,
+            method_name=self._deserialize_method_name)
 
     def has_serializer(self):
         # type: () -> bool
@@ -469,9 +490,7 @@ class _StringBsonCppTypeBase(BsonCppTypeBase):
 
     def gen_serializer_expression(self, indented_writer, expression):
         # type: (writer.IndentedTextWriter, unicode) -> unicode
-        method_name = writer.get_method_name(self._field.serializer)
-        return common.template_args(
-            '${expression}.${method_name}()', expression=expression, method_name=method_name)
+        return _call_method_or_global_function(expression, self._field.serializer)
 
 
 class _ObjectBsonCppTypeBase(BsonCppTypeBase):
@@ -516,10 +535,13 @@ def get_bson_cpp_type(field):
         return None
 
     if field.bson_serialization_type[0] == 'string':
-        return _StringBsonCppTypeBase(field)
+        return _CommonBsonCppTypeBase(field, "valueStringData")
 
     if field.bson_serialization_type[0] == 'object':
         return _ObjectBsonCppTypeBase(field)
+
+    if field.bson_serialization_type[0] == 'int':
+        return _CommonBsonCppTypeBase(field, "_numberInt")
 
     # Unsupported type
     return None

@@ -113,6 +113,12 @@ public:
     void throwBadArrayFieldNumberSequence(std::uint32_t actualValue,
                                           std::uint32_t expectedValue) const;
 
+    /**
+     * Throw an error message about an unrecognized enum value.
+     */
+    void throwBadEnumValue(StringData enumValue) const;
+    void throwBadEnumValue(int enumValue) const;
+
 private:
     /**
      * See comment on getElementPath below.

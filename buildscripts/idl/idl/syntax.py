@@ -75,8 +75,8 @@ class SymbolTable(object):
     """
     IDL Symbol Table.
 
-    - Contains all information to resolve commands, types, and structs.
-    - Checks for duplicate names across the union of (commands, types, structs)
+    - Contains all information to resolve commands, enums, structs, and types.
+    - Checks for duplicate names across the union of (commands, enums, types, structs)
     """
 
     def __init__(self):
@@ -85,6 +85,7 @@ class SymbolTable(object):
         self.types = []  # type: List[Type]
         self.structs = []  # type: List[Struct]
         self.commands = []  # type: List[Command]
+        self.enums = []  # type: List[Enum]
 
     def _is_duplicate(self, ctxt, location, name, duplicate_class_name):
         # type: (errors.ParserContext, common.SourceLocation, unicode, unicode) -> bool
@@ -99,7 +100,18 @@ class SymbolTable(object):
                 ctxt.add_duplicate_symbol_error(location, name, duplicate_class_name, 'type')
                 return True
 
+        for idlenum in self.enums:
+            if idlenum.name == name:
+                ctxt.add_duplicate_symbol_error(location, name, duplicate_class_name, 'enum')
+                return True
+
         return False
+
+    def add_enum(self, ctxt, idlenum):
+        # type: (errors.ParserContext, Enum) -> None
+        """Add an IDL enum to the symbol table and check for duplicates."""
+        if not self._is_duplicate(ctxt, idlenum, idlenum.name, "enum"):
+            self.enums.append(idlenum)
 
     def add_struct(self, ctxt, struct):
         # type: (errors.ParserContext, Struct) -> None
@@ -131,36 +143,45 @@ class SymbolTable(object):
                 struct.imported = True
                 self.structs.append(struct)
 
+        for idlenum in imported_symbols.enums:
+            if not self._is_duplicate(ctxt, idlenum, idlenum.name, "enum"):
+                idlenum.imported = True
+                self.enums.append(idlenum)
+
         for idltype in imported_symbols.types:
             self.add_type(ctxt, idltype)
 
     def resolve_field_type(self, ctxt, field):
-        # type: (errors.ParserContext, Field) -> Tuple[Optional[Struct], Optional[Type]]
+        # type: (errors.ParserContext, Field) -> Tuple[Optional[Enum], Optional[Struct], Optional[Type]]
         """Find the type or struct a field refers to or log an error."""
         return self._resolve_field_type(ctxt, field, field.type)
 
     def _resolve_field_type(self, ctxt, field, type_name):
-        # type: (errors.ParserContext, Field, unicode) -> Tuple[Optional[Struct], Optional[Type]]
+        # type: (errors.ParserContext, Field, unicode) -> Tuple[Optional[Enum], Optional[Struct], Optional[Type]]
         """Find the type or struct a field refers to or log an error."""
+        for idlenum in self.enums:
+            if idlenum.name == type_name:
+                return (idlenum, None, None)
+
         for idltype in self.types:
             if idltype.name == type_name:
-                return (None, idltype)
+                return (None, None, idltype)
 
         for struct in self.structs:
             if struct.name == type_name:
-                return (struct, None)
+                return (None, struct, None)
 
         if type_name.startswith('array<'):
             array_type_name = parse_array_type(type_name)
             if not array_type_name:
                 ctxt.add_bad_array_type_name(field, field.name, type_name)
-                return (None, None)
+                return (None, None, None)
 
             return self._resolve_field_type(ctxt, field, array_type_name)
 
         ctxt.add_unknown_type_error(field, field.name, type_name)
 
-        return (None, None)
+        return (None, None, None)
 
 
 class Global(common.SourceLocation):
@@ -272,3 +293,42 @@ class Struct(common.SourceLocation):
 # TODO: add support for commands
 class Command(Struct):
     """IDL command."""
+
+
+class EnumValue(common.SourceLocation):
+    """
+    IDL Enum Value information.
+
+    All fields are either required or have a non-None default.
+    """
+
+    def __init__(self, file_name, line, column):
+        # type: (unicode, int, int) -> None
+        """Construct an Enum."""
+        self.name = None  # type: unicode
+        self.value = None  # type: unicode
+
+        super(EnumValue, self).__init__(file_name, line, column)
+
+
+class Enum(common.SourceLocation):
+    """
+    IDL Enum information.
+
+    All fields are either required or have a non-None default.
+    """
+
+    def __init__(self, file_name, line, column):
+        # type: (unicode, int, int) -> None
+        """Construct an Enum."""
+        self.name = None  # type: unicode
+        self.description = None  # type: unicode
+        self.type = None  # type: unicode
+        self.values = None  # type: List[EnumValue]
+
+        # TODO: test this
+        # Internal property that is not represented as syntax. An imported enum is read from an
+        # imported file, and no code is generated for it.
+        self.imported = False  # type: bool
+
+        super(Enum, self).__init__(file_name, line, column)
