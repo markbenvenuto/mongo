@@ -317,3 +317,24 @@ structs:
             field5o:
                 type: array<object>
                 optional: true
+
+##################################################################################################
+#
+# Test commands
+#
+##################################################################################################
+
+commands:
+    BasicIgnoredCommand:
+        description: UnitTest for a basic ignored command
+        namespace: ignored
+        fields:
+            field1: int
+            field2: string
+
+    BasicConcatenateWithDbCommand:
+        description: UnitTest for a basic concatenate_with_db command
+        namespace: concatenate_with_db
+        fields:
+            field1: int
+            field2: string

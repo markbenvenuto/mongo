@@ -446,6 +446,154 @@ class TestParser(testcase.IDLTestcase):
                 default: foo
             """), idl.errors.ERROR_ID_DUPLICATE_SYMBOL)
 
+    def test_command_positive(self):
+        # type: () -> None
+        """Positive command test cases."""
+
+        # All fields with true for bools
+        self.assert_parse(
+            textwrap.dedent("""
+        commands:
+            foo:
+                description: foo
+                strict: true
+                namespace: ignored
+                fields:
+                    foo: bar
+            """))
+
+        # All fields with false for bools
+        self.assert_parse(
+            textwrap.dedent("""
+        commands:
+            foo:
+                description: foo
+                strict: false
+                namespace: ignored
+                fields:
+                    foo: bar
+            """))
+
+        # Namespace ignored
+        self.assert_parse(
+            textwrap.dedent("""
+        commands:
+            foo:
+                description: foo
+                namespace: ignored
+                fields:
+                    foo: bar
+            """))
+
+        # Namespace concatenate_with_db
+        self.assert_parse(
+            textwrap.dedent("""
+        commands:
+            foo:
+                description: foo
+                namespace: concatenate_with_db
+                fields:
+                    foo: bar
+            """))
+
+    def test_command_negative(self):
+        # type: () -> None
+        """Negative command test cases."""
+
+        # Missing fields
+        self.assert_parse_fail(
+            textwrap.dedent("""
+        commands:
+            foo:
+                description: foo
+                namespace: ignored
+                strict: true
+            """), idl.errors.ERROR_ID_EMPTY_FIELDS)
+
+        # unknown field
+        self.assert_parse_fail(
+            textwrap.dedent("""
+        commands:
+            foo:
+                description: foo
+                namespace: ignored
+                foo: bar
+                fields:
+                    foo: bar
+            """), idl.errors.ERROR_ID_UNKNOWN_NODE)
+
+        # strict is a bool
+        self.assert_parse_fail(
+            textwrap.dedent("""
+        commands:
+            foo:
+                description: foo
+                strict: bar
+                namespace: ignored
+                fields:
+                    foo: bar
+            """), idl.errors.ERROR_ID_IS_NODE_VALID_BOOL)
+
+        # Namespace is required
+        self.assert_parse_fail(
+            textwrap.dedent("""
+        commands:
+            foo:
+                description: foo
+                fields:
+                    foo: bar
+            """), idl.errors.ERROR_ID_MISSING_REQUIRED_FIELD)
+
+        # Namespace is wrong
+        self.assert_parse_fail(
+            textwrap.dedent("""
+        commands:
+            foo:
+                description: foo
+                namespace: foo
+                fields:
+                    foo: bar
+            """), idl.errors.ERROR_ID_BAD_COMMAND_NAMESPACE)
+
+        # Setup some common types
+        test_preamble = textwrap.dedent("""
+        types:
+            string:
+                description: foo
+                cpp_type: foo
+                bson_serialization_type: string
+                serializer: foo
+                deserializer: foo
+                default: foo
+        """)
+
+        # Commands and structs with same name
+        self.assert_parse_fail(test_preamble + textwrap.dedent("""
+            commands: 
+                foo:
+                    description: foo
+                    namespace: ignored
+                    fields:
+                        foo: string
+            
+            structs:
+                foo:
+                    description: foo
+                    fields:
+                        foo: foo
+            """), idl.errors.ERROR_ID_DUPLICATE_SYMBOL)
+
+        # Commands and types with same name
+        self.assert_parse_fail(test_preamble + textwrap.dedent("""
+            commands: 
+                string:
+                    description: foo
+                    namespace: ignored
+                    strict: true
+                    fields:
+                        foo: string
+            """), idl.errors.ERROR_ID_DUPLICATE_SYMBOL)
+
 
 if __name__ == '__main__':
 

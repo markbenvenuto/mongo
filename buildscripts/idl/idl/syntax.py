@@ -89,6 +89,11 @@ class SymbolTable(object):
     def _is_duplicate(self, ctxt, location, name, duplicate_class_name):
         # type: (errors.ParserContext, common.SourceLocation, unicode, unicode) -> bool
         """Return true if the given item already exist in the symbol table."""
+        for command in self.commands:
+            if command.name == name:
+                ctxt.add_duplicate_symbol_error(location, name, duplicate_class_name, 'command')
+                return True
+
         for struct in self.structs:
             if struct.name == name:
                 ctxt.add_duplicate_symbol_error(location, name, duplicate_class_name, 'struct')
@@ -115,9 +120,9 @@ class SymbolTable(object):
 
     def add_command(self, ctxt, command):
         # type: (errors.ParserContext, Command) -> None
-        """Add an IDL command  to the symbol table and check for duplicates."""
-        # TODO: add commands
-        pass
+        """Add an IDL command to the symbol table and check for duplicates."""
+        if not self._is_duplicate(ctxt, command, command.name, "command"):
+            self.commands.append(command)
 
     def add_imported_symbol_table(self, ctxt, imported_symbols):
         # type: (errors.ParserContext, SymbolTable) -> None
@@ -126,6 +131,11 @@ class SymbolTable(object):
 
         Marks imported structs as imported, and errors on duplicate symbols.
         """
+        for command in imported_symbols.commands:
+            if not self._is_duplicate(ctxt, command, command.name, "command"):
+                command.imported = True
+                self.commands.append(command)
+
         for struct in imported_symbols.structs:
             if not self._is_duplicate(ctxt, struct, struct.name, "struct"):
                 struct.imported = True
@@ -135,32 +145,36 @@ class SymbolTable(object):
             self.add_type(ctxt, idltype)
 
     def resolve_field_type(self, ctxt, field):
-        # type: (errors.ParserContext, Field) -> Tuple[Optional[Struct], Optional[Type]]
+        # type: (errors.ParserContext, Field) -> Optional[Union[Command, Struct, Type]]
         """Find the type or struct a field refers to or log an error."""
         return self._resolve_field_type(ctxt, field, field.type)
 
     def _resolve_field_type(self, ctxt, field, type_name):
-        # type: (errors.ParserContext, Field, unicode) -> Tuple[Optional[Struct], Optional[Type]]
+        # type: (errors.ParserContext, Field, unicode) ->  Optional[Union[Command, Struct, Type]]
         """Find the type or struct a field refers to or log an error."""
-        for idltype in self.types:
-            if idltype.name == type_name:
-                return (None, idltype)
+        for command in self.commands:
+            if command.name == type_name:
+                return command
 
         for struct in self.structs:
             if struct.name == type_name:
-                return (struct, None)
+                return struct
+
+        for idltype in self.types:
+            if idltype.name == type_name:
+                return idltype
 
         if type_name.startswith('array<'):
             array_type_name = parse_array_type(type_name)
             if not array_type_name:
                 ctxt.add_bad_array_type_name(field, field.name, type_name)
-                return (None, None)
+                return None
 
             return self._resolve_field_type(ctxt, field, array_type_name)
 
         ctxt.add_unknown_type_error(field, field.name, type_name)
 
-        return (None, None)
+        return None
 
 
 class Global(common.SourceLocation):
@@ -269,6 +283,16 @@ class Struct(common.SourceLocation):
         super(Struct, self).__init__(file_name, line, column)
 
 
-# TODO: add support for commands
 class Command(Struct):
-    """IDL command."""
+    """
+    IDL command information, a subtype of Struct.
+
+    Namespace is required.
+    """
+
+    def __init__(self, file_name, line, column):
+        # type: (unicode, int, int) -> None
+        """Construct a Struct."""
+        self.namespace = None  # type: unicode
+
+        super(Command, self).__init__(file_name, line, column)

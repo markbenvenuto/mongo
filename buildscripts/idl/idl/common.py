@@ -23,6 +23,9 @@ from __future__ import absolute_import, print_function, unicode_literals
 import string
 from typing import Mapping
 
+COMMAND_NAMESPACE_CONCATENATE_WITH_DB = "concatenate_with_db"
+COMMAND_NAMESPACE_IGNORED = "ignored"
+
 
 def title_case(name):
     # type: (unicode) -> unicode

@@ -17,7 +17,7 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 import re
-from typing import Union
+from typing import cast, Union
 
 from . import ast
 from . import bson
@@ -183,16 +183,9 @@ def _validate_types(ctxt, parsed_spec):
         _validate_type(ctxt, idl_type)
 
 
-def _bind_struct(ctxt, parsed_spec, struct):
-    # type: (errors.ParserContext, syntax.IDLSpec, syntax.Struct) -> ast.Struct
-    """
-    Bind a struct.
+def _bind_struct_common(ctxt, parsed_spec, struct, ast_struct):
+    # type: (errors.ParserContext, syntax.IDLSpec, syntax.Struct, ast.Struct) -> None
 
-    - Validating a struct and fields.
-    - Create the idl.ast version from the idl.syntax tree.
-    """
-
-    ast_struct = ast.Struct(struct.file_name, struct.line, struct.column)
     ast_struct.name = struct.name
     ast_struct.description = struct.description
     ast_struct.strict = struct.strict
@@ -206,7 +199,39 @@ def _bind_struct(ctxt, parsed_spec, struct):
         if ast_field:
             ast_struct.fields.append(ast_field)
 
+
+def _bind_struct(ctxt, parsed_spec, struct):
+    # type: (errors.ParserContext, syntax.IDLSpec, syntax.Struct) -> ast.Struct
+    """
+    Bind a struct.
+
+    - Validating a struct and fields.
+    - Create the idl.ast version from the idl.syntax tree.
+    """
+
+    ast_struct = ast.Struct(struct.file_name, struct.line, struct.column)
+
+    _bind_struct_common(ctxt, parsed_spec, struct, ast_struct)
+
     return ast_struct
+
+
+def _bind_command(ctxt, parsed_spec, command):
+    # type: (errors.ParserContext, syntax.IDLSpec, syntax.Command) -> ast.Command
+    """
+    Bind a command.
+
+    - Validating a command and fields.
+    - Create the idl.ast version from the idl.syntax tree.
+    """
+
+    ast_command = ast.Command(command.file_name, command.line, command.column)
+
+    _bind_struct_common(ctxt, parsed_spec, command, ast_command)
+
+    ast_command.namespace = command.namespace
+
+    return ast_command
 
 
 def _validate_ignored_field(ctxt, field):
@@ -251,24 +276,30 @@ def _bind_field(ctxt, parsed_spec, field):
         _validate_ignored_field(ctxt, field)
         return ast_field
 
-    (struct, idltype) = parsed_spec.symbols.resolve_field_type(ctxt, field)
-    if not struct and not idltype:
+    syntax_symbol = parsed_spec.symbols.resolve_field_type(ctxt, field)
+    if syntax_symbol is None:
+        return None
+
+    if isinstance(syntax_symbol, syntax.Command):
+        ctxt.add_bad_command_as_field_error(ast_field, field.type)
         return None
 
     # If the field type is an array, mark the AST version as such.
     if syntax.parse_array_type(field.type):
         ast_field.array = True
 
-        if field.default or (idltype and idltype.default):
+        if field.default or (isinstance(syntax_symbol, syntax.Type) and syntax_symbol.default):
             ctxt.add_array_no_default(field, field.name)
 
     # Copy over only the needed information if this a struct or a type
-    if struct:
+    if isinstance(syntax_symbol, syntax.Struct):
+        struct = cast(syntax.Struct, syntax_symbol)
         ast_field.struct_type = struct.name
         ast_field.bson_serialization_type = ["object"]
         _validate_field_of_type_struct(ctxt, field)
     else:
         # Produce the union of type information for the type and this field.
+        idltype = cast(syntax.Type, syntax_symbol)
 
         # Copy over the type fields first
         ast_field.cpp_type = idltype.cpp_type
@@ -315,6 +346,10 @@ def bind(parsed_spec):
     bound_spec.globals = _bind_globals(parsed_spec)
 
     _validate_types(ctxt, parsed_spec)
+
+    for command in parsed_spec.symbols.commands:
+        if not command.imported:
+            bound_spec.commands.append(_bind_command(ctxt, parsed_spec, command))
 
     for struct in parsed_spec.symbols.structs:
         if not struct.imported:
