@@ -55,6 +55,26 @@ types:
                                 - double
         deserializer: "mongo::BSONElement::numberInt"
 
+
+enums:
+
+    IntEnum:
+        description: "An example int enum"
+        type: int
+        values:
+            a0: 0
+            b1: 1
+            c2: 2
+
+    StringEnum:
+        description: "An example string enum"
+        type: string
+        values:
+            s0: "zero"
+            s1: "one"
+            s2: "two"
+
+
 structs:
     default_values:
         description: UnitTest for a single safeInt32
@@ -80,4 +100,5 @@ structs:
             vectorField:
                 type: array<int>
                 description: "An example int array field with default value"
-
+            intEnumField: IntEnum
+            stringEnumField: StringEnum

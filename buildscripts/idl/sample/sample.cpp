@@ -13,6 +13,55 @@
 
 namespace mongo {
 
+/**
+ * An example int enum
+ */
+IntEnum IntEnum_parse(const IDLParserErrorContext& ctxt, std::int32_t value) {
+
+    if (!(value >= static_cast<std::underlying_type<IntEnum>::type>(IntEnum::a0) &&
+          value <= static_cast<std::underlying_type<IntEnum>::type>(IntEnum::c2))) {
+        ctxt.throwBadEnumValue(value);
+        return IntEnum::a0;
+    } else {
+        return static_cast<IntEnum>(value);
+    }
+}
+
+std::int32_t IntEnum_serializer(IntEnum value) {
+    return static_cast<std::int32_t>(value);
+}
+
+/**
+ * An example string enum
+ */
+StringEnumEnum StringEnum_parse(const IDLParserErrorContext& ctxt, StringData value) {
+    if (value == "zero") {
+        return StringEnumEnum::s0;
+    }
+    if (value == "one") {
+        return StringEnumEnum::s1;
+    }
+    if (value == "two") {
+        return StringEnumEnum::s2;
+    }
+    ctxt.throwBadEnumValue(value);
+    return StringEnumEnum::s0;
+}
+
+StringData StringEnum_serializer(StringEnumEnum value) {
+    if (value == StringEnumEnum::s0) {
+        return "zero";
+    }
+    if (value == StringEnumEnum::s1) {
+        return "one";
+    }
+    if (value == StringEnumEnum::s2) {
+        return "two";
+    }
+    MONGO_UNREACHABLE;
+    return StringData();
+}
+
 Default_values Default_values::parse(const IDLParserErrorContext& ctxt, const BSONObj& bsonObject) {
     Default_values object;
     object.parseProtected(ctxt, bsonObject);
@@ -76,6 +125,16 @@ void Default_values::parseProtected(const IDLParserErrorContext& ctxt, const BSO
                 ++expectedFieldNumber;
             }
             _vectorField = std::move(values);
+        } else if (fieldName == "intEnumField") {
+            if (ctxt.checkAndAssertType(element, NumberInt)) {
+                IDLParserErrorContext tempContext("intEnumField", &ctxt);
+                _intEnumField = IntEnum_parse(tempContext, element._numberInt());
+            }
+        } else if (fieldName == "stringEnumField") {
+            if (ctxt.checkAndAssertType(element, String)) {
+                IDLParserErrorContext tempContext("stringEnumField", &ctxt);
+                _stringEnumField = StringEnum_parse(tempContext, element.valueStringData());
+            }
         } else {
             ctxt.throwUnknownField(fieldName);
         }
@@ -96,6 +155,12 @@ void Default_values::parseProtected(const IDLParserErrorContext& ctxt, const BSO
     if (usedFields.find("vectorField") == usedFields.end()) {
         ctxt.throwMissingField("vectorField");
     }
+    if (usedFields.find("intEnumField") == usedFields.end()) {
+        ctxt.throwMissingField("intEnumField");
+    }
+    if (usedFields.find("stringEnumField") == usedFields.end()) {
+        ctxt.throwMissingField("stringEnumField");
+    }
 }
 
 void Default_values::serialize(BSONObjBuilder* builder) const {
@@ -112,6 +177,10 @@ void Default_values::serialize(BSONObjBuilder* builder) const {
     }
 
     { builder->append("vectorField", _vectorField); }
+
+    { builder->append("intEnumField", IntEnum_serializer(_intEnumField)); }
+
+    { builder->append("stringEnumField", StringEnum_serializer(_stringEnumField)); }
 }
 
 }  // namespace mongo

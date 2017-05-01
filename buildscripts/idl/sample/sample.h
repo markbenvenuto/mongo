@@ -22,6 +22,30 @@
 namespace mongo {
 
 /**
+ * An example int enum
+ */
+enum class IntEnum : std::int32_t {
+    a0 = 0,
+    b1 = 1,
+    c2 = 2,
+};
+
+IntEnum IntEnum_parse(const IDLParserErrorContext& ctxt, std::int32_t value);
+std::int32_t IntEnum_serializer(IntEnum value);
+
+/**
+ * An example string enum
+ */
+enum class StringEnumEnum : std::int32_t {
+    s0,
+    s1,
+    s2,
+};
+
+StringEnumEnum StringEnum_parse(const IDLParserErrorContext& ctxt, StringData value);
+StringData StringEnum_serializer(StringEnumEnum value);
+
+/**
  * UnitTest for a single safeInt32
  */
 class Default_values {
@@ -96,6 +120,20 @@ public:
         _vectorField = std::move(value);
     }
 
+    const IntEnum getIntEnumField() const {
+        return _intEnumField;
+    }
+    void setIntEnumField(IntEnum value) & {
+        _intEnumField = std::move(value);
+    }
+
+    const StringEnumEnum getStringEnumField() const {
+        return _stringEnumField;
+    }
+    void setStringEnumField(StringEnumEnum value) & {
+        _stringEnumField = std::move(value);
+    }
+
 protected:
     void parseProtected(const IDLParserErrorContext& ctxt, const BSONObj& object);
 
@@ -106,6 +144,8 @@ private:
     mongo::NamespaceString _nsfield;
     boost::optional<std::string> _optionalField;
     std::vector<std::int32_t> _vectorField;
+    IntEnum _intEnumField;
+    StringEnumEnum _stringEnumField;
 };
 
 }  // namespace mongo
