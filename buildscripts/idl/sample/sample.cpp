@@ -114,4 +114,109 @@ void Default_values::serialize(BSONObjBuilder* builder) const {
     { builder->append("vectorField", _vectorField); }
 }
 
+BasicIgnoredCommand BasicIgnoredCommand::parse(const IDLParserErrorContext& ctxt,
+                                               const BSONObj& bsonObject) {
+    BasicIgnoredCommand object;
+    object.parseProtected(ctxt, bsonObject);
+    return object;
+}
+void BasicIgnoredCommand::parseProtected(const IDLParserErrorContext& ctxt,
+                                         const BSONObj& bsonObject) {
+    std::set<StringData> usedFields;
+    bool firstFieldFound = false;
+
+    for (const auto& element : bsonObject) {
+        const auto fieldName = element.fieldNameStringData();
+
+        if (firstFieldFound == false) {
+            firstFieldFound = true;
+            continue;
+        }
+        auto push_result = usedFields.insert(fieldName);
+        if (push_result.second == false) {
+            ctxt.throwDuplicateField(element);
+        }
+
+        if (fieldName == "field1") {
+            if (ctxt.checkAndAssertType(element, NumberInt)) {
+                _field1 = element._numberInt();
+            }
+        } else if (fieldName == "field2") {
+            if (ctxt.checkAndAssertType(element, String)) {
+                _field2 = element.str();
+            }
+        } else {
+            ctxt.throwUnknownField(fieldName);
+        }
+    }
+
+    if (usedFields.find("field1") == usedFields.end()) {
+        ctxt.throwMissingField("field1");
+    }
+    if (usedFields.find("field2") == usedFields.end()) {
+        ctxt.throwMissingField("field2");
+    }
+}
+
+void BasicIgnoredCommand::serialize(BSONObjBuilder* builder) const {
+    builder->append("BasicIgnoredCommand", 1);
+    builder->append("field1", _field1);
+
+    builder->append("field2", _field2);
+}
+
+BasicConcatenateWithDbCommand BasicConcatenateWithDbCommand::parse(
+    const IDLParserErrorContext& ctxt, StringData dbName, const BSONObj& bsonObject) {
+    BasicConcatenateWithDbCommand object;
+    object.parseProtected(ctxt, dbName, bsonObject);
+    return object;
+}
+void BasicConcatenateWithDbCommand::parseProtected(const IDLParserErrorContext& ctxt,
+                                                   StringData dbName,
+                                                   const BSONObj& bsonObject) {
+    std::set<StringData> usedFields;
+    bool firstFieldFound = false;
+
+    for (const auto& element : bsonObject) {
+        const auto fieldName = element.fieldNameStringData();
+
+        if (firstFieldFound == false) {
+            _ns = ctxt.parseNSCollectionRequired(dbName, element);
+            firstFieldFound = true;
+            continue;
+        }
+        auto push_result = usedFields.insert(fieldName);
+        if (push_result.second == false) {
+            ctxt.throwDuplicateField(element);
+        }
+
+        if (fieldName == "field1") {
+            if (ctxt.checkAndAssertType(element, NumberInt)) {
+                _field1 = element._numberInt();
+            }
+        } else if (fieldName == "field2") {
+            if (ctxt.checkAndAssertType(element, String)) {
+                _field2 = element.str();
+            }
+        } else {
+            ctxt.throwUnknownField(fieldName);
+        }
+    }
+
+    if (usedFields.find("field1") == usedFields.end()) {
+        ctxt.throwMissingField("field1");
+    }
+    if (usedFields.find("field2") == usedFields.end()) {
+        ctxt.throwMissingField("field2");
+    }
+}
+
+void BasicConcatenateWithDbCommand::serialize(const NamespaceString ns,
+                                              BSONObjBuilder* builder) const {
+    builder->append("BasicConcatenateWithDbCommand", ns.toString());
+    builder->append("field1", _field1);
+
+    builder->append("field2", _field2);
+}
+
 }  // namespace mongo

@@ -81,3 +81,17 @@ structs:
                 type: array<int>
                 description: "An example int array field with default value"
 
+commands:
+    BasicIgnoredCommand:
+        description: UnitTest for a basic ignored command
+        namespace: ignored
+        fields:
+            field1: int
+            field2: string
+
+    BasicConcatenateWithDbCommand:
+        description: UnitTest for a basic concatenate_with_db command
+        namespace: concatenate_with_db
+        fields:
+            field1: int
+            field2: string
