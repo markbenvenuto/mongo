@@ -26,7 +26,7 @@ namespace mongo {
  */
 class Default_values {
 public:
-    static Default_values parse(const IDLParserErrorContext& ctxt, const BSONObj& object);
+    static Default_values parse(const IDLParserErrorContext& ctxt, const BSONObj& bsonObject);
     void serialize(BSONObjBuilder* builder) const;
 
     /**
@@ -97,7 +97,7 @@ public:
     }
 
 protected:
-    void parseProtected(const IDLParserErrorContext& ctxt, const BSONObj& object);
+    void parseProtected(const IDLParserErrorContext& ctxt, const BSONObj& bsonObject);
 
 private:
     std::string _stringfield;
@@ -106,6 +106,79 @@ private:
     mongo::NamespaceString _nsfield;
     boost::optional<std::string> _optionalField;
     std::vector<std::int32_t> _vectorField;
+};
+
+/**
+ * UnitTest for a basic ignored command
+ */
+class BasicIgnoredCommand {
+public:
+    static BasicIgnoredCommand parse(const IDLParserErrorContext& ctxt, const BSONObj& bsonObject);
+    void serialize(BSONObjBuilder* builder) const;
+
+
+    const std::int32_t getField1() const {
+        return _field1;
+    }
+    void setField1(std::int32_t value) & {
+        _field1 = std::move(value);
+    }
+
+    const StringData getField2() const& {
+        return _field2;
+    }
+    const StringData getField2() && = delete;
+    void setField2(StringData value) & {
+        _field2 = value.toString();
+    }
+
+protected:
+    void parseProtected(const IDLParserErrorContext& ctxt, const BSONObj& bsonObject);
+
+private:
+    std::int32_t _field1;
+    std::string _field2;
+};
+
+/**
+ * UnitTest for a basic concatenate_with_db command
+ */
+class BasicConcatenateWithDbCommand {
+public:
+    static BasicConcatenateWithDbCommand parse(const IDLParserErrorContext& ctxt,
+                                               StringData dbName,
+                                               const BSONObj& bsonObject);
+    void serialize(const NamespaceString& ns, BSONObjBuilder* builder) const;
+
+    const NamespaceString& getNamespace() const {
+        return _ns;
+    }
+
+    const std::int32_t getField1() const {
+        return _field1;
+    }
+    void setField1(std::int32_t value) & {
+        _field1 = std::move(value);
+    }
+
+    const StringData getField2() const& {
+        return _field2;
+    }
+    const StringData getField2() && = delete;
+    void setField2(StringData value) & {
+        _field2 = value.toString();
+    }
+
+protected:
+    void parseProtected(const IDLParserErrorContext& ctxt,
+                        StringData dbName,
+                        const BSONObj& bsonObject);
+
+private:
+    NamespaceString _ns;
+
+    std::int32_t _field1;
+    std::string _field2;
 };
 
 }  // namespace mongo
