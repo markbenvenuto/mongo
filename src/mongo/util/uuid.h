@@ -47,7 +47,7 @@ class UUID {
     using UUIDStorage = std::array<unsigned char, 16>;
 
 public:
-    UUID() = delete;
+    UUID() = default;
 
     /**
      * The number of bytes contained in a UUID.
@@ -75,6 +75,14 @@ public:
      * Returns whether this string represents a valid UUID.
      */
     static bool isUUIDString(const std::string& s);
+
+    static UUID parse(std::array<unsigned char, 16> uuid) {
+        return UUID{uuid};
+    }
+
+    ConstDataRange toCDR() const {
+           return ConstDataRange(reinterpret_cast<const char*>(_uuid.data()), _uuid.size());
+     }
 
     /**
      * Append to builder as BinData(4, "...") element with the given name.

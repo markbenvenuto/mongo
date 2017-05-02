@@ -20,12 +20,16 @@ global:
     cpp_includes:
         - "mongo/db/namespace_string.h"
         - "mongo/idl/idl_test_types.h"
+        - "mongo/util/uuid.h"
 
 imports:
     - "mongo/idl/basic_types.idl"
     - "mongo/idl/unittest_import.idl"
 
 types:
+
+
+
 ##################################################################################################
 #
 # Test a custom non-BSONElement deserialization and serialization methods for a string type
@@ -129,6 +133,10 @@ structs:
         fields:
             value: object
 
+    one_UUID:
+        description: UnitTest for a single BSONObj
+        fields:
+            value: uuid
 
 ##################################################################################################
 #

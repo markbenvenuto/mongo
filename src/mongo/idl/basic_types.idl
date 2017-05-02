@@ -75,6 +75,14 @@ types:
         cpp_type: "std::array<std::uint8_t, 16>"
         deserializer: "mongo::BSONElement::uuid"
 
+    uuid:
+        bson_serialization_type: bindata
+        bindata_subtype: uuid
+        description: "A UUID"
+        cpp_type: "mongo::UUID"
+        deserializer: "mongo::UUID::parse"
+        serializer: "mongo::UUID::toCDR"
+
     bindata_md5:
         bson_serialization_type: bindata
         bindata_subtype: md5
