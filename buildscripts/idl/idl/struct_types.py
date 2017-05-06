@@ -21,7 +21,7 @@ from typing import List
 
 from . import ast
 from . import common
-
+from . import writer
 
 class MethodInfo(object):
     """Class that encapslates information about a method and how to declare, define, and call it."""
@@ -108,6 +108,29 @@ class StructTypeInfoBase(object):
         """Get the protected deserializer method for a struct."""
         pass
 
+    @abstractmethod
+    def gen_getter_method(self, indented_writer):
+        # type: (writer.IndentedTextWriter) -> None
+        """Generate the additional methods for a class."""
+        pass
+
+    @abstractmethod
+    def gen_member(self, indented_writer):
+        # type: (writer.IndentedTextWriter) -> None
+        """Generate the additional members for a class."""
+        pass
+
+    @abstractmethod
+    def gen_serializer(self, indented_writer):
+        # type: (writer.IndentedTextWriter) -> None
+        """Serialize the first field of a Command"""
+        pass
+
+    @abstractmethod
+    def gen_namespace_check(self, indented_writer):
+        # type: (writer.IndentedTextWriter) -> None
+        """Generate the namespace check predicate for a command"""
+        pass
 
 class _StructTypeInfo(StructTypeInfoBase):
     """Class for struct code generation."""
@@ -140,6 +163,21 @@ class _StructTypeInfo(StructTypeInfoBase):
             common.title_case(self._struct.name), 'parseProtected',
             ['const IDLParserErrorContext& ctxt', 'const BSONObj& bsonObject'], 'void')
 
+    def gen_getter_method(self, indented_writer):
+        # type: (writer.IndentedTextWriter) -> None
+        pass
+
+    def gen_member(self, indented_writer):
+        # type: (writer.IndentedTextWriter) -> None
+        pass
+
+    def gen_serializer(self, indented_writer):
+        # type: (writer.IndentedTextWriter) -> None
+        pass
+
+    def gen_namespace_check(self, indented_writer):
+        # type: (writer.IndentedTextWriter) -> None
+        pass
 
 class _CommandTypeInfo(_StructTypeInfo):
     """Class for command code generation."""
@@ -190,6 +228,37 @@ class _CommandTypeInfo(_StructTypeInfo):
                 ], 'void')
 
         return super(_CommandTypeInfo, self).get_deserializer_method()
+
+    def gen_getter_method(self, indented_writer):
+        # type: (writer.IndentedTextWriter) -> None
+        if self._command.namespace == common.COMMAND_NAMESPACE_IGNORED:
+            return
+
+        indented_writer.write_line('const NamespaceString& getNamespace() const { return _ns; }')
+
+    def gen_member(self, indented_writer):
+        # type: (writer.IndentedTextWriter) -> None
+        if self._command.namespace == common.COMMAND_NAMESPACE_IGNORED:
+            return
+
+        indented_writer.write_line('NamespaceString _ns;')
+
+    def gen_serializer(self, indented_writer):
+        # type: (writer.IndentedTextWriter) -> None
+        if self._command.namespace == common.COMMAND_NAMESPACE_IGNORED:
+            ns_value = "1"
+        else:
+            ns_value = "ns.toString()"
+
+        indented_writer.write_line('builder->append("%s", %s);' % (self._command.name, ns_value))
+
+
+    def gen_namespace_check(self, indented_writer):
+        # type: (writer.IndentedTextWriter) -> None
+        if self._command.namespace == common.COMMAND_NAMESPACE_CONCATENATE_WITH_DB:
+            # TODO: should the name of the first element be validated??
+            indented_writer.write_line('_ns = ctxt.parseNSCollectionRequired(dbName, element);')
+
 
 
 def get_struct_info(struct):

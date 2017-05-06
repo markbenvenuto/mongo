@@ -317,20 +317,17 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
     def gen_command_methods(self, command):
         # type: (ast.Command) -> None
         """Generate the methods for a command."""
-        if command.namespace == common.COMMAND_NAMESPACE_IGNORED:
-            return
-
-        self._writer.write_line('const NamespaceString& getNamespace() const { return _ns; }')
+        struct_type_info = struct_types.get_struct_info(command)
+        struct_type_info.gen_getter_method(self._writer)
 
         self._writer.write_empty_line()
 
     def gen_command_member(self, command):
         # type: (ast.Command) -> None
         """Generate the class members for a command."""
-        if command.namespace == common.COMMAND_NAMESPACE_IGNORED:
-            return
+        struct_type_info = struct_types.get_struct_info(command)
+        struct_type_info.gen_member(self._writer)
 
-        self._writer.write_line('NamespaceString _ns;')
         self._writer.write_empty_line()
 
     def generate(self, spec):
@@ -529,10 +526,9 @@ class _CppSourceFileWriter(_CppFileWriterBase):
         """Generate a namespace check for a command."""
 
         with self._predicate("firstFieldFound == false"):
-            if command.namespace == common.COMMAND_NAMESPACE_CONCATENATE_WITH_DB:
-                # TODO: should the name of the first element be validated??
-                self._writer.write_line('_ns = ctxt.parseNSCollectionRequired(dbName, element);')
-
+            struct_type_info = struct_types.get_struct_info(command)
+            struct_type_info.gen_namespace_check(self._writer)
+            
             self._writer.write_line('firstFieldFound = true;')
             self._writer.write_line('continue;')
 
@@ -671,11 +667,8 @@ class _CppSourceFileWriter(_CppFileWriterBase):
 
             # Serialize the namespace as the first field
             if isinstance(struct, ast.Command):
-                if struct.namespace == common.COMMAND_NAMESPACE_IGNORED:
-                    ns_value = "1"
-                else:
-                    ns_value = "ns.toString()"
-                self._writer.write_line('builder->append("%s", %s);' % (struct.name, ns_value))
+                struct_type_info = struct_types.get_struct_info(struct)
+                struct_type_info.gen_serializer(self._writer)
 
             for field in struct.fields:
                 # If fields are meant to be ignored during deserialization, there is not need to serialize them
