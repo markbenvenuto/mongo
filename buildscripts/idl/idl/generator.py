@@ -528,7 +528,7 @@ class _CppSourceFileWriter(_CppFileWriterBase):
         with self._predicate("firstFieldFound == false"):
             struct_type_info = struct_types.get_struct_info(command)
             struct_type_info.gen_namespace_check(self._writer)
-            
+
             self._writer.write_line('firstFieldFound = true;')
             self._writer.write_line('continue;')
 
