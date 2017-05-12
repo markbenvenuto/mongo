@@ -83,7 +83,7 @@ types:
         bindata_subtype: uuid
         description: "A UUID"
         cpp_type: "mongo::UUID"
-        deserializer: "mongo::UUID::UUID"
+        deserializer: "UUID"
         serializer: "mongo::UUID::toCDR"
 
     bindata_md5:
