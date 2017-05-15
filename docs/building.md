@@ -14,6 +14,9 @@ To build MongoDB, you will need:
 for the target arm64, x86-64, ppc64le, or s390x platform.
 More detailed platform instructions can be found below.
 
+https://support.microsoft.com/en-us/help/3207317/visual-c-optimizer-fixes-for-visual-studio-2015-update-3
+
+
 MongoDB Tools
 --------------
 
