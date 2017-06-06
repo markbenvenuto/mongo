@@ -148,6 +148,7 @@ void ThreadCache::Cleanup() {
   // Put unused memory back into central cache
   for (int cl = 0; cl < kNumClasses; ++cl) {
     if (list_[cl].length() > 0) {
+      Static::central_cache()[cl].IncrementCleanupCounter();
       ReleaseToCentralCache(&list_[cl], cl, list_[cl].length());
     }
   }
@@ -194,6 +195,7 @@ void* ThreadCache::FetchFromCentralCache(size_t cl, size_t byte_size) {
 
 void ThreadCache::ListTooLong(FreeList* list, size_t cl) {
   const int batch_size = Static::sizemap()->num_objects_to_move(cl);
+  Static::central_cache()[cl].IncrementListToLongCounter();
   ReleaseToCentralCache(list, cl, batch_size);
 
   // If the list is too long, we need to transfer some number of
@@ -251,6 +253,7 @@ void ThreadCache::Scavenge() {
     const int lowmark = list->lowwatermark();
     if (lowmark > 0) {
       const int drop = (lowmark > 1) ? lowmark/2 : 1;
+      Static::central_cache()[cl].IncrementScavengeCounter();
       ReleaseToCentralCache(list, cl, drop);
 
       // Shrink the max length if it isn't used.  Only shrink down to

@@ -228,7 +228,7 @@ static const size_t kMetadataAllignment = sizeof(void *);
 static char *metadata_chunk_alloc_;
 static size_t metadata_chunk_avail_;
 
-static SpinLock metadata_alloc_lock(SpinLock::LINKER_INITIALIZED);
+static SpinLock<SpinLockType::Metadata> metadata_alloc_lock(SpinLockBase::LINKER_INITIALIZED);
 
 void* MetaDataAlloc(size_t bytes) {
   if (bytes >= kMetadataAllocChunkSize) {

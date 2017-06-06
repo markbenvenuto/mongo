@@ -655,7 +655,7 @@ void PatchMainExecutableLocked() {
 // the call to LoadLibraryExW, resulting in deadlock.  The solution is
 // to be very careful not to call *any* windows routines while holding
 // patch_all_modules_lock, inside PatchAllModules().
-static SpinLock patch_all_modules_lock(SpinLock::LINKER_INITIALIZED);
+static SpinLock<SpinLockType::Patch> patch_all_modules_lock(SpinLockBase::LINKER_INITIALIZED);
 
 // last_loaded: The set of modules that were loaded the last time
 // PatchAllModules was called.  This is an optimization for only

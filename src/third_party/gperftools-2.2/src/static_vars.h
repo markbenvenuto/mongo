@@ -50,7 +50,7 @@ namespace tcmalloc {
 class Static {
  public:
   // Linker initialized, so this lock can be accessed at any time.
-  static SpinLock* pageheap_lock() { return &pageheap_lock_; }
+  static SpinLock<SpinLockType::PageHeap>* pageheap_lock() { return &pageheap_lock_; }
 
   // Must be called before calling any of the accessors below.
   static void InitStaticVars();
@@ -87,7 +87,7 @@ class Static {
   static bool IsInited() { return pageheap() != NULL; }
 
  private:
-  static SpinLock pageheap_lock_;
+  /* ATTRIBUTE_HIDDEN */ static SpinLock<SpinLockType::PageHeap> pageheap_lock_;
 
   // These static variables require explicit initialization.  We cannot
   // count on their constructors to do any initialization because other

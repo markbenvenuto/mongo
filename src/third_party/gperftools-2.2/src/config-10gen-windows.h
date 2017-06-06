@@ -133,7 +133,7 @@
 #undef HAVE_SCHED_H
 
 /* Define to 1 if you have the <stdint.h> header file. */
-#if _MSC_VER < 1900
+#if _MSC_VER < 1800
 # undef HAVE_STDINT_H
 #else
 # define HAVE_STDINT_H 1

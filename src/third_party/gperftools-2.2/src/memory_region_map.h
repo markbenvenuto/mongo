@@ -306,9 +306,9 @@ class MemoryRegionMap {
   static RegionSet* regions_;
 
   // Lock to protect regions_ and buckets_ variables and the data behind.
-  static SpinLock lock_;
+  static SpinLock<SpinLockType::MemoryMap> lock_;
   // Lock to protect the recursive lock itself.
-  static SpinLock owner_lock_;
+  static SpinLock<SpinLockType::MemoryMapOwner> owner_lock_;
 
   // Recursion count for the recursive lock.
   static int recursion_count_;

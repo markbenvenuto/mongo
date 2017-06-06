@@ -142,9 +142,9 @@ int MemoryRegionMap::client_count_ = 0;
 int MemoryRegionMap::max_stack_depth_ = 0;
 MemoryRegionMap::RegionSet* MemoryRegionMap::regions_ = NULL;
 LowLevelAlloc::Arena* MemoryRegionMap::arena_ = NULL;
-SpinLock MemoryRegionMap::lock_(SpinLock::LINKER_INITIALIZED);
-SpinLock MemoryRegionMap::owner_lock_(  // ACQUIRED_AFTER(lock_)
-    SpinLock::LINKER_INITIALIZED);
+SpinLock<SpinLockType::MemoryMap> MemoryRegionMap::lock_(SpinLockBase::LINKER_INITIALIZED);
+SpinLock<SpinLockType::MemoryMapOwner> MemoryRegionMap::owner_lock_(  // ACQUIRED_AFTER(lock_)
+    SpinLockBase::LINKER_INITIALIZED);
 int MemoryRegionMap::recursion_count_ = 0;  // GUARDED_BY(owner_lock_)
 pthread_t MemoryRegionMap::lock_owner_tid_;  // GUARDED_BY(owner_lock_)
 int64 MemoryRegionMap::map_size_ = 0;

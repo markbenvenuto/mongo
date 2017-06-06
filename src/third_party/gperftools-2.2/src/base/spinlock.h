@@ -45,9 +45,59 @@
 #include "base/dynamic_annotations.h"
 #include "base/thread_annotations.h"
 
-class LOCKABLE SpinLock {
+#include <atomic>
+
+enum class SpinLockType {
+    CentralFreeList = 0,
+    MaxCentralFreeList = 88,
+    PageHeap,
+    SystemAlloc,
+    LowLevelAllocArena,
+    HookList,
+    Patch,
+    NewHandler,
+    MemoryMap,
+    MemoryMapOwner,
+    Metadata,
+    Crash,
+    SpinLockTypeMax,
+};
+
+const int SpinLockTypeMaxValue = 99;
+
+__declspec( align( 64 ) ) struct SpinLockStat {
+    std::atomic<uint64_t> acquires;
+    std::atomic<uint64_t> waits;
+    std::atomic<uint64_t> wait_count;
+    std::atomic<uint64_t> wait_time;
+};
+
+class SpinLockStats {
+public:
+    static SpinLockStats Static;
+
+    void Acquire(int type) {
+        stats[type].acquires++;
+    }
+    void Wait(int type, size_t wait_count, size_t wait_time) {
+        stats[type].waits++;
+        stats[type].wait_count+=wait_count;
+
+        stats[type].wait_time+=wait_time;
+    }
+
+    size_t count() const { return SpinLockTypeMaxValue; }
+
+    const SpinLockStat& getStat(int type) const { return stats[type]; }
+
+private:
+    SpinLockStat stats[SpinLockTypeMaxValue];
+};
+
+template< SpinLockType SpinLockTypeValue>
+class LOCKABLE SpinLock : public SpinLockBase {
  public:
-  SpinLock() : lockword_(kSpinLockFree) { }
+  SpinLock() { }
 
   // Special constructor for use with static SpinLock objects.  E.g.,
   //
@@ -62,13 +112,71 @@ class LOCKABLE SpinLock {
     // Does nothing; lockword_ is already initialized
   }
 
-  // Acquire this SpinLock.
+    // Acquire this SpinLock.
   // TODO(csilvers): uncomment the annotation when we figure out how to
   //                 support this macro with 0 args (see thread_annotations.h)
   inline void Lock() /*EXCLUSIVE_LOCK_FUNCTION()*/ {
+    SpinLockBase::Lock(static_cast<size_t>(SpinLockTypeValue));
+  }
+
+  inline void Lock(size_t value) /*EXCLUSIVE_LOCK_FUNCTION()*/ {
+    SpinLockBase::Lock(value);
+  }
+
+  // Try to acquire this SpinLock without blocking and return true if the
+  // acquisition was successful.  If the lock was not acquired, false is
+  // returned.  If this SpinLock is free at the time of the call, TryLock
+  // will return true with high probability.
+  inline bool TryLock() EXCLUSIVE_TRYLOCK_FUNCTION(true) {
+    return       SpinLockBase::TryLock();
+;
+  }
+
+  // Release this SpinLock, which must be held by the calling thread.
+  // TODO(csilvers): uncomment the annotation when we figure out how to
+  //                 support this macro with 0 args (see thread_annotations.h)
+  inline void Unlock() /*UNLOCK_FUNCTION()*/ {
+      SpinLockBase::Unlock();
+  }
+
+    // thread, true will always be returned. Intended to be used as
+  // CHECK(lock.IsHeld()).
+  inline bool IsHeld() const {
+    return SpinLockBase::IsHeld();
+  }
+
+  static const base::LinkerInitialized LINKER_INITIALIZED;  // backwards compat
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SpinLock);
+};
+
+
+class LOCKABLE SpinLockBase {
+ public:
+  SpinLockBase() : lockword_(kSpinLockFree) { }
+
+  // Special constructor for use with static SpinLock objects.  E.g.,
+  //
+  //    static SpinLock lock(base::LINKER_INITIALIZED);
+  //
+  // When intialized using this constructor, we depend on the fact
+  // that the linker has already initialized the memory appropriately.
+  // A SpinLock constructed like this can be freely used from global
+  // initializers without worrying about the order in which global
+  // initializers run.
+  explicit SpinLockBase(base::LinkerInitialized /*x*/) {
+    // Does nothing; lockword_ is already initialized
+  }
+
+  // Acquire this SpinLock.
+  // TODO(csilvers): uncomment the annotation when we figure out how to
+  //                 support this macro with 0 args (see thread_annotations.h)
+  inline void Lock(size_t value) /*EXCLUSIVE_LOCK_FUNCTION()*/ {
     if (base::subtle::Acquire_CompareAndSwap(&lockword_, kSpinLockFree,
                                              kSpinLockHeld) != kSpinLockFree) {
-      SlowLock();
+      SlowLock(value);
+    } else {
+        SpinLockStats::Static.Acquire(value);
     }
     ANNOTATE_RWLOCK_ACQUIRED(this, 1);
   }
@@ -117,21 +225,37 @@ class LOCKABLE SpinLock {
 
   volatile Atomic32 lockword_;
 
-  void SlowLock();
+  void SlowLock(size_t value);
   void SlowUnlock(uint64 wait_cycles);
   Atomic32 SpinLoop(int64 initial_wait_timestamp, Atomic32* wait_cycles);
   inline int32 CalculateWaitCycles(int64 wait_start_time);
 
-  DISALLOW_COPY_AND_ASSIGN(SpinLock);
+  DISALLOW_COPY_AND_ASSIGN(SpinLockBase);
+};
+
+// Corresponding locker object that arranges to acquire a spinlock for
+// the duration of a C++ scope.
+class SCOPED_LOCKABLE SpinLockHolderId {
+ private:
+  SpinLockBase* lock_;
+ public:
+  inline explicit SpinLockHolderId(SpinLockBase* l, size_t id) EXCLUSIVE_LOCK_FUNCTION(l)
+      : lock_(l) {
+    l->Lock(id);
+  }
+  // TODO(csilvers): uncomment the annotation when we figure out how to
+  //                 support this macro with 0 args (see thread_annotations.h)
+  inline ~SpinLockHolderId() /*UNLOCK_FUNCTION()*/ { lock_->Unlock(); }
 };
 
 // Corresponding locker object that arranges to acquire a spinlock for
 // the duration of a C++ scope.
 class SCOPED_LOCKABLE SpinLockHolder {
  private:
-  SpinLock* lock_;
+  SpinLockBase* lock_;
  public:
-  inline explicit SpinLockHolder(SpinLock* l) EXCLUSIVE_LOCK_FUNCTION(l)
+template< SpinLockType SpinLockTypeValue>
+  inline explicit SpinLockHolder(SpinLock<SpinLockTypeValue>* l) EXCLUSIVE_LOCK_FUNCTION(l)
       : lock_(l) {
     l->Lock();
   }
@@ -139,8 +263,8 @@ class SCOPED_LOCKABLE SpinLockHolder {
   //                 support this macro with 0 args (see thread_annotations.h)
   inline ~SpinLockHolder() /*UNLOCK_FUNCTION()*/ { lock_->Unlock(); }
 };
+
 // Catch bug where variable name is omitted, e.g. SpinLockHolder (&lock);
 #define SpinLockHolder(x) COMPILE_ASSERT(0, spin_lock_decl_missing_var_name)
-
 
 #endif  // BASE_SPINLOCK_H_

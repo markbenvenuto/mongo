@@ -139,6 +139,10 @@ class ThreadCache {
     return overall_thread_cache_size_;
   }
 
+static size_t unclaimed_cache_size() {
+    return unclaimed_cache_space_;
+  }
+
  private:
   class FreeList {
    private:

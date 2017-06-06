@@ -38,7 +38,7 @@
 
 #include <config.h>
 #include <stddef.h>                     // for size_t
-#if defined HAVE_STDINT_H
+#ifndef HAVE_STDINT_H_14
 #include <stdint.h>
 #elif defined HAVE_INTTYPES_H
 #include <inttypes.h>

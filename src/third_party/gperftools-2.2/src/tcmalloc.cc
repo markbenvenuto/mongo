@@ -644,9 +644,44 @@ class TCMallocImplementation : public MallocExtension {
       stats.free_bytes = class_count[cl] * Static::sizemap()->ByteSizeForClass(cl);
       stats.alloc_bytes = (num_spans * pages_per_span) << kPageShift;
 
+      stats.scavange_counter = Static::central_cache()[cl].scavange_counter();
+      stats.list_to_long_counter = Static::central_cache()[cl].list_to_long_counter();
+      stats.cleanup_counter = Static::central_cache()[cl].cleanup_counter();
+
       func(arg, &stats);
     }
   }
+  
+  const char* toString(SpinLockType id) {
+      if (id == SpinLockType::PageHeap) { return "PageHeap"; }
+      if (id == SpinLockType::SystemAlloc) { return "SystemAlloc"; }
+      if (id == SpinLockType::LowLevelAllocArena) { return "LowLevelAllocArena"; }
+      if (id == SpinLockType::HookList) { return "HookList"; }
+      if (id == SpinLockType::Patch) { return "Patch"; }
+      if (id == SpinLockType::NewHandler) { return "NewHandler"; }
+      if (id == SpinLockType::MemoryMap) { return "MemoryMap"; }
+      if (id == SpinLockType::MemoryMapOwner) { return "MemoryMapOwner"; }
+      if (id == SpinLockType::Metadata) { return "Metadata"; }
+      if (id == SpinLockType::Crash) { return "Crash"; }
+      return nullptr;
+  }
+
+virtual void SpinLocks(void* arg, SpinLockStatsFunction func) {
+  // Do nothing by default
+
+    for (size_t i = 0; i < SpinLockStats::Static.count(); ++i) {
+        const SpinLockStat& stat = SpinLockStats::Static.getStat(i);
+        base::SpinLockStatInfo info;
+        info.id = i;
+        info.acquires = stat.acquires;
+        info.waits = stat.waits;
+        info.wait_time = stat.wait_time;
+        info.wait_count = stat.wait_count;
+        info.name = toString(static_cast<SpinLockType>(i));
+
+        func(arg, &info);
+    }
+}
 
   virtual bool GetNumericProperty(const char* name, size_t* value) {
     ASSERT(name != NULL);
@@ -717,6 +752,12 @@ class TCMallocImplementation : public MallocExtension {
       *value = ThreadCache::overall_thread_cache_size();
       return true;
     }
+        
+    if (strcmp(name, "tcmalloc.unclaimed_thread_bytes") == 0) {
+      SpinLockHolder l(Static::pageheap_lock());
+      *value = ThreadCache::unclaimed_cache_size();
+      return true;
+    }
 
     if (strcmp(name, "tcmalloc.current_total_thread_cache_bytes") == 0) {
       TCMallocStats stats;
@@ -756,16 +797,16 @@ class TCMallocImplementation : public MallocExtension {
 
   virtual void MarkThreadBusy();  // Implemented below
 
+  virtual SysAllocator* GetSystemAllocator() {
+    SpinLockHolder h(Static::pageheap_lock());
+    return sys_alloc;
+  }
+
   virtual size_t GetThreadCacheSize() {
     ThreadCache* tc = ThreadCache::GetCacheIfPresent();
     if (!tc)
       return 0;
     return tc->Size();
-  }
-
-  virtual SysAllocator* GetSystemAllocator() {
-    SpinLockHolder h(Static::pageheap_lock());
-    return sys_alloc;
   }
 
   virtual void SetSystemAllocator(SysAllocator* alloc) {
@@ -1460,7 +1501,7 @@ inline struct mallinfo do_mallinfo() {
 }
 #endif  // HAVE_STRUCT_MALLINFO
 
-static SpinLock set_new_handler_lock(SpinLock::LINKER_INITIALIZED);
+static SpinLock<SpinLockType::NewHandler> set_new_handler_lock(SpinLockBase::LINKER_INITIALIZED);
 
 inline void* cpp_alloc(size_t size, bool nothrow) {
 #ifdef PREANSINEW

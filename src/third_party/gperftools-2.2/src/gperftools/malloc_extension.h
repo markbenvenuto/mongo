@@ -70,6 +70,7 @@ typedef std::string MallocExtensionWriter;
 namespace base {
 struct MallocRange;
 struct MallocSizeClass;
+struct SpinLockStatInfo;
 }
 
 // Interface to a pluggable system allocator.
@@ -401,6 +402,11 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   // *classinfo is filled in with information about the size class.
   typedef void (SizeClassFunction)(void*, const base::MallocSizeClass*);
   virtual void SizeClasses(void* arg, SizeClassFunction func);
+
+  // Invokes func(arg, classinfo) for every size class.
+  // *classinfo is filled in with information about the size class.
+  typedef void (SpinLockStatsFunction)(void*, const base::SpinLockStatInfo *);
+  virtual void SpinLocks(void* arg, SpinLockStatsFunction func);
 };
 
 namespace base {
@@ -435,6 +441,19 @@ struct MallocSizeClass {
     size_t num_transfer_objs;
     size_t free_bytes;
     size_t alloc_bytes;
+
+size_t scavange_counter;
+  size_t list_to_long_counter;
+  size_t cleanup_counter;
+};
+
+struct SpinLockStatInfo {
+    size_t id;
+    const char* name;
+    size_t acquires;
+    size_t waits;
+    size_t wait_count;
+    size_t wait_time;
 };
 
 } // namespace base

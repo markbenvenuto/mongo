@@ -182,11 +182,11 @@ static void LLA_SkiplistDelete(AllocList *head, AllocList *e,
 // Arena implementation
 
 struct LowLevelAlloc::Arena {
-  Arena() : mu(SpinLock::LINKER_INITIALIZED) {} // does nothing; for static init
+  Arena() : mu(SpinLockBase::LINKER_INITIALIZED) {} // does nothing; for static init
   explicit Arena(int) : pagesize(0) {}  // set pagesize to zero explicitly
                                         // for non-static init
 
-  SpinLock mu;            // protects freelist, allocation_count,
+  SpinLock<SpinLockType::LowLevelAllocArena> mu;            // protects freelist, allocation_count,
                           // pagesize, roundup, min_size
   AllocList freelist;     // head of free list; sorted by addr (under mu)
   int32 allocation_count; // count of allocated blocks (under mu)

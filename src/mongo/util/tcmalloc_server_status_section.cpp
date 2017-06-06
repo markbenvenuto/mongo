@@ -149,16 +149,25 @@ public:
             appendNumericPropertyIfAvailable(
                 sub, "transfer_cache_free_bytes", "tcmalloc.transfer_cache_free_bytes");
             appendNumericPropertyIfAvailable(
+                sub, "unclaimed_thread_bytes", "tcmalloc.unclaimed_thread_bytes");
+            appendNumericPropertyIfAvailable(
                 sub, "thread_cache_free_bytes", "tcmalloc.thread_cache_free_bytes");
             appendNumericPropertyIfAvailable(
                 sub, "aggressive_memory_decommit", "tcmalloc.aggressive_memory_decommit");
 
 #if MONGO_HAVE_GPERFTOOLS_SIZE_CLASS_STATS
-            if (verbosity >= 2) {
+            //if (verbosity >= 2) 
+            {
                 // Size class information
                 BSONArrayBuilder arr;
                 MallocExtension::instance()->SizeClasses(&arr, appendSizeClassInfo);
                 sub.append("size_classes", arr.arr());
+            }
+            
+            {
+            BSONArrayBuilder arr;
+            MallocExtension::instance()->SpinLocks(&arr, appendSpinLockInfo);
+            sub.append("spinlocks", arr.arr());
             }
 #endif
 
@@ -192,9 +201,29 @@ private:
         doc.appendNumber("num_transfer_objs", stats->num_transfer_objs);
         doc.appendNumber("free_bytes", stats->free_bytes);
         doc.appendNumber("allocated_bytes", stats->alloc_bytes);
+        doc.appendNumber("scavange_counter", stats->scavange_counter);
+        doc.appendNumber("list_to_long_counter", stats->list_to_long_counter);
+        doc.appendNumber("cleanup_counter", stats->cleanup_counter);
 
         builder->append(doc.obj());
     }
+
+    static void appendSpinLockInfo(void* bsonarr_builder, const base::SpinLockStatInfo* stats) {
+        BSONArrayBuilder* builder = reinterpret_cast<BSONArrayBuilder*>(bsonarr_builder);
+        BSONObjBuilder doc;
+
+        if (stats->name ) {
+            doc.append("name", stats->name);
+        }
+        doc.appendNumber("id", stats->id);
+        doc.appendNumber("acquires", stats->acquires);
+        doc.appendNumber("waits", stats->waits);
+        doc.appendNumber("wait_count", stats->wait_count);
+        doc.appendNumber("wait_time", stats->wait_time);
+
+        builder->append(doc.obj());
+    }
+
 #endif
 } tcmallocServerStatusSection;
 }

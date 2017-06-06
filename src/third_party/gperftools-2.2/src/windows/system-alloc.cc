@@ -43,7 +43,7 @@
 #include "internal_logging.h"
 #include "system-alloc.h"
 
-static SpinLock spinlock(SpinLock::LINKER_INITIALIZED);
+static SpinLock<SpinLockType::SystemAlloc> spinlock(SpinLockBase::LINKER_INITIALIZED);
 
 // The current system allocator declaration
 SysAllocator* sys_alloc = NULL;

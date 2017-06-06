@@ -44,6 +44,31 @@ using std::max;
 
 namespace tcmalloc {
 
+    
+static_assert(static_cast<int>(SpinLockType::MaxCentralFreeList) == kNumClasses, "Foo");
+
+static_assert(static_cast<int>(SpinLockType::SpinLockTypeMax) == SpinLockTypeMaxValue, "Foo");
+
+
+struct SpinLockStat {
+    uint64_t acquires;
+    uint64_t waits;
+};
+
+class SpinLockStats {
+public:
+    void Acquire(int type) {
+        stats[type].acquires++;
+    }
+    void Wait(int type) {
+        stats[type].waits++;
+    }
+private:
+    SpinLockStat stats[SpinLockTypeMaxValue];
+};
+
+
+
 void CentralFreeList::Init(size_t cl) {
   size_class_ = cl;
   tcmalloc::DLL_Init(&empty_);
@@ -189,11 +214,12 @@ bool CentralFreeList::MakeCacheSpace() {
 namespace {
 class LockInverter {
  private:
-  SpinLock *held_, *temp_;
+  SpinLockBase *held_, *temp_;
+  size_t heldid_;
  public:
-  inline explicit LockInverter(SpinLock* held, SpinLock *temp)
-    : held_(held), temp_(temp) { held_->Unlock(); temp_->Lock(); }
-  inline ~LockInverter() { temp_->Unlock(); held_->Lock();  }
+  inline explicit LockInverter(SpinLockBase* held, size_t heldid, SpinLockBase *temp, size_t tempId)
+    : held_(held), temp_(temp), heldid_(heldid) { held_->Unlock(); temp_->Lock(tempId); }
+  inline ~LockInverter() { temp_->Unlock(); held_->Lock(heldid_);  }
 };
 }
 
@@ -211,7 +237,7 @@ bool CentralFreeList::ShrinkCache(int locked_size_class, bool force)
   // the lock inverter to ensure that we never hold two size class locks
   // concurrently.  That can create a deadlock because there is no well
   // defined nesting order.
-  LockInverter li(&Static::central_cache()[locked_size_class].lock_, &lock_);
+  LockInverter li(&Static::central_cache()[locked_size_class].lock_, locked_size_class, &lock_, size_class_);
   ASSERT(used_slots_ <= cache_size_);
   ASSERT(0 <= cache_size_);
   if (cache_size_ == 0) return false;
@@ -229,7 +255,7 @@ bool CentralFreeList::ShrinkCache(int locked_size_class, bool force)
 }
 
 void CentralFreeList::InsertRange(void *start, void *end, int N) {
-  SpinLockHolder h(&lock_);
+  SpinLockHolderId h(&lock_, size_class_);
   if (N == Static::sizemap()->num_objects_to_move(size_class_) &&
     MakeCacheSpace()) {
     int slot = used_slots_++;
@@ -368,12 +394,12 @@ void CentralFreeList::Populate() {
 }
 
 int CentralFreeList::tc_length() {
-  SpinLockHolder h(&lock_);
+  SpinLockHolderId h(&lock_, size_class_);
   return used_slots_ * Static::sizemap()->num_objects_to_move(size_class_);
 }
 
 size_t CentralFreeList::OverheadBytes() {
-  SpinLockHolder h(&lock_);
+  SpinLockHolderId h(&lock_, size_class_);
   if (size_class_ == 0) {  // 0 holds the 0-sized allocations
     return 0;
   }

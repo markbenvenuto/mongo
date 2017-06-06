@@ -350,6 +350,10 @@ void MallocExtension::SizeClasses(void* arg, SizeClassFunction func) {
   // Do nothing by default
 }
 
+void MallocExtension::SpinLocks(void* arg, SpinLockStatsFunction func) {
+  // Do nothing by default
+}
+
 // These are C shims that work on the current instance.
 
 #define C_SHIM(fn, retval, paramlist, arglist)          \
@@ -373,6 +377,9 @@ C_SHIM(SetNumericProperty, int,
        (const char* property, size_t value), (property, value));
 C_SHIM(SizeClasses, void,
        (void* arg, void (func)(void*, const base::MallocSizeClass*)),
+       (arg, func));
+C_SHIM(SpinLocks, void,
+       (void* arg, void (func)(void*, const base::SpinLockStatInfo*)),
        (arg, func));
 
 C_SHIM(MarkThreadIdle, void, (void), ());

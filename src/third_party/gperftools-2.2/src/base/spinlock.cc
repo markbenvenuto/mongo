@@ -52,8 +52,10 @@
 
 static int adaptive_spin_count = 0;
 
-const base::LinkerInitialized SpinLock::LINKER_INITIALIZED =
+const base::LinkerInitialized SpinLockBase::LINKER_INITIALIZED =
     base::LINKER_INITIALIZED;
+
+SpinLockStats SpinLockStats::Static;
 
 namespace {
 struct SpinLock_InitHelper {
@@ -79,7 +81,7 @@ static SpinLock_InitHelper init_helper;
 // the initial_wait_timestamp value.  The total wait time in cycles for the
 // lock is returned in the wait_cycles parameter.  The last value read
 // from the lock is returned from the method.
-Atomic32 SpinLock::SpinLoop(int64 initial_wait_timestamp,
+Atomic32 SpinLockBase::SpinLoop(int64 initial_wait_timestamp,
                             Atomic32* wait_cycles) {
   int c = adaptive_spin_count;
   while (base::subtle::NoBarrier_Load(&lockword_) != kSpinLockFree && --c > 0) {
@@ -92,7 +94,7 @@ Atomic32 SpinLock::SpinLoop(int64 initial_wait_timestamp,
   return lock_value;
 }
 
-void SpinLock::SlowLock() {
+void SpinLockBase::SlowLock(size_t value) {
   // The lock was not obtained initially, so this thread needs to wait for
   // it.  Record the current timestamp in the local variable wait_start_time
   // so the total wait time can be stored in the lockword once this thread
@@ -135,6 +137,8 @@ void SpinLock::SlowLock() {
     // some chance of obtaining the lock.
     lock_value = SpinLoop(wait_start_time, &wait_cycles);
   }
+
+   SpinLockStats::Static.Wait(value, lock_wait_call_count, wait_cycles);
 }
 
 // The wait time for contentionz lock profiling must fit into 32 bits.
@@ -149,7 +153,7 @@ void SpinLock::SlowLock() {
 // cycles/sec.
 enum { PROFILE_TIMESTAMP_SHIFT = 7 };
 
-void SpinLock::SlowUnlock(uint64 wait_cycles) {
+void SpinLockBase::SlowUnlock(uint64 wait_cycles) {
   base::internal::SpinLockWake(&lockword_, false);  // wake waiter if necessary
 
   // Collect contentionz profile info, expanding the wait_cycles back out to
@@ -171,7 +175,7 @@ void SpinLock::SlowUnlock(uint64 wait_cycles) {
   }
 }
 
-inline int32 SpinLock::CalculateWaitCycles(int64 wait_start_time) {
+inline int32 SpinLockBase::CalculateWaitCycles(int64 wait_start_time) {
   int32 wait_cycles = ((CycleClock::Now() - wait_start_time) >>
                        PROFILE_TIMESTAMP_SHIFT);
   // The number of cycles waiting for the lock is used as both the
