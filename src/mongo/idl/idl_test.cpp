@@ -1591,5 +1591,15 @@ TEST(IDLCommand, TestIgnoredNegative) {
     }
 }
 
+class Example {
+    void Parse( IDLParserContext ctxt, String foo, BSONObj);
+    void Serialize(BSONObjBuilder);
+
+    void Parse( IDLParserContext ctxt, OpMsgRequest& request);
+    // Note: all bodies either have "$db" or defaults to "admin"
+    OpMsgRequest Serialize();
+    
+}
+
 }  // namespace
 }  // namespace mongo

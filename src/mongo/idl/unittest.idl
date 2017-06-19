@@ -494,3 +494,49 @@ commands:
         fields:
             field1: int
             field2: string
+
+    FakeUpdateCommand:
+        description: Fake
+        namespace: concatenate_with_db
+        fields:
+            field1:
+                type: bool
+                # Support scalar values in a document sequence? Does this even make sense?
+                # ANSWER - NO
+                supports_doc_sequence: false # False is the default
+            field2:
+                # Support a single BSONObj in a document sequence? - ANSWER NO
+                type: object
+                supports_doc_sequence: true
+            updates:
+                type: array<update_document>
+                # Note: Can be either be in as a DocumentSequnce in OpMsg.sequences or as a BSON
+                # field in OpMsg.body, but not both (throws duplicate error). Also, can only be
+                # specified once in OpMsg.sequences.
+                # Guidelines
+                # 1. Do not tell user if the intput was in a doc sequence or body
+                # 2. Also, can serialize it out differently
+                supports_doc_sequence: true
+            updates:
+                type: array<object>
+                # Support raw objects
+                supports_doc_sequence: true
+                # TODO: ban this field in nested structs
+# TODO: add call to     static bool isGenericArgument(StringData arg) {
+# in commands.h
+
+    struct: subDocumentThingy
+        fields:
+           ns: STING
+           id: LONG
+           firstBatch:
+                type: array<object>
+                supports_doc_sequence: true
+                # Support raw objects
+            
+    struct: topLevelCurosr
+        fields:
+           cursor:
+                type: subDocumentThingy
+                # Support raw objects
+ 
