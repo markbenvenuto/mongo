@@ -492,5 +492,7 @@ commands:
         description: UnitTest for a basic concatenate_with_db command
         namespace: concatenate_with_db
         fields:
-            field1: int
+            field1: inverted_bool
             field2: string
+#  
+#  

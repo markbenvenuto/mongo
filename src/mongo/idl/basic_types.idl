@@ -67,6 +67,13 @@ types:
         cpp_type: "bool"
         deserializer: "mongo::BSONElement::boolean"
 
+    inverted_bool:
+        bson_serialization_type: any
+        description: "A BSON bool"
+        cpp_type: "bool"
+        deserializer: "::readCrazyLimit"
+        serializer: "::writeCrazyLimit"
+
     safeBool:
         bson_serialization_type:
                                 - bool
