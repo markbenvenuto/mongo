@@ -17,8 +17,10 @@
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/db/commands.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/idl/idl_parser.h"
+#include "mongo/util/net/op_msg.h"
 
 namespace mongo {
 
@@ -54,6 +56,7 @@ private:
 class Default_values {
 public:
     static constexpr auto kBinDataFieldFieldName = "binDataField"_sd;
+    static constexpr auto kDbNameFieldName = "$db"_sd;
     static constexpr auto kIntfieldFieldName = "intfield"_sd;
     static constexpr auto kNsfieldFieldName = "nsfield"_sd;
     static constexpr auto kNumericfieldFieldName = "numericfield"_sd;
@@ -67,8 +70,13 @@ public:
     static Default_values parse(const IDLParserErrorContext& ctxt,
                                 StringData dbName,
                                 const BSONObj& bsonObject);
-    void serialize(const NamespaceString& ns, BSONObjBuilder* builder) const;
-    BSONObj toBSON(const NamespaceString& ns) const;
+    static Default_values parse(const IDLParserErrorContext& ctxt, const OpMsgRequest& request);
+    void serialize(const NamespaceString& ns,
+                   const BSONObj& commandPassthroughFields,
+                   BSONObjBuilder* builder) const;
+    OpMsgRequest serialize(const NamespaceString& ns,
+                           const BSONObj& commandPassthroughFields) const;
+    BSONObj toBSON(const NamespaceString& ns, const BSONObj& commandPassthroughFields) const;
 
     const NamespaceString& getNamespace() const {
         return _ns;
@@ -181,10 +189,19 @@ public:
         _objects = std::move(value);
     }
 
+    const StringData getDbName() const& {
+        return _dbName;
+    }
+    void getDbName() && = delete;
+    void setDbName(StringData value) & {
+        _dbName = value.toString();
+    }
+
 protected:
     void parseProtected(const IDLParserErrorContext& ctxt,
                         StringData dbName,
                         const BSONObj& bsonObject);
+    void parseProtected(const IDLParserErrorContext& ctxt, const OpMsgRequest& request);
 
 private:
     NamespaceString _ns;
@@ -199,6 +216,7 @@ private:
     std::array<std::uint8_t, 16> _uuidField;
     std::vector<One_string> _structs;
     std::vector<mongo::BSONObj> _objects;
+    std::string _dbName{"admin"};
 };
 
 }  // namespace mongo
