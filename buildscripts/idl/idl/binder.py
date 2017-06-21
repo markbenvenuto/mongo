@@ -253,7 +253,7 @@ def _bind_struct_common(ctxt, parsed_spec, struct, ast_struct):
 
         for chained_type in struct.chained_types:
             ast_field = _bind_chained_type(ctxt, parsed_spec, ast_struct, chained_type)
-            if ast_field and not _is_duplicate_field(ctxt, chained_type, ast_struct.fields,
+            if ast_field and not _is_duplicate_field(ctxt, chained_type.name, ast_struct.fields,
                                                      ast_field):
                 ast_struct.fields.append(ast_field)
 
@@ -408,27 +408,27 @@ def _bind_field(ctxt, parsed_spec, field):
 
 
 def _bind_chained_type(ctxt, parsed_spec, location, chained_type):
-    # type: (errors.ParserContext, syntax.IDLSpec, common.SourceLocation, unicode) -> ast.Field
+    # type: (errors.ParserContext, syntax.IDLSpec, common.SourceLocation, syntax.ChainedType) -> ast.Field
     """Bind the specified chained type."""
-    syntax_symbol = parsed_spec.symbols.resolve_field_type(ctxt, location, chained_type,
-                                                           chained_type)
+    syntax_symbol = parsed_spec.symbols.resolve_field_type(ctxt, location, chained_type.name,
+                                                           chained_type.name)
     if not syntax_symbol:
         return None
 
     if not isinstance(syntax_symbol, syntax.Type):
-        ctxt.add_chained_type_not_found_error(location, chained_type)
+        ctxt.add_chained_type_not_found_error(location, chained_type.name)
         return None
 
     idltype = cast(syntax.Type, syntax_symbol)
 
     if len(idltype.bson_serialization_type) != 1 or idltype.bson_serialization_type[0] != 'chain':
-        ctxt.add_chained_type_wrong_type_error(location, chained_type,
+        ctxt.add_chained_type_wrong_type_error(location, chained_type.name,
                                                idltype.bson_serialization_type[0])
         return None
 
     ast_field = ast.Field(location.file_name, location.line, location.column)
     ast_field.name = idltype.name
-    ast_field.cpp_name = idltype.name
+    ast_field.cpp_name = chained_type.cpp_name
     ast_field.description = idltype.description
     ast_field.chained = True
 
@@ -456,10 +456,12 @@ def _bind_chained_struct(ctxt, parsed_spec, ast_struct, chained_struct):
     struct = cast(syntax.Struct, syntax_symbol)
 
     if struct.strict:
-        ctxt.add_chained_nested_struct_no_strict_error(ast_struct, ast_struct.name, chained_struct.name)
+        ctxt.add_chained_nested_struct_no_strict_error(ast_struct, ast_struct.name,
+                                                       chained_struct.name)
 
     if struct.chained_types or struct.chained_structs:
-        ctxt.add_chained_nested_struct_no_nested_error(ast_struct, ast_struct.name, chained_struct.name)
+        ctxt.add_chained_nested_struct_no_nested_error(ast_struct, ast_struct.name,
+                                                       chained_struct.name)
 
     # Configure a field for the chained struct.
     ast_field = ast.Field(ast_struct.file_name, ast_struct.line, ast_struct.column)

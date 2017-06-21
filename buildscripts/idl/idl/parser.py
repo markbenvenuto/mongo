@@ -237,10 +237,11 @@ def _parse_fields(ctxt, node):
 
     return fields
 
-def _parse_chained_struct(ctxt, name, node):
-    # type: (errors.ParserContext, str, yaml.nodes.MappingNode) -> syntax.ChainedStruct
-    """Parse a chained type or struct in a struct/command in the IDL file."""
-    chain = syntax.ChainedStruct(ctxt.file_name, node.start_mark.line, node.start_mark.column)
+
+def _parse_chained_type(ctxt, name, node):
+    # type: (errors.ParserContext, str, yaml.nodes.MappingNode) -> syntax.ChainedType
+    """Parse a chained type in a struct/command in the IDL file."""
+    chain = syntax.ChainedType(ctxt.file_name, node.start_mark.line, node.start_mark.column)
     chain.name = name
 
     _generic_parser(ctxt, node, "chain", chain, {
@@ -249,9 +250,10 @@ def _parse_chained_struct(ctxt, name, node):
 
     return chain
 
-def _parse_chained_structs(ctxt, node):
-    # type: (errors.ParserContext, yaml.nodes.MappingNode) -> List[syntax.ChainedStruct]
-    """Parse a chained structs or types section in a struct in the IDL file."""
+
+def _parse_chained_types(ctxt, node):
+    # type: (errors.ParserContext, yaml.nodes.MappingNode) -> List[syntax.ChainedType]
+    """Parse a chained types section in a struct in the IDL file."""
     chained_items = []
 
     field_name_set = set()  # type: Set[str]
@@ -268,7 +270,54 @@ def _parse_chained_structs(ctxt, node):
 
         # Simple Scalar
         if second_node.id == "scalar":
-            chain = syntax.ChainedStruct(ctxt.file_name, node.start_mark.line, node.start_mark.column)
+            chain = syntax.ChainedType(ctxt.file_name, node.start_mark.line, node.start_mark.column)
+            chain.name = first_name
+            chain.cpp_name = second_node.value
+            chained_items.append(chain)
+        else:
+            second_node = node_pair[1]
+            chain = _parse_chained_type(ctxt, first_name, second_node)
+            chained_items.append(chain)
+
+        field_name_set.add(first_name)
+
+    return chained_items
+
+
+def _parse_chained_struct(ctxt, name, node):
+    # type: (errors.ParserContext, str, yaml.nodes.MappingNode) -> syntax.ChainedStruct
+    """Parse a chained struct in a struct/command in the IDL file."""
+    chain = syntax.ChainedStruct(ctxt.file_name, node.start_mark.line, node.start_mark.column)
+    chain.name = name
+
+    _generic_parser(ctxt, node, "chain", chain, {
+        "cpp_name": _RuleDesc('scalar'),
+    })
+
+    return chain
+
+
+def _parse_chained_structs(ctxt, node):
+    # type: (errors.ParserContext, yaml.nodes.MappingNode) -> List[syntax.ChainedStruct]
+    """Parse a chained structs in a struct in the IDL file."""
+    chained_items = []
+
+    field_name_set = set()  # type: Set[str]
+
+    for node_pair in node.value:
+        first_node = node_pair[0]
+        second_node = node_pair[1]
+
+        first_name = first_node.value
+
+        if first_name in field_name_set:
+            ctxt.add_duplicate_error(first_node, first_name)
+            continue
+
+        # Simple Scalar
+        if second_node.id == "scalar":
+            chain = syntax.ChainedStruct(ctxt.file_name, node.start_mark.line,
+                                         node.start_mark.column)
             chain.name = first_name
             chain.cpp_name = second_node.value
             chained_items.append(chain)
@@ -280,7 +329,6 @@ def _parse_chained_structs(ctxt, node):
         field_name_set.add(first_name)
 
     return chained_items
-
 
 
 def _parse_struct(ctxt, spec, name, node):
@@ -295,7 +343,7 @@ def _parse_struct(ctxt, spec, name, node):
     _generic_parser(ctxt, node, "struct", struct, {
         "description": _RuleDesc('scalar', _RuleDesc.REQUIRED),
         "fields": _RuleDesc('mapping', mapping_parser_func=_parse_fields),
-        "chained_types": _RuleDesc('sequence'),
+        "chained_types": _RuleDesc('mapping', mapping_parser_func=_parse_chained_types),
         "chained_structs": _RuleDesc('mapping', mapping_parser_func=_parse_chained_structs),
         "strict": _RuleDesc("bool_scalar"),
     })
@@ -370,7 +418,7 @@ def _parse_command(ctxt, spec, name, node):
 
     _generic_parser(ctxt, node, "command", command, {
         "description": _RuleDesc('scalar', _RuleDesc.REQUIRED),
-        "chained_types": _RuleDesc('sequence'),
+        "chained_types": _RuleDesc('mapping', mapping_parser_func=_parse_chained_types),
         "chained_structs": _RuleDesc('mapping', mapping_parser_func=_parse_chained_structs),
         "fields": _RuleDesc('mapping', mapping_parser_func=_parse_fields),
         "namespace": _RuleDesc('scalar', _RuleDesc.REQUIRED),

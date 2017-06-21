@@ -1316,11 +1316,11 @@ TEST(IDLChainedType, TestChainedMixedStruct) {
 
     auto testStruct = Chained_struct_type_mixed::parse(ctxt, testDoc);
 
-    assert_same_types<decltype(testStruct.getChainedType()), const mongo::ChainedType&>();
+    assert_same_types<decltype(testStruct.getChained_type()), const mongo::ChainedType&>();
     assert_same_types<decltype(testStruct.getAnotherChainedType()),
                       const mongo::AnotherChainedType&>();
 
-    ASSERT_EQUALS(testStruct.getChainedType().getField1(), "abc");
+    ASSERT_EQUALS(testStruct.getChained_type().getField1(), "abc");
     ASSERT_EQUALS(testStruct.getAnotherChainedType().getField2(), 5);
     ASSERT_EQUALS(testStruct.getChainedStringBasicType().getStringField(), "def");
     ASSERT_EQUALS(testStruct.getField3(), 456);
@@ -1340,7 +1340,7 @@ TEST(IDLChainedType, TestChainedMixedStruct) {
         Chained_struct_type_mixed one_new;
         ChainedType ct;
         ct.setField1("abc");
-        one_new.setChainedType(ct);
+        one_new.setChained_type(ct);
         AnotherChainedType act;
         act.setField2(5);
         one_new.setAnotherChainedType(act);
