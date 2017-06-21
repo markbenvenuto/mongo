@@ -494,3 +494,30 @@ commands:
         fields:
             field1: int
             field2: string
+
+    DocSequenceCommand:
+        description: UnitTest for a basic command with fields marked with supports_doc_sequence
+        namespace: concatenate_with_db
+        fields:
+            field1: int
+            field2: string
+            structs:
+                type: array<one_string>
+                supports_doc_sequence: true
+            objects:
+                type: array<object>
+                supports_doc_sequence: true
+
+    DocSequenceCommandNonStrict:
+        description: UnitTest for a basic command with fields marked with supports_doc_sequence and non-strict parsing
+        namespace: concatenate_with_db
+        strict: false
+        fields:
+            field1: int
+            field2: string
+            structs:
+                type: array<one_string>
+                supports_doc_sequence: true
+            objects:
+                type: array<object>
+                supports_doc_sequence: true

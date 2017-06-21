@@ -32,6 +32,7 @@
 #include "mongo/idl/idl_parser.h"
 
 #include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/db/commands.h"
 #include "mongo/util/mongoutils/str.h"
 
 namespace mongo {
@@ -57,6 +58,9 @@ std::string toCommaDelimitedList(const std::vector<BSONType>& types) {
 }
 
 }  // namespace
+
+constexpr StringData IDLParserErrorContext::kOpMsgDollarDBDefault;
+constexpr StringData IDLParserErrorContext::kOpMsgDollarDB;
 
 bool IDLParserErrorContext::checkAndAssertType(const BSONElement& element, BSONType type) const {
     auto elementType = element.type();
@@ -169,9 +173,13 @@ std::string IDLParserErrorContext::getElementPath(StringData fieldName) const {
     }
 }
 
-void IDLParserErrorContext::throwDuplicateField(const BSONElement& element) const {
-    std::string path = getElementPath(element);
+void IDLParserErrorContext::throwDuplicateField(StringData fieldName) const {
+    std::string path = getElementPath(fieldName);
     uasserted(40413, str::stream() << "BSON field '" << path << "' is a duplicate field");
+}
+
+void IDLParserErrorContext::throwDuplicateField(const BSONElement& element) const {
+    throwDuplicateField(element.fieldNameStringData());
 }
 
 void IDLParserErrorContext::throwMissingField(StringData fieldName) const {
@@ -230,6 +238,21 @@ NamespaceString IDLParserErrorContext::parseNSCollectionRequired(StringData dbNa
             nss.isValid());
 
     return nss;
+}
+
+void IDLParserErrorContext::appendGenericCommandArguments(const BSONObj& commandPassthroughFields,
+                                                          BSONObjBuilder* builder) {
+    for (const auto& element : commandPassthroughFields) {
+
+        StringData name = element.fieldNameStringData();
+        if (Command::isGenericArgument(name)) {
+
+            // IDL serializers generate $db themselves
+            if (name != kOpMsgDollarDB) {
+                builder->append(element);
+            }
+        }
+    }
 }
 
 std::vector<StringData> transformVector(const std::vector<std::string>& input) {

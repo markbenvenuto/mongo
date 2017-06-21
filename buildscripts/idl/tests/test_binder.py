@@ -1291,7 +1291,7 @@ class TestBinder(testcase.IDLTestcase):
         """)
 
         self.assert_bind(test_preamble + textwrap.dedent("""
-            commands: 
+            commands:
                 foo:
                     description: foo
                     namespace: ignored
@@ -1318,7 +1318,7 @@ class TestBinder(testcase.IDLTestcase):
 
         # Commands cannot be fields in other commands
         self.assert_bind_fail(test_preamble + textwrap.dedent("""
-            commands: 
+            commands:
                 foo:
                     description: foo
                     namespace: ignored
@@ -1334,7 +1334,7 @@ class TestBinder(testcase.IDLTestcase):
 
         # Commands cannot be fields in structs
         self.assert_bind_fail(test_preamble + textwrap.dedent("""
-            commands: 
+            commands:
                 foo:
                     description: foo
                     namespace: ignored
@@ -1347,6 +1347,144 @@ class TestBinder(testcase.IDLTestcase):
                     fields:
                         foo: foo
             """), idl.errors.ERROR_ID_FIELD_NO_COMMAND)
+
+    def test_command_doc_sequence_positive(self):
+        # type: () -> None
+        """Positive supports_doc_sequence tests."""
+        # pylint: disable=invalid-name
+
+        # Setup some common types
+        test_preamble = textwrap.dedent("""
+        types:
+            object:
+                description: foo
+                cpp_type: foo
+                bson_serialization_type: object
+                serializer: foo
+                deserializer: foo
+
+            string:
+                description: foo
+                cpp_type: foo
+                bson_serialization_type: string
+                serializer: foo
+                deserializer: foo
+
+        structs:
+            foo_struct:
+                description: foo
+                strict: true
+                fields:
+                    foo: object
+        """)
+
+        self.assert_bind(test_preamble + textwrap.dedent("""
+            commands:
+                foo:
+                    description: foo
+                    namespace: ignored
+                    fields:
+                        foo:
+                            type: array<object>
+                            supports_doc_sequence: true
+            """))
+
+        self.assert_bind(test_preamble + textwrap.dedent("""
+            commands:
+                foo:
+                    description: foo
+                    namespace: ignored
+                    fields:
+                        foo:
+                            type: array<foo_struct>
+                            supports_doc_sequence: true
+            """))
+
+    def test_command_doc_sequence_negative(self):
+        # type: () -> None
+        """Negative supports_doc_sequence tests."""
+        # pylint: disable=invalid-name
+
+        # Setup some common types
+        test_preamble = textwrap.dedent("""
+        types:
+            object:
+                description: foo
+                cpp_type: foo
+                bson_serialization_type: object
+                serializer: foo
+                deserializer: foo
+
+            string:
+                description: foo
+                cpp_type: foo
+                bson_serialization_type: string
+                serializer: foo
+                deserializer: foo
+
+            any_type:
+                description: foo
+                cpp_type: foo
+                bson_serialization_type: any
+                serializer: foo
+                deserializer: foo
+        """)
+
+        test_preamble2 = test_preamble + textwrap.dedent("""
+        structs:
+            foo_struct:
+                description: foo
+                strict: true
+                fields:
+                    foo: object
+        """)
+
+        # A struct
+        self.assert_bind_fail(test_preamble + textwrap.dedent("""
+            structs:
+                foo:
+                    description: foo
+                    fields:
+                        foo:
+                            type: array<object>
+                            supports_doc_sequence: true
+            """), idl.errors.ERROR_ID_STRUCT_NO_DOC_SEQUENCE)
+
+        # A non-array type
+        self.assert_bind_fail(test_preamble + textwrap.dedent("""
+            commands:
+                foo:
+                    description: foo
+                    namespace: ignored
+                    fields:
+                        foo:
+                            type: object
+                            supports_doc_sequence: true
+            """), idl.errors.ERROR_ID_NO_DOC_SEQUENCE_FOR_NON_ARRAY)
+
+        # An array of a scalar
+        self.assert_bind_fail(test_preamble2 + textwrap.dedent("""
+            commands:
+                foo:
+                    description: foo
+                    namespace: ignored
+                    fields:
+                        foo:
+                            type: array<string>
+                            supports_doc_sequence: true
+            """), idl.errors.ERROR_ID_NO_DOC_SEQUENCE_FOR_NON_OBJECT)
+
+        # An array of 'any'
+        self.assert_bind_fail(test_preamble2 + textwrap.dedent("""
+            commands:
+                foo:
+                    description: foo
+                    namespace: ignored
+                    fields:
+                        foo:
+                            type: array<string>
+                            supports_doc_sequence: true
+            """), idl.errors.ERROR_ID_NO_DOC_SEQUENCE_FOR_NON_OBJECT)
 
 
 if __name__ == '__main__':

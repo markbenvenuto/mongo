@@ -284,6 +284,7 @@ class Field(common.SourceLocation):
         self.ignore = False  # type: bool
         self.optional = False  # type: bool
         self.default = None  # type: unicode
+        self.supports_doc_sequence = False  # type: bool
 
         super(Field, self).__init__(file_name, line, column)
 

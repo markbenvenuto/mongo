@@ -52,6 +52,12 @@ class IDLParserErrorContext {
     MONGO_DISALLOW_COPYING(IDLParserErrorContext);
 
 public:
+    /**
+     * String constants for well-known IDL fields.
+     */
+    static constexpr auto kOpMsgDollarDB = "$db"_sd;
+    static constexpr auto kOpMsgDollarDBDefault = "admin"_sd;
+
     IDLParserErrorContext(StringData fieldName) : _currentField(fieldName), _predecessor(nullptr) {}
 
     IDLParserErrorContext(StringData fieldName, const IDLParserErrorContext* predecessor)
@@ -94,6 +100,11 @@ public:
     MONGO_COMPILER_NORETURN void throwDuplicateField(const BSONElement& element) const;
 
     /**
+     * Throw an error message about the BSONElement being a duplicate field.
+     */
+    MONGO_COMPILER_NORETURN void throwDuplicateField(StringData fieldName) const;
+
+    /**
      * Throw an error message about the required field missing from the document.
      */
     MONGO_COMPILER_NORETURN void throwMissingField(StringData fieldName) const;
@@ -124,6 +135,13 @@ public:
      * Equivalent to Command::parseNsCollectionRequired
      */
     static NamespaceString parseNSCollectionRequired(StringData dbName, const BSONElement& element);
+
+    /**
+     * Take all the well known command generic arguments from commandPassthroughFields and append
+     * them to builder.
+     */
+    static void appendGenericCommandArguments(const BSONObj& commandPassthroughFields,
+                                              BSONObjBuilder* builder);
 
 private:
     /**
