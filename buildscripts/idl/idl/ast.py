@@ -121,6 +121,7 @@ class Field(common.SourceLocation):
 
         # Properties specific to fields which are arrays.
         self.array = False  # type: bool
+        self.supports_doc_sequence = False  # type: bool
 
         # Properties specific to fields which are enums.
         self.enum_type = False  # type: bool

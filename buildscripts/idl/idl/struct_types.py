@@ -137,6 +137,27 @@ class StructTypeInfoBase(object):
         pass
 
     @abstractmethod
+    def get_op_msg_request_serializer_method(self):
+        # type: () -> Optional[MethodInfo]
+        """Get the OpMsg serializer method for a struct."""
+        # pylint: disable=invalid-name
+        pass
+
+    @abstractmethod
+    def get_op_msg_request_deserializer_static_method(self):
+        # type: () -> Optional[MethodInfo]
+        """Get the public static OpMsg deserializer method for a struct."""
+        # pylint: disable=invalid-name
+        pass
+
+    @abstractmethod
+    def get_op_msg_request_deserializer_method(self):
+        # type: () -> Optional[MethodInfo]
+        """Get the protected OpMsg deserializer method for a struct."""
+        # pylint: disable=invalid-name
+        pass
+
+    @abstractmethod
     def gen_getter_method(self, indented_writer):
         # type: (writer.IndentedTextWriter) -> None
         """Generate the additional methods for a class."""
@@ -152,6 +173,12 @@ class StructTypeInfoBase(object):
     def gen_serializer(self, indented_writer):
         # type: (writer.IndentedTextWriter) -> None
         """Serialize the first field of a Command."""
+        pass
+
+    @abstractmethod
+    def gen_namespace_check(self, indented_writer, db_name, element):
+        # type: (writer.IndentedTextWriter, unicode, unicode) -> None
+        """Generate the namespace check predicate for a command."""
         pass
 
 
@@ -194,6 +221,18 @@ class _StructTypeInfo(StructTypeInfoBase):
             common.title_case(self._struct.name), 'parseProtected',
             ['const IDLParserErrorContext& ctxt', 'const BSONObj& bsonObject'], 'void')
 
+    def get_op_msg_request_serializer_method(self):
+        # type: () -> Optional[MethodInfo]
+        return None
+
+    def get_op_msg_request_deserializer_static_method(self):
+        # type: () -> Optional[MethodInfo]
+        return None
+
+    def get_op_msg_request_deserializer_method(self):
+        # type: () -> Optional[MethodInfo]
+        return None
+
     def gen_getter_method(self, indented_writer):
         # type: (writer.IndentedTextWriter) -> None
         pass
@@ -206,8 +245,46 @@ class _StructTypeInfo(StructTypeInfoBase):
         # type: (writer.IndentedTextWriter) -> None
         pass
 
+    def gen_namespace_check(self, indented_writer, db_name, element):
+        # type: (writer.IndentedTextWriter, unicode, unicode) -> None
+        pass
 
-class _IgnoredCommandTypeInfo(_StructTypeInfo):
+
+class _CommandBaseTypeInfo(_StructTypeInfo):
+    """Base class for command code generation."""
+
+    def __init__(self, command):
+        # type: (ast.Command) -> None
+        """Create a _CommandBaseTypeInfo instance."""
+        self._command = command
+
+        super(_CommandBaseTypeInfo, self).__init__(command)
+
+    def get_op_msg_request_serializer_method(self):
+        # type: () -> Optional[MethodInfo]
+        return MethodInfo(
+            common.title_case(self._struct.name),
+            'serialize', ['const BSONObj& commandPassthroughFields'],
+            'OpMsgRequest',
+            const=True)
+
+    def get_op_msg_request_deserializer_static_method(self):
+        # type: () -> Optional[MethodInfo]
+        class_name = common.title_case(self._struct.name)
+        return MethodInfo(
+            class_name,
+            'parse', ['const IDLParserErrorContext& ctxt', 'const OpMsgRequest& request'],
+            class_name,
+            static=True)
+
+    def get_op_msg_request_deserializer_method(self):
+        # type: () -> Optional[MethodInfo]
+        return MethodInfo(
+            common.title_case(self._struct.name), 'parseProtected',
+            ['const IDLParserErrorContext& ctxt', 'const OpMsgRequest& request'], 'void')
+
+
+class _IgnoredCommandTypeInfo(_CommandBaseTypeInfo):
     """Class for command code generation."""
 
     def __init__(self, command):
@@ -219,11 +296,20 @@ class _IgnoredCommandTypeInfo(_StructTypeInfo):
 
     def get_serializer_method(self):
         # type: () -> MethodInfo
-        return super(_IgnoredCommandTypeInfo, self).get_serializer_method()
+        return MethodInfo(
+            common.title_case(self._struct.name),
+            'serialize', ['const BSONObj& commandPassthroughFields', 'BSONObjBuilder* builder'],
+            'void',
+            const=True)
 
     def get_to_bson_method(self):
         # type: () -> MethodInfo
-        return super(_IgnoredCommandTypeInfo, self).get_to_bson_method()
+        # Commands that require namespaces require it as a parameter to serialize()
+        return MethodInfo(
+            common.title_case(self._struct.name),
+            'toBSON', ['const BSONObj& commandPassthroughFields'],
+            'BSONObj',
+            const=True)
 
     def get_deserializer_static_method(self):
         # type: () -> MethodInfo
@@ -235,18 +321,22 @@ class _IgnoredCommandTypeInfo(_StructTypeInfo):
 
     def gen_getter_method(self, indented_writer):
         # type: (writer.IndentedTextWriter) -> None
-        pass
+        super(_IgnoredCommandTypeInfo, self).gen_getter_method(indented_writer)
 
     def gen_member(self, indented_writer):
         # type: (writer.IndentedTextWriter) -> None
-        pass
+        super(_IgnoredCommandTypeInfo, self).gen_member(indented_writer)
 
     def gen_serializer(self, indented_writer):
         # type: (writer.IndentedTextWriter) -> None
         indented_writer.write_line('builder->append("%s", 1);' % (self._command.name))
 
+    def gen_namespace_check(self, indented_writer, db_name, element):
+        # type: (writer.IndentedTextWriter, unicode, unicode) -> None
+        pass
 
-class _CommandWithNamespaceTypeInfo(_StructTypeInfo):
+
+class _CommandWithNamespaceTypeInfo(_CommandBaseTypeInfo):
     """Class for command code generation."""
 
     def __init__(self, command):
@@ -266,14 +356,18 @@ class _CommandWithNamespaceTypeInfo(_StructTypeInfo):
         # Commands that require namespaces require it as a parameter to serialize()
         return MethodInfo(
             common.title_case(self._struct.name),
-            'serialize', ['BSONObjBuilder* builder'],
+            'serialize', ['const BSONObj& commandPassthroughFields', 'BSONObjBuilder* builder'],
             'void',
             const=True)
 
     def get_to_bson_method(self):
         # type: () -> MethodInfo
         # Commands that require namespaces require it as a parameter to serialize()
-        return MethodInfo(common.title_case(self._struct.name), 'toBSON', [], 'BSONObj', const=True)
+        return MethodInfo(
+            common.title_case(self._struct.name),
+            'toBSON', ['const BSONObj& commandPassthroughFields'],
+            'BSONObj',
+            const=True)
 
     def get_deserializer_static_method(self):
         # type: () -> MethodInfo
@@ -281,8 +375,7 @@ class _CommandWithNamespaceTypeInfo(_StructTypeInfo):
         class_name = common.title_case(self._struct.name)
         return MethodInfo(
             class_name,
-            'parse',
-            ['const IDLParserErrorContext& ctxt', 'StringData dbName', 'const BSONObj& bsonObject'],
+            'parse', ['const IDLParserErrorContext& ctxt', 'const BSONObj& bsonObject'],
             class_name,
             static=True)
 
@@ -291,8 +384,7 @@ class _CommandWithNamespaceTypeInfo(_StructTypeInfo):
         # Commands that have concatentate_with_db namespaces require db name as a parameter
         return MethodInfo(
             common.title_case(self._struct.name), 'parseProtected',
-            ['const IDLParserErrorContext& ctxt', 'StringData dbName',
-             'const BSONObj& bsonObject'], 'void')
+            ['const IDLParserErrorContext& ctxt', 'const BSONObj& bsonObject'], 'void')
 
     def gen_getter_method(self, indented_writer):
         # type: (writer.IndentedTextWriter) -> None
@@ -306,6 +398,12 @@ class _CommandWithNamespaceTypeInfo(_StructTypeInfo):
         # type: (writer.IndentedTextWriter) -> None
         indented_writer.write_line('builder->append("%s", _nss.coll());' % (self._command.name))
         indented_writer.write_empty_line()
+
+    def gen_namespace_check(self, indented_writer, db_name, element):
+        # type: (writer.IndentedTextWriter, unicode, unicode) -> None
+        # TODO: should the name of the first element be validated??
+        indented_writer.write_line('_nss = ctxt.parseNSCollectionRequired(%s, %s);' %
+                                   (db_name, element))
 
 
 def get_struct_info(struct):
