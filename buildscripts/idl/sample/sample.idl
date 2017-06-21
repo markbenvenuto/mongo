@@ -121,6 +121,8 @@ commands:
                 description: "A binData of uuid subtype"
             structs:
                 type: array<one_string>
+                supports_doc_sequence: true
             objects:
                 type: array<object>
+                supports_doc_sequence: true
 

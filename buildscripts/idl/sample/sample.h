@@ -17,6 +17,7 @@
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/db/commands.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/idl/idl_parser.h"
 
@@ -28,6 +29,7 @@ namespace mongo {
 class One_string {
 public:
     static constexpr auto kValueFieldName = "value"_sd;
+
 
     static One_string parse(const IDLParserErrorContext& ctxt, const BSONObj& bsonObject);
     void serialize(BSONObjBuilder* builder) const;
@@ -54,6 +56,7 @@ private:
 class Default_values {
 public:
     static constexpr auto kBinDataFieldFieldName = "binDataField"_sd;
+    static constexpr auto kDbNameFieldName = "$db"_sd;
     static constexpr auto kIntfieldFieldName = "intfield"_sd;
     static constexpr auto kNsfieldFieldName = "nsfield"_sd;
     static constexpr auto kNumericfieldFieldName = "numericfield"_sd;
@@ -63,15 +66,18 @@ public:
     static constexpr auto kStructsFieldName = "structs"_sd;
     static constexpr auto kUuidFieldFieldName = "uuidField"_sd;
     static constexpr auto kVectorFieldFieldName = "vectorField"_sd;
+    static constexpr auto kCommandName = "default_values"_sd;
 
-    static Default_values parse(const IDLParserErrorContext& ctxt,
-                                StringData dbName,
-                                const BSONObj& bsonObject);
-    void serialize(const NamespaceString& ns, BSONObjBuilder* builder) const;
-    BSONObj toBSON(const NamespaceString& ns) const;
+    Default_values(const NamespaceString& nss);
+
+    static Default_values parse(const IDLParserErrorContext& ctxt, const BSONObj& bsonObject);
+    static Default_values parse(const IDLParserErrorContext& ctxt, const OpMsgRequest& request);
+    void serialize(const BSONObj& commandPassthroughFields, BSONObjBuilder* builder) const;
+    OpMsgRequest serialize(const BSONObj& commandPassthroughFields) const;
+    BSONObj toBSON(const BSONObj& commandPassthroughFields) const;
 
     const NamespaceString& getNamespace() const {
-        return _ns;
+        return _nss;
     }
 
     /**
@@ -181,13 +187,23 @@ public:
         _objects = std::move(value);
     }
 
+    const StringData getDbName() const& {
+        return _dbName;
+    }
+    void getDbName() && = delete;
+    void setDbName(StringData value) & {
+        _dbName = value.toString();
+    }
+
 protected:
-    void parseProtected(const IDLParserErrorContext& ctxt,
-                        StringData dbName,
-                        const BSONObj& bsonObject);
+    void parseProtected(const IDLParserErrorContext& ctxt, const BSONObj& bsonObject);
+    void parseProtected(const IDLParserErrorContext& ctxt, const OpMsgRequest& request);
 
 private:
-    NamespaceString _ns;
+    static const std::vector<StringData> _knownFields;
+
+
+    NamespaceString _nss;
 
     std::string _stringfield{"a default"};
     std::int32_t _intfield{42};
@@ -199,6 +215,7 @@ private:
     std::array<std::uint8_t, 16> _uuidField;
     std::vector<One_string> _structs;
     std::vector<mongo::BSONObj> _objects;
+    std::string _dbName{"admin"};
 };
 
 }  // namespace mongo
