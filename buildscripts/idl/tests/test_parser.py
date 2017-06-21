@@ -506,8 +506,8 @@ class TestParser(testcase.IDLTestcase):
             foo1:
                 description: foo
                 chained_structs:
-                    - foo1
-                    - foo2
+                    foo1 : foo1_cpp
+                    foo2 : foo2_cpp
         """))
 
     def test_chained_struct_negative(self):
@@ -529,10 +529,22 @@ class TestParser(testcase.IDLTestcase):
             foo1:
                 description: foo
                 chained_structs:
-                    foo1: bar
+                    - foo1
                 fields:
                     foo: bar
         """), idl.errors.ERROR_ID_IS_NODE_TYPE)
+        
+        # Duplicate chained structs
+        self.assert_parse_fail(
+                                                          textwrap.dedent("""
+        structs:
+            bar1:
+                description: foo
+                strict: true
+                chained_structs:
+                    chained : alias
+                    chained : alias
+        """), idl.errors.ERROR_ID_DUPLICATE_NODE)
 
     def test_enum_positive(self):
         # type: () -> None

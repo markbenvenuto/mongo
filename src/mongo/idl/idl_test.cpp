@@ -1223,7 +1223,7 @@ TEST(IDLChainedType, TestChainedStruct) {
 
     assert_same_types<decltype(testStruct.getChained_any_basic_type()),
                       const Chained_any_basic_type&>();
-    assert_same_types<decltype(testStruct.getChained_object_basic_type()),
+    assert_same_types<decltype(testStruct.getChainedObjectBasicType()),
                       const Chained_object_basic_type&>();
 
     ASSERT_EQUALS(testStruct.getField3(), "abc");
@@ -1322,7 +1322,7 @@ TEST(IDLChainedType, TestChainedMixedStruct) {
 
     ASSERT_EQUALS(testStruct.getChainedType().getField1(), "abc");
     ASSERT_EQUALS(testStruct.getAnotherChainedType().getField2(), 5);
-    ASSERT_EQUALS(testStruct.getChained_string_basic_type().getStringField(), "def");
+    ASSERT_EQUALS(testStruct.getChainedStringBasicType().getStringField(), "def");
     ASSERT_EQUALS(testStruct.getField3(), 456);
 
     // Positive: Test we can roundtrip from the just parsed document
@@ -1347,7 +1347,7 @@ TEST(IDLChainedType, TestChainedMixedStruct) {
         one_new.setField3(456);
         Chained_string_basic_type csbt;
         csbt.setStringField("def");
-        one_new.setChained_string_basic_type(csbt);
+        one_new.setChainedStringBasicType(csbt);
         one_new.serialize(&builder);
 
         auto serializedDoc = builder.obj();
@@ -1589,16 +1589,6 @@ TEST(IDLCommand, TestIgnoredNegative) {
                                      << "five");
         ASSERT_THROWS(BasicIgnoredCommand::parse(ctxt, testDoc), UserException);
     }
-}
-
-class Example {
-    void Parse( IDLParserContext ctxt, String foo, BSONObj);
-    void Serialize(BSONObjBuilder);
-
-    void Parse( IDLParserContext ctxt, OpMsgRequest& request);
-    // Note: all bodies either have "$db" or defaults to "admin"
-    OpMsgRequest Serialize();
-    
 }
 
 }  // namespace

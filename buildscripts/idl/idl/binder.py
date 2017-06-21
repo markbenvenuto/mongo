@@ -441,37 +441,37 @@ def _bind_chained_type(ctxt, parsed_spec, location, chained_type):
 
 
 def _bind_chained_struct(ctxt, parsed_spec, ast_struct, chained_struct):
-    # type: (errors.ParserContext, syntax.IDLSpec, ast.Struct, unicode) -> None
+    # type: (errors.ParserContext, syntax.IDLSpec, ast.Struct, syntax.ChainedStruct) -> None
     """Bind the specified chained struct."""
-    syntax_symbol = parsed_spec.symbols.resolve_field_type(ctxt, ast_struct, chained_struct,
-                                                           chained_struct)
+    syntax_symbol = parsed_spec.symbols.resolve_field_type(ctxt, ast_struct, chained_struct.name,
+                                                           chained_struct.name)
 
     if not syntax_symbol:
         return None
 
     if not isinstance(syntax_symbol, syntax.Struct) or isinstance(syntax_symbol, syntax.Command):
-        ctxt.add_chained_struct_not_found_error(ast_struct, chained_struct)
+        ctxt.add_chained_struct_not_found_error(ast_struct, chained_struct.name)
         return None
 
     struct = cast(syntax.Struct, syntax_symbol)
 
     if struct.strict:
-        ctxt.add_chained_nested_struct_no_strict_error(ast_struct, ast_struct.name, chained_struct)
+        ctxt.add_chained_nested_struct_no_strict_error(ast_struct, ast_struct.name, chained_struct.name)
 
     if struct.chained_types or struct.chained_structs:
-        ctxt.add_chained_nested_struct_no_nested_error(ast_struct, ast_struct.name, chained_struct)
+        ctxt.add_chained_nested_struct_no_nested_error(ast_struct, ast_struct.name, chained_struct.name)
 
     # Configure a field for the chained struct.
     ast_field = ast.Field(ast_struct.file_name, ast_struct.line, ast_struct.column)
     ast_field.name = struct.name
-    ast_field.cpp_name = struct.name
+    ast_field.cpp_name = chained_struct.cpp_name
     ast_field.description = struct.description
     ast_field.struct_type = struct.name
     ast_field.bson_serialization_type = ["object"]
 
     ast_field.chained = True
 
-    if not _is_duplicate_field(ctxt, chained_struct, ast_struct.fields, ast_field):
+    if not _is_duplicate_field(ctxt, chained_struct.name, ast_struct.fields, ast_field):
         ast_struct.fields.append(ast_field)
     else:
         return
@@ -479,7 +479,7 @@ def _bind_chained_struct(ctxt, parsed_spec, ast_struct, chained_struct):
     # Merge all the fields from resolved struct into this ast struct as 'ignored'.
     for field in struct.fields or []:
         ast_field = _bind_field(ctxt, parsed_spec, field)
-        if ast_field and not _is_duplicate_field(ctxt, chained_struct, ast_struct.fields,
+        if ast_field and not _is_duplicate_field(ctxt, chained_struct.name, ast_struct.fields,
                                                  ast_field):
             ast_field.ignore = True
             ast_struct.fields.append(ast_field)

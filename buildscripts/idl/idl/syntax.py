@@ -288,6 +288,24 @@ class Field(common.SourceLocation):
         super(Field, self).__init__(file_name, line, column)
 
 
+class ChainedStruct(common.SourceLocation):
+    """
+    Stores all type information about an IDL chained struct.
+
+    The field name is required.
+    Other fields may be populated. If they do not exist in the source document, they are not
+    populated.
+    """
+
+    def __init__(self, file_name, line, column):
+        # type: (unicode, int, int) -> None
+        """Construct a Type."""
+        self.name = None  # type: unicode
+        self.cpp_name = None  # type: unicode
+
+        super(ChainedStruct, self).__init__(file_name, line, column)
+
+
 class Struct(common.SourceLocation):
     """
     IDL struct information.
@@ -302,7 +320,7 @@ class Struct(common.SourceLocation):
         self.description = None  # type: unicode
         self.strict = True  # type: bool
         self.chained_types = None  # type: List[unicode]
-        self.chained_structs = None  # type: List[unicode]
+        self.chained_structs = None  # type: List[ChainedStruct]
         self.fields = None  # type: List[Field]
 
         # Internal property that is not represented as syntax. An imported struct is read from an
