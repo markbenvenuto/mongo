@@ -240,7 +240,7 @@ DEFINE_string(heap_check_dump_directory,
 //----------------------------------------------------------------------
 
 // Global lock for all the global data of this module.
-static SpinLock heap_checker_lock(SpinLock::LINKER_INITIALIZED);
+static SpinLock<SpinLockType::HeapChecker> heap_checker_lock(SpinLockBase::LINKER_INITIALIZED);
 
 //----------------------------------------------------------------------
 
@@ -1360,7 +1360,7 @@ void HeapLeakChecker::IgnoreAllLiveObjectsLocked(const void* self_stack_top) {
 static size_t pointer_source_alignment = kPointerSourceAlignment;
 // Global lock for HeapLeakChecker::DoNoLeaks
 // to protect pointer_source_alignment.
-static SpinLock alignment_checker_lock(SpinLock::LINKER_INITIALIZED);
+static SpinLock<SpinLockType::HeapCheckerAlignment> alignment_checker_lock(SpinLockBase::LINKER_INITIALIZED);
 
 // This function changes the live bits in the heap_profile-table's state:
 // we only record the live objects to be skipped.
@@ -1613,12 +1613,12 @@ void HeapLeakChecker::Create(const char *name, bool make_start_snapshot) {
   }
 }
 
-HeapLeakChecker::HeapLeakChecker(const char *name) : lock_(new SpinLock) {
+HeapLeakChecker::HeapLeakChecker(const char *name) : lock_(new SpinLock<SpinLockType::HeapCheckerObject>()) {
   RAW_DCHECK(strcmp(name, "_main_") != 0, "_main_ is reserved");
   Create(name, true/*create start_snapshot_*/);
 }
 
-HeapLeakChecker::HeapLeakChecker() : lock_(new SpinLock) {
+HeapLeakChecker::HeapLeakChecker() : lock_(new SpinLock<SpinLockType::HeapCheckerObject>()) {
   if (FLAGS_heap_check_before_constructors) {
     // We want to check for leaks of objects allocated during global
     // constructors (i.e., objects allocated already).  So we do not

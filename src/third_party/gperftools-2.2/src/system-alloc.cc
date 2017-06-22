@@ -113,7 +113,7 @@ union MemoryAligner {
   size_t s;
 } CACHELINE_ALIGNED;
 
-static SpinLock spinlock(SpinLock::LINKER_INITIALIZED);
+static SpinLock<SpinLockType::SystemAlloc> spinlock(SpinLockBase::LINKER_INITIALIZED);
 
 #if defined(HAVE_MMAP) || defined(MADV_FREE)
 // Page size is initialized on demand (only needed for mmap-based allocators)

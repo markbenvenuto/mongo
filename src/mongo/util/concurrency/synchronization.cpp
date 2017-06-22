@@ -47,6 +47,7 @@ void registerThreadIdleCallback(ThreadIdleCallback callback) {
 }
 
 void markThreadIdle() {
+    #if 0
     if (!threadIdleCallback) {
         return;
     }
@@ -56,6 +57,7 @@ void markThreadIdle() {
         severe() << "Exception escaped from threadIdleCallback";
         fassertFailedNoTrace(28603);
     }
+    #endif
 }
 
 Notification::Notification() {

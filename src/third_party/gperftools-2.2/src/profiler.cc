@@ -116,7 +116,7 @@ class CpuProfiler {
   // unregister the signal handler before calling any collector_ method.
   // 'Add' method in the collector is protected by a guarantee from
   // ProfileHandle that only one instance of prof_handler can run at a time.
-  SpinLock      lock_;
+  SpinLock<SpinLockType::CpuProfiler>      lock_;
   ProfileData   collector_;
 
   // Filter function and its argument, if any.  (NULL means include all

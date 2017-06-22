@@ -313,7 +313,7 @@ class MallocBlock {
   // We use spin locks instead of pthread_mutex_t locks
   // to prevent crashes via calls to pthread_mutex_(un)lock
   // for the (de)allocations coming from pthreads initialization itself.
-  static SpinLock alloc_map_lock_;
+  static SpinLock<SpinLockType::DebugAllocMap> alloc_map_lock_;
 
   // A queue of freed blocks.  Instead of releasing blocks to the allocator
   // immediately, we put them in a queue, freeing them only when necessary
@@ -323,7 +323,7 @@ class MallocBlock {
 
   static size_t free_queue_size_;  // total size of blocks in free_queue_
   // protects free_queue_ and free_queue_size_
-  static SpinLock free_queue_lock_;
+  static SpinLock<SpinLockType::DebugFreeQueue> free_queue_lock_;
 
   // Names of allocation types (kMallocType, kNewType, kArrayNewType)
   static const char* const kAllocName[];
@@ -841,11 +841,11 @@ const int MallocBlock::kMagicMalloc;
 const int MallocBlock::kMagicMMap;
 
 MallocBlock::AllocMap* MallocBlock::alloc_map_ = NULL;
-SpinLock MallocBlock::alloc_map_lock_(SpinLock::LINKER_INITIALIZED);
+SpinLock<SpinLockType::DebugAllocMap> MallocBlock::alloc_map_lock_(SpinLockBase::LINKER_INITIALIZED);
 
 FreeQueue<MallocBlockQueueEntry>* MallocBlock::free_queue_ = NULL;
 size_t MallocBlock::free_queue_size_ = 0;
-SpinLock MallocBlock::free_queue_lock_(SpinLock::LINKER_INITIALIZED);
+SpinLock<SpinLockType::DebugFreeQueue> MallocBlock::free_queue_lock_(SpinLockBase::LINKER_INITIALIZED);
 
 unsigned char MallocBlock::kMagicDeletedBuffer[1024];
 pthread_once_t MallocBlock::deleted_buffer_initialized_ = PTHREAD_ONCE_INIT;
@@ -980,7 +980,7 @@ static void TraceStack(void) {
 }
 
 // This protects MALLOC_TRACE, to make sure its info is atomically written.
-static SpinLock malloc_trace_lock(SpinLock::LINKER_INITIALIZED);
+static SpinLock<SpinLockType::DebugMallocTrace> malloc_trace_lock(SpinLockBase::LINKER_INITIALIZED);
 
 #define MALLOC_TRACE(name, size, addr)                                  \
   do {                                                                  \

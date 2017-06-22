@@ -72,6 +72,7 @@
 # endif
 #endif
 
+#include "base/spinlock.h"
 
 // The class is thread-safe with respect to all the provided static methods,
 // as well as HeapLeakChecker objects: they can be accessed by multiple threads.
@@ -355,7 +356,7 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   // ----------------------------------------------------------------------- //
   // Member data.
 
-  class SpinLock* lock_;  // to make HeapLeakChecker objects thread-safe
+  class SpinLock<SpinLockType::HeapCheckerObject>* lock_;  // to make HeapLeakChecker objects thread-safe
   const char* name_;  // our remembered name (we own it)
                       // NULL means this leak checker is a noop
 

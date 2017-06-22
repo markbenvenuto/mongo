@@ -135,7 +135,7 @@ DEFINE_bool(only_mmap_profile,
 // which can cause us to fall into an infinite recursion.
 //
 // So we use a simple spinlock.
-static SpinLock heap_lock(SpinLock::LINKER_INITIALIZED);
+static SpinLock<SpinLockType::HeapProfiler> heap_lock(SpinLockBase::LINKER_INITIALIZED);
 
 //----------------------------------------------------------------------
 // Simple allocator for heap profiler's internal memory

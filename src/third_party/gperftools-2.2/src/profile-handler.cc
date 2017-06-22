@@ -163,8 +163,8 @@ class ProfileHandler {
   // In the context of a signal handler, acquire signal_lock_ to walk the
   // callback list. Otherwise, acquire control_lock_, disable the signal
   // handler and then acquire signal_lock_.
-  SpinLock control_lock_ ACQUIRED_BEFORE(signal_lock_);
-  SpinLock signal_lock_;
+  SpinLock<SpinLockType::ProfileHandlerControl> control_lock_ ACQUIRED_BEFORE(signal_lock_);
+  SpinLock<SpinLockType::ProfileHandlerSignal> signal_lock_;
 
   // Holds the list of registered callbacks. We expect the list to be pretty
   // small. Currently, the cpu profiler (base/profiler) and thread module
