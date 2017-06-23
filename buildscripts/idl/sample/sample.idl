@@ -69,10 +69,28 @@ types:
         cpp_type: "std::array<std::uint8_t, 16>"
         deserializer: "mongo::BSONElement::uuid"
 
+    object:
+        bson_serialization_type: object
+        description: "A BSONObj without custom deserialization or serialization"
+        cpp_type: "mongo::BSONObj"
+
+    # This type is for internal IDL compiler use only
+    $db_string:
+        bson_serialization_type: string
+        description: "A BSON UTF-8 string"
+        cpp_type: "do_not_use"
+        deserializer: "mongo::BSONElement::valueStringData"
 
 structs:
+    one_string:
+        description: UnitTest for a single string
+        fields:
+            value: string
+
+commands:
     default_values:
         description: UnitTest for a single safeInt32
+        namespace: concatenate_with_db
         fields:
             stringfield:
                 type: string
@@ -101,4 +119,8 @@ structs:
             uuidField:
                 type: bindata_uuid
                 description: "A binData of uuid subtype"
+            structs:
+                type: array<one_string>
+            objects:
+                type: array<object>
 
