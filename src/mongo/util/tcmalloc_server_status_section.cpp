@@ -43,6 +43,7 @@
 #include "mongo/util/log.h"
 #include "mongo/util/net/listen.h"
 #include "mongo/util/net/thread_idle_callback.h"
+#include "mongo/db/server_parameters.h"
 
 namespace mongo {
 
@@ -53,7 +54,7 @@ namespace {
 // a long time.
 const int kManyClients = 40;
 
-MONGO_EXPORT_STARTUP_SERVER_PARAMETER(disableMarkThreadIdle, bool, false);
+MONGO_EXPORT_STARTUP_SERVER_PARAMETER(markThreadIdleMode, int, 1);
 
 stdx::mutex tcmallocCleanupLock;
 
@@ -66,7 +67,7 @@ void threadStateChange() {
         kManyClients)
         return;
 
-    if(!disableMarkThreadIdle) {
+    if(markThreadIdleMode != 0) {
 #if MONGO_HAVE_GPERFTOOLS_GET_THREAD_CACHE_SIZE
     size_t threadCacheSizeBytes = MallocExtension::instance()->GetThreadCacheSize();
 
@@ -85,8 +86,12 @@ void threadStateChange() {
     // terrible runaway if we're not careful.
     stdx::lock_guard<stdx::mutex> lk(tcmallocCleanupLock);
 #endif
-    MallocExtension::instance()->MarkThreadIdle();
-    MallocExtension::instance()->MarkThreadBusy();
+    if( markThreadIdleMode == 1 ) {
+        MallocExtension::instance()->MarkThreadIdle();
+        MallocExtension::instance()->MarkThreadBusy();
+    } else {
+        MallocExtension::instance()->MarkThreadTemporarilyIdle();
+    }
 }
 }
 
