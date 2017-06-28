@@ -137,22 +137,24 @@ class StructTypeInfoBase(object):
         pass
 
     @abstractmethod
-    def get_op_msg_serializer_method(self):
+    def get_op_msg_request_serializer_method(self):
         # type: () -> Optional[MethodInfo]
         """Get the OpMsg serializer method for a struct."""
+        # pylint: disable=invalid-name
         pass
 
     @abstractmethod
-    def get_op_msg_deserializer_static_method(self):
+    def get_op_msg_request_deserializer_static_method(self):
         # type: () -> Optional[MethodInfo]
         """Get the public static OpMsg deserializer method for a struct."""
         # pylint: disable=invalid-name
         pass
 
     @abstractmethod
-    def get_op_msg_deserializer_method(self):
+    def get_op_msg_request_deserializer_method(self):
         # type: () -> Optional[MethodInfo]
         """Get the protected OpMsg deserializer method for a struct."""
+        # pylint: disable=invalid-name
         pass
 
     @abstractmethod
@@ -219,15 +221,15 @@ class _StructTypeInfo(StructTypeInfoBase):
             common.title_case(self._struct.name), 'parseProtected',
             ['const IDLParserErrorContext& ctxt', 'const BSONObj& bsonObject'], 'void')
 
-    def get_op_msg_serializer_method(self):
+    def get_op_msg_request_serializer_method(self):
         # type: () -> Optional[MethodInfo]
         return None
 
-    def get_op_msg_deserializer_static_method(self):
+    def get_op_msg_request_deserializer_static_method(self):
         # type: () -> Optional[MethodInfo]
         return None
 
-    def get_op_msg_deserializer_method(self):
+    def get_op_msg_request_deserializer_method(self):
         # type: () -> Optional[MethodInfo]
         return None
 
@@ -258,7 +260,7 @@ class _CommandBaseTypeInfo(_StructTypeInfo):
 
         super(_CommandBaseTypeInfo, self).__init__(command)
 
-    def get_op_msg_serializer_method(self):
+    def get_op_msg_request_serializer_method(self):
         # type: () -> Optional[MethodInfo]
         return MethodInfo(
             common.title_case(self._struct.name),
@@ -266,7 +268,7 @@ class _CommandBaseTypeInfo(_StructTypeInfo):
             'OpMsgRequest',
             const=True)
 
-    def get_op_msg_deserializer_static_method(self):
+    def get_op_msg_request_deserializer_static_method(self):
         # type: () -> Optional[MethodInfo]
         class_name = common.title_case(self._struct.name)
         return MethodInfo(
@@ -275,7 +277,7 @@ class _CommandBaseTypeInfo(_StructTypeInfo):
             class_name,
             static=True)
 
-    def get_op_msg_deserializer_method(self):
+    def get_op_msg_request_deserializer_method(self):
         # type: () -> Optional[MethodInfo]
         return MethodInfo(
             common.title_case(self._struct.name), 'parseProtected',

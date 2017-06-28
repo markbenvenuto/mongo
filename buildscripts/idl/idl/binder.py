@@ -290,7 +290,7 @@ def _bind_struct(ctxt, parsed_spec, struct):
     return ast_struct
 
 
-def _inject_hidden_op_msg_fields(command):
+def _inject_hidden_command_fields(command):
     # type: (syntax.Command) -> None
     """Inject hidden fields to aid deserialization/serialization for OpMsg parsing of commands."""
 
@@ -315,8 +315,8 @@ def _bind_command(ctxt, parsed_spec, command):
 
     ast_command = ast.Command(command.file_name, command.line, command.column)
 
-    # Inject special fields used for op_msg parsing
-    _inject_hidden_op_msg_fields(command)
+    # Inject special fields used for command parsing
+    _inject_hidden_command_fields(command)
 
     _bind_struct_common(ctxt, parsed_spec, command, ast_command)
 
@@ -373,19 +373,14 @@ def _validate_field_properties(ctxt, ast_field):
 
 def _validate_doc_sequence_field(ctxt, ast_field):
     # type: (errors.ParserContext, ast.Field) -> None
-    """Validate this an array of plain objects or a struct."""
+    """Validate the doc_sequence is an array of plain objects."""
     if not ast_field.supports_doc_sequence:
         return
 
     assert ast_field.array
 
-    # Structs are allowed
-    if ast_field.struct_type:
-        return
-
-    # The only allowed BSON type is "object"
-    if len(ast_field.bson_serialization_type) != 1 or ast_field.bson_serialization_type[
-            0] != 'object':
+    # The only allowed BSON type for a doc_sequence field is "object"
+    if ast_field.bson_serialization_type[0] != 'object':
         ctxt.add_bad_non_object_as_doc_sequence_error(ast_field, ast_field.name)
 
 
@@ -441,6 +436,7 @@ def _bind_field(ctxt, parsed_spec, field):
         struct = cast(syntax.Struct, syntax_symbol)
         ast_field.struct_type = struct.name
         ast_field.bson_serialization_type = ["object"]
+
         _validate_field_of_type_struct(ctxt, field)
     elif isinstance(syntax_symbol, syntax.Enum):
         enum_type_info = enum_types.get_type_info(cast(syntax.Enum, syntax_symbol))

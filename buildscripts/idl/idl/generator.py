@@ -188,7 +188,7 @@ class _FastFieldUsageChecker(_FieldUsageCheckerBase):
         """Create the C++ field store initialization code."""
         pass
 
-    def add(self, field, element):
+    def add(self, field, bson_element_variable):
         # type: (ast.Field, unicode) -> None
         """Add a field to track."""
         if not field in self._fields:
@@ -196,7 +196,7 @@ class _FastFieldUsageChecker(_FieldUsageCheckerBase):
 
         with writer.IndentedScopedBlock(self._writer, 'if (usedFields[%s]) {' %
                                         (_gen_field_usage_constant(field)), '}'):
-            self._writer.write_line('ctxt.throwDuplicateField(%s);' % (element))
+            self._writer.write_line('ctxt.throwDuplicateField(%s);' % (bson_element_variable))
         self._writer.write_empty_line()
 
         self._writer.write_line('usedFields.set(%s);' % (_gen_field_usage_constant(field)))
@@ -350,15 +350,15 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
 
         self._writer.write_line(struct_type_info.get_deserializer_static_method().get_declaration())
 
-        op_msg_parse_method = struct_type_info.get_op_msg_deserializer_static_method()
-        if op_msg_parse_method:
-            self._writer.write_line(op_msg_parse_method.get_declaration())
+        command_parse_method = struct_type_info.get_op_msg_request_deserializer_static_method()
+        if command_parse_method:
+            self._writer.write_line(command_parse_method.get_declaration())
 
         self._writer.write_line(struct_type_info.get_serializer_method().get_declaration())
 
-        op_msg_parse_method = struct_type_info.get_op_msg_serializer_method()
-        if op_msg_parse_method:
-            self._writer.write_line(op_msg_parse_method.get_declaration())
+        command_parse_method = struct_type_info.get_op_msg_request_serializer_method()
+        if command_parse_method:
+            self._writer.write_line(command_parse_method.get_declaration())
 
         self._writer.write_line(struct_type_info.get_to_bson_method().get_declaration())
 
@@ -372,9 +372,9 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
 
         self._writer.write_line(struct_type_info.get_deserializer_method().get_declaration())
 
-        op_msg_parse_method = struct_type_info.get_op_msg_deserializer_method()
-        if op_msg_parse_method:
-            self._writer.write_line(op_msg_parse_method.get_declaration())
+        command_parse_method = struct_type_info.get_op_msg_request_deserializer_method()
+        if command_parse_method:
+            self._writer.write_line(command_parse_method.get_declaration())
 
         self._writer.write_empty_line()
 
@@ -480,7 +480,7 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
                         name=enum_value.name,
                         value=enum_type_info.get_cpp_value_assignment(enum_value)))
 
-    def gen_command_methods(self, command):
+    def gen_op_msg_request_methods(self, command):
         # type: (ast.Command) -> None
         """Generate the methods for a command."""
         struct_type_info = struct_types.get_struct_info(command)
@@ -488,13 +488,19 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
 
         self._writer.write_empty_line()
 
-    def gen_command_member(self, command):
+    def gen_op_msg_request_member(self, command):
         # type: (ast.Command) -> None
         """Generate the class members for a command."""
         struct_type_info = struct_types.get_struct_info(command)
         struct_type_info.gen_member(self._writer)
 
         self._writer.write_empty_line()
+
+    def gen_known_fields_declaration(self):
+        # type: () -> None
+        """Generate a known fields vector for a command."""
+        self._writer.write_line("static const std::vector<StringData> _knownFields;")
+        self.write_empty_line()
 
     def generate(self, spec):
         # type: (ast.IDLAST) -> None
@@ -528,7 +534,6 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
             'mongo/bson/bsonobjbuilder.h',
             'mongo/db/commands.h',
             'mongo/idl/idl_parser.h',
-            'mongo/util/net/op_msg.h',
         ] + spec.globals.cpp_includes
 
         header_list.sort()
@@ -570,7 +575,7 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
                     self.gen_serializer_methods(struct)
 
                     if isinstance(struct, ast.Command):
-                        self.gen_command_methods(struct)
+                        self.gen_op_msg_request_methods(struct)
 
                     # Write getters & setters
                     for field in struct.fields:
@@ -587,7 +592,10 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
 
                     # Write command member variables
                     if isinstance(struct, ast.Command):
-                        self.gen_command_member(struct)
+                        self.gen_known_fields_declaration()
+                        self.write_empty_line()
+
+                        self.gen_op_msg_request_member(struct)
 
                     # Write member variables
                     for field in struct.fields:
@@ -740,12 +748,12 @@ class _CppSourceFileWriter(_CppFileWriterBase):
         self._writer.write_line('std::vector<%s> values;' % (cpp_type))
         self._writer.write_empty_line()
 
-        # TODO: add support for length checks, today we allow an empty document sequence
-        # because we do not give away for IDL specifications to specify what is allowed and not
-        # allowed.
+        # TODO: add support for sequence length checks, today we allow an empty document sequence
+        # because we do not give a way for IDL specifications to specify if they allow empty
+        # sequences or require non-empty sequences.
 
         # Note: we are iterating over BSONObj, not BSONElement
-        with self._block('for (auto&& sequenceObject : sequence.objs) {', '}'):
+        with self._block('for (const BSONObj& sequenceObject : sequence.objs) {', '}'):
 
             # Either we are deserializing BSON Objects or IDL structs
             if field.struct_type:
@@ -754,17 +762,17 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                 array_value = '%s::parse(tempContext, sequenceObject)' % (
                     common.title_case(field.struct_type))
             else:
-                assert len(field.bson_serialization_type) == 1 and field.bson_serialization_type[
-                    0] == 'object'
+                assert field.bson_serialization_type[0] == 'object'
                 array_value = "sequenceObject"
 
             self._writer.write_line('values.emplace_back(%s);' % (array_value))
 
         self._writer.write_line('%s = std::move(values);' % (_get_field_member_name(field)))
 
-    def gen_command_namespace_check(self, struct):
+    def gen_op_msg_request_namespace_check(self, struct):
         # type: (ast.Struct) -> None
         """Generate a namespace check for a command."""
+        # pylint: disable=invalid-name
         if not isinstance(struct, ast.Command):
             return
 
@@ -802,7 +810,15 @@ class _CppSourceFileWriter(_CppFileWriterBase):
             self._writer.write_line('const auto fieldName = element.fieldNameStringData();')
             self._writer.write_empty_line()
 
-            self.gen_command_namespace_check(struct)
+            if isinstance(struct, ast.Command):
+                with self._predicate("firstFieldFound == false"):
+                    # Get the Command element if we need it for later in the deserializer to get the
+                    # namespace
+                    if struct.namespace != common.COMMAND_NAMESPACE_IGNORED:
+                        self._writer.write_line('commandElement = element;')
+
+                    self._writer.write_line('firstFieldFound = true;')
+                    self._writer.write_line('continue;')
 
             field_usage_check.add_store()
             self._writer.write_empty_line()
@@ -830,13 +846,13 @@ class _CppSourceFileWriter(_CppFileWriterBase):
             # Generate strict check for extranous fields
             if struct.strict:
                 with self._block('else {', '}'):
-                    # For commands from OpMsg, check if this a well known OpMsg field that the
-                    # IDL parser should ignore regardless of strict mode.
-                    command_op_msg_predicate = None
+                    # For commands, check if this a well known command field that the IDL parser
+                    # should ignore regardless of strict mode.
+                    command_predicate = None
                     if isinstance(struct, ast.Command):
-                        command_op_msg_predicate = "!Command::isGenericArgument(fieldName)"
+                        command_predicate = "!Command::isGenericArgument(fieldName)"
 
-                    with self._predicate(command_op_msg_predicate):
+                    with self._predicate(command_predicate):
                         self._writer.write_line('ctxt.throwUnknownField(fieldName);')
 
         # Parse chained types
@@ -883,16 +899,17 @@ class _CppSourceFileWriter(_CppFileWriterBase):
             # Generate namespace check now that "$db" has been read or defaulted
             struct_type_info.gen_namespace_check(self._writer, "_dbName", "commandElement")
 
-    def gen_op_msg_deserializer_methods(self, struct):
+    def gen_op_msg_request_deserializer_methods(self, struct):
         # type: (ast.Struct) -> None
-        """Generate the C++ deserializer method definitions."""
+        """Generate the C++ deserializer method definitions from OpMsgRequest."""
+        # pylint: disable=invalid-name
         # Commands that have concatentate_with_db namespaces require db name as a parameter
         if not isinstance(struct, ast.Command):
             return
 
         struct_type_info = struct_types.get_struct_info(struct)
 
-        func_def = struct_type_info.get_op_msg_deserializer_static_method().get_definition()
+        func_def = struct_type_info.get_op_msg_request_deserializer_static_method().get_definition()
         with self._block('%s {' % (func_def), '}'):
             if isinstance(struct, ast.Command) and struct_type_info.get_constructor_method():
                 self._writer.write_line('NamespaceString localNs;')
@@ -901,10 +918,10 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                 self._writer.write_line('%s object;' % common.title_case(struct.name))
 
             self._writer.write_line(
-                struct_type_info.get_op_msg_deserializer_method().get_call('object'))
+                struct_type_info.get_op_msg_request_deserializer_method().get_call('object'))
             self._writer.write_line('return object;')
 
-        func_def = struct_type_info.get_op_msg_deserializer_method().get_definition()
+        func_def = struct_type_info.get_op_msg_request_deserializer_method().get_definition()
         with self._block('%s {' % (func_def), '}'):
 
             # Deserialize all the fields
@@ -1048,7 +1065,8 @@ class _CppSourceFileWriter(_CppFileWriterBase):
             struct_type_info.gen_serializer(self._writer)
 
         for field in struct.fields:
-            # If fields are meant to be ignored during deserialization, there is not need to serialize them
+            # If fields are meant to be ignored during deserialization, there is no need to
+            # serialize them.
             if field.ignore:
                 continue
 
@@ -1087,7 +1105,7 @@ class _CppSourceFileWriter(_CppFileWriterBase):
         # Append passthrough elements
         if isinstance(struct, ast.Command):
             self._writer.write_line(
-                "IDLParserErrorContext::appendGenericCommandArguments(commandPassthroughFields, builder);"
+                "IDLParserErrorContext::appendGenericCommandArguments(commandPassthroughFields, _knownFields, builder);"
             )
             self._writer.write_empty_line()
 
@@ -1111,16 +1129,18 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                 "builder", "&builder"))
             self._writer.write_line('return builder.obj();')
 
-    def gen_op_msg_serializer_method(self, struct):
+    def gen_op_msg_request_serializer_method(self, struct):
         # type: (ast.Struct) -> None
         """Generate the serialzer method definition for OpMsgRequest."""
+        # pylint: disable=invalid-name
         if not isinstance(struct, ast.Command):
             return
 
         struct_type_info = struct_types.get_struct_info(struct)
 
         with self._block('%s {' %
-                         (struct_type_info.get_op_msg_serializer_method().get_definition()), '}'):
+                         (struct_type_info.get_op_msg_request_serializer_method().get_definition()),
+                         '}'):
             self._writer.write_line('BSONObjBuilder localBuilder;')
             self._writer.write_line('BSONObjBuilder* builder = &localBuilder;')
 
@@ -1163,6 +1183,29 @@ class _CppSourceFileWriter(_CppFileWriterBase):
         enum_type_info.gen_serializer_definition(self._writer)
         self._writer.write_empty_line()
 
+    def gen_known_fields_declaration(self, struct):
+        # type: (ast.Struct) -> None
+        """Generate the known fields declaration."""
+        if not isinstance(struct, ast.Command):
+            return
+
+        block_name = common.template_args(
+            'const std::vector<StringData> ${class_name}::_knownFields {',
+            class_name=common.title_case(struct.name))
+        with self._block(block_name, "};"):
+            sorted_fields = sorted([field for field in struct.fields], key=lambda f: f.cpp_name)
+
+            for field in sorted_fields:
+                self._writer.write_line(
+                    common.template_args(
+                        '${class_name}::${constant_name},',
+                        class_name=common.title_case(struct.name),
+                        constant_name=_get_field_constant_name(field)))
+
+            self._writer.write_line(
+                common.template_args(
+                    '${class_name}::kCommandName,', class_name=common.title_case(struct.name)))
+
     def generate(self, spec, header_file_name):
         # type: (ast.IDLAST, unicode) -> None
         """Generate the C++ header to a stream."""
@@ -1199,6 +1242,10 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                 self.gen_string_constants_definitions(struct)
                 self.write_empty_line()
 
+                # Write known fields declaration for command
+                self.gen_known_fields_declaration(struct)
+                self.write_empty_line()
+
                 # Write constructor
                 self.gen_constructors(struct)
                 self.write_empty_line()
@@ -1207,7 +1254,7 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                 self.gen_bson_deserializer_methods(struct)
                 self.write_empty_line()
 
-                self.gen_op_msg_deserializer_methods(struct)
+                self.gen_op_msg_request_deserializer_methods(struct)
                 self.write_empty_line()
 
                 # Write serializer
@@ -1215,7 +1262,7 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                 self.write_empty_line()
 
                 # Write OpMsgRequest serializer
-                self.gen_op_msg_serializer_method(struct)
+                self.gen_op_msg_request_serializer_method(struct)
                 self.write_empty_line()
 
                 # Write toBSON

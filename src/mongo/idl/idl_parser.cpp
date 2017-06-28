@@ -26,6 +26,7 @@
  * then also delete it in the license file.
  */
 
+#include <algorithm>
 #include <stack>
 #include <string>
 
@@ -61,6 +62,8 @@ std::string toCommaDelimitedList(const std::vector<BSONType>& types) {
 
 constexpr StringData IDLParserErrorContext::kOpMsgDollarDBDefault;
 constexpr StringData IDLParserErrorContext::kOpMsgDollarDB;
+const std::vector<StringData> IDLParserErrorContext::knownFields{
+    IDLParserErrorContext::kOpMsgDollarDB, IDLParserErrorContext::kOpMsgDollarDBDefault};
 
 bool IDLParserErrorContext::checkAndAssertType(const BSONElement& element, BSONType type) const {
     auto elementType = element.type();
@@ -241,16 +244,16 @@ NamespaceString IDLParserErrorContext::parseNSCollectionRequired(StringData dbNa
 }
 
 void IDLParserErrorContext::appendGenericCommandArguments(const BSONObj& commandPassthroughFields,
+                                                          std::vector<StringData> knownFields,
+
                                                           BSONObjBuilder* builder) {
     for (const auto& element : commandPassthroughFields) {
 
         StringData name = element.fieldNameStringData();
-        if (Command::isGenericArgument(name)) {
-
-            // IDL serializers generate $db themselves
-            if (name != kOpMsgDollarDB) {
+        // Include a passthrough field as long the IDL class has not defined it.
+        if (Command::isGenericArgument(name) &&
+            std::find(knownFields.begin(), knownFields.end(), name) == knownFields.end()) {
                 builder->append(element);
-            }
         }
     }
 }

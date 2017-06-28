@@ -1628,7 +1628,7 @@ TEST(IDLDocSequence, TestBasic) {
     ASSERT_EQUALS(testStruct.getField2(), "five");
     ASSERT_EQUALS(testStruct.getNamespace(), NamespaceString("db.coll1"));
 
-    ASSERT_EQUALS(2, testStruct.getStructs().size());
+    ASSERT_EQUALS(2UL, testStruct.getStructs().size());
     ASSERT_EQUALS("hello", testStruct.getStructs()[0].getValue());
     ASSERT_EQUALS("world", testStruct.getStructs()[1].getValue());
 
@@ -1691,7 +1691,7 @@ TEST(IDLDocSequence, TestMissingDB) {
     ASSERT_EQUALS(testStruct.getField2(), "five");
     ASSERT_EQUALS(testStruct.getNamespace(), NamespaceString("admin.coll1"));
 
-    ASSERT_EQUALS(1, testStruct.getStructs().size());
+    ASSERT_EQUALS(1UL, testStruct.getStructs().size());
     ASSERT_EQUALS("hello", testStruct.getStructs()[0].getValue());
 
     assert_same_types<decltype(testStruct.getNamespace()), const NamespaceString&>();
@@ -1721,7 +1721,7 @@ TEST(IDLDocSequence, TestDocSequence) {
     ASSERT_EQUALS(testStruct.getField2(), "five");
     ASSERT_EQUALS(testStruct.getNamespace(), NamespaceString("db.coll1"));
 
-    ASSERT_EQUALS(2, testStruct.getStructs().size());
+    ASSERT_EQUALS(2UL, testStruct.getStructs().size());
     ASSERT_EQUALS("hello", testStruct.getStructs()[0].getValue());
     ASSERT_EQUALS("world", testStruct.getStructs()[1].getValue());
 }
@@ -1880,7 +1880,7 @@ TEST(IDLDocSequence, TestEmptySequence) {
 
         auto testStruct = DocSequenceCommand::parse(ctxt, request);
 
-        ASSERT_EQUALS(0, testStruct.getStructs().size());
+        ASSERT_EQUALS(0UL, testStruct.getStructs().size());
     }
 }
 
@@ -1921,7 +1921,7 @@ TEST(IDLDocSequence, TestWellKnownFieldsAreIgnored) {
 
         OpMsgRequest request = OpMsgRequest::fromDBAndBody("db", testTempDoc);
         auto testStruct = DocSequenceCommand::parse(ctxt, request);
-        ASSERT_EQUALS(2, testStruct.getStructs().size());
+        ASSERT_EQUALS(2UL, testStruct.getStructs().size());
     }
 }
 
@@ -1966,7 +1966,7 @@ TEST(IDLDocSequence, TestWellKnownFieldsPassthrough) {
         OpMsgRequest request;
         request.body = testTempDoc;
         auto testStruct = DocSequenceCommand::parse(ctxt, request);
-        ASSERT_EQUALS(2, testStruct.getStructs().size());
+        ASSERT_EQUALS(2UL, testStruct.getStructs().size());
 
         auto serializedDoc = testStruct.toBSON(testTempDoc);
         ASSERT_BSONOBJ_EQ(request.body, serializedDoc);
@@ -2020,6 +2020,48 @@ TEST(IDLDocSequence, TestNonStrict) {
         ASSERT_THROWS(DocSequenceCommandNonStrict::parse(ctxt, request), UserException);
     }
 }
+
+// Postive: Test a Command known field does not propagate from passthrough to the final BSON if it
+// is included as a field in the command.
+TEST(IDLCommand, TestKnownFieldDuplicate) {
+    IDLParserErrorContext ctxt("root");
+
+    auto testPassthrough = BSON("$db"
+                                << "foo"
+                                << "maxTimeMS"
+                                << 6
+                                << "$client"
+                                << "foo");
+
+    auto testDoc = BSON("KnownFieldCommand"
+                        << "coll1"
+                        << "$db"
+                        << "db"
+                        << "field1"
+                        << 28
+                        << "maxTimeMS"
+                        << 42);
+
+    auto testStruct = KnownFieldCommand::parse(ctxt, testDoc);
+    ASSERT_EQUALS(28, testStruct.getField1());
+    ASSERT_EQUALS(42, testStruct.getMaxTimeMS());
+
+    auto expectedDoc = BSON("KnownFieldCommand"
+                            << "coll1"
+
+                            << "field1"
+                            << 28
+                            << "maxTimeMS"
+                            << 42
+                            << "$db"
+                            << "db"
+
+                            << "$client"
+                            << "foo");
+
+    ASSERT_BSONOBJ_EQ(expectedDoc, testStruct.toBSON(testPassthrough));
+}
+
 
 }  // namespace
 }  // namespace mongo

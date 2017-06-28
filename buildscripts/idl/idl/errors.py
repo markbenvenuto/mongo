@@ -589,7 +589,7 @@ class ParserContext(object):
         """Add an error about using a field in a struct being marked with supports_doc_sequence."""
         # pylint: disable=invalid-name
         self._add_error(location, ERROR_ID_STRUCT_NO_DOC_SEQUENCE,
-                        ("Field '%s' in struct '%s' cannot be used as a OP_Msg Document Sequence"
+                        ("Field '%s' in struct '%s' cannot be used as a Command Document Sequence"
                          " type. They are only supported in commands.") % (field_name, struct_name))
 
     def add_bad_non_array_as_doc_sequence_error(self, location, struct_name, field_name):
@@ -597,7 +597,7 @@ class ParserContext(object):
         """Add an error about using a non-array type field being marked with supports_doc_sequence."""
         # pylint: disable=invalid-name
         self._add_error(location, ERROR_ID_NO_DOC_SEQUENCE_FOR_NON_ARRAY,
-                        ("Field '%s' in command '%s' cannot be used as a OP_Msg Document Sequence"
+                        ("Field '%s' in command '%s' cannot be used as a Command Document Sequence"
                          " type since it is not an array.") % (field_name, struct_name))
 
     def add_bad_non_object_as_doc_sequence_error(self, location, field_name):
@@ -605,7 +605,7 @@ class ParserContext(object):
         """Add an error about using a non-struct or BSON object for a doc sequence."""
         # pylint: disable=invalid-name
         self._add_error(location, ERROR_ID_NO_DOC_SEQUENCE_FOR_NON_OBJECT,
-                        ("Field '%s' cannot be used as a OP_Msg Document Sequence"
+                        ("Field '%s' cannot be used as a Command Document Sequence"
                          " type since it is not a BSON object or struct.") % (field_name))
 
 

@@ -29,6 +29,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include "mongo/base/disallow_copying.h"
 #include "mongo/base/string_data.h"
@@ -137,10 +138,11 @@ public:
     static NamespaceString parseNSCollectionRequired(StringData dbName, const BSONElement& element);
 
     /**
-     * Take all the well known command generic arguments from commandPassthroughFields and append
-     * them to builder.
+     * Take all the well known command generic arguments from commandPassthroughFields, but ignore
+     * fields that are already part of the command and append the rest to builder.
      */
     static void appendGenericCommandArguments(const BSONObj& commandPassthroughFields,
+                                              std::vector<StringData> knownFields,
                                               BSONObjBuilder* builder);
 
 private:
