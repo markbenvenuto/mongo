@@ -3253,7 +3253,7 @@ tasks:
   - func: "run tests"
     vars:
       resmoke_args: --suites=watchdog --storageEngine=mmapv1
-      run_multiple_jobs: true
+      run_multiple_jobs: false
 
 - <<: *task_template
   name: watchdog_WT
@@ -3262,7 +3262,7 @@ tasks:
   - func: "run tests"
     vars:
       resmoke_args: --suites=watchdog --storageEngine=wiredTiger
-      run_multiple_jobs: true
+      run_multiple_jobs: false
 
 - name: idl_tests
   depends_on:
