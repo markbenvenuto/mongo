@@ -866,6 +866,16 @@ functions:
         mkdir -p snmpconf
         cp -f src/mongo/db/modules/enterprise/docs/mongod.conf.master snmpconf/mongod.conf
 
+  "do watchdog setup" :
+    command: shell.exec
+    params:
+      working_dir: src
+      script: |
+        set -o errexit
+        set -o verbose
+
+        echo TODO: do something here!
+
   "cleanup environment" :
     command: shell.exec
     params:
@@ -3250,6 +3260,7 @@ tasks:
   name: watchdog
   commands:
   - func: "do setup"
+  - func: "do watchdog setup"
   - func: "run tests"
     vars:
       resmoke_args: --suites=watchdog --storageEngine=mmapv1
