@@ -3246,6 +3246,24 @@ tasks:
       resmoke_args: --suites=causally_consistent_jscore_passthrough_auth --storageEngine=wiredTiger
       run_multiple_jobs: true
 
+- <<: *task_template
+  name: watchdog
+  commands:
+  - func: "do setup"
+  - func: "run tests"
+    vars:
+      resmoke_args: --suites=watchdog --storageEngine=mmapv1
+      run_multiple_jobs: true
+
+- <<: *task_template
+  name: watchdog_WT
+  commands:
+  - func: "do setup"
+  - func: "run tests"
+    vars:
+      resmoke_args: --suites=watchdog --storageEngine=wiredTiger
+      run_multiple_jobs: true
+
 - name: idl_tests
   depends_on:
   - name: compile
@@ -6047,6 +6065,8 @@ buildvariants:
   - name: sslSpecial
   - name: tool
   - name: tool_WT
+  - name: watchdog
+  - name: watchdog_WT
   - name: package
     distros:
     - ubuntu1604-packer
