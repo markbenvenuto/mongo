@@ -874,7 +874,7 @@ functions:
         set -o errexit
         set -o verbose
 
-        echo TODO: do something here!
+        bash src/mongo/db/modules/enterprise/jstests/watchdog/fuse_setup.sh
 
   "cleanup environment" :
     command: shell.exec
@@ -3270,6 +3270,7 @@ tasks:
   name: watchdog_WT
   commands:
   - func: "do setup"
+  - func: "do watchdog setup"
   - func: "run tests"
     vars:
       resmoke_args: --suites=watchdog --storageEngine=wiredTiger
@@ -6076,8 +6077,6 @@ buildvariants:
   - name: sslSpecial
   - name: tool
   - name: tool_WT
-  - name: watchdog
-  - name: watchdog_WT
   - name: package
     distros:
     - ubuntu1604-packer
@@ -7147,6 +7146,8 @@ buildvariants:
   - name: compile_all
     distros:
     - ubuntu1604-build
+  - name: watchdog
+  - name: watchdog_WT
 
 ###########################################
 #          SUSE buildvariants             #
