@@ -7121,6 +7121,8 @@ buildvariants:
   - name: snmp_WT
   - name: ssl
   - name: sslSpecial
+  - name: watchdog
+  - name: watchdog_WT
   - name: package
     distros:
     - ubuntu1604-packer
@@ -7146,8 +7148,6 @@ buildvariants:
   - name: compile_all
     distros:
     - ubuntu1604-build
-  - name: watchdog
-  - name: watchdog_WT
 
 ###########################################
 #          SUSE buildvariants             #
