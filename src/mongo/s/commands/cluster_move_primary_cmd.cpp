@@ -102,8 +102,7 @@ public:
         const string db = parseNs("", cmdObj);
         const NamespaceString nss(db);
 
-        ConfigsvrMovePrimary configMovePrimaryRequest;
-        configMovePrimaryRequest.set_configsvrMovePrimary(nss);
+        _configsvrMovePrimary configMovePrimaryRequest{std::string(db)};
         configMovePrimaryRequest.setTo(movePrimaryRequest.getTo());
 
         // Invalidate the routing table cache entry for this database so that we reload the
@@ -116,7 +115,7 @@ public:
             opCtx,
             ReadPreferenceSetting(ReadPreference::PrimaryOnly),
             "admin",
-            Command::appendPassthroughFields(cmdObj, configMovePrimaryRequest.toBSON()),
+            configMovePrimaryRequest.toBSON(cmdObj),
             Shard::RetryPolicy::kIdempotent));
         uassertStatusOK(cmdResponseStatus.commandStatus);
 

@@ -63,6 +63,20 @@ std::string toCommaDelimitedList(const std::vector<BSONType>& types) {
 constexpr StringData IDLParserErrorContext::kOpMsgDollarDBDefault;
 constexpr StringData IDLParserErrorContext::kOpMsgDollarDB;
 
+void IDLParserErrorContext::assertType(const BSONElement& element, BSONType type) const {
+    auto elementType = element.type();
+
+    if (elementType != type) {
+        std::string path = getElementPath(element);
+        uasserted(ErrorCodes::TypeMismatch,
+                  str::stream() << "BSON field '" << path << "' is the wrong type '"
+                                << typeName(element.type())
+                                << "', expected type '"
+                                << typeName(type)
+                                << "'");
+    }
+}
+
 bool IDLParserErrorContext::checkAndAssertType(const BSONElement& element, BSONType type) const {
     auto elementType = element.type();
 

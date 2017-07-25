@@ -65,6 +65,13 @@ public:
         : _currentField(fieldName), _predecessor(predecessor) {}
 
     /**
+     * Check that BSON element is a given type. Null and Undefined are considered the wrong type.
+     *
+     * Throws an exception if the BSON element's type is wrong.
+     */
+    void assertType(const BSONElement& element, BSONType type) const;
+
+    /**
      * Check that BSON element is a given type or whether the field should be skipped.
      *
      * Returns true if the BSON element is the correct type.

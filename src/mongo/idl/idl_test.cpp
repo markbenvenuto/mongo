@@ -1623,6 +1623,56 @@ TEST(IDLCommand, TestIgnoredNegative) {
     }
 }
 
+// Positive: demonstrate a command with a generic string
+TEST(IDLCommand, TestString) {
+    IDLParserErrorContext ctxt("root");
+
+    auto testDoc = BSON("BasicStringCommand"
+                        << "str"
+                        << "field1"
+                        << 3
+                        << "field2"
+                        << "five");
+
+    auto testStruct = BasicStringCommand::parse(ctxt, makeOMR(testDoc));
+    ASSERT_EQUALS(testStruct.getCommandString(), "str");
+    ASSERT_EQUALS(testStruct.getField1(), 3);
+    ASSERT_EQUALS(testStruct.getField2(), "five");
+
+    auto testDocWithDB = appendDB(testDoc, "admin");
+
+    // Positive: Test we can roundtrip from the just parsed document
+    {
+        BSONObjBuilder builder;
+        testStruct.serialize(BSONObj(), &builder);
+        auto loopbackDoc = builder.obj();
+
+        ASSERT_BSONOBJ_EQ(testDoc, loopbackDoc);
+    }
+
+    // Positive: Test we can serialize from nothing the same document
+    {
+        BSONObjBuilder builder;
+        BasicStringCommand one_new("str");
+        one_new.setField1(3);
+        one_new.setField2("five");
+        OpMsgRequest reply = one_new.serialize(BSONObj());
+
+        ASSERT_BSONOBJ_EQ(testDocWithDB, reply.body);
+    }
+}
+
+TEST(IDLCommand, TestStringNegative) {
+    IDLParserErrorContext ctxt("root");
+
+    // Negative - wrong type
+    {
+        auto testDoc = BSON("BasicStringCommand" << 1 << "field1" << 3 << "field2"
+                                                 << "five");
+        ASSERT_THROWS(BasicStringCommand::parse(ctxt, makeOMR(testDoc)), UserException);
+    }
+}
+
 // Positive: Test a command read and written to OpMsgRequest works
 TEST(IDLDocSequence, TestBasic) {
     IDLParserErrorContext ctxt("root");

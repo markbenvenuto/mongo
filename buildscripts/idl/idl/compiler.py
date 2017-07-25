@@ -183,6 +183,10 @@ def compile_idl(args):
 
         # Stop compiling if we only need to scan import dependencies
         if args.write_dependencies:
+            if parsed_doc.errors:
+                parsed_doc.errors.dump_errors()
+                return False
+
             _write_dependencies(parsed_doc.spec)
             return True
 

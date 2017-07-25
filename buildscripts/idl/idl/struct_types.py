@@ -294,10 +294,26 @@ class _CommandBaseTypeInfo(_StructTypeInfo):
 
     def get_deserializer_method(self):
         # type: () -> MethodInfo
-        # For commands, do not generate a parse(BSONObj) method because if the "$db" is missing,
-        # users may not know that it defaults to admin. Force them to explictly use OpMsgRequest
-        # and OpMsgRequest::fromDbAndBody.
-        return None
+        return MethodInfo(
+            common.title_case(self._struct.name), 'parseProtected',
+            ['const IDLParserErrorContext& ctxt', 'const BSONObj& bsonObject'], 'void')
+
+    def get_serializer_method(self):
+        # type: () -> MethodInfo
+        return MethodInfo(
+            common.title_case(self._struct.name),
+            'serialize', ['const BSONObj& commandPassthroughFields', 'BSONObjBuilder* builder'],
+            'void',
+            const=True)
+
+    def get_to_bson_method(self):
+        # type: () -> MethodInfo
+        # Commands that require namespaces require it as a parameter to serialize()
+        return MethodInfo(
+            common.title_case(self._struct.name),
+            'toBSON', ['const BSONObj& commandPassthroughFields'],
+            'BSONObj',
+            const=True)
 
     def get_op_msg_request_serializer_method(self):
         # type: () -> Optional[MethodInfo]
@@ -332,23 +348,6 @@ class _IgnoredCommandTypeInfo(_CommandBaseTypeInfo):
         self._command = command
 
         super(_IgnoredCommandTypeInfo, self).__init__(command)
-
-    def get_serializer_method(self):
-        # type: () -> MethodInfo
-        return MethodInfo(
-            common.title_case(self._struct.name),
-            'serialize', ['const BSONObj& commandPassthroughFields', 'BSONObjBuilder* builder'],
-            'void',
-            const=True)
-
-    def get_to_bson_method(self):
-        # type: () -> MethodInfo
-        # Commands that require namespaces require it as a parameter to serialize()
-        return MethodInfo(
-            common.title_case(self._struct.name),
-            'toBSON', ['const BSONObj& commandPassthroughFields'],
-            'BSONObj',
-            const=True)
 
     def get_deserializer_static_method(self):
         # type: () -> MethodInfo
@@ -390,22 +389,6 @@ class _CommandWithNamespaceTypeInfo(_CommandBaseTypeInfo):
         class_name = common.title_case(self._struct.name)
         return MethodInfo(class_name, class_name, ['const NamespaceString nss'], explicit=True)
 
-    def get_serializer_method(self):
-        # type: () -> MethodInfo
-        return MethodInfo(
-            common.title_case(self._struct.name),
-            'serialize', ['const BSONObj& commandPassthroughFields', 'BSONObjBuilder* builder'],
-            'void',
-            const=True)
-
-    def get_to_bson_method(self):
-        # type: () -> MethodInfo
-        return MethodInfo(
-            common.title_case(self._struct.name),
-            'toBSON', ['const BSONObj& commandPassthroughFields'],
-            'BSONObj',
-            const=True)
-
     def get_deserializer_method(self):
         # type: () -> MethodInfo
         return MethodInfo(
@@ -434,6 +417,43 @@ class _CommandWithNamespaceTypeInfo(_CommandBaseTypeInfo):
                                    (db_name, element))
 
 
+class _CommandWithStringTypeInfo(_CommandBaseTypeInfo):
+    """Class for command with a string code generation."""
+
+    def __init__(self, command):
+        # type: (ast.Command) -> None
+        """Create a _CommandWithStringTypeInfo instance."""
+        self._command = command
+
+        super(_CommandWithStringTypeInfo, self).__init__(command)
+
+    def get_constructor_method(self):
+        # type: () -> MethodInfo
+        class_name = common.title_case(self._struct.name)
+        return MethodInfo(
+            class_name, class_name, ['const std::string commandString'], explicit=True)
+
+    def gen_getter_method(self, indented_writer):
+        # type: (writer.IndentedTextWriter) -> None
+        indented_writer.write_line(
+            'const StringData getCommandString() const { return _commandString; }')
+
+    def gen_member(self, indented_writer):
+        # type: (writer.IndentedTextWriter) -> None
+        indented_writer.write_line('std::string _commandString;')
+
+    def gen_serializer(self, indented_writer):
+        # type: (writer.IndentedTextWriter) -> None
+        indented_writer.write_line('builder->append("%s", _commandString);' % (self._command.name))
+        indented_writer.write_empty_line()
+
+    def gen_namespace_check(self, indented_writer, db_name, element):
+        # type: (writer.IndentedTextWriter, unicode, unicode) -> None
+        # TODO: should the name of the first element be validated??
+        indented_writer.write_line('ctxt.assertType(%s, String);' % (element))
+        indented_writer.write_line('_commandString = %s.valueStringData().toString();' % (element))
+
+
 def get_struct_info(struct):
     # type: (ast.Struct) -> StructTypeInfoBase
     """Get type information about the struct or command to generate C++ code."""
@@ -441,6 +461,8 @@ def get_struct_info(struct):
     if isinstance(struct, ast.Command):
         if struct.namespace == common.COMMAND_NAMESPACE_IGNORED:
             return _IgnoredCommandTypeInfo(struct)
+        if struct.namespace == common.COMMAND_NAMESPACE_STRING:
+            return _CommandWithStringTypeInfo(struct)
         return _CommandWithNamespaceTypeInfo(struct)
 
     return _StructTypeInfo(struct)

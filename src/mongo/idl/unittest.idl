@@ -490,6 +490,13 @@ commands:
             field1: int
             field2: string
 
+    BasicStringCommand:
+        description: UnitTest for a basic string command
+        namespace: string
+        fields:
+            field1: int
+            field2: string
+
     BasicConcatenateWithDbCommand:
         description: UnitTest for a basic concatenate_with_db command
         namespace: concatenate_with_db

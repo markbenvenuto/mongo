@@ -969,8 +969,10 @@ class _CppSourceFileWriter(_CppFileWriterBase):
         with self._block('%s {' % (func_def), '}'):
             if isinstance(struct,
                           ast.Command) and struct.namespace != common.COMMAND_NAMESPACE_IGNORED:
-                self._writer.write_line('NamespaceString localNS;')
-                self._writer.write_line('%s object(localNS);' % (common.title_case(struct.name)))
+                constructor_method = struct_type_info.get_constructor_method()
+                self._writer.write_line('%s localFirstArg;' % (constructor_method.args[0].type))
+                self._writer.write_line('%s object(localFirstArg);' %
+                                        (common.title_case(struct.name)))
             else:
                 self._writer.write_line('%s object;' % common.title_case(struct.name))
 
