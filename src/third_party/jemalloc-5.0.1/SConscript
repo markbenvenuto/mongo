@@ -1,0 +1,61 @@
+# -*- mode: python -*-
+
+Import("env")
+Import("has_option")
+Import("debugBuild")
+
+env = env.Clone()
+
+files = [
+    'src/arena.c',
+    'src/background_thread.c',
+    'src/base.c',
+    'src/bitmap.c',
+    'src/ckh.c',
+    'src/ctl.c',
+    'src/extent.c',
+    'src/extent_dss.c',
+    'src/extent_mmap.c',
+    'src/hash.c',
+    'src/hooks.c',
+    'src/jemalloc.c',
+    'src/jemalloc_cpp.cpp',
+    'src/large.c',
+    'src/malloc_io.c',
+    'src/mutex.c',
+    'src/mutex_pool.c',
+    'src/nstime.c',
+    'src/pages.c',
+    'src/prng.c',
+    'src/prof.c',
+    'src/rtree.c',
+    'src/spin.c',
+    'src/stats.c',
+    'src/sz.c',
+    'src/tcache.c',
+    'src/ticker.c',
+    'src/tsd.c',
+    'src/witness.c',
+    'src/zone.c',
+    ]
+
+
+env.Append(CPPPATH=["include"])
+
+env.Append(
+    CPPDEFINES=["NO_HEAP_CHECK_FOO"],
+)
+
+def removeIfPresent(lst, item):
+    try:
+        lst.remove(item)
+    except ValueError:
+        pass
+
+for to_remove in ['-std=c11']:
+    removeIfPresent(env['CFLAGS'], to_remove)
+
+env.Library(
+    target='jemalloc_minimal',
+    source=files,
+)
