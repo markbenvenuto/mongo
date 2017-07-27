@@ -15,6 +15,7 @@ icuSuffix = '-57.1'
 gperftoolsSuffix = '-2.5'
 timelibSuffix = '-2017.05'
 tomcryptSuffix = '-1.18.0-rc2'
+jemallocSuffix = '-5.0.1'
 
 thirdPartyIncludePathList = [
     ('s2', '#/src/third_party/s2'),
@@ -25,6 +26,9 @@ thirdPartyIncludePathList = [
 if not use_system_version_of_library('tcmalloc'):
     thirdPartyIncludePathList.append(
         ('gperftools', '#/src/third_party/gperftools' + gperftoolsSuffix + '/src'))
+
+thirdPartyIncludePathList.append(
+    ('jemalloc', '#/src/third_party/jemalloc' + jemallocSuffix + '/src'))
 
 if not use_system_version_of_library('pcre'):
     thirdPartyIncludePathList.append(
@@ -258,6 +262,21 @@ if (gperftoolsEnv['MONGO_ALLOCATOR'] == "tcmalloc"):
             LIBDEPS_INTERFACE=[
                 'gperftools' + gperftoolsSuffix + '/tcmalloc_minimal',
             ])
+elif (gperftoolsEnv['MONGO_ALLOCATOR'] == "jemalloc"):
+    if use_system_version_of_library("jemalloc"):
+        gperftoolsEnv = env.Clone(
+            SYSLIBDEPS=[
+                env['LIBDEPS_TCMALLOC_SYSLIBDEP'],
+            ])
+    else:
+        gperftoolsEnv = env.Clone()
+        gperftoolsEnv.InjectThirdPartyIncludePaths(libraries=['jemalloc'])
+        gperftoolsEnv.SConscript('jemalloc' + jemallocSuffix + '/SConscript', exports={ 'env' : gperftoolsEnv })
+        gperftoolsEnv = gperftoolsEnv.Clone(
+            LIBDEPS_INTERFACE=[
+                'jemalloc' + jemallocSuffix + '/jemalloc_minimal',
+            ])
+
 
 gperftoolsEnv.Library(
     target="shim_allocator",
