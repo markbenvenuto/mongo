@@ -36,14 +36,15 @@ files = [
     'src/ticker.c',
     'src/tsd.c',
     'src/witness.c',
-    'src/zone.c',
     ]
+#    'src/zone.c', # Mac
 
 
 env.Append(CPPPATH=["include"])
 
+# Linux
 env.Append(
-    CPPDEFINES=["NO_HEAP_CHECK_FOO"],
+    CPPDEFINES=["_GNU_SOURCE"],
 )
 
 def removeIfPresent(lst, item):
