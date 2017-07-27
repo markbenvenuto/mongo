@@ -234,8 +234,8 @@ add_option('durableDefaultOn',
 )
 
 add_option('allocator',
-    choices=["auto", "system", "tcmalloc"],
-    default="auto",
+    choices=["auto", "system", "tcmalloc", "jemalloc"],
+    default="jemalloc",
     help='allocator to use (use "auto" for best choice for current platform)',
     type='choice',
 )
@@ -266,6 +266,11 @@ add_option('use-sasl-client',
 
 add_option('use-system-tcmalloc',
     help='use system version of tcmalloc library',
+    nargs=0,
+)
+
+add_option('use-system-jemalloc',
+    help='use system version of jemalloc library',
     nargs=0,
 )
 
@@ -2929,6 +2934,8 @@ def doConfigure(myenv):
         if use_system_version_of_library('tcmalloc'):
             conf.FindSysLibDep("tcmalloc", ["tcmalloc"])
     elif myenv['MONGO_ALLOCATOR'] == 'system':
+        pass
+    elif myenv['MONGO_ALLOCATOR'] == 'jemalloc':
         pass
     else:
         myenv.FatalError("Invalid --allocator parameter: $MONGO_ALLOCATOR")
