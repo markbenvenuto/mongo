@@ -839,11 +839,18 @@ class _CppSourceFileWriter(_CppFileWriterBase):
             initializers.append('_dbName(nss.db().toString())')
             initializes_db_name = True
 
-        initializers += [
-            '%s(false)' % _get_has_field_member_name(field) for field in struct.fields
-            if _is_required_serializer_field(field) and not (field.name == "$db" and
-                                                             initializes_db_name)
-        ]
+        for field in struct.fields:
+            if _is_required_serializer_field(field):
+                # Add _has{FIELD} bool members to ensure fields are set before serialization.
+                if not (field.name == "$db" and initializes_db_name):
+                    initializers.append('%s(false)' % _get_has_field_member_name(field))
+
+                # Initialize int and other primitive fields to -1 to prevent Coverity warnings.
+                if field.cpp_type and not field.array and cpp_types.is_primitive_scalar_type(
+                        field.cpp_type):
+                    initializers.append('%s(%s)' % (
+                        _get_field_member_name(field),
+                        cpp_types.get_primitive_scalar_type_default_value(field.cpp_type)))
 
         if initializes_db_name:
             initializers.append('_hasDbName(true)')
