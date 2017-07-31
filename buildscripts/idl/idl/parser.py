@@ -330,6 +330,7 @@ def _parse_struct(ctxt, spec, name, node):
 
     _generic_parser(ctxt, node, "struct", struct, {
         "description": _RuleDesc('scalar', _RuleDesc.REQUIRED),
+        "cpp_name": _RuleDesc('scalar'),
         "fields": _RuleDesc('mapping', mapping_parser_func=_parse_fields),
         "chained_types": _RuleDesc('mapping', mapping_parser_func=_parse_chained_types),
         "chained_structs": _RuleDesc('mapping', mapping_parser_func=_parse_chained_structs),
@@ -404,6 +405,7 @@ def _parse_command(ctxt, spec, name, node):
 
     _generic_parser(ctxt, node, "command", command, {
         "description": _RuleDesc('scalar', _RuleDesc.REQUIRED),
+        "cpp_name": _RuleDesc('scalar'),
         "chained_types": _RuleDesc('mapping', mapping_parser_func=_parse_chained_types),
         "chained_structs": _RuleDesc('mapping', mapping_parser_func=_parse_chained_structs),
         "fields": _RuleDesc('mapping', mapping_parser_func=_parse_fields),

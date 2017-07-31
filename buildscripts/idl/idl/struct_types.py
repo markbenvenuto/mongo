@@ -216,24 +216,25 @@ class _StructTypeInfo(StructTypeInfoBase):
 
     def get_constructor_method(self):
         # type: () -> MethodInfo
-        class_name = common.title_case(self._struct.name)
+        class_name = common.title_case(self._struct.cpp_name)
         return MethodInfo(class_name, class_name, [])
 
     def get_serializer_method(self):
         # type: () -> MethodInfo
         return MethodInfo(
-            common.title_case(self._struct.name),
+            common.title_case(self._struct.cpp_name),
             'serialize', ['BSONObjBuilder* builder'],
             'void',
             const=True)
 
     def get_to_bson_method(self):
         # type: () -> MethodInfo
-        return MethodInfo(common.title_case(self._struct.name), 'toBSON', [], 'BSONObj', const=True)
+        return MethodInfo(
+            common.title_case(self._struct.cpp_name), 'toBSON', [], 'BSONObj', const=True)
 
     def get_deserializer_static_method(self):
         # type: () -> MethodInfo
-        class_name = common.title_case(self._struct.name)
+        class_name = common.title_case(self._struct.cpp_name)
         return MethodInfo(
             class_name,
             'parse', ['const IDLParserErrorContext& ctxt', 'const BSONObj& bsonObject'],
@@ -243,7 +244,7 @@ class _StructTypeInfo(StructTypeInfoBase):
     def get_deserializer_method(self):
         # type: () -> MethodInfo
         return MethodInfo(
-            common.title_case(self._struct.name), 'parseProtected',
+            common.title_case(self._struct.cpp_name), 'parseProtected',
             ['const IDLParserErrorContext& ctxt', 'const BSONObj& bsonObject'], 'void')
 
     def get_op_msg_request_serializer_method(self):
@@ -302,14 +303,14 @@ class _CommandBaseTypeInfo(_StructTypeInfo):
     def get_op_msg_request_serializer_method(self):
         # type: () -> Optional[MethodInfo]
         return MethodInfo(
-            common.title_case(self._struct.name),
+            common.title_case(self._struct.cpp_name),
             'serialize', ['const BSONObj& commandPassthroughFields'],
             'OpMsgRequest',
             const=True)
 
     def get_op_msg_request_deserializer_static_method(self):
         # type: () -> Optional[MethodInfo]
-        class_name = common.title_case(self._struct.name)
+        class_name = common.title_case(self._struct.cpp_name)
         return MethodInfo(
             class_name,
             'parse', ['const IDLParserErrorContext& ctxt', 'const OpMsgRequest& request'],
@@ -319,7 +320,7 @@ class _CommandBaseTypeInfo(_StructTypeInfo):
     def get_op_msg_request_deserializer_method(self):
         # type: () -> Optional[MethodInfo]
         return MethodInfo(
-            common.title_case(self._struct.name), 'parseProtected',
+            common.title_case(self._struct.cpp_name), 'parseProtected',
             ['const IDLParserErrorContext& ctxt', 'const OpMsgRequest& request'], 'void')
 
 
@@ -336,7 +337,7 @@ class _IgnoredCommandTypeInfo(_CommandBaseTypeInfo):
     def get_serializer_method(self):
         # type: () -> MethodInfo
         return MethodInfo(
-            common.title_case(self._struct.name),
+            common.title_case(self._struct.cpp_name),
             'serialize', ['const BSONObj& commandPassthroughFields', 'BSONObjBuilder* builder'],
             'void',
             const=True)
@@ -345,7 +346,7 @@ class _IgnoredCommandTypeInfo(_CommandBaseTypeInfo):
         # type: () -> MethodInfo
         # Commands that require namespaces require it as a parameter to serialize()
         return MethodInfo(
-            common.title_case(self._struct.name),
+            common.title_case(self._struct.cpp_name),
             'toBSON', ['const BSONObj& commandPassthroughFields'],
             'BSONObj',
             const=True)
@@ -387,13 +388,13 @@ class _CommandWithNamespaceTypeInfo(_CommandBaseTypeInfo):
 
     def get_constructor_method(self):
         # type: () -> MethodInfo
-        class_name = common.title_case(self._struct.name)
+        class_name = common.title_case(self._struct.cpp_name)
         return MethodInfo(class_name, class_name, ['const NamespaceString nss'], explicit=True)
 
     def get_serializer_method(self):
         # type: () -> MethodInfo
         return MethodInfo(
-            common.title_case(self._struct.name),
+            common.title_case(self._struct.cpp_name),
             'serialize', ['const BSONObj& commandPassthroughFields', 'BSONObjBuilder* builder'],
             'void',
             const=True)
@@ -401,7 +402,7 @@ class _CommandWithNamespaceTypeInfo(_CommandBaseTypeInfo):
     def get_to_bson_method(self):
         # type: () -> MethodInfo
         return MethodInfo(
-            common.title_case(self._struct.name),
+            common.title_case(self._struct.cpp_name),
             'toBSON', ['const BSONObj& commandPassthroughFields'],
             'BSONObj',
             const=True)
@@ -409,7 +410,7 @@ class _CommandWithNamespaceTypeInfo(_CommandBaseTypeInfo):
     def get_deserializer_method(self):
         # type: () -> MethodInfo
         return MethodInfo(
-            common.title_case(self._struct.name), 'parseProtected',
+            common.title_case(self._struct.cpp_name), 'parseProtected',
             ['const IDLParserErrorContext& ctxt', 'const BSONObj& bsonObject'], 'void')
 
     def gen_getter_method(self, indented_writer):

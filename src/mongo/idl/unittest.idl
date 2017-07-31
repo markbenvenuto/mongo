@@ -478,6 +478,18 @@ structs:
 
 ##################################################################################################
 #
+# Structs with alternate names
+#
+##################################################################################################
+
+    _legacyName:
+        description: test
+        cpp_name: LegacyCppName
+        fields:
+            field1: int
+
+##################################################################################################
+#
 # Test commands
 #
 ##################################################################################################
@@ -489,6 +501,15 @@ commands:
         fields:
             field1: int
             field2: string
+
+    _IgnoredCommand:
+        description: UnitTest for a basic ignored command
+        cpp_name: BasicAltIgnoredCommand
+        namespace: ignored
+        fields:
+            field1: int
+            field2: string
+            field3: _legacyName
 
     BasicConcatenateWithDbCommand:
         description: UnitTest for a basic concatenate_with_db command

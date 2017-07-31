@@ -239,6 +239,10 @@ def _bind_struct_common(ctxt, parsed_spec, struct, ast_struct):
     # type: (errors.ParserContext, syntax.IDLSpec, syntax.Struct, ast.Struct) -> None
 
     ast_struct.name = struct.name
+    ast_struct.cpp_name = struct.cpp_name
+    if not ast_struct.cpp_name:
+        ast_struct.cpp_name = struct.name
+
     ast_struct.description = struct.description
     ast_struct.strict = struct.strict
 
@@ -443,6 +447,8 @@ def _bind_field(ctxt, parsed_spec, field):
     if isinstance(syntax_symbol, syntax.Struct):
         struct = cast(syntax.Struct, syntax_symbol)
         ast_field.struct_type = struct.name
+        if struct.cpp_name:
+            ast_field.struct_type = struct.cpp_name
         ast_field.bson_serialization_type = ["object"]
 
         _validate_field_of_type_struct(ctxt, field)

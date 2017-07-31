@@ -81,6 +81,7 @@ class Struct(common.SourceLocation):
         """Construct a struct."""
         self.name = None  # type: unicode
         self.description = None  # type: unicode
+        self.cpp_name = None  # type: unicode
         self.strict = True  # type: bool
         self.fields = []  # type: List[Field]
         super(Struct, self).__init__(file_name, line, column)

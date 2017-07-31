@@ -595,7 +595,7 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
 
             for struct in spec_and_structs:
                 self.gen_description_comment(struct.description)
-                with self.gen_class_declaration_block(struct.name):
+                with self.gen_class_declaration_block(struct.cpp_name):
                     self.write_unindented_line('public:')
 
                     # Generate a sorted list of string constants
@@ -951,7 +951,7 @@ class _CppSourceFileWriter(_CppFileWriterBase):
 
         with self._block('%s {' %
                          (struct_type_info.get_deserializer_static_method().get_definition()), '}'):
-            self._writer.write_line('%s object;' % common.title_case(struct.name))
+            self._writer.write_line('%s object;' % common.title_case(struct.cpp_name))
             self._writer.write_line(struct_type_info.get_deserializer_method().get_call('object'))
             self._writer.write_line('return object;')
 
@@ -983,9 +983,10 @@ class _CppSourceFileWriter(_CppFileWriterBase):
             if isinstance(struct,
                           ast.Command) and struct.namespace != common.COMMAND_NAMESPACE_IGNORED:
                 self._writer.write_line('NamespaceString localNS;')
-                self._writer.write_line('%s object(localNS);' % (common.title_case(struct.name)))
+                self._writer.write_line('%s object(localNS);' %
+                                        (common.title_case(struct.cpp_name)))
             else:
-                self._writer.write_line('%s object;' % common.title_case(struct.name))
+                self._writer.write_line('%s object;' % common.title_case(struct.cpp_name))
 
             self._writer.write_line(
                 struct_type_info.get_op_msg_request_deserializer_method().get_call('object'))
@@ -1254,14 +1255,14 @@ class _CppSourceFileWriter(_CppFileWriterBase):
             self._writer.write_line(
                 common.template_args(
                     'constexpr StringData ${class_name}::${constant_name};',
-                    class_name=common.title_case(struct.name),
+                    class_name=common.title_case(struct.cpp_name),
                     constant_name=_get_field_constant_name(field)))
 
         if isinstance(struct, ast.Command):
             self._writer.write_line(
                 common.template_args(
                     'constexpr StringData ${class_name}::kCommandName;',
-                    class_name=common.title_case(struct.name)))
+                    class_name=common.title_case(struct.cpp_name)))
 
     def gen_enum_definition(self, idl_enum):
         # type: (ast.Enum) -> None
@@ -1282,7 +1283,7 @@ class _CppSourceFileWriter(_CppFileWriterBase):
 
         block_name = common.template_args(
             'const std::vector<StringData> ${class_name}::_knownFields {',
-            class_name=common.title_case(struct.name))
+            class_name=common.title_case(struct.cpp_name))
         with self._block(block_name, "};"):
             sorted_fields = sorted([field for field in struct.fields], key=lambda f: f.cpp_name)
 
@@ -1290,12 +1291,12 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                 self._writer.write_line(
                     common.template_args(
                         '${class_name}::${constant_name},',
-                        class_name=common.title_case(struct.name),
+                        class_name=common.title_case(struct.cpp_name),
                         constant_name=_get_field_constant_name(field)))
 
             self._writer.write_line(
                 common.template_args(
-                    '${class_name}::kCommandName,', class_name=common.title_case(struct.name)))
+                    '${class_name}::kCommandName,', class_name=common.title_case(struct.cpp_name)))
 
     def generate(self, spec, header_file_name):
         # type: (ast.IDLAST, unicode) -> None

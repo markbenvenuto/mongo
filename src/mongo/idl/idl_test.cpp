@@ -1624,6 +1624,47 @@ TEST(IDLCommand, TestIgnoredNegative) {
     }
 }
 
+// Positive: demonstrate a command and struct with alternate C++ name
+TEST(IDLCommand, TestIgnoreAlt) {
+    IDLParserErrorContext ctxt("root");
+
+    auto testDoc = BSON("_IgnoredCommand" << 1 << "field1" << 3 << "field2"
+                                          << "five"
+                                          << "field3"
+                                          << BSON("field1" << 42));
+
+    auto testDocWithDB = appendDB(testDoc, "admin");
+
+    auto testStruct = BasicAltIgnoredCommand::parse(ctxt, makeOMR(testDocWithDB));
+    ASSERT_EQUALS(testStruct.getField1(), 3);
+    ASSERT_EQUALS(testStruct.getField2(), "five");
+    ASSERT_EQUALS(testStruct.getField3().getField1(), 42);
+
+    // Positive: Test we can roundtrip from the just parsed document
+    {
+        BSONObjBuilder builder;
+        testStruct.serialize(BSONObj(), &builder);
+        auto loopbackDoc = builder.obj();
+
+        ASSERT_BSONOBJ_EQ(testDoc, loopbackDoc);
+    }
+
+    // Positive: Test we can serialize from nothing the same document
+    {
+        BSONObjBuilder builder;
+        BasicAltIgnoredCommand one_new;
+        one_new.setField1(3);
+        one_new.setField2("five");
+        LegacyCppName lcn;
+        lcn.setField1(42);
+        one_new.setField3(lcn);
+        one_new.setDbName("admin");
+        OpMsgRequest reply = one_new.serialize(BSONObj());
+
+        ASSERT_BSONOBJ_EQ(testDocWithDB, reply.body);
+    }
+}
+
 // Positive: Test a command read and written to OpMsgRequest works
 TEST(IDLDocSequence, TestBasic) {
     IDLParserErrorContext ctxt("root");
