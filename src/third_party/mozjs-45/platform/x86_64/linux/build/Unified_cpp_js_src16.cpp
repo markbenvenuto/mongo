@@ -1,4 +1,13 @@
 #define MOZ_UNIFIED_BUILD
+#include "jit/ProcessExecutableMemory.cpp"
+#ifdef PL_ARENA_CONST_ALIGN_MASK
+#error "jit/ProcessExecutableMemory.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+#undef PL_ARENA_CONST_ALIGN_MASK
+#endif
+#ifdef INITGUID
+#error "jit/ProcessExecutableMemory.cpp defines INITGUID, so it cannot be built in unified mode."
+#undef INITGUID
+#endif
 #include "jit/RangeAnalysis.cpp"
 #ifdef PL_ARENA_CONST_ALIGN_MASK
 #error "jit/RangeAnalysis.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
@@ -42,14 +51,5 @@
 #endif
 #ifdef INITGUID
 #error "jit/Safepoints.cpp defines INITGUID, so it cannot be built in unified mode."
-#undef INITGUID
-#endif
-#include "jit/ScalarReplacement.cpp"
-#ifdef PL_ARENA_CONST_ALIGN_MASK
-#error "jit/ScalarReplacement.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
-#undef PL_ARENA_CONST_ALIGN_MASK
-#endif
-#ifdef INITGUID
-#error "jit/ScalarReplacement.cpp defines INITGUID, so it cannot be built in unified mode."
 #undef INITGUID
 #endif

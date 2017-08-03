@@ -1,4 +1,13 @@
 #define MOZ_UNIFIED_BUILD
+#include "vm/ReceiverGuard.cpp"
+#ifdef PL_ARENA_CONST_ALIGN_MASK
+#error "vm/ReceiverGuard.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+#undef PL_ARENA_CONST_ALIGN_MASK
+#endif
+#ifdef INITGUID
+#error "vm/ReceiverGuard.cpp defines INITGUID, so it cannot be built in unified mode."
+#undef INITGUID
+#endif
 #include "vm/RegExpObject.cpp"
 #ifdef PL_ARENA_CONST_ALIGN_MASK
 #error "vm/RegExpObject.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
@@ -42,14 +51,5 @@
 #endif
 #ifdef INITGUID
 #error "vm/SavedStacks.cpp defines INITGUID, so it cannot be built in unified mode."
-#undef INITGUID
-#endif
-#include "vm/ScopeObject.cpp"
-#ifdef PL_ARENA_CONST_ALIGN_MASK
-#error "vm/ScopeObject.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
-#undef PL_ARENA_CONST_ALIGN_MASK
-#endif
-#ifdef INITGUID
-#error "vm/ScopeObject.cpp defines INITGUID, so it cannot be built in unified mode."
 #undef INITGUID
 #endif

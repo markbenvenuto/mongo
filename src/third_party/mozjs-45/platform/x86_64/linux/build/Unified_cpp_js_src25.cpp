@@ -1,4 +1,13 @@
 #define MOZ_UNIFIED_BUILD
+#include "jspropertytree.cpp"
+#ifdef PL_ARENA_CONST_ALIGN_MASK
+#error "jspropertytree.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+#undef PL_ARENA_CONST_ALIGN_MASK
+#endif
+#ifdef INITGUID
+#error "jspropertytree.cpp defines INITGUID, so it cannot be built in unified mode."
+#undef INITGUID
+#endif
 #include "jsscript.cpp"
 #ifdef PL_ARENA_CONST_ALIGN_MASK
 #error "jsscript.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
@@ -42,14 +51,5 @@
 #endif
 #ifdef INITGUID
 #error "perf/jsperf.cpp defines INITGUID, so it cannot be built in unified mode."
-#undef INITGUID
-#endif
-#include "proxy/BaseProxyHandler.cpp"
-#ifdef PL_ARENA_CONST_ALIGN_MASK
-#error "proxy/BaseProxyHandler.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
-#undef PL_ARENA_CONST_ALIGN_MASK
-#endif
-#ifdef INITGUID
-#error "proxy/BaseProxyHandler.cpp defines INITGUID, so it cannot be built in unified mode."
 #undef INITGUID
 #endif

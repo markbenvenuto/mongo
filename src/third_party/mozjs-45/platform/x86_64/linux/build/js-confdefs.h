@@ -79,10 +79,10 @@
 #define MALLOC_H <malloc.h>
 #define MALLOC_USABLE_SIZE_CONST_PTR 
 #define MOZILLA_UAVERSION "45.0"
-#define MOZILLA_VERSION "45.8.0"
-#define MOZILLA_VERSION_U 45.8.0
+#define MOZILLA_VERSION "45.9.0"
+#define MOZILLA_VERSION_U 45.9.0
 #define MOZJS_MAJOR_VERSION 45
-#define MOZJS_MINOR_VERSION 8
+#define MOZJS_MINOR_VERSION 9
 #define MOZ_DEBUG_SYMBOLS 1
 #define MOZ_DLL_SUFFIX ".so"
 #define MOZ_GLUE_IN_PROGRAM 1
@@ -94,6 +94,7 @@
 #define STDC_HEADERS 1
 #define VA_COPY va_copy
 #define XP_UNIX 1
+#define X_DISPLAY_MISSING 1
 #define _REENTRANT 1
 
 #include "js/RequiredDefines.h"

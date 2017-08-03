@@ -1,4 +1,13 @@
 #define MOZ_UNIFIED_BUILD
+#include "vm/String.cpp"
+#ifdef PL_ARENA_CONST_ALIGN_MASK
+#error "vm/String.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+#undef PL_ARENA_CONST_ALIGN_MASK
+#endif
+#ifdef INITGUID
+#error "vm/String.cpp defines INITGUID, so it cannot be built in unified mode."
+#undef INITGUID
+#endif
 #include "vm/StringBuffer.cpp"
 #ifdef PL_ARENA_CONST_ALIGN_MASK
 #error "vm/StringBuffer.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
@@ -42,14 +51,5 @@
 #endif
 #ifdef INITGUID
 #error "vm/Time.cpp defines INITGUID, so it cannot be built in unified mode."
-#undef INITGUID
-#endif
-#include "vm/TypeInference.cpp"
-#ifdef PL_ARENA_CONST_ALIGN_MASK
-#error "vm/TypeInference.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
-#undef PL_ARENA_CONST_ALIGN_MASK
-#endif
-#ifdef INITGUID
-#error "vm/TypeInference.cpp defines INITGUID, so it cannot be built in unified mode."
 #undef INITGUID
 #endif

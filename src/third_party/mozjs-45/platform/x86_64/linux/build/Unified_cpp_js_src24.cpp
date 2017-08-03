@@ -1,4 +1,13 @@
 #define MOZ_UNIFIED_BUILD
+#include "jsnativestack.cpp"
+#ifdef PL_ARENA_CONST_ALIGN_MASK
+#error "jsnativestack.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+#undef PL_ARENA_CONST_ALIGN_MASK
+#endif
+#ifdef INITGUID
+#error "jsnativestack.cpp defines INITGUID, so it cannot be built in unified mode."
+#undef INITGUID
+#endif
 #include "jsnum.cpp"
 #ifdef PL_ARENA_CONST_ALIGN_MASK
 #error "jsnum.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
@@ -42,14 +51,5 @@
 #endif
 #ifdef INITGUID
 #error "jsprf.cpp defines INITGUID, so it cannot be built in unified mode."
-#undef INITGUID
-#endif
-#include "jspropertytree.cpp"
-#ifdef PL_ARENA_CONST_ALIGN_MASK
-#error "jspropertytree.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
-#undef PL_ARENA_CONST_ALIGN_MASK
-#endif
-#ifdef INITGUID
-#error "jspropertytree.cpp defines INITGUID, so it cannot be built in unified mode."
 #undef INITGUID
 #endif

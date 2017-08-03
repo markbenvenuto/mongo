@@ -1,4 +1,13 @@
 #define MOZ_UNIFIED_BUILD
+#include "jsdtoa.cpp"
+#ifdef PL_ARENA_CONST_ALIGN_MASK
+#error "jsdtoa.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+#undef PL_ARENA_CONST_ALIGN_MASK
+#endif
+#ifdef INITGUID
+#error "jsdtoa.cpp defines INITGUID, so it cannot be built in unified mode."
+#undef INITGUID
+#endif
 #include "jsexn.cpp"
 #ifdef PL_ARENA_CONST_ALIGN_MASK
 #error "jsexn.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
@@ -42,14 +51,5 @@
 #endif
 #ifdef INITGUID
 #error "jsiter.cpp defines INITGUID, so it cannot be built in unified mode."
-#undef INITGUID
-#endif
-#include "jsnativestack.cpp"
-#ifdef PL_ARENA_CONST_ALIGN_MASK
-#error "jsnativestack.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
-#undef PL_ARENA_CONST_ALIGN_MASK
-#endif
-#ifdef INITGUID
-#error "jsnativestack.cpp defines INITGUID, so it cannot be built in unified mode."
 #undef INITGUID
 #endif

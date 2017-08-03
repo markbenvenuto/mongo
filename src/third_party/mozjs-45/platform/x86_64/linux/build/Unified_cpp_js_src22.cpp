@@ -1,4 +1,13 @@
 #define MOZ_UNIFIED_BUILD
+#include "jsalloc.cpp"
+#ifdef PL_ARENA_CONST_ALIGN_MASK
+#error "jsalloc.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+#undef PL_ARENA_CONST_ALIGN_MASK
+#endif
+#ifdef INITGUID
+#error "jsalloc.cpp defines INITGUID, so it cannot be built in unified mode."
+#undef INITGUID
+#endif
 #include "jsapi.cpp"
 #ifdef PL_ARENA_CONST_ALIGN_MASK
 #error "jsapi.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
@@ -42,14 +51,5 @@
 #endif
 #ifdef INITGUID
 #error "jsdate.cpp defines INITGUID, so it cannot be built in unified mode."
-#undef INITGUID
-#endif
-#include "jsdtoa.cpp"
-#ifdef PL_ARENA_CONST_ALIGN_MASK
-#error "jsdtoa.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
-#undef PL_ARENA_CONST_ALIGN_MASK
-#endif
-#ifdef INITGUID
-#error "jsdtoa.cpp defines INITGUID, so it cannot be built in unified mode."
 #undef INITGUID
 #endif

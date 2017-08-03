@@ -1,4 +1,13 @@
 #define MOZ_UNIFIED_BUILD
+#include "jit/ScalarReplacement.cpp"
+#ifdef PL_ARENA_CONST_ALIGN_MASK
+#error "jit/ScalarReplacement.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+#undef PL_ARENA_CONST_ALIGN_MASK
+#endif
+#ifdef INITGUID
+#error "jit/ScalarReplacement.cpp defines INITGUID, so it cannot be built in unified mode."
+#undef INITGUID
+#endif
 #include "jit/SharedIC.cpp"
 #ifdef PL_ARENA_CONST_ALIGN_MASK
 #error "jit/SharedIC.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
@@ -42,14 +51,5 @@
 #endif
 #ifdef INITGUID
 #error "jit/TypePolicy.cpp defines INITGUID, so it cannot be built in unified mode."
-#undef INITGUID
-#endif
-#include "jit/TypedObjectPrediction.cpp"
-#ifdef PL_ARENA_CONST_ALIGN_MASK
-#error "jit/TypedObjectPrediction.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
-#undef PL_ARENA_CONST_ALIGN_MASK
-#endif
-#ifdef INITGUID
-#error "jit/TypedObjectPrediction.cpp defines INITGUID, so it cannot be built in unified mode."
 #undef INITGUID
 #endif

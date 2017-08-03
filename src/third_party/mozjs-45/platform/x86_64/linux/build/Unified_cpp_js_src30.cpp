@@ -1,4 +1,13 @@
 #define MOZ_UNIFIED_BUILD
+#include "vm/Id.cpp"
+#ifdef PL_ARENA_CONST_ALIGN_MASK
+#error "vm/Id.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
+#undef PL_ARENA_CONST_ALIGN_MASK
+#endif
+#ifdef INITGUID
+#error "vm/Id.cpp defines INITGUID, so it cannot be built in unified mode."
+#undef INITGUID
+#endif
 #include "vm/Interpreter.cpp"
 #ifdef PL_ARENA_CONST_ALIGN_MASK
 #error "vm/Interpreter.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
@@ -42,14 +51,5 @@
 #endif
 #ifdef INITGUID
 #error "vm/NativeObject.cpp defines INITGUID, so it cannot be built in unified mode."
-#undef INITGUID
-#endif
-#include "vm/ObjectGroup.cpp"
-#ifdef PL_ARENA_CONST_ALIGN_MASK
-#error "vm/ObjectGroup.cpp uses PL_ARENA_CONST_ALIGN_MASK, so it cannot be built in unified mode."
-#undef PL_ARENA_CONST_ALIGN_MASK
-#endif
-#ifdef INITGUID
-#error "vm/ObjectGroup.cpp defines INITGUID, so it cannot be built in unified mode."
 #undef INITGUID
 #endif
