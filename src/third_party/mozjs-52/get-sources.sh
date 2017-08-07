@@ -2,7 +2,7 @@
 
 # how we got the last firefox sources
 
-VERSION=45.9.0esr
+VERSION=52.3.0esr
 TARBALL=firefox-$VERSION.source.tar.xz
 if [ ! -f $TARBALL ]; then
     wget "https://ftp.mozilla.org/pub/mozilla.org/firefox/releases/$VERSION/source/$TARBALL"
