@@ -227,8 +227,7 @@ public:
         : _context(context),
           _proto(),
           _constructor(),
-          _jsclass({T::className,
-                    T::classFlags,
+          _jsclassOps{
                     T::addProperty != BaseInfo::addProperty ? smUtils::addProperty<T> : nullptr,
                     T::delProperty != BaseInfo::delProperty ? smUtils::delProperty<T> : nullptr,
                     T::getProperty != BaseInfo::getProperty ? smUtils::getProperty<T> : nullptr,
@@ -241,22 +240,39 @@ public:
                     T::call != BaseInfo::call ? smUtils::call<T> : nullptr,
                     T::hasInstance != BaseInfo::hasInstance ? smUtils::hasInstance<T> : nullptr,
                     T::construct != BaseInfo::construct ? smUtils::construct<T> : nullptr,
-                    nullptr}) {
+                    nullptr}
+          ,
+          _jsclassObjectOps({nullptr, nullptr, nullptr, nullptr, // Get
+           nullptr, nullptr, nullptr, nullptr, // Watch
+           nullptr, nullptr, nullptr, nullptr}),
+          _jsclass({T::className,
+                    T::classFlags,
+                    &_jsclassOps,
+                    nullptr, /* ClassSpec */
+                    nullptr, /* ClassExtension */
+                    &_jsclassObjectOps /* ObjectOps */
+                    }) {
         _installEnumerate(T::enumerate != BaseInfo::enumerate ? smUtils::enumerate<T> : nullptr);
 
+    // js::ClassOps _jsclassOps;
+    // js::ClassSpec _jsclassSpec;
+    // js::ClassExtension _jsclassExt;
+    // js::ObjectOps _jsclassObjectOps;
         // The global object is different.  We need it for basic setup
         // before the other types are installed.  Might as well just do it
         // in the constructor.
         if (T::classFlags & JSCLASS_GLOBAL_FLAGS) {
-            _jsclass.trace = JS_GlobalObjectTraceHook;
+            // TODO
+            //_jsclass.trace = JS_GlobalObjectTraceHook;
 
             JS::RootedObject proto(_context);
 
             JSAutoRequest ar(_context);
 
+            JS::CompartmentOptions gOptions;
             _proto.init(_context,
                         _assertPtr(JS_NewGlobalObject(
-                            _context, &_jsclass, nullptr, JS::DontFireOnNewGlobalHook)));
+                            _context, reinterpret_cast<JSClass*>(&_jsclass), nullptr, JS::DontFireOnNewGlobalHook, gOptions)));
 
             JSAutoCompartment ac(_context, _proto);
             _installFunctions(_proto, T::freeFunctions);
@@ -288,7 +304,7 @@ public:
      * types without a constructor or inside the constructor
      */
     void newObject(JS::MutableHandleObject out) {
-        out.set(_assertPtr(JS_NewObjectWithGivenProto(_context, &_jsclass, _proto)));
+        out.set(_assertPtr(JS_NewObjectWithGivenProto(_context, reinterpret_cast<JSClass*>(&_jsclass), _proto)));
     }
 
     void newObject(JS::MutableHandleValue out) {
@@ -333,7 +349,7 @@ public:
 
     // instanceOf doesn't go up the prototype tree.  It's a lower level more specific match
     bool instanceOf(JS::HandleObject obj) {
-        return JS_InstanceOf(_context, obj, &_jsclass, nullptr);
+        return JS_InstanceOf(_context, obj, reinterpret_cast<JSClass*>(&_jsclass), nullptr);
     }
 
     bool instanceOf(JS::HandleValue value) {
@@ -346,7 +362,7 @@ public:
     }
 
     const JSClass* getJSClass() const {
-        return &_jsclass;
+        return reinterpret_cast<const JSClass*>(&_jsclass);
     }
 
     JS::HandleObject getProto() const {
@@ -366,7 +382,7 @@ private:
                         _context,
                         global,
                         parent,
-                        &_jsclass,
+                        reinterpret_cast<const JSClass*>(&_jsclass),
                         T::construct != BaseInfo::construct ? smUtils::construct<T> : nullptr,
                         0,
                         nullptr,
@@ -388,7 +404,7 @@ private:
 
         // See newObject() for why we have to do this dance with the explicit
         // SetPrototype
-        _proto.init(_context, _assertPtr(JS_NewObject(_context, &_jsclass)));
+        _proto.init(_context, _assertPtr(JS_NewObject(_context, reinterpret_cast<JSClass*>(&_jsclass))));
         if (parent.get() && !JS_SetPrototype(_context, _proto, parent))
             throwCurrentJSException(
                 _context, ErrorCodes::JSInterpreterFailure, "Failed to set prototype");
@@ -472,7 +488,7 @@ private:
 
         auto implClass = reinterpret_cast<js::Class*>(&_jsclass);
 
-        implClass->ops.enumerate = enumerate;
+        const_cast<js::ObjectOps*>(implClass->oOps)->enumerate = enumerate;
     }
 
     // This is for inheriting from something other than Object
@@ -531,7 +547,11 @@ private:
     JSContext* _context;
     JS::PersistentRootedObject _proto;
     JS::PersistentRootedObject _constructor;
-    JSClass _jsclass;
+    js::ClassOps _jsclassOps;
+    //js::ClassSpec _jsclassSpec;
+    //js::ClassExtension _jsclassExt;
+    js::ObjectOps _jsclassObjectOps;
+    js::Class _jsclass;
 };
 
 }  // namespace mozjs

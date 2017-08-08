@@ -73,7 +73,7 @@ namespace mozjs {
  * along with a number of global prototypes for mongoDB specific types. Each
  * ImplScope requires it's own thread and cannot be accessed from any thread
  * other than the one it was created on (this is a detail inherited from the
- * JSRuntime). If you need a scope that can be accessed by different threads
+ * JSContext). If you need a scope that can be accessed by different threads
  * over the course of it's lifetime, see MozJSProxyScope
  *
  * For more information about overriden fields, see mongo::Scope
@@ -357,7 +357,6 @@ private:
         MozRuntime(const MozJSScriptEngine* engine);
 
         std::unique_ptr<PRThread, std::function<void(PRThread*)>> _thread;
-        std::unique_ptr<JSRuntime, std::function<void(JSRuntime*)>> _runtime;
         std::unique_ptr<JSContext, std::function<void(JSContext*)>> _context;
     };
 
@@ -377,7 +376,7 @@ private:
 
     static void _reportError(JSContext* cx, const char* message, JSErrorReport* report);
     static bool _interruptCallback(JSContext* cx);
-    static void _gcCallback(JSRuntime* rt, JSGCStatus status, void* data);
+    static void _gcCallback(JSContext* rt, JSGCStatus status, void* data);
     bool _checkErrorState(bool success, bool reportError = true, bool assertOnError = true);
 
     void installDBAccess();
@@ -389,7 +388,6 @@ private:
     ASANHandles _asanHandles;
     MozJSScriptEngine* _engine;
     MozRuntime _mr;
-    JSRuntime* _runtime;
     JSContext* _context;
     WrapType<GlobalInfo> _globalProto;
     JS::HandleObject _global;
@@ -440,9 +438,6 @@ inline MozJSImplScope* getScope(JSContext* cx) {
     return static_cast<MozJSImplScope*>(JS_GetContextPrivate(cx));
 }
 
-inline MozJSImplScope* getScope(JSFreeOp* fop) {
-    return static_cast<MozJSImplScope*>(JS_GetRuntimePrivate(fop->runtime()));
-}
-
+MozJSImplScope* getScope(js::FreeOp* fop);
 }  // namespace mozjs
 }  // namespace mongo

@@ -596,7 +596,7 @@ IsDuckTypedErrorObject(JSContext* cx, HandleObject exnObject, const char** filen
     return true;
 }
 
-static JSString*
+JSString*
 ErrorReportToString(JSContext* cx, JSErrorReport* reportp)
 {
     /*

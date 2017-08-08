@@ -49,7 +49,7 @@ const JSFunctionSpec OIDInfo::methods[3] = {
 
 const char* const OIDInfo::className = "ObjectId";
 
-void OIDInfo::finalize(JSFreeOp* fop, JSObject* obj) {
+void OIDInfo::finalize(js::FreeOp* fop, JSObject* obj) {
     auto oid = static_cast<OID*>(JS_GetPrivate(obj));
 
     if (oid) {

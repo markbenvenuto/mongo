@@ -40,17 +40,23 @@
 #include "mongo/scripting/mozjs/valuewriter.h"
 #include "mongo/util/assert_util.h"
 
+namespace js {
+    JSString*
+ErrorReportToString(JSContext* cx, JSErrorReport* reportp);
+
+}
+
 namespace mongo {
 namespace mozjs {
 
 namespace {
 
-JSErrorFormatString kErrorFormatString = {"{0}", 1, JSEXN_ERR};
+JSErrorFormatString kErrorFormatString = {"GenricError", "{0}", 1, JSEXN_ERR};
 const JSErrorFormatString* errorCallback(void* data, const unsigned code) {
     return &kErrorFormatString;
 }
 
-JSErrorFormatString kUncatchableErrorFormatString = {"{0}", 1, JSEXN_NONE};
+JSErrorFormatString kUncatchableErrorFormatString = {"UncatchableError", "{0}", 1, JSEXN_LIMIT};
 const JSErrorFormatString* uncatchableErrorCallback(void* data, const unsigned code) {
     return &kUncatchableErrorFormatString;
 }
@@ -67,7 +73,7 @@ void mongoToJSException(JSContext* cx) {
     auto callback =
         status.code() == ErrorCodes::JSUncatchableError ? uncatchableErrorCallback : errorCallback;
 
-    JS_ReportErrorNumber(
+    JS_ReportErrorNumberUTF8(
         cx, callback, nullptr, JSErr_Limit + status.code(), status.reason().c_str());
 }
 
@@ -75,7 +81,7 @@ void setJSException(JSContext* cx, ErrorCodes::Error code, StringData sd) {
     auto callback =
         code == ErrorCodes::JSUncatchableError ? uncatchableErrorCallback : errorCallback;
 
-    JS_ReportErrorNumber(cx, callback, nullptr, JSErr_Limit + code, sd.rawData());
+    JS_ReportErrorNumberUTF8(cx, callback, nullptr, JSErr_Limit + code, sd.rawData());
 }
 
 std::string currentJSStackToString(JSContext* cx) {
