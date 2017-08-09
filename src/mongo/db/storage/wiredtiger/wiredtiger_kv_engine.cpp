@@ -420,10 +420,6 @@ void WiredTigerKVEngine::cleanShutdown() {
                 ServerGlobalParams::FeatureCompatibility::Version::k34;
 
         auto serviceContext = getGlobalServiceContext();
-        std::unique_ptr<EncryptionHooks> encHooks;
-        if (needsDowngrade) {
-            encHooks = EncryptionHooks::release(serviceContext);
-        }
 
         invariantWTOK(_conn->close(_conn, closeConfig));
         _conn = nullptr;
@@ -439,9 +435,6 @@ void WiredTigerKVEngine::cleanShutdown() {
             if (NEW_WT_DROPPED) {
                 openConfig << ",compatibility=(release=2.9)";
             }
-
-            invariant(encHooks);
-            EncryptionHooks::set(serviceContext, std::move(encHooks));
 
             invariantWTOK(
                 wiredtiger_open(_path.c_str(), &_eventHandler, openConfig.str().c_str(), &conn));

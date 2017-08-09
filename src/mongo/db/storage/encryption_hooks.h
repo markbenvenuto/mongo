@@ -51,8 +51,6 @@ public:
 
     static EncryptionHooks* get(ServiceContext* service);
 
-    static std::unique_ptr<EncryptionHooks> release(ServiceContext* service);
-
     virtual ~EncryptionHooks();
 
     /**
