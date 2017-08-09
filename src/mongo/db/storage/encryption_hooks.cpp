@@ -64,6 +64,10 @@ EncryptionHooks* EncryptionHooks::get(ServiceContext* service) {
     return getEncryptionHooks(service).get();
 }
 
+std::unique_ptr<EncryptionHooks> EncryptionHooks::release(ServiceContext* service) {
+    return std::move(getEncryptionHooks(service));
+}
+
 EncryptionHooks::~EncryptionHooks() {}
 
 bool EncryptionHooks::enabled() const {
