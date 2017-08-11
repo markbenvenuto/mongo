@@ -105,16 +105,26 @@ env.Prepend(CPPPATH=[
 sources = [
     "extract/js/src/builtin/RegExp.cpp",
     "extract/js/src/frontend/Parser.cpp",
-    "extract/js/src/jit/ProcessExecutableMemory.cpp",
+#    "extract/js/src/jit/ProcessExecutableMemory.cpp",
     "extract/js/src/jsarray.cpp",
     "extract/js/src/jsatom.cpp",
     "extract/js/src/jsmath.cpp",
     "extract/js/src/jsutil.cpp",
+    "extract/js/src/jsdtoa.cpp",
     "extract/js/src/gc/StoreBuffer.cpp",
     "extract/js/src/mfbt/Unified_cpp_mfbt0.cpp",
     "extract/js/src/perf/pm_stub.cpp",
     "extract/js/src/vm/Initialization.cpp",
     "extract/mfbt/Compression.cpp",
+    "extract/js/src/threading/Mutex.cpp",
+    "extract/js/src/threading/posix/MutexImpl.cpp",
+    "extract/js/src/threading/posix/Thread.cpp",
+    "extract/js/src/threading/posix/ConditionVariable.cpp",
+    "extract/js/src/vm/TraceLogging.cpp",
+    "extract/js/src/vm/TraceLoggingGraph.cpp",
+    "extract/mozglue/misc/TimeStamp.cpp",
+    "extract/mozglue/misc/TimeStamp_posix.cpp",
+    "extract/mfbt/double-conversion/strtod.cc",
 ]
 
 

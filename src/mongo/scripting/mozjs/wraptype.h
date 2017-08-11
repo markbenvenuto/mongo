@@ -254,14 +254,20 @@ public:
                     }) {
         _installEnumerate(T::enumerate != BaseInfo::enumerate ? smUtils::enumerate<T> : nullptr);
 
-    // js::ClassOps _jsclassOps;
-    // js::ClassSpec _jsclassSpec;
-    // js::ClassExtension _jsclassExt;
-    // js::ObjectOps _jsclassObjectOps;
+    }
+
+    ~WrapType() {
+        // Persistent globals don't RAII, you have to reset() them manually
+        _proto.reset();
+        _constructor.reset();
+    }
+
+    void installGlobal() {
+
         // The global object is different.  We need it for basic setup
         // before the other types are installed.  Might as well just do it
         // in the constructor.
-        if (T::classFlags & JSCLASS_GLOBAL_FLAGS) {
+        invariant (T::classFlags & JSCLASS_GLOBAL_FLAGS);
             // TODO
             //_jsclass.trace = JS_GlobalObjectTraceHook;
 
@@ -276,13 +282,6 @@ public:
 
             JSAutoCompartment ac(_context, _proto);
             _installFunctions(_proto, T::freeFunctions);
-        }
-    }
-
-    ~WrapType() {
-        // Persistent globals don't RAII, you have to reset() them manually
-        _proto.reset();
-        _constructor.reset();
     }
 
     void install(JS::HandleObject global) {

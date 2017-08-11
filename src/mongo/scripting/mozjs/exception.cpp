@@ -40,11 +40,8 @@
 #include "mongo/scripting/mozjs/valuewriter.h"
 #include "mongo/util/assert_util.h"
 
-namespace js {
     JSString*
 ErrorReportToString(JSContext* cx, JSErrorReport* reportp);
-
-}
 
 namespace mongo {
 namespace mozjs {
@@ -56,7 +53,7 @@ const JSErrorFormatString* errorCallback(void* data, const unsigned code) {
     return &kErrorFormatString;
 }
 
-JSErrorFormatString kUncatchableErrorFormatString = {"UncatchableError", "{0}", 1, JSEXN_LIMIT};
+JSErrorFormatString kUncatchableErrorFormatString = {"UncatchableError", "{0}", 1, JSEXN_ERR};
 const JSErrorFormatString* uncatchableErrorCallback(void* data, const unsigned code) {
     return &kUncatchableErrorFormatString;
 }
@@ -114,7 +111,7 @@ Status JSErrorReportToStatus(JSContext* cx,
                              JSErrorReport* report,
                              ErrorCodes::Error altCode,
                              StringData altReason) {
-    JSStringWrapper jsstr(cx, js::ErrorReportToString(cx, report));
+    JSStringWrapper jsstr(cx, ErrorReportToString(cx, report));
     if (!jsstr)
         return Status(altCode, altReason.rawData());
 

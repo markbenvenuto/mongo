@@ -285,3 +285,18 @@ PRStatus PR_WaitCondVar(PRCondVar* cvar, uint32_t timeout) {
         }
     }
 }
+
+PRStatus
+PR_GetOpenFileInfo(PRFileDesc *fd, PRFileInfo *info) { return PR_FAILURE; }
+
+PRFileMap*
+PR_CreateFileMap(PRFileDesc *fd, int64_t size, PRFileMapProtect prot) { return 0; }
+
+void*
+PR_MemMap(PRFileMap *fmap, int64_t offset, uint32_t len) {return 0;}
+
+PRStatus
+PR_MemUnmap(void *addr, uint32_t len) { return PR_FAILURE; }
+
+PRStatus
+PR_CloseFileMap(PRFileMap *fmap) { return PR_FAILURE; }

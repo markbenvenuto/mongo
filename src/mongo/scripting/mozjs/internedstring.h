@@ -71,8 +71,10 @@ private:
  */
 class InternedStringTable {
 public:
-    explicit InternedStringTable(JSContext* cx);
+    explicit InternedStringTable();
     ~InternedStringTable();
+
+    void InitStrings(JSContext* cx);
 
     JS::HandleId getInternedString(InternedString id) {
         return _internedStrings[static_cast<std::size_t>(id)];

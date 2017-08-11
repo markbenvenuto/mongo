@@ -35,7 +35,9 @@
 namespace mongo {
 namespace mozjs {
 
-InternedStringTable::InternedStringTable(JSContext* cx) {
+InternedStringTable::InternedStringTable() {}
+
+void InternedStringTable::InitStrings(JSContext* cx) {
     JSAutoRequest ar(cx);
 
     int i = 0;

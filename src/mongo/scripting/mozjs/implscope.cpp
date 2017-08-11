@@ -341,13 +341,13 @@ MozJSImplScope::MozRuntime::MozRuntime(const MozJSScriptEngine* engine) {
 
         // We turn on a variety of optimizations if the jit is enabled
         if (engine->isJITEnabled()) {
-            // JS::RuntimeOptionsRef(_runtime.get())
-            //     .setAsmJS(true)
-            //     .setThrowOnAsmJSValidationFailure(true)
-            //     .setBaseline(true)
-            //     .setIon(true)
-            //     .setAsyncStack(false)
-            //     .setNativeRegExp(true);
+            JS::ContextOptionsRef(_context.get())
+                .setAsmJS(true)
+                .setThrowOnAsmJSValidationFailure(true)
+                .setBaseline(true)
+                .setIon(true)
+                .setAsyncStack(false)
+                .setNativeRegExp(true);
         }
 
         const StackLocator locator;
@@ -392,7 +392,7 @@ MozJSImplScope::MozJSImplScope(MozJSScriptEngine* engine)
       _globalProto(_context),
       _global(_globalProto.getProto()),
       _funcs(),
-      _internedStrings(_context),
+      _internedStrings(),
       _pendingKill(false),
       _opId(0),
       _opCtx(nullptr),
@@ -439,10 +439,22 @@ MozJSImplScope::MozJSImplScope(MozJSScriptEngine* engine)
     JS_AddInterruptCallback(_context, _interruptCallback);
     JS_SetGCCallback(_context, _gcCallback, this);
     JS_SetContextPrivate(_context, this);
-    JSAutoRequest ar(_context);
+
+    // TODO: JS_SetFutexCanWait
 
     // TODO: this was removed
+    // See https://hg.mozilla.org/mozilla-central/rev/7a5ff0cdea30
     //JS_SetErrorReporter(_context, _reportError);
+
+    JS::InitSelfHostedCode(_context);
+
+    // Do this after InitSelfHostedCode
+    _internedStrings.InitStrings(_context);
+
+
+    JSAutoRequest ar(_context);
+
+    _globalProto.installGlobal();
 
     JSAutoCompartment ac(_context, _global);
 
