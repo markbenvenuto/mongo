@@ -78,6 +78,7 @@ namespace mongo {
 using std::unique_ptr;
 using std::cout;
 using std::map;
+using std::string;
 
 const std::map<OpType, std::string> opTypeName{{OpType::NONE, "none"},
                                                {OpType::NOP, "nop"},

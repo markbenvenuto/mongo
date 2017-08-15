@@ -32,6 +32,7 @@
 
 #include <cmath>
 #include <pcrecpp.h>
+#include <string>
 
 #include "mongo/bson/bsonelement_comparator.h"
 #include "mongo/bson/bsonmisc.h"
@@ -44,6 +45,8 @@
 #include "mongo/db/query/collation/collator_interface.h"
 #include "mongo/stdx/memory.h"
 #include "mongo/util/mongoutils/str.h"
+
+using std::string;
 
 namespace mongo {
 

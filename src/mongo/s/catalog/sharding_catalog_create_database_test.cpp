@@ -31,6 +31,7 @@
 #include "mongo/platform/basic.h"
 
 #include <pcrecpp.h>
+#include <string>
 
 #include "mongo/bson/json.h"
 #include "mongo/client/remote_command_targeter_mock.h"
@@ -59,6 +60,7 @@ namespace mongo {
 namespace {
 
 using executor::RemoteCommandRequest;
+using std::string;
 using std::vector;
 
 using CreateDatabaseTest = ConfigServerTestFixture;

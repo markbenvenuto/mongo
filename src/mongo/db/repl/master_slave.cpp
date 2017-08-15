@@ -80,6 +80,7 @@ using std::endl;
 using std::max;
 using std::min;
 using std::set;
+using std::string;
 using std::stringstream;
 using std::unique_ptr;
 using std::vector;
