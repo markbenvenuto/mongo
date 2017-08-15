@@ -53,6 +53,8 @@ namespace {
 // a long time.
 const int kManyClients = 40;
 
+MONGO_EXPORT_STARTUP_SERVER_PARAMETER(disableMarkThreadIdle, bool, false);
+
 stdx::mutex tcmallocCleanupLock;
 
 /**
@@ -64,6 +66,7 @@ void threadStateChange() {
         kManyClients)
         return;
 
+    if(!disableMarkThreadIdle) {
 #if MONGO_HAVE_GPERFTOOLS_GET_THREAD_CACHE_SIZE
     size_t threadCacheSizeBytes = MallocExtension::instance()->GetThreadCacheSize();
 
@@ -84,6 +87,7 @@ void threadStateChange() {
 #endif
     MallocExtension::instance()->MarkThreadIdle();
     MallocExtension::instance()->MarkThreadBusy();
+}
 }
 
 // Register threadStateChange callback
