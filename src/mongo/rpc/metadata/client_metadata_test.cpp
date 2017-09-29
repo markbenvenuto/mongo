@@ -255,7 +255,7 @@ TEST(ClientMetadatTest, TestNegativeWrongTypes) {
 // Negative: document larger than 512 bytes
 TEST(ClientMetadatTest, TestNegativeLargeDocument) {
     bool savedMongos = isMongos();
-    ScopeGuard unsetMongoS = MakeGuard(&setMongos, savedMongos);
+    auto unsetMongoS = MakeGuard(&setMongos, savedMongos);
 
     setMongos(true);
     {

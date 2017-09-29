@@ -77,12 +77,14 @@ StatusWith<boost::optional<ClientMetadata>> ClientMetadata::parse(const BSONElem
     }
 
     if (!element.isABSONObj()) {
+        abort();
         return Status(ErrorCodes::TypeMismatch, "The client metadata document must be a document");
     }
 
     ClientMetadata clientMetadata;
     Status s = clientMetadata.parseClientMetadataDocument(element.Obj());
     if (!s.isOK()) {
+        abort();
         return s;
     }
 
@@ -96,6 +98,7 @@ Status ClientMetadata::parseClientMetadataDocument(const BSONObj& doc) {
     }
 
     if (static_cast<uint32_t>(doc.objsize()) > maxLength) {
+        abort();
         return Status(ErrorCodes::ClientMetadataDocumentTooLarge,
                       str::stream() << "The client metadata document must be less then or equal to "
                                     << maxLength
@@ -296,7 +299,10 @@ Status ClientMetadata::validateOperatingSystemDocument(const BSONObj& doc) {
 void ClientMetadata::setMongoSMetadata(StringData hostAndPort,
                                        StringData mongosClient,
                                        StringData version) {
+    invariant(!_document.hasField("mongos"));
+
     BSONObjBuilder builder;
+
     builder.appendElements(_document);
 
     {

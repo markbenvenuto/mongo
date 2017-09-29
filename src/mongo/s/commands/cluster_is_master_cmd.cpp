@@ -25,6 +25,7 @@
  *    exception statement from all source files in the program, then also delete
  *    it in the license file.
  */
+#define MONGO_LOG_DEFAULT_COMPONENT ::mongo::logger::LogComponent::kNetwork
 
 #include "mongo/platform/basic.h"
 
@@ -42,6 +43,8 @@
 #include "mongo/util/map_util.h"
 #include "mongo/util/net/sock.h"
 #include "mongo/util/version.h"
+#include "mongo/util/log.h"
+
 
 namespace mongo {
 namespace {
@@ -97,10 +100,16 @@ public:
 
             swParseClientMetadata.getValue().get().logClientMetadata(opCtx->getClient());
 
+            log() << "CLIENT METADATA - calling getHostNameCachedAndPort";
+            auto foo1 = getHostNameCachedAndPort();
+
+            log() << "CLIENT METADATA - calling setMongoSMetadata";
             swParseClientMetadata.getValue().get().setMongoSMetadata(
-                getHostNameCachedAndPort(),
+                foo1,
                 opCtx->getClient()->clientAddress(true),
                 VersionInfoInterface::instance().version());
+
+            log() << "CLIENT METADATA - DONE calling setMongoSMetadata";
 
             clientMetadataIsMasterState.setClientMetadata(
                 opCtx->getClient(), std::move(swParseClientMetadata.getValue()));
