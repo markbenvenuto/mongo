@@ -541,6 +541,44 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
         self._writer.write_line("static const std::vector<StringData> _knownFields;")
         self.write_empty_line()
 
+    def gen_comparison_operators_declarations(self, struct):
+        # type: (ast.Struct) -> None
+        """Generate comparison operators declarations for the type."""
+
+        template_params = {
+            'class_name' : common.title_case(struct.name)
+        }
+
+        with self._with_template(template_params):
+            self._writer.write_template('friend bool operator==(const ${class_name}& left, const ${class_name}& right);')
+            self._writer.write_template('friend bool operator!=(const ${class_name}& left, const ${class_name}& right);')
+
+        self.write_empty_line()
+
+    def gen_comparison_operators_definitions(self, struct):
+        # type: (ast.Struct) -> None
+        """Generate comparison operators definitions for the type."""
+
+        fields = [ _get_field_member_name(field) for field in struct.fields if not field.ignore]
+
+        template_params = {
+            'class_name' : common.title_case(struct.name)
+        }
+
+        with self._with_template(template_params):
+            with self._block("inline bool operator==(const ${class_name}& left, const ${class_name}& right) {", "}"):
+                self._writer.write_line( 'return ' + ' && '.join(
+                    ["left.%s == right.%s" % (field, field) for field in fields]) + ';')
+            self.write_empty_line()
+
+            with self._block("inline bool operator!=(const ${class_name}& left, const ${class_name}& right) {", "}"):
+                self._writer.write_line( 'return !(left == right);')
+
+            self.write_empty_line()
+
+        self.write_empty_line()
+
+
     def generate(self, spec):
         # type: (ast.IDLAST) -> None
         """Generate the C++ header to a stream."""
@@ -625,6 +663,8 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
                             self.gen_getter(field)
                             self.gen_setter(field)
 
+                    self.gen_comparison_operators_declarations(struct)
+
                     self.write_unindented_line('protected:')
                     self.gen_protected_serializer_methods(struct)
 
@@ -650,6 +690,9 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
                             self.gen_serializer_member(field)
 
                 self.write_empty_line()
+
+                if struct.generate_comparison_operators:
+                    self.gen_comparison_operators_definitions(struct)
 
 
 class _CppSourceFileWriter(_CppFileWriterBase):

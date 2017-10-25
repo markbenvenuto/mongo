@@ -338,6 +338,7 @@ class Struct(common.SourceLocation):
         self.name = None  # type: unicode
         self.description = None  # type: unicode
         self.strict = True  # type: bool
+        self.generate_comparison_operators = False # type: bool
         self.chained_types = None  # type: List[ChainedType]
         self.chained_structs = None  # type: List[ChainedStruct]
         self.fields = None  # type: List[Field]
