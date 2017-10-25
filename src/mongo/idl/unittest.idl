@@ -173,6 +173,18 @@ structs:
                 type: int
                 cpp_name: cppField3
 
+##################################################################################################
+#
+# Structs to test comparison options
+#
+##################################################################################################
+    CompareField3:
+        description: UnitTest for a struct with 3 int fields to test comparison
+        generate_comparison_operators: true
+        fields:
+            field1: int
+            field2: int
+            field3: int
 
 ##################################################################################################
 #

@@ -173,6 +173,10 @@ void TestLoopback(TestT test_value) {
 
         auto serializedDoc = builder.obj();
         ASSERT_BSONOBJ_EQ(testDoc, serializedDoc);
+
+        // Validate the operator == works
+        // Use ASSERT instead of ASSERT_EQ to avoid operator<<
+        ASSERT(one_new == testStruct);
     }
 }
 
@@ -478,6 +482,45 @@ TEST(IDLStructTests, TestNonStrictStruct) {
         auto testDoc =
             BSON("field4" << 1234 << "1" << 12 << "2" << 123 << "3" << 1234 << "field4" << 1234);
         ASSERT_THROWS(RequiredNonStrictField3::parse(ctxt, testDoc), AssertionException);
+    }
+}
+
+/// Struct comparison tests
+TEST(IDLCompareTests, TestStrictStruct) {
+    IDLParserErrorContext ctxt("root");
+
+    // Positive: equality works
+    {
+        CompareField3 origStruct;
+        origStruct.setField1(12);
+        origStruct.setField2(123);
+        origStruct.setField3(1234);
+
+        auto testDoc = BSON("field1" << 12 << "field2" << 123 << "field3" << 1234);
+        auto parsedStruct = CompareField3::parse(ctxt, testDoc);
+
+        // Avoid ASSET_<RelOp> to avoid operator <<
+        ASSERT_TRUE(origStruct == parsedStruct);
+        ASSERT_FALSE(origStruct != parsedStruct);
+        ASSERT_FALSE(origStruct < parsedStruct);
+        ASSERT_FALSE(parsedStruct < origStruct);
+    }
+
+    // Positive: not equality works in field 3
+    {
+        CompareField3 origStruct;
+        origStruct.setField1(12);
+        origStruct.setField2(123);
+        origStruct.setField3(12345);
+
+        auto testDoc = BSON("field1" << 12 << "field2" << 123 << "field3" << 1234);
+        auto parsedStruct = CompareField3::parse(ctxt, testDoc);
+
+        // Avoid ASSET_<RelOp> to avoid operator <<
+        ASSERT_FALSE(origStruct == parsedStruct);
+        ASSERT_TRUE(origStruct != parsedStruct);
+        ASSERT_FALSE(origStruct < parsedStruct);
+        ASSERT_TRUE(parsedStruct < origStruct);
     }
 }
 
@@ -957,6 +1000,10 @@ void TestBinDataVector() {
 
         auto serializedDoc = builder.obj();
         ASSERT_BSONOBJ_EQ(testDoc, serializedDoc);
+
+        // Validate the operator == works
+        // Use ASSERT instead of ASSERT_EQ to avoid operator<<
+        ASSERT(one_new == testStruct);
     }
 }
 

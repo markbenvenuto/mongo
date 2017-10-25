@@ -336,6 +336,7 @@ def _parse_struct(ctxt, spec, name, node):
         "strict": _RuleDesc("bool_scalar"),
         "inline_chained_structs": _RuleDesc("bool_scalar"),
         "immutable": _RuleDesc('bool_scalar'),
+        "generate_comparison_operators": _RuleDesc("bool_scalar"),
     })
 
     # TODO: SHOULD WE ALLOW STRUCTS ONLY WITH CHAINED STUFF and no fields???
@@ -411,6 +412,9 @@ def _parse_command(ctxt, spec, name, node):
         "fields": _RuleDesc('mapping', mapping_parser_func=_parse_fields),
         "namespace": _RuleDesc('scalar', _RuleDesc.REQUIRED),
         "strict": _RuleDesc("bool_scalar"),
+        "inline_chained_structs": _RuleDesc("bool_scalar"),
+        "immutable": _RuleDesc('bool_scalar'),
+        "generate_comparison_operators": _RuleDesc("bool_scalar"),
     })
 
     # TODO: support the first argument as UUID depending on outcome of Catalog Versioning changes.

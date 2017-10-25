@@ -278,6 +278,7 @@ class TestParser(testcase.IDLTestcase):
                 strict: true
                 immutable: true
                 inline_chained_structs: true
+                generate_comparison_operators: true
                 fields:
                     foo: bar
             """))
@@ -291,6 +292,7 @@ class TestParser(testcase.IDLTestcase):
                 strict: false
                 immutable: false
                 inline_chained_structs: false
+                generate_comparison_operators: false
                 fields:
                     foo: bar
             """))
@@ -344,6 +346,28 @@ class TestParser(testcase.IDLTestcase):
             foo:
                 description: foo
                 immutable: bar
+                fields:
+                    foo: bar
+            """), idl.errors.ERROR_ID_IS_NODE_VALID_BOOL)
+
+        # inline_chained_structs is a bool
+        self.assert_parse_fail(
+            textwrap.dedent("""
+        structs:
+            foo:
+                description: foo
+                inline_chained_structs: bar
+                fields:
+                    foo: bar
+            """), idl.errors.ERROR_ID_IS_NODE_VALID_BOOL)
+
+        # generate_comparison_operators is a bool
+        self.assert_parse_fail(
+            textwrap.dedent("""
+        structs:
+            foo:
+                description: foo
+                generate_comparison_operators: bar
                 fields:
                     foo: bar
             """), idl.errors.ERROR_ID_IS_NODE_VALID_BOOL)
@@ -758,6 +782,9 @@ class TestParser(testcase.IDLTestcase):
                 description: foo
                 strict: true
                 namespace: ignored
+                immutable: true
+                inline_chained_structs: true
+                generate_comparison_operators: true
                 fields:
                     foo: bar
             """))
@@ -770,6 +797,9 @@ class TestParser(testcase.IDLTestcase):
                 description: foo
                 strict: false
                 namespace: ignored
+                immutable: false
+                inline_chained_structs: false
+                generate_comparison_operators: false
                 fields:
                     foo: bar
             """))
