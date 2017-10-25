@@ -332,6 +332,8 @@ class Struct(common.SourceLocation):
     All fields are either required or have a non-None default.
     """
 
+    # pylint: disable=too-many-instance-attributes
+
     def __init__(self, file_name, line, column):
         # type: (unicode, int, int) -> None
         """Construct a Struct."""
