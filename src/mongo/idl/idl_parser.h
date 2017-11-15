@@ -72,7 +72,15 @@ public:
      * processed.
      * Throws an exception if the BSON element's type is wrong.
      */
-    bool checkAndAssertType(const BSONElement& element, BSONType type) const;
+    bool checkAndAssertType(const BSONElement& element, BSONType type) const {
+        auto elementType = element.type();
+
+        if (MONGO_likely(elementType == type)) {
+            return true;
+        }
+
+        return checkAndAssertTypePrivate(element, elementType, type);
+    }
 
     /**
      * Check that BSON element is a bin data type, and has the specified bin data subtype, or
@@ -156,6 +164,8 @@ private:
      * grandchild field that has an error, this will return "grandparent.parent.child".
      */
     std::string getElementPath(StringData fieldName) const;
+
+    bool checkAndAssertTypePrivate(const BSONElement& element, BSONType elementType, BSONType type) const;
 
 private:
     // Name of the current field that is being parsed.
