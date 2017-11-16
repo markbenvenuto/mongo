@@ -35,7 +35,9 @@ public:
 
   std::string message(int value) const
   {
-    const char* s = ::ERR_reason_error_string(value);
+    // TODO
+    //const char* s = ::ERR_reason_error_string(value);
+    const char* s = 0;
     return s ? s : "asio.ssl error";
   }
 };

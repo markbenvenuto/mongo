@@ -34,7 +34,7 @@
 #include "mongo/config.h"
 
 #ifdef MONGO_CONFIG_SSL
-#include <openssl/crypto.h>
+//#include <openssl/crypto.h>
 #endif
 
 #include <pcrecpp.h>
@@ -145,7 +145,7 @@ void VersionInfoInterface::appendBuildInfo(BSONObjBuilder* result) const {
 
     BSONObjBuilder opensslInfo(result->subobjStart("openssl"));
 #ifdef MONGO_CONFIG_SSL
-    opensslInfo << "running" << openSSLVersion() << "compiled" << OPENSSL_VERSION_TEXT;
+//    opensslInfo << "running" << openSSLVersion() << "compiled" << OPENSSL_VERSION_TEXT;
 #else
     opensslInfo << "running"
                 << "disabled"
@@ -171,7 +171,8 @@ std::string VersionInfoInterface::openSSLVersion(StringData prefix, StringData s
 #ifndef MONGO_CONFIG_SSL
     return "";
 #else
-    return prefix.toString() + SSLeay_version(SSLEAY_VERSION) + suffix;
+    return "";
+//    return prefix.toString() + SSLeay_version(SSLEAY_VERSION) + suffix;
 #endif
 }
 

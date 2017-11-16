@@ -98,52 +98,52 @@ public:
   /// Bitmask type for SSL options.
   typedef long options;
 
-#if defined(GENERATING_DOCUMENTATION)
-  /// Implement various bug workarounds.
-  static const long default_workarounds = implementation_defined;
+// #if defined(GENERATING_DOCUMENTATION)
+//   /// Implement various bug workarounds.
+//   static const long default_workarounds = implementation_defined;
 
-  /// Always create a new key when using tmp_dh parameters.
-  static const long single_dh_use = implementation_defined;
+//   /// Always create a new key when using tmp_dh parameters.
+//   static const long single_dh_use = implementation_defined;
 
-  /// Disable SSL v2.
-  static const long no_sslv2 = implementation_defined;
+//   /// Disable SSL v2.
+//   static const long no_sslv2 = implementation_defined;
 
-  /// Disable SSL v3.
-  static const long no_sslv3 = implementation_defined;
+//   /// Disable SSL v3.
+//   static const long no_sslv3 = implementation_defined;
 
-  /// Disable TLS v1.
-  static const long no_tlsv1 = implementation_defined;
+//   /// Disable TLS v1.
+//   static const long no_tlsv1 = implementation_defined;
 
-  /// Disable TLS v1.1.
-  static const long no_tlsv1_1 = implementation_defined;
+//   /// Disable TLS v1.1.
+//   static const long no_tlsv1_1 = implementation_defined;
 
-  /// Disable TLS v1.2.
-  static const long no_tlsv1_2 = implementation_defined;
+//   /// Disable TLS v1.2.
+//   static const long no_tlsv1_2 = implementation_defined;
 
-  /// Disable compression. Compression is disabled by default.
-  static const long no_compression = implementation_defined;
-#else
-  ASIO_STATIC_CONSTANT(long, default_workarounds = SSL_OP_ALL);
-  ASIO_STATIC_CONSTANT(long, single_dh_use = SSL_OP_SINGLE_DH_USE);
-  ASIO_STATIC_CONSTANT(long, no_sslv2 = SSL_OP_NO_SSLv2);
-  ASIO_STATIC_CONSTANT(long, no_sslv3 = SSL_OP_NO_SSLv3);
-  ASIO_STATIC_CONSTANT(long, no_tlsv1 = SSL_OP_NO_TLSv1);
-# if defined(SSL_OP_NO_TLSv1_1)
-  ASIO_STATIC_CONSTANT(long, no_tlsv1_1 = SSL_OP_NO_TLSv1_1);
-# else // defined(SSL_OP_NO_TLSv1_1)
-  ASIO_STATIC_CONSTANT(long, no_tlsv1_1 = 0x10000000L);
-# endif // defined(SSL_OP_NO_TLSv1_1)
-# if defined(SSL_OP_NO_TLSv1_2)
-  ASIO_STATIC_CONSTANT(long, no_tlsv1_2 = SSL_OP_NO_TLSv1_2);
-# else // defined(SSL_OP_NO_TLSv1_2)
-  ASIO_STATIC_CONSTANT(long, no_tlsv1_2 = 0x08000000L);
-# endif // defined(SSL_OP_NO_TLSv1_2)
-# if defined(SSL_OP_NO_COMPRESSION)
-  ASIO_STATIC_CONSTANT(long, no_compression = SSL_OP_NO_COMPRESSION);
-# else // defined(SSL_OP_NO_COMPRESSION)
-  ASIO_STATIC_CONSTANT(long, no_compression = 0x20000L);
-# endif // defined(SSL_OP_NO_COMPRESSION)
-#endif
+//   /// Disable compression. Compression is disabled by default.
+//   static const long no_compression = implementation_defined;
+// #else
+//   ASIO_STATIC_CONSTANT(long, default_workarounds = SSL_OP_ALL);
+//   ASIO_STATIC_CONSTANT(long, single_dh_use = SSL_OP_SINGLE_DH_USE);
+//   ASIO_STATIC_CONSTANT(long, no_sslv2 = SSL_OP_NO_SSLv2);
+//   ASIO_STATIC_CONSTANT(long, no_sslv3 = SSL_OP_NO_SSLv3);
+//   ASIO_STATIC_CONSTANT(long, no_tlsv1 = SSL_OP_NO_TLSv1);
+// # if defined(SSL_OP_NO_TLSv1_1)
+//   ASIO_STATIC_CONSTANT(long, no_tlsv1_1 = SSL_OP_NO_TLSv1_1);
+// # else // defined(SSL_OP_NO_TLSv1_1)
+//   ASIO_STATIC_CONSTANT(long, no_tlsv1_1 = 0x10000000L);
+// # endif // defined(SSL_OP_NO_TLSv1_1)
+// # if defined(SSL_OP_NO_TLSv1_2)
+//   ASIO_STATIC_CONSTANT(long, no_tlsv1_2 = SSL_OP_NO_TLSv1_2);
+// # else // defined(SSL_OP_NO_TLSv1_2)
+//   ASIO_STATIC_CONSTANT(long, no_tlsv1_2 = 0x08000000L);
+// # endif // defined(SSL_OP_NO_TLSv1_2)
+// # if defined(SSL_OP_NO_COMPRESSION)
+//   ASIO_STATIC_CONSTANT(long, no_compression = SSL_OP_NO_COMPRESSION);
+// # else // defined(SSL_OP_NO_COMPRESSION)
+//   ASIO_STATIC_CONSTANT(long, no_compression = 0x20000L);
+// # endif // defined(SSL_OP_NO_COMPRESSION)
+// #endif
 
   /// File format types.
   enum file_format
@@ -160,11 +160,11 @@ public:
   // New programs should use the equivalents of the same names that are defined
   // in the asio::ssl namespace.
   typedef int verify_mode;
-  ASIO_STATIC_CONSTANT(int, verify_none = SSL_VERIFY_NONE);
-  ASIO_STATIC_CONSTANT(int, verify_peer = SSL_VERIFY_PEER);
-  ASIO_STATIC_CONSTANT(int,
-      verify_fail_if_no_peer_cert = SSL_VERIFY_FAIL_IF_NO_PEER_CERT);
-  ASIO_STATIC_CONSTANT(int, verify_client_once = SSL_VERIFY_CLIENT_ONCE);
+  // ASIO_STATIC_CONSTANT(int, verify_none = SSL_VERIFY_NONE);
+  // ASIO_STATIC_CONSTANT(int, verify_peer = SSL_VERIFY_PEER);
+  // ASIO_STATIC_CONSTANT(int,
+  //     verify_fail_if_no_peer_cert = SSL_VERIFY_FAIL_IF_NO_PEER_CERT);
+  // ASIO_STATIC_CONSTANT(int, verify_client_once = SSL_VERIFY_CLIENT_ONCE);
 #endif
 
   /// Purpose of PEM password.

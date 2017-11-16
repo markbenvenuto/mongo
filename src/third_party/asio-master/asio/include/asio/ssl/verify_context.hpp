@@ -35,7 +35,8 @@ class verify_context
 {
 public:
   /// The native handle type of the verification context.
-  typedef X509_STORE_CTX* native_handle_type;
+  //typedef X509_STORE_CTX* native_handle_type;
+  typedef PCCERT_CONTEXT native_handle_type;
 
   /// Constructor.
   explicit verify_context(native_handle_type handle)

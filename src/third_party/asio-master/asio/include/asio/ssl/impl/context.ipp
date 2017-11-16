@@ -26,6 +26,8 @@
 
 #include "asio/detail/push_options.hpp"
 
+#if 0
+
 namespace asio {
 namespace ssl {
 
@@ -1150,6 +1152,349 @@ BIO* context::make_buffer_bio(const const_buffer& b)
 
 } // namespace ssl
 } // namespace asio
+
+#else
+
+
+namespace asio {
+namespace ssl {
+
+context::context(context::method m)
+  : handle_({0,0})
+{
+  // No-op on Windows since context is not used until accept
+}
+
+#if defined(ASIO_HAS_MOVE) || defined(GENERATING_DOCUMENTATION)
+context::context(context&& other)
+{
+  handle_ = other.handle_;
+  SecInvalidateHandle(&other.handle_);
+}
+
+context& context::operator=(context&& other)
+{
+  context tmp(ASIO_MOVE_CAST(context)(*this));
+  handle_ = other.handle_;
+  SecInvalidateHandle(&other.handle_);
+  return *this;
+}
+#endif // defined(ASIO_HAS_MOVE) || defined(GENERATING_DOCUMENTATION)
+
+context::~context()
+{
+  if (SecIsValidHandle(&handle_))
+  {
+    ::FreeCredentialsHandle(&handle_);
+  }
+}
+
+context::native_handle_type context::native_handle()
+{
+  return handle_;
+}
+
+void context::clear_options(context::options o)
+{
+  asio::error_code ec;
+  clear_options(o, ec);
+  asio::detail::throw_error(ec, "clear_options");
+}
+
+ASIO_SYNC_OP_VOID context::clear_options(
+    context::options o, asio::error_code& ec)
+{
+  ec = asio::error_code();
+  ASIO_SYNC_OP_VOID_RETURN(ec);
+}
+
+void context::set_options(context::options o)
+{
+  asio::error_code ec;
+  set_options(o, ec);
+  asio::detail::throw_error(ec, "set_options");
+}
+
+ASIO_SYNC_OP_VOID context::set_options(
+    context::options o, asio::error_code& ec)
+{
+  ec = asio::error_code();
+  ASIO_SYNC_OP_VOID_RETURN(ec);
+}
+
+void context::set_verify_mode(verify_mode v)
+{
+  asio::error_code ec;
+  set_verify_mode(v, ec);
+  asio::detail::throw_error(ec, "set_verify_mode");
+}
+
+ASIO_SYNC_OP_VOID context::set_verify_mode(
+    verify_mode v, asio::error_code& ec)
+{
+  ec = asio::error_code();
+  ASIO_SYNC_OP_VOID_RETURN(ec);
+}
+
+void context::set_verify_depth(int depth)
+{
+  asio::error_code ec;
+  set_verify_depth(depth, ec);
+  asio::detail::throw_error(ec, "set_verify_depth");
+}
+
+ASIO_SYNC_OP_VOID context::set_verify_depth(
+    int depth, asio::error_code& ec)
+{
+  ec = asio::error_code();
+  ASIO_SYNC_OP_VOID_RETURN(ec);
+}
+
+void context::load_verify_file(const std::string& filename)
+{
+  asio::error_code ec;
+  load_verify_file(filename, ec);
+  asio::detail::throw_error(ec, "load_verify_file");
+}
+
+ASIO_SYNC_OP_VOID context::load_verify_file(
+    const std::string& filename, asio::error_code& ec)
+{
+  ec = asio::error_code();
+  ASIO_SYNC_OP_VOID_RETURN(ec);
+}
+
+void context::add_certificate_authority(const const_buffer& ca)
+{
+  asio::error_code ec;
+  add_certificate_authority(ca, ec);
+  asio::detail::throw_error(ec, "add_certificate_authority");
+}
+
+ASIO_SYNC_OP_VOID context::add_certificate_authority(
+    const const_buffer& ca, asio::error_code& ec)
+{
+  ASIO_SYNC_OP_VOID_RETURN(ec);
+}
+
+void context::set_default_verify_paths()
+{
+  asio::error_code ec;
+  set_default_verify_paths(ec);
+  asio::detail::throw_error(ec, "set_default_verify_paths");
+}
+
+ASIO_SYNC_OP_VOID context::set_default_verify_paths(
+    asio::error_code& ec)
+{
+  ec = asio::error_code();
+  ASIO_SYNC_OP_VOID_RETURN(ec);
+}
+
+void context::add_verify_path(const std::string& path)
+{
+  asio::error_code ec;
+  add_verify_path(path, ec);
+  asio::detail::throw_error(ec, "add_verify_path");
+}
+
+ASIO_SYNC_OP_VOID context::add_verify_path(
+    const std::string& path, asio::error_code& ec)
+{
+  ec = asio::error_code();
+  ASIO_SYNC_OP_VOID_RETURN(ec);
+}
+
+void context::use_certificate(
+    const const_buffer& certificate, file_format format)
+{
+  asio::error_code ec;
+  use_certificate(certificate, format, ec);
+  asio::detail::throw_error(ec, "use_certificate");
+}
+
+ASIO_SYNC_OP_VOID context::use_certificate(
+    const const_buffer& certificate, file_format format,
+    asio::error_code& ec)
+{
+  ASIO_SYNC_OP_VOID_RETURN(ec);
+}
+
+void context::use_certificate_file(
+    const std::string& filename, file_format format)
+{
+  asio::error_code ec;
+  use_certificate_file(filename, format, ec);
+  asio::detail::throw_error(ec, "use_certificate_file");
+}
+
+ASIO_SYNC_OP_VOID context::use_certificate_file(
+    const std::string& filename, file_format format,
+    asio::error_code& ec)
+{
+  ec = asio::error_code();
+  ASIO_SYNC_OP_VOID_RETURN(ec);
+}
+
+void context::use_certificate_chain(const const_buffer& chain)
+{
+  asio::error_code ec;
+  use_certificate_chain(chain, ec);
+  asio::detail::throw_error(ec, "use_certificate_chain");
+}
+
+ASIO_SYNC_OP_VOID context::use_certificate_chain(
+    const const_buffer& chain, asio::error_code& ec)
+{
+  ec = asio::error_code();
+  ASIO_SYNC_OP_VOID_RETURN(ec);
+}
+
+void context::use_certificate_chain_file(const std::string& filename)
+{
+  asio::error_code ec;
+  use_certificate_chain_file(filename, ec);
+  asio::detail::throw_error(ec, "use_certificate_chain_file");
+}
+
+ASIO_SYNC_OP_VOID context::use_certificate_chain_file(
+    const std::string& filename, asio::error_code& ec)
+{
+  ec = asio::error_code();
+  ASIO_SYNC_OP_VOID_RETURN(ec);
+}
+
+void context::use_private_key(
+    const const_buffer& private_key, context::file_format format)
+{
+  asio::error_code ec;
+  use_private_key(private_key, format, ec);
+  asio::detail::throw_error(ec, "use_private_key");
+}
+
+ASIO_SYNC_OP_VOID context::use_private_key(
+    const const_buffer& private_key, context::file_format format,
+    asio::error_code& ec)
+{
+  ASIO_SYNC_OP_VOID_RETURN(ec);
+}
+
+void context::use_private_key_file(
+    const std::string& filename, context::file_format format)
+{
+  asio::error_code ec;
+  use_private_key_file(filename, format, ec);
+  asio::detail::throw_error(ec, "use_private_key_file");
+}
+
+void context::use_rsa_private_key(
+    const const_buffer& private_key, context::file_format format)
+{
+  asio::error_code ec;
+  use_rsa_private_key(private_key, format, ec);
+  asio::detail::throw_error(ec, "use_rsa_private_key");
+}
+
+ASIO_SYNC_OP_VOID context::use_rsa_private_key(
+    const const_buffer& private_key, context::file_format format,
+    asio::error_code& ec)
+{
+
+  ASIO_SYNC_OP_VOID_RETURN(ec);
+}
+
+ASIO_SYNC_OP_VOID context::use_private_key_file(
+    const std::string& filename, context::file_format format,
+    asio::error_code& ec)
+{
+  ec = asio::error_code();
+  ASIO_SYNC_OP_VOID_RETURN(ec);
+}
+
+void context::use_rsa_private_key_file(
+    const std::string& filename, context::file_format format)
+{
+  asio::error_code ec;
+  use_rsa_private_key_file(filename, format, ec);
+  asio::detail::throw_error(ec, "use_rsa_private_key_file");
+}
+
+ASIO_SYNC_OP_VOID context::use_rsa_private_key_file(
+    const std::string& filename, context::file_format format,
+    asio::error_code& ec)
+{
+  ec = asio::error_code();
+  ASIO_SYNC_OP_VOID_RETURN(ec);
+}
+
+void context::use_tmp_dh(const const_buffer& dh)
+{
+  asio::error_code ec;
+  use_tmp_dh(dh, ec);
+  asio::detail::throw_error(ec, "use_tmp_dh");
+}
+
+ASIO_SYNC_OP_VOID context::use_tmp_dh(
+    const const_buffer& dh, asio::error_code& ec)
+{
+  ASIO_SYNC_OP_VOID_RETURN(ec);
+}
+
+void context::use_tmp_dh_file(const std::string& filename)
+{
+  asio::error_code ec;
+  asio::detail::throw_error(ec, "use_tmp_dh_file");
+}
+
+ASIO_SYNC_OP_VOID context::use_tmp_dh_file(
+    const std::string& filename, asio::error_code& ec)
+{
+  ASIO_SYNC_OP_VOID_RETURN(ec);
+}
+
+// ASIO_SYNC_OP_VOID context::do_use_tmp_dh(
+//     BIO* bio, asio::error_code& ec)
+// {
+//   ASIO_SYNC_OP_VOID_RETURN(ec);
+// }
+
+ASIO_SYNC_OP_VOID context::do_set_verify_callback(
+    detail::verify_callback_base* callback, asio::error_code& ec)
+{
+  ec = asio::error_code();
+  ASIO_SYNC_OP_VOID_RETURN(ec);
+}
+
+// int context::verify_callback_function(int preverified, X509_STORE_CTX* ctx)
+// {
+//   return 0;
+// }
+
+ASIO_SYNC_OP_VOID context::do_set_password_callback(
+    detail::password_callback_base* callback, asio::error_code& ec)
+{
+  ec = asio::error_code();
+  ASIO_SYNC_OP_VOID_RETURN(ec);
+}
+
+int context::password_callback_function(
+    char* buf, int size, int purpose, void* data)
+{
+  return 0;
+}
+
+// BIO* context::make_buffer_bio(const const_buffer& b)
+// {
+//   return ::BIO_new_mem_buf(
+//       const_cast<void*>(b.data()),
+//       static_cast<int>(b.size()));
+// }
+
+} // namespace ssl
+} // namespace asio
+
+#endif
+
 
 #include "asio/detail/pop_options.hpp"
 

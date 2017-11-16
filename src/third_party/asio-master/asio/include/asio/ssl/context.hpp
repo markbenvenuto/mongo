@@ -38,7 +38,8 @@ class context
 {
 public:
   /// The native handle type of the SSL context.
-  typedef SSL_CTX* native_handle_type;
+  //typedef SSL_CTX* native_handle_type;
+  typedef _SecHandle native_handle_type;
 
   /// Constructor.
   ASIO_DECL explicit context(method m);
@@ -720,8 +721,8 @@ private:
       detail::verify_callback_base* callback, asio::error_code& ec);
 
   // Callback used when the SSL implementation wants to verify a certificate.
-  ASIO_DECL static int verify_callback_function(
-      int preverified, X509_STORE_CTX* ctx);
+//   ASIO_DECL static int verify_callback_function(
+//       int preverified, X509_STORE_CTX* ctx);
 
   // Helper function used to set a password callback.
   ASIO_DECL ASIO_SYNC_OP_VOID do_set_password_callback(
@@ -732,11 +733,11 @@ private:
       char* buf, int size, int purpose, void* data);
 
   // Helper function to set the temporary Diffie-Hellman parameters from a BIO.
-  ASIO_DECL ASIO_SYNC_OP_VOID do_use_tmp_dh(
-      BIO* bio, asio::error_code& ec);
+//   ASIO_DECL ASIO_SYNC_OP_VOID do_use_tmp_dh(
+//       BIO* bio, asio::error_code& ec);
 
   // Helper function to make a BIO from a memory buffer.
-  ASIO_DECL BIO* make_buffer_bio(const const_buffer& b);
+//   ASIO_DECL BIO* make_buffer_bio(const const_buffer& b);
 
   // The underlying native implementation.
   native_handle_type handle_;

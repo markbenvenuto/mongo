@@ -56,13 +56,13 @@ public:
   };
 
   // Construct a new engine for the specified context.
-  ASIO_DECL explicit engine(SSL_CTX* context);
+  ASIO_DECL explicit engine(_SecHandle context);
 
   // Destructor.
   ASIO_DECL ~engine();
 
   // Get the underlying implementation in the native type.
-  ASIO_DECL SSL* native_handle();
+  ASIO_DECL _SecHandle* native_handle();
 
   // Set the peer verification mode.
   ASIO_DECL asio::error_code set_verify_mode(
@@ -112,8 +112,8 @@ private:
   engine& operator=(const engine&);
 
   // Callback used when the SSL implementation wants to verify a certificate.
-  ASIO_DECL static int verify_callback_function(
-      int preverified, X509_STORE_CTX* ctx);
+//   ASIO_DECL static int verify_callback_function(
+//       int preverified, X509_STORE_CTX* ctx);
 
 #if (OPENSSL_VERSION_NUMBER < 0x10000000L)
   // The SSL_accept function may not be thread safe. This mutex is used to
@@ -143,8 +143,8 @@ private:
   // Adapt the SSL_write function to the signature needed for perform().
   ASIO_DECL int do_write(void* data, std::size_t length);
 
-  SSL* ssl_;
-  BIO* ext_bio_;
+  _SecHandle ssl_;
+  //BIO* ext_bio_;
 };
 
 } // namespace detail
