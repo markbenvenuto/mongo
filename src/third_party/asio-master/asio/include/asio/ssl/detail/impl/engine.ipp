@@ -324,45 +324,16 @@ namespace asio {
 namespace ssl {
 namespace detail {
 
-engine::engine(SSL_CTX* context)
-  : ssl_(::SSL_new(context))
+engine::engine(_SecHandle context)
+  : ssl_({0,0}})
 {
-  if (!ssl_)
-  {
-    asio::error_code ec(
-        static_cast<int>(::ERR_get_error()),
-        asio::error::get_ssl_category());
-    asio::detail::throw_error(ec, "engine");
-  }
-
-#if (OPENSSL_VERSION_NUMBER < 0x10000000L)
-  accept_mutex().init();
-#endif // (OPENSSL_VERSION_NUMBER < 0x10000000L)
-
-  ::SSL_set_mode(ssl_, SSL_MODE_ENABLE_PARTIAL_WRITE);
-  ::SSL_set_mode(ssl_, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
-#if defined(SSL_MODE_RELEASE_BUFFERS)
-  ::SSL_set_mode(ssl_, SSL_MODE_RELEASE_BUFFERS);
-#endif // defined(SSL_MODE_RELEASE_BUFFERS)
-
-  ::BIO* int_bio = 0;
-  ::BIO_new_bio_pair(&int_bio, 0, &ext_bio_, 0);
-  ::SSL_set_bio(ssl_, int_bio, int_bio);
 }
 
 engine::~engine()
 {
-  if (SSL_get_app_data(ssl_))
-  {
-    delete static_cast<verify_callback_base*>(SSL_get_app_data(ssl_));
-    SSL_set_app_data(ssl_, 0);
-  }
-
-  ::BIO_free(ext_bio_);
-  ::SSL_free(ssl_);
 }
 
-SSL* engine::native_handle()
+_SecHandle* engine::native_handle()
 {
   return ssl_;
 }
@@ -388,10 +359,10 @@ asio::error_code engine::set_verify_callback(
   return ec;
 }
 
-int engine::verify_callback_function(int preverified, X509_STORE_CTX* ctx)
-{
-  return 0;
-}
+//int engine::verify_callback_function(int preverified, X509_STORE_CTX* ctx)
+//{
+//  return 0;
+//}
 
 engine::want engine::handshake(
     stream_base::handshake_type type, asio::error_code& ec)
@@ -404,6 +375,116 @@ engine::want engine::shutdown(asio::error_code& ec)
 {
   return perform(&engine::do_shutdown, 0, 0, ec, 0);
 }
+
+bool TryDecryptMessage(char* buf, unsigned used, char*& outBuf, unsigned &outLen) {
+    SECURITY_STATUS   ss;
+    SecBufferDesc     BuffDesc;
+    SecBuffer         SecBuff[4];
+    ULONG             ulQop = 0;
+
+    //  Prepare the buffers to be passed to the DecryptMessage function.
+
+    BuffDesc.ulVersion = 0;
+    BuffDesc.cBuffers = 4;
+    BuffDesc.pBuffers = SecBuff;
+
+    SecBuff[0].cbBuffer = used;
+    SecBuff[0].BufferType = SECBUFFER_DATA;
+    SecBuff[0].pvBuffer = buf;
+
+    SecBuff[1].cbBuffer = 0;
+    SecBuff[1].BufferType = SECBUFFER_EMPTY;
+    SecBuff[1].pvBuffer = 0;
+
+    SecBuff[2].cbBuffer = 0;
+    SecBuff[2].BufferType = SECBUFFER_EMPTY;
+    SecBuff[2].pvBuffer = 0;
+
+    SecBuff[3].cbBuffer = 0;
+    SecBuff[3].BufferType = SECBUFFER_EMPTY;
+    SecBuff[3].pvBuffer = 0;
+
+    ss = DecryptMessage(
+        &hctxt,
+        &BuffDesc,
+        0,
+        &ulQop);
+
+    if (!SEC_SUCCESS(ss)) {
+        if (ss == SEC_E_INCOMPLETE_MESSAGE) {
+            printf("Need more data for DecryptMessage");
+
+            return true;
+        } else {
+            fprintf(stderr, "DecryptMessage failed");
+            verify(false);
+        }
+    }
+
+    // Locate data and (optional) extra buffers.
+    SecBuffer* pDataBuffer = NULL;
+    SecBuffer* pExtraBuffer = NULL;
+
+    for (int i = 1; i < 4; i++) {
+
+        if (pDataBuffer == NULL && SecBuff[i].BufferType == SECBUFFER_DATA) {
+            pDataBuffer = &SecBuff[i];
+            printf("Buffers[%d].BufferType = SECBUFFER_DATA\n", i);
+        }
+        if (pExtraBuffer == NULL && SecBuff[i].BufferType == SECBUFFER_EXTRA) {
+            pExtraBuffer = &SecBuff[i];
+        }
+    }
+
+    outBuf = (char*)pDataBuffer->pvBuffer;
+    outLen = pDataBuffer->cbBuffer;
+
+    if (pExtraBuffer != NULL && pExtraBuffer->cbBuffer > 0) {
+        memcpy(pExtraSSPIBuffer, pExtraBuffer->pvBuffer, pExtraBuffer->cbBuffer);
+        extraSSPILen = pExtraBuffer->cbBuffer;
+    }
+
+    return false;
+}
+
+class SSLReadBuffer {
+    engine::want readDecrypted(void* data, std::size_t length, std::size_t &outLength) {
+
+        // Do we have data for the user?
+        if (extraLength == 0) {
+            if (extraHolderLen == 0) {
+                // allocate packet
+            }
+
+            return engine::want_input_and_retry;
+            //extraLength = ReadPacket(extraHolder.get(), extraHolderLen, pExtraBuffer);
+        }
+
+        // We have more then enough for them
+        if (length > extraLength) {
+            std::size_t ret = extraLength;
+            memcpy(buf, pExtraBuffer, extraLength);
+
+            //extraHolder.reset(nullptr);
+            pExtraBuffer = nullptr;
+            extraLength = 0;
+            outLength = ret;
+            return engine::want_nothing;
+        } else {
+            // We have too much of the buffer
+            std::size_t  ret = length;
+            memcpy(buf, pExtraBuffer, num);
+
+            pExtraBuffer += num;
+            extraLength -= num;
+            return ret;
+        }
+    }
+
+    void push_encrypted_data() {
+    }
+};
+
 
 engine::want engine::write(const asio::const_buffer& data,
     asio::error_code& ec, std::size_t& bytes_transferred)

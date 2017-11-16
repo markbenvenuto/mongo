@@ -144,6 +144,27 @@ private:
   ASIO_DECL int do_write(void* data, std::size_t length);
 
   _SecHandle ssl_;
+  unsigned _maxPacket;
+
+ULONG cbSecurityTrailer;
+ULONG cbSecurityHeader;
+
+// extra stuff for stream -> packet buffering
+    std::unique_ptr<char> extraHolder;
+    unsigned extraHolderLen;
+    char* pExtraBuffer;
+    unsigned extraLength;
+
+// extra stuff from sspi buffering, ie, sspi spill over area
+std::unique_ptr<char> extraSSPIHolder;
+unsigned extraSSPIHolderLen;
+unsigned extraSSPILen;
+char* pExtraSSPIBuffer;
+
+/*
+*/
+
+
   //BIO* ext_bio_;
 };
 
