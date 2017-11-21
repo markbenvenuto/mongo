@@ -25,6 +25,8 @@
 
 #include "asio/detail/push_options.hpp"
 
+#include <algorithm>
+
 #if 0
 
 namespace asio {
@@ -376,112 +378,165 @@ engine::want engine::shutdown(asio::error_code& ec)
   return perform(&engine::do_shutdown, 0, 0, ec, 0);
 }
 
-bool TryDecryptMessage(char* buf, unsigned used, char*& outBuf, unsigned &outLen) {
-    SECURITY_STATUS   ss;
-    SecBufferDesc     BuffDesc;
-    SecBuffer         SecBuff[4];
-    ULONG             ulQop = 0;
-
-    //  Prepare the buffers to be passed to the DecryptMessage function.
-
-    BuffDesc.ulVersion = 0;
-    BuffDesc.cBuffers = 4;
-    BuffDesc.pBuffers = SecBuff;
-
-    SecBuff[0].cbBuffer = used;
-    SecBuff[0].BufferType = SECBUFFER_DATA;
-    SecBuff[0].pvBuffer = buf;
-
-    SecBuff[1].cbBuffer = 0;
-    SecBuff[1].BufferType = SECBUFFER_EMPTY;
-    SecBuff[1].pvBuffer = 0;
-
-    SecBuff[2].cbBuffer = 0;
-    SecBuff[2].BufferType = SECBUFFER_EMPTY;
-    SecBuff[2].pvBuffer = 0;
-
-    SecBuff[3].cbBuffer = 0;
-    SecBuff[3].BufferType = SECBUFFER_EMPTY;
-    SecBuff[3].pvBuffer = 0;
-
-    ss = DecryptMessage(
-        &hctxt,
-        &BuffDesc,
-        0,
-        &ulQop);
-
-    if (!SEC_SUCCESS(ss)) {
-        if (ss == SEC_E_INCOMPLETE_MESSAGE) {
-            printf("Need more data for DecryptMessage");
-
-            return true;
-        } else {
-            fprintf(stderr, "DecryptMessage failed");
-            verify(false);
-        }
-    }
-
-    // Locate data and (optional) extra buffers.
-    SecBuffer* pDataBuffer = NULL;
-    SecBuffer* pExtraBuffer = NULL;
-
-    for (int i = 1; i < 4; i++) {
-
-        if (pDataBuffer == NULL && SecBuff[i].BufferType == SECBUFFER_DATA) {
-            pDataBuffer = &SecBuff[i];
-            printf("Buffers[%d].BufferType = SECBUFFER_DATA\n", i);
-        }
-        if (pExtraBuffer == NULL && SecBuff[i].BufferType == SECBUFFER_EXTRA) {
-            pExtraBuffer = &SecBuff[i];
-        }
-    }
-
-    outBuf = (char*)pDataBuffer->pvBuffer;
-    outLen = pDataBuffer->cbBuffer;
-
-    if (pExtraBuffer != NULL && pExtraBuffer->cbBuffer > 0) {
-        memcpy(pExtraSSPIBuffer, pExtraBuffer->pvBuffer, pExtraBuffer->cbBuffer);
-        extraSSPILen = pExtraBuffer->cbBuffer;
-    }
-
-    return false;
-}
 
 class SSLReadBuffer {
-    engine::want readDecrypted(void* data, std::size_t length, std::size_t &outLength) {
+    enum class State {
+        Empty,
+        NeedMoreEncryptedData,
+        HaveEncryptedData,
+        HaveDecryptedData,
+    };
 
-        // Do we have data for the user?
-        if (extraLength == 0) {
-            if (extraHolderLen == 0) {
-                // allocate packet
-            }
+    State _state;
+    std::vector<unsigned char> _buffer;
+    std::vector<unsigned char> _extraEncryptedBuffer;
+    size_t bufPos;
 
-            return engine::want_input_and_retry;
-            //extraLength = ReadPacket(extraHolder.get(), extraHolderLen, pExtraBuffer);
-        }
-
-        // We have more then enough for them
-        if (length > extraLength) {
-            std::size_t ret = extraLength;
-            memcpy(buf, pExtraBuffer, extraLength);
-
-            //extraHolder.reset(nullptr);
-            pExtraBuffer = nullptr;
-            extraLength = 0;
-            outLength = ret;
-            return engine::want_nothing;
-        } else {
-            // We have too much of the buffer
-            std::size_t  ret = length;
-            memcpy(buf, pExtraBuffer, num);
-
-            pExtraBuffer += num;
-            extraLength -= num;
-            return ret;
-        }
+    void setState(State s) {
+        _state = s;
     }
 
-    void push_encrypted_data() {
+
+
+    SSLReadBuffer() : _state(State::Empty) {
+        _buffer.reserve(16 * 1024);
+    }
+
+    engine::want readDecryptedData(void* data, std::size_t length, std::size_t &outLength) {
+        outLength = 0;
+
+        // We are empty, i.e. brand new, tell ASIO we want data
+        if (_state == State::Empty) {
+            setState(State::NeedMoreEncryptedData);
+            return engine::want_input_and_retry;
+        }
+
+        // Our last state was that we needed more encrypted data, so tell ASIO we still want some
+        // TODO: invariant this???
+        if (_state == State::NeedMoreEncryptedData) {
+            return engine::want_input_and_retry;
+        }
+
+
+        // If we have enrypted data, try to decrypt it
+        if (_state == State::HaveEncryptedData) {
+            engine::want wantState = TryDecryptBuffer();
+         
+            if (wantState != engine::want_nothing) {
+                return wantState;
+            }
+        }
+
+        // We decrypted data in the past, hand it back to ASIO until we are out of decrypted data
+        assert(_state == State::HaveDecryptedData);
+
+        if (length >= ( buffer.size() - bufPos)) {
+            // We have less then ASIO wants, give them everything we have
+            outLength = _buffer.size();
+            memcpy(data, _buffer.data() + bufPos, _buffer.size() - bufPos);
+
+            // We are empty so reset our state to need encrypted data for the next call
+            setState(State::NeedMoreEncryptedData);
+            bufPos = 0;
+        } else {
+            // ASIO wants less then we have
+            outLength = length;
+            memcpy(data, _buffer.data(), length);
+
+            bufPos = length;
+        }
+
+        return engine::want_nothing;
+    }
+
+    void writeEncryptedData(void* data, std::size_t length) {
+        // We have more data, it may not be enough to decode
+        // but we will figure that out later
+        setState(State::HaveEncryptedData);
+
+        // If we have extra encrypted data from the last encryption, copy it over to our buffer
+        if (_extraEncryptedBuffer.size()) {
+            std::copy(_extraEncryptedBuffer.begin(), _extraEncryptedBuffer.end(), std::back_inserter(_buffer));
+            _extraEncryptedBuffer.clear();
+        }
+
+        std::copy(reinterpret_cast<unsigned char*>(data), 
+            reinterpret_cast<unsigned char*>(data) + length, std::back_inserter(_buffer));
+    }
+private:
+
+    engine::want TryDecryptBuffer() {
+        SECURITY_STATUS   ss;
+        SecBufferDesc     BuffDesc;
+        SecBuffer         SecBuff[4];
+        ULONG             ulQop = 0;
+
+        //  Prepare the buffers to be passed to the DecryptMessage function.
+
+        BuffDesc.ulVersion = SECBUFFER_VERSION;
+        BuffDesc.cBuffers = 4;
+        BuffDesc.pBuffers = SecBuff;
+
+        SecBuff[0].cbBuffer = _buffer.size();
+        SecBuff[0].BufferType = SECBUFFER_DATA;
+        SecBuff[0].pvBuffer = _buffer.get();
+
+        SecBuff[1].cbBuffer = 0;
+        SecBuff[1].BufferType = SECBUFFER_EMPTY;
+        SecBuff[1].pvBuffer = 0;
+
+        SecBuff[2].cbBuffer = 0;
+        SecBuff[2].BufferType = SECBUFFER_EMPTY;
+        SecBuff[2].pvBuffer = 0;
+
+        SecBuff[3].cbBuffer = 0;
+        SecBuff[3].BufferType = SECBUFFER_EMPTY;
+        SecBuff[3].pvBuffer = 0;
+
+        ss = DecryptMessage(
+            &_hctxt,
+            &BuffDesc,
+            0,
+            &ulQop);
+
+        if (!SEC_SUCCESS(ss)) {
+            if (ss == SEC_E_INCOMPLETE_MESSAGE) {
+                printf("Need more data for DecryptMessage");
+
+                return engine::want_input_and_retry;
+            } else {
+                fprintf(stderr, "DecryptMessage failed");
+                // TODO: verify(false);
+            }
+        }
+
+        // Locate data and (optional) extra buffers.
+        SecBuffer* pDataBuffer = NULL;
+        SecBuffer* pExtraBuffer = NULL;
+
+        for (int i = 1; i < 4; i++) {
+            if (pDataBuffer == NULL && SecBuff[i].BufferType == SECBUFFER_DATA) {
+                pDataBuffer = &SecBuff[i];
+                printf("Buffers[%d].BufferType = SECBUFFER_DATA\n", i);
+            }
+
+            if (pExtraBuffer == NULL && SecBuff[i].BufferType == SECBUFFER_EXTRA) {
+                // TODO: assert pExtraBuffer == NULL
+                pExtraBuffer = &SecBuff[i];
+            }
+        }
+
+        // TODO: assert  pDataBuffer->pvBuffer == _buffer.get()
+        //outBuf = (char*)pDataBuffer->pvBuffer;
+        //outLen = pDataBuffer->cbBuffer;
+
+        if (pExtraBuffer != NULL && pExtraBuffer->cbBuffer > 0) {
+            // TODO: assert _extraEncryptedBuffer.size() == 0
+            _extraEncryptedBuffer.clear();
+            std::copy(pExtraBuffer->pvBuffer, pExtraBuffer->pvBuffer + pExtraBuffer->cbBuffer, std::back_inserter(_extraEncryptedBuffer));
+        }
+
+        return engine::want_nothing;
     }
 };
 
