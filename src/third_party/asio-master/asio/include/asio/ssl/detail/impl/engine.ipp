@@ -381,7 +381,6 @@ engine::want engine::shutdown(asio::error_code& ec)
 
 class SSLReadBuffer {
     enum class State {
-        Empty,
         NeedMoreEncryptedData,
         HaveEncryptedData,
         HaveDecryptedData,
@@ -397,19 +396,14 @@ class SSLReadBuffer {
     }
 
 
+    _SecHandle* _hctxt;
 
-    SSLReadBuffer() : _state(State::Empty) {
+    SSLReadBuffer(_SecHandle* hctxt) : _state(State::NeedMoreEncryptedData), _hctxt(hctxt) {
         _buffer.reserve(16 * 1024);
     }
 
-    engine::want readDecryptedData(void* data, std::size_t length, std::size_t &outLength) {
+    engine::want readDecryptedData(void* data, std::size_t length, asio::error_code& ec, std::size_t &outLength) {
         outLength = 0;
-
-        // We are empty, i.e. brand new, tell ASIO we want data
-        if (_state == State::Empty) {
-            setState(State::NeedMoreEncryptedData);
-            return engine::want_input_and_retry;
-        }
 
         // Our last state was that we needed more encrypted data, so tell ASIO we still want some
         // TODO: invariant this???
@@ -417,20 +411,24 @@ class SSLReadBuffer {
             return engine::want_input_and_retry;
         }
 
-
+        
         // If we have enrypted data, try to decrypt it
         if (_state == State::HaveEncryptedData) {
             engine::want wantState = TryDecryptBuffer();
-         
+            if (wantState == engine::want_input_and_retry) {
+                setState(State::NeedMoreEncryptedData);
+            }
+
             if (wantState != engine::want_nothing) {
                 return wantState;
             }
         }
 
         // We decrypted data in the past, hand it back to ASIO until we are out of decrypted data
+        // TODO: handle empty decrypted buffer
         assert(_state == State::HaveDecryptedData);
 
-        if (length >= ( buffer.size() - bufPos)) {
+        if (length >= ( _buffer.size() - bufPos)) {
             // We have less then ASIO wants, give them everything we have
             outLength = _buffer.size();
             memcpy(data, _buffer.data() + bufPos, _buffer.size() - bufPos);
@@ -439,7 +437,7 @@ class SSLReadBuffer {
             setState(State::NeedMoreEncryptedData);
             bufPos = 0;
         } else {
-            // ASIO wants less then we have
+            // ASIO wants less then we have so give them just what they want
             outLength = length;
             memcpy(data, _buffer.data(), length);
 
@@ -449,7 +447,7 @@ class SSLReadBuffer {
         return engine::want_nothing;
     }
 
-    void writeEncryptedData(void* data, std::size_t length) {
+    void writeData(void* data, std::size_t length) {
         // We have more data, it may not be enough to decode
         // but we will figure that out later
         setState(State::HaveEncryptedData);
@@ -479,7 +477,7 @@ private:
 
         SecBuff[0].cbBuffer = _buffer.size();
         SecBuff[0].BufferType = SECBUFFER_DATA;
-        SecBuff[0].pvBuffer = _buffer.get();
+        SecBuff[0].pvBuffer = _buffer.data();
 
         SecBuff[1].cbBuffer = 0;
         SecBuff[1].BufferType = SECBUFFER_EMPTY;
@@ -494,7 +492,7 @@ private:
         SecBuff[3].pvBuffer = 0;
 
         ss = DecryptMessage(
-            &_hctxt,
+            _hctxt,
             &BuffDesc,
             0,
             &ulQop);
@@ -507,6 +505,9 @@ private:
             } else {
                 fprintf(stderr, "DecryptMessage failed");
                 // TODO: verify(false);
+
+                // TODO: SEC_I_CONTEXT_EXPIRED
+                // TODO: SEC_I_RENEGOTIATE
             }
         }
 
@@ -527,19 +528,412 @@ private:
         }
 
         // TODO: assert  pDataBuffer->pvBuffer == _buffer.get()
+        _buffer.resize(pDataBuffer->cbBuffer);
         //outBuf = (char*)pDataBuffer->pvBuffer;
         //outLen = pDataBuffer->cbBuffer;
 
         if (pExtraBuffer != NULL && pExtraBuffer->cbBuffer > 0) {
             // TODO: assert _extraEncryptedBuffer.size() == 0
             _extraEncryptedBuffer.clear();
-            std::copy(pExtraBuffer->pvBuffer, pExtraBuffer->pvBuffer + pExtraBuffer->cbBuffer, std::back_inserter(_extraEncryptedBuffer));
+            std::copy(reinterpret_cast<unsigned char*>(pExtraBuffer->pvBuffer), 
+                reinterpret_cast<unsigned char*>(pExtraBuffer->pvBuffer) + pExtraBuffer->cbBuffer, 
+                std::back_inserter(_extraEncryptedBuffer));
         }
 
         return engine::want_nothing;
     }
 };
 
+class SSLHandshakeBuffer {
+    // TODO: error state?
+    enum class State {
+        HandshakeStart,
+        NeedMoreHandshakeData,
+        HaveEncryptedData,
+        Done,
+        //HaveDecryptedData,
+    };
+
+    State _state;
+    std::vector<unsigned char> _buffer;
+    std::vector<unsigned char> _extraEncryptedBuffer;
+
+    std::vector<unsigned char> _outBuffer;
+    size_t bufPos;
+    CredHandle hcred;
+
+    void setState(State s) {
+        _state = s;
+    }
+
+
+    _SecHandle* _hctxt;
+
+    SSLHandshakeBuffer(_SecHandle* hctxt) : _state(State::HandshakeStart), _hctxt(hctxt) {
+        _buffer.reserve(16 * 1024);
+        _outBuffer.reserve(16 * 1024);
+    }
+
+    engine::want next(asio::error_code& ec) {
+
+        if (_state == State::HandshakeStart) {
+            
+            startServerHandshake(ec);
+
+            engine::want want = TryAcceptClientToken(true, ec);
+
+            setState(State::NeedMoreHandshakeData);
+
+            return want;
+        } else if (_state == State::NeedMoreHandshakeData) {
+            return  engine::want_input_and_retry;
+        } else {
+
+            engine::want want = TryAcceptClientToken(false, ec);
+
+            if (want == engine::want_nothing) {
+                setState(State::Done);
+            }
+
+            return want;
+        }
+    }
+
+    void startServerHandshake(asio::error_code& ec) {
+        SCHANNEL_CRED credData;
+        TimeStamp         Lifetime;
+
+        PCCERT_CONTEXT serverCert; // server-side certificate
+                                   //-------------------------------------------------------
+                                   // Get the server certificate. 
+
+        if (!(serverCert = getServerCertificate())) {
+            // TODO verify(false);
+        }
+
+        // getServerCertificate is a placeholder function.
+        credData.cCreds = 1;
+        credData.paCred = &serverCert;
+
+
+        SECURITY_STATUS ss = AcquireCredentialsHandleA(
+            NULL,
+            "SChannel",
+            SECPKG_CRED_INBOUND,
+            NULL,
+            &credData,
+            NULL,
+            NULL,
+            &hcred,
+            &Lifetime);
+
+        if (!SEC_SUCCESS(ss)) {
+            fprintf(stderr, "AcquireCreds failed: 0x%08x\n", ss);
+            // TODO verify(false);
+        }
+
+    }
+    
+    void writeEncryptedData(void* data, std::size_t length) {
+        // We have more data, it may not be enough to decode
+        // but we will figure that out later
+        setState(State::HaveEncryptedData);
+
+        // If we have extra encrypted data from the last encryption, copy it over to our buffer
+        if (_extraEncryptedBuffer.size()) {
+            std::copy(_extraEncryptedBuffer.begin(), _extraEncryptedBuffer.end(), std::back_inserter(_buffer));
+            _extraEncryptedBuffer.clear();
+        }
+
+        std::copy(reinterpret_cast<unsigned char*>(data),
+            reinterpret_cast<unsigned char*>(data) + length, std::back_inserter(_buffer));
+    }
+private:
+
+    engine::want TryAcceptClientToken(
+        bool fNewConversation, asio::error_code& ec) {
+        SECURITY_STATUS   ss;
+        TimeStamp         Lifetime;
+        SecBufferDesc     OutBuffDesc;
+        SecBuffer         OutSecBuff;
+        SecBufferDesc     InBuffDesc;
+        SecBuffer         InSecBuff[2];
+        ULONG             Attribs = 0;
+
+        //----------------------------------------------------------------
+        //  Prepare output buffers.
+
+        OutBuffDesc.ulVersion = SECBUFFER_VERSION;
+        OutBuffDesc.cBuffers = 1;
+        OutBuffDesc.pBuffers = &OutSecBuff;
+
+        OutSecBuff.cbBuffer = _outBuffer.size();
+        OutSecBuff.BufferType = SECBUFFER_TOKEN;
+        OutSecBuff.pvBuffer = _outBuffer.data();
+
+        //----------------------------------------------------------------
+        //  Prepare input buffers.
+
+        InBuffDesc.ulVersion = SECBUFFER_VERSION;
+        InBuffDesc.cBuffers = 2;
+        InBuffDesc.pBuffers = InSecBuff;
+
+        InSecBuff[0].cbBuffer = _buffer.size();
+        InSecBuff[0].BufferType = SECBUFFER_TOKEN;
+        InSecBuff[0].pvBuffer = _buffer.data();
+
+        InSecBuff[1].cbBuffer = 0;
+        InSecBuff[1].BufferType = SECBUFFER_EMPTY;
+        InSecBuff[1].pvBuffer = NULL;
+
+
+        printf("Token buffer received (%lu bytes):\n", InSecBuff[0].cbBuffer);
+        //PrintHexDump(InSecBuff[0].cbBuffer, (PBYTE)InSecBuff[0].pvBuffer);
+
+        Attribs = ASC_REQ_SEQUENCE_DETECT |
+            ASC_REQ_REPLAY_DETECT |
+            ASC_REQ_CONFIDENTIALITY |
+            ASC_REQ_EXTENDED_ERROR |
+            //ASC_REQ_ALLOCATE_MEMORY |
+            ASC_REQ_STREAM;
+
+        ss = AcceptSecurityContext(
+            &hcred,
+            fNewConversation ? NULL : &_hctxt,
+            &InBuffDesc,
+            Attribs,
+            SECURITY_NATIVE_DREP,
+            &_hctxt,
+            &OutBuffDesc,
+            &Attribs,
+            &Lifetime);
+
+        if (!SEC_SUCCESS(ss)) {
+            if (ss == SEC_E_INCOMPLETE_MESSAGE) {
+                printf("Need more data for AcceptClientToken");
+                // TODO: consider using SECBUFFER_MISSING and approriate optimizations
+                return engine::want_input_and_retry;
+            }
+
+            fprintf(stderr, "AcceptSecurityContext failed: 0x%08x\n", ss);
+            //TODO verify(false);
+        }
+        printf("AcceptSecurityContext result = 0x%08x\n", ss);
+
+        // Locate (optional) extra buffers.
+        SecBuffer* pExtraBuffer = NULL;
+
+        for (int i = 0; i < 2; i++) {
+            if (pExtraBuffer == NULL && InSecBuff[i].BufferType == SECBUFFER_EXTRA) {
+                pExtraBuffer = &InSecBuff[i];
+            }
+        }
+
+        if (pExtraBuffer != NULL && pExtraBuffer->cbBuffer > 0) {
+            // TODO: assert _extraEncryptedBuffer.size() == 0
+            _extraEncryptedBuffer.clear();
+            std::copy(reinterpret_cast<unsigned char*>(pExtraBuffer->pvBuffer),
+                reinterpret_cast<unsigned char*>(pExtraBuffer->pvBuffer) + pExtraBuffer->cbBuffer,
+                std::back_inserter(_extraEncryptedBuffer));
+        }
+
+        //----------------------------------------------------------------
+        //  Complete token if applicable.
+
+        bool needOutput{false};
+
+        if ((SEC_I_COMPLETE_NEEDED == ss)
+            || (SEC_I_COMPLETE_AND_CONTINUE == ss)) {
+            if (SEC_I_COMPLETE_AND_CONTINUE == ss) {
+                needOutput = true;
+            }
+
+            ss = CompleteAuthToken(&hctxt, &OutBuffDesc);
+            if (!SEC_SUCCESS(ss)) {
+                fprintf(stderr, "complete failed: 0x%08x\n", ss);
+                // TODO: verify(false);
+            }
+        }
+        printf("Token buffer generated (%lu bytes):\n",
+            OutSecBuff.cbBuffer);
+
+        _outBuffer.resize(OutSecBuff.cbBuffer);
+
+        if (needOutput) {
+            return engine::want_output_and_retry;
+        }
+
+
+        // assert ss == SEC_I_COMPLETE_NEEDED
+        return engine::want_nothing;
+    }  // end GenServerContext
+
+
+    PCCERT_CONTEXT getServerCertificate()
+    {
+        HCERTSTORE hMyCertStore = NULL;
+        PCCERT_CONTEXT aCertContext = NULL;
+
+        //-------------------------------------------------------
+        // Open the My store, also called the personal store.
+        // This call to CertOpenStore opens the Local_Machine My 
+        // store as opposed to the Current_User's My store.
+
+        hMyCertStore = CertOpenStore(CERT_STORE_PROV_SYSTEM,
+            X509_ASN_ENCODING,
+            0,
+            CERT_SYSTEM_STORE_CURRENT_USER,
+            L"MY");
+
+        if (hMyCertStore == NULL) {
+            printf("Error opening MY store for server.\n");
+            goto cleanup;
+        }
+        //-------------------------------------------------------
+        // Search for a certificate with some specified
+        // string in it. This example attempts to find
+        // a certificate with the string "example server" in
+        // its subject string. Substitute an appropriate string
+        // to find a certificate for a specific user.
+
+        aCertContext = CertFindCertificateInStore(hMyCertStore,
+            X509_ASN_ENCODING,
+            0,
+            CERT_FIND_SUBJECT_STR_A,
+            "MongoWinSSL", // use appropriate subject name
+            NULL
+        );
+
+        if (aCertContext == NULL) {
+            printf("Error retrieving server certificate.");
+            goto cleanup;
+        }
+    cleanup:
+        if (hMyCertStore) {
+            CertCloseStore(hMyCertStore, 0);
+        }
+        return aCertContext;
+    }
+};
+
+
+class SSLWriteBuffer {
+    enum class State {
+        HaveEmptyBuffer,
+        HaveEncryptedData,
+    };
+
+    State _state;
+    std::vector<unsigned char> _buffer;
+    size_t bufPos;
+
+    void setState(State s) {
+        _state = s;
+    }
+
+    SSLWriteBuffer(_SecHandle* hctxt, ULONG cbSecurityHeader, ULONG cbSecurityTrailer) : _state(State::HaveEmptyBuffer), _hctxt(hctxt),
+        cbSecurityHeader(cbSecurityHeader), cbSecurityTrailer(cbSecurityTrailer)
+    {
+        _buffer.reserve(16 * 1024);
+    }
+
+    _SecHandle* _hctxt;
+
+    ULONG cbSecurityTrailer;
+    ULONG cbSecurityHeader;
+
+    engine::want writeUnecryptedData
+    (void* pMessage, std::size_t cbMessage, asio::error_code& ec) {
+        SECURITY_STATUS   ss;
+        SecBufferDesc     BuffDesc;
+        SecBuffer       SecBuff[4];
+
+        ULONG             ulQop = 0;
+
+        //-----------------------------------------------------------------
+        //  The size of the trailer (signature + padding) block is 
+        //  determined from the global cbSecurityTrailer.
+
+        ULONG SigBufferSize = cbSecurityTrailer + cbSecurityHeader;
+
+        printf("Data before encryption: %s\n", pMessage);
+        printf("Length of data before encryption: %d \n", cbMessage);
+
+        //-----------------------------------------------------------------
+        //  Allocate a buffer to hold the signature,
+        //  encrypted data, and a DWORD  
+        //  that specifies the size of the trailer block.
+
+        _buffer.resize(SigBufferSize + cbMessage);
+
+        //------------------------------------------------------------------
+        //  Prepare buffers.
+
+        BuffDesc.ulVersion = 0;
+        BuffDesc.cBuffers = 4;
+        BuffDesc.pBuffers = SecBuff;
+
+        SecBuff[0].BufferType = SECBUFFER_STREAM_HEADER;
+        SecBuff[0].cbBuffer = cbSecurityHeader;
+        SecBuff[0].pvBuffer = _buffer.data();
+
+        memcpy(_buffer.data() + cbSecurityHeader, pMessage, cbMessage);
+
+        SecBuff[1].BufferType = SECBUFFER_DATA;
+        SecBuff[1].cbBuffer = cbMessage;
+        SecBuff[1].pvBuffer = _buffer.data() + cbSecurityHeader;
+
+        SecBuff[2].cbBuffer = cbSecurityTrailer;
+        SecBuff[2].BufferType = SECBUFFER_STREAM_TRAILER;
+        SecBuff[2].pvBuffer = _buffer.data() + cbSecurityHeader + cbMessage;
+
+        SecBuff[3].cbBuffer = 0;
+        SecBuff[3].BufferType = SECBUFFER_EMPTY;
+        SecBuff[3].pvBuffer = 0;
+
+        ss = EncryptMessage(
+            &_hctxt,
+            ulQop,
+            &BuffDesc,
+            0);
+
+        if (!SEC_SUCCESS(ss)) {
+            fprintf(stderr, "EncryptMessage failed: 0x%08x\n", ss);
+            // TODO return(FALSE);
+        } else {
+            printf("The message has been encrypted. \n");
+            
+        }
+
+        //------------------------------------------------------------------
+        //  Indicate the size of the buffer in the first DWORD. 
+
+        int size = SecBuff[0].cbBuffer + SecBuff[1].cbBuffer + SecBuff[2].cbBuffer;
+
+        //*((DWORD *)*ppOutput) = size;
+
+        //-----------------------------------------------------------------
+        //  Append the encrypted data to our trailer block
+        //  to form a single block. 
+        //  Putting trailer at the beginning of the buffer works out 
+        //  better. 
+
+        //memcpy(*ppOutput + SecBuff[0].cbBuffer + sizeof(DWORD), pMessage,
+        //    cbMessage);
+
+        _buffer.resize(size);
+        printf("data after encryption including trailer (%lu bytes):\n",
+            size);
+        //PrintHexDump(*pcbOutput, *ppOutput);
+
+        return engine::want_output;
+    }  // end EncryptThis
+
+    void readOutputBuffer(void* data, size_t inLength, size_t outLength) {
+        if(length > )
+#error TODO
+    }
+};
 
 engine::want engine::write(const asio::const_buffer& data,
     asio::error_code& ec, std::size_t& bytes_transferred)
