@@ -22,10 +22,14 @@
 #include "asio/ssl/detail/engine.hpp"
 #include "asio/ssl/error.hpp"
 #include "asio/ssl/verify_context.hpp"
+#include "asio/detail/assert.hpp"
 
 #include "asio/detail/push_options.hpp"
 
 #include <algorithm>
+#include <sspi.h>
+#include <schannel.h>
+#include <wincrypt.h>
 
 #if 0
 
@@ -378,8 +382,67 @@ engine::want engine::shutdown(asio::error_code& ec)
   return perform(&engine::do_shutdown, 0, 0, ec, 0);
 }
 
+class ReusableBuffer {
+    std::vector<unsigned char> _buffer;
+    size_t _bufPos{0};
+public:
+    ReusableBuffer(std::size_t initialSize) {
+        _buffer.reserve(initialSize);
+    }
+    bool empty() const { return _buffer.empty(); }
+    
+    unsigned char* data() {
+        return _buffer.data();
+    }
+
+    std::size_t size() const {
+        return _buffer.size();
+    }
+
+    void resize(std::size_t size)  {
+        _buffer.resize(size);
+    }
+
+
+    void fill(void* data, std::size_t length) {
+        ASIO_ASSERT(_buffer.empty());
+        ASIO_ASSERT(_bufPos == 0);
+        append(data, length);
+    }
+
+    void fill(std::vector<unsigned char> &vec) { 
+        append(vec.data(), vec.size());
+    }
+
+
+    void append(void* data, std::size_t length) {
+        ASIO_ASSERT(_bufPos == 0);
+        std::copy(reinterpret_cast<unsigned char*>(data),
+            reinterpret_cast<unsigned char*>(data) + length, std::back_inserter(_buffer));
+    }
+
+    void read(void* data, std::size_t length, std::size_t *outLength) {
+        if (length >= (_buffer.size() - _bufPos)) {
+            // We have less then ASIO wants, give them everything we have
+            *outLength = _buffer.size();
+            memcpy(data, _buffer.data() + _bufPos, _buffer.size() - _bufPos);
+
+            // We are empty so reset our state to need encrypted data for the next call
+            _bufPos = 0;
+            _buffer.clear();
+        } else {
+            // ASIO wants less then we have so give them just what they want
+            *outLength = length;
+            memcpy(data, _buffer.data(), length);
+
+            _bufPos = length;
+        }
+    }
+};
+
 
 class SSLReadBuffer {
+    // TODO: error state?
     enum class State {
         NeedMoreEncryptedData,
         HaveEncryptedData,
@@ -387,19 +450,16 @@ class SSLReadBuffer {
     };
 
     State _state;
-    std::vector<unsigned char> _buffer;
     std::vector<unsigned char> _extraEncryptedBuffer;
-    size_t bufPos;
+    ReusableBuffer _buffer;
 
     void setState(State s) {
         _state = s;
     }
 
-
     _SecHandle* _hctxt;
 
-    SSLReadBuffer(_SecHandle* hctxt) : _state(State::NeedMoreEncryptedData), _hctxt(hctxt) {
-        _buffer.reserve(16 * 1024);
+    SSLReadBuffer(_SecHandle* hctxt) : _state(State::NeedMoreEncryptedData), _hctxt(hctxt), _buffer(16 * 1024) {
     }
 
     engine::want readDecryptedData(void* data, std::size_t length, asio::error_code& ec, std::size_t &outLength) {
@@ -426,22 +486,13 @@ class SSLReadBuffer {
 
         // We decrypted data in the past, hand it back to ASIO until we are out of decrypted data
         // TODO: handle empty decrypted buffer
-        assert(_state == State::HaveDecryptedData);
+        ASIO_ASSERT(_state == State::HaveDecryptedData);
 
-        if (length >= ( _buffer.size() - bufPos)) {
-            // We have less then ASIO wants, give them everything we have
-            outLength = _buffer.size();
-            memcpy(data, _buffer.data() + bufPos, _buffer.size() - bufPos);
+        _buffer.read(data, length, &outLength);
 
+        if (_buffer.empty()) {
             // We are empty so reset our state to need encrypted data for the next call
             setState(State::NeedMoreEncryptedData);
-            bufPos = 0;
-        } else {
-            // ASIO wants less then we have so give them just what they want
-            outLength = length;
-            memcpy(data, _buffer.data(), length);
-
-            bufPos = length;
         }
 
         return engine::want_nothing;
@@ -454,12 +505,11 @@ class SSLReadBuffer {
 
         // If we have extra encrypted data from the last encryption, copy it over to our buffer
         if (_extraEncryptedBuffer.size()) {
-            std::copy(_extraEncryptedBuffer.begin(), _extraEncryptedBuffer.end(), std::back_inserter(_buffer));
+            _buffer.fill(_extraEncryptedBuffer);
             _extraEncryptedBuffer.clear();
         }
 
-        std::copy(reinterpret_cast<unsigned char*>(data), 
-            reinterpret_cast<unsigned char*>(data) + length, std::back_inserter(_buffer));
+        _buffer.append(data, length);
     }
 private:
 
@@ -504,8 +554,7 @@ private:
                 return engine::want_input_and_retry;
             } else {
                 fprintf(stderr, "DecryptMessage failed");
-                // TODO: verify(false);
-
+                ASIO_ASSERT(false);
                 // TODO: SEC_I_CONTEXT_EXPIRED
                 // TODO: SEC_I_RENEGOTIATE
             }
@@ -522,18 +571,16 @@ private:
             }
 
             if (pExtraBuffer == NULL && SecBuff[i].BufferType == SECBUFFER_EXTRA) {
-                // TODO: assert pExtraBuffer == NULL
+                ASIO_ASSERT(pExtraBuffer == NULL);
                 pExtraBuffer = &SecBuff[i];
             }
         }
 
-        // TODO: assert  pDataBuffer->pvBuffer == _buffer.get()
+        ASIO_ASSERT(pDataBuffer->pvBuffer == _buffer.data());
         _buffer.resize(pDataBuffer->cbBuffer);
-        //outBuf = (char*)pDataBuffer->pvBuffer;
-        //outLen = pDataBuffer->cbBuffer;
 
         if (pExtraBuffer != NULL && pExtraBuffer->cbBuffer > 0) {
-            // TODO: assert _extraEncryptedBuffer.size() == 0
+            ASIO_ASSERT(_extraEncryptedBuffer.empty());
             _extraEncryptedBuffer.clear();
             std::copy(reinterpret_cast<unsigned char*>(pExtraBuffer->pvBuffer), 
                 reinterpret_cast<unsigned char*>(pExtraBuffer->pvBuffer) + pExtraBuffer->cbBuffer, 
@@ -555,10 +602,10 @@ class SSLHandshakeBuffer {
     };
 
     State _state;
-    std::vector<unsigned char> _buffer;
+    ReusableBuffer  _buffer;
     std::vector<unsigned char> _extraEncryptedBuffer;
 
-    std::vector<unsigned char> _outBuffer;
+    ReusableBuffer _outBuffer;
     size_t bufPos;
     CredHandle hcred;
 
@@ -569,9 +616,8 @@ class SSLHandshakeBuffer {
 
     _SecHandle* _hctxt;
 
-    SSLHandshakeBuffer(_SecHandle* hctxt) : _state(State::HandshakeStart), _hctxt(hctxt) {
-        _buffer.reserve(16 * 1024);
-        _outBuffer.reserve(16 * 1024);
+    SSLHandshakeBuffer(_SecHandle* hctxt) : _state(State::HandshakeStart), _hctxt(hctxt),
+        _buffer(16*1024), _outBuffer(16*1024){
     }
 
     engine::want next(asio::error_code& ec) {
@@ -608,7 +654,7 @@ class SSLHandshakeBuffer {
                                    // Get the server certificate. 
 
         if (!(serverCert = getServerCertificate())) {
-            // TODO verify(false);
+            ASIO_ASSERT(false);
         }
 
         // getServerCertificate is a placeholder function.
@@ -629,7 +675,7 @@ class SSLHandshakeBuffer {
 
         if (!SEC_SUCCESS(ss)) {
             fprintf(stderr, "AcquireCreds failed: 0x%08x\n", ss);
-            // TODO verify(false);
+            ASIO_ASSERT(false);
         }
 
     }
@@ -641,12 +687,11 @@ class SSLHandshakeBuffer {
 
         // If we have extra encrypted data from the last encryption, copy it over to our buffer
         if (_extraEncryptedBuffer.size()) {
-            std::copy(_extraEncryptedBuffer.begin(), _extraEncryptedBuffer.end(), std::back_inserter(_buffer));
+            _buffer.fill(_extraEncryptedBuffer);
             _extraEncryptedBuffer.clear();
         }
 
-        std::copy(reinterpret_cast<unsigned char*>(data),
-            reinterpret_cast<unsigned char*>(data) + length, std::back_inserter(_buffer));
+        _buffer.append(data, length);
     }
 private:
 
@@ -699,7 +744,7 @@ private:
 
         ss = AcceptSecurityContext(
             &hcred,
-            fNewConversation ? NULL : &_hctxt,
+            fNewConversation ? NULL : _hctxt,
             &InBuffDesc,
             Attribs,
             SECURITY_NATIVE_DREP,
@@ -748,10 +793,10 @@ private:
                 needOutput = true;
             }
 
-            ss = CompleteAuthToken(&hctxt, &OutBuffDesc);
+            ss = CompleteAuthToken(_hctxt, &OutBuffDesc);
             if (!SEC_SUCCESS(ss)) {
                 fprintf(stderr, "complete failed: 0x%08x\n", ss);
-                // TODO: verify(false);
+                ASIO_ASSERT(false);
             }
         }
         printf("Token buffer generated (%lu bytes):\n",
@@ -824,17 +869,17 @@ class SSLWriteBuffer {
     };
 
     State _state;
-    std::vector<unsigned char> _buffer;
-    size_t bufPos;
+    ReusableBuffer _buffer;
 
     void setState(State s) {
         _state = s;
     }
 
     SSLWriteBuffer(_SecHandle* hctxt, ULONG cbSecurityHeader, ULONG cbSecurityTrailer) : _state(State::HaveEmptyBuffer), _hctxt(hctxt),
-        cbSecurityHeader(cbSecurityHeader), cbSecurityTrailer(cbSecurityTrailer)
+        cbSecurityHeader(cbSecurityHeader), cbSecurityTrailer(cbSecurityTrailer),
+        _buffer(16 * 1024)
     {
-        _buffer.reserve(16 * 1024);
+        
     }
 
     _SecHandle* _hctxt;
@@ -892,14 +937,14 @@ class SSLWriteBuffer {
         SecBuff[3].pvBuffer = 0;
 
         ss = EncryptMessage(
-            &_hctxt,
+            _hctxt,
             ulQop,
             &BuffDesc,
             0);
 
         if (!SEC_SUCCESS(ss)) {
             fprintf(stderr, "EncryptMessage failed: 0x%08x\n", ss);
-            // TODO return(FALSE);
+            ASIO_ASSERT(false);
         } else {
             printf("The message has been encrypted. \n");
             
@@ -929,8 +974,12 @@ class SSLWriteBuffer {
         return engine::want_output;
     }  // end EncryptThis
 
-    void readOutputBuffer(void* data, size_t inLength, size_t outLength) {
+    void readOutputBuffer(void* data, size_t inLength, size_t &outLength) {
+        
+        engine::want foo = _buffer.read(data, inLength, &outLength);
         if(length > )
+
+
 #error TODO
     }
 };
