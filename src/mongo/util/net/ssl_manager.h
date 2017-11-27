@@ -43,8 +43,8 @@
 #include "mongo/util/net/ssl_types.h"
 #include "mongo/util/time_support.h"
 
-//#include <openssl/err.h>
-//#include <openssl/ssl.h>
+#include <openssl/err.h>
+#include <openssl/ssl.h>
 
 #endif  // #ifdef MONGO_CONFIG_SSL
 
@@ -59,28 +59,17 @@ const std::string getSSLVersion(const std::string& prefix, const std::string& su
 namespace mongo {
 struct SSLParams;
 
-
-//class SSLConnection {
-//public:
-//    SSL* ssl;
-//    BIO* networkBIO;
-//    BIO* internalBIO;
-//    Socket* socket;
-//
-//    SSLConnection(SSL_CTX* ctx, Socket* sock, const char* initialBytes, int len);
-//
-//    ~SSLConnection();
-//};
-
 class SSLConnection {
-    public:
-        Socket* socket;
-    
-        SSLConnection(Socket* sock, const char* initialBytes, int len);
-    
-        ~SSLConnection();
-    };
+public:
+    SSL* ssl;
+    BIO* networkBIO;
+    BIO* internalBIO;
+    Socket* socket;
 
+    SSLConnection(SSL_CTX* ctx, Socket* sock, const char* initialBytes, int len);
+
+    ~SSLConnection();
+};
 
 struct SSLConfiguration {
     SSLConfiguration() : serverSubjectName(""), clientSubjectName("") {}
@@ -184,11 +173,11 @@ public:
      * acceptable on non-blocking connections are set. "direction" specifies whether the SSL_CTX
      * will be used to make outgoing connections or accept incoming connections.
      */
-    //virtual Status initSSLContext(SSL_CTX* context,
-    //                              const SSLParams& params,
-    //                              ConnectionDirection direction) = 0;
+    virtual Status initSSLContext(SSL_CTX* context,
+                                  const SSLParams& params,
+                                  ConnectionDirection direction) = 0;
 
-    virtual Status initSSLContext(void* context,
+    virtual Status initSSLContext(PCtxtHandle context,
         const SSLParams& params,
         ConnectionDirection direction) = 0;
 
@@ -199,10 +188,10 @@ public:
      * an engaged optional containing the certificate's subject name, and any roles acquired by
      * X509 authorization will be returned.
      */
-    //virtual StatusWith<boost::optional<SSLPeerInfo>> parseAndValidatePeerCertificate(
-    //    SSL* ssl, const std::string& remoteHost) = 0;
     virtual StatusWith<boost::optional<SSLPeerInfo>> parseAndValidatePeerCertificate(
-        void* ssl, const std::string& remoteHost) = 0;
+        SSL* ssl, const std::string& remoteHost) = 0;
+    virtual StatusWith<boost::optional<SSLPeerInfo>> parseAndValidatePeerCertificate(
+        PCtxtHandle ssl, const std::string& remoteHost) = 0;
 };
 
 // Access SSL functions through this instance.

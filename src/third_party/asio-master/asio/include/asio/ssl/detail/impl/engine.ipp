@@ -339,9 +339,9 @@ engine::~engine()
 {
 }
 
-_SecHandle* engine::native_handle()
+PCtxtHandle engine::native_handle()
 {
-  return ssl_;
+  return _hcxt;
 }
 
 asio::error_code engine::set_verify_mode(
@@ -381,6 +381,8 @@ engine::want engine::shutdown(asio::error_code& ec)
 {
   return perform(&engine::do_shutdown, 0, 0, ec, 0);
 }
+
+#define SEC_SUCCESS(Status) ((Status) >= 0)
 
 class ReusableBuffer {
     std::vector<unsigned char> _buffer;
@@ -442,6 +444,7 @@ public:
 
 
 class SSLReadBuffer {
+
     // TODO: error state?
     enum class State {
         NeedMoreEncryptedData,
@@ -457,9 +460,10 @@ class SSLReadBuffer {
         _state = s;
     }
 
-    _SecHandle* _hctxt;
+    PCtxtHandle _hctxt;
+public:
 
-    SSLReadBuffer(_SecHandle* hctxt) : _state(State::NeedMoreEncryptedData), _hctxt(hctxt), _buffer(16 * 1024) {
+    SSLReadBuffer(PCtxtHandle hctxt) : _state(State::NeedMoreEncryptedData), _hctxt(hctxt), _buffer(16 * 1024) {
     }
 
     engine::want readDecryptedData(void* data, std::size_t length, asio::error_code& ec, std::size_t &outLength) {
@@ -601,6 +605,12 @@ class SSLHandshakeBuffer {
         //HaveDecryptedData,
     };
 
+    enum class HandshakeMode {
+        Unknown,
+        Client,
+        Server,
+    };
+
     State _state;
     ReusableBuffer  _buffer;
     std::vector<unsigned char> _extraEncryptedBuffer;
@@ -609,24 +619,40 @@ class SSLHandshakeBuffer {
     size_t bufPos;
     CredHandle hcred;
 
+    HandshakeMode _mode;
+
     void setState(State s) {
         _state = s;
     }
 
+    void setMode(HandshakeMode mode) {
+        ASIO_ASSERT(_mode == HandshakeMode::Unknown);
+        _mode = mode;
+    }
 
-    _SecHandle* _hctxt;
+    PCtxtHandle _hctxt;
 
-    SSLHandshakeBuffer(_SecHandle* hctxt) : _state(State::HandshakeStart), _hctxt(hctxt),
-        _buffer(16*1024), _outBuffer(16*1024){
+public:
+
+    SSLHandshakeBuffer(PCtxtHandle hctxt) : _state(State::HandshakeStart), _hctxt(hctxt),
+        _buffer(16*1024), _outBuffer(16*1024), _mode(HandshakeMode::Unknown){
     }
 
     engine::want next(asio::error_code& ec) {
+        ASIO_ASSERT(_mode != HandshakeMode::Unknown);
 
         if (_state == State::HandshakeStart) {
             
-            startServerHandshake(ec);
+            engine::want want;
+            if (_mode == HandshakeMode::Server) {
+                startServerHandshake(ec);
 
-            engine::want want = TryAcceptClientToken(true, ec);
+                want = TryAcceptClientToken(true, ec);
+            } else {
+                startClientHandshake(ec);
+
+                want = TryGenClientContext(ec);
+            }
 
             setState(State::NeedMoreHandshakeData);
 
@@ -635,7 +661,12 @@ class SSLHandshakeBuffer {
             return  engine::want_input_and_retry;
         } else {
 
-            engine::want want = TryAcceptClientToken(false, ec);
+            engine::want want;
+            if (_mode == HandshakeMode::Server) {
+                want = TryAcceptClientToken(false, ec);
+            } else {
+                want = TryGenClientContext(ec);
+            }
 
             if (want == engine::want_nothing) {
                 setState(State::Done);
@@ -693,6 +724,36 @@ class SSLHandshakeBuffer {
 
         _buffer.append(data, length);
     }
+
+    void startClientHandshake(asio::error_code& ec) {
+        static CHAR      lpPackageName[1024];
+
+        TimeStamp         Lifetime;
+        SCHANNEL_CRED credData;
+
+        ZeroMemory(&credData, sizeof(credData));
+        credData.dwVersion = SCHANNEL_CRED_VERSION;
+        //-------------------------------------------------------
+        // Specify the TLS V1.0 (client-side) security protocol.
+        credData.grbitEnabledProtocols = SP_PROT_TLS1_0_CLIENT;
+        credData.dwFlags |= SCH_CRED_NO_DEFAULT_CREDS | SCH_CRED_MANUAL_CRED_VALIDATION;
+
+        strcpy_s(lpPackageName, 1024 * sizeof(CHAR), "SChannel");
+        SECURITY_STATUS ss = AcquireCredentialsHandleA(
+            NULL,
+            lpPackageName,
+            SECPKG_CRED_OUTBOUND,
+            NULL,
+            &credData,
+            NULL,
+            NULL,
+            &hcred,
+            &Lifetime);
+
+        if (!(SEC_SUCCESS(ss))) {
+            ASIO_ASSERT(false);
+        }
+    }
 private:
 
     engine::want TryAcceptClientToken(
@@ -748,7 +809,7 @@ private:
             &InBuffDesc,
             Attribs,
             SECURITY_NATIVE_DREP,
-            &_hctxt,
+            _hctxt,
             &OutBuffDesc,
             &Attribs,
             &Lifetime);
@@ -813,6 +874,142 @@ private:
         return engine::want_nothing;
     }  // end GenServerContext
 
+    engine::want TryGenClientContext(asio::error_code& ec)
+    {
+        SECURITY_STATUS   ss;
+        TimeStamp         Lifetime;
+        SecBufferDesc     OutBuffDesc;
+        SecBuffer         OutSecBuff;
+        SecBufferDesc     InBuffDesc;
+        SecBuffer         InSecBuff[2];
+        ULONG             ContextAttributes;
+        
+        // TODO???
+        char* pszTarget = "mark";
+
+
+        DWORD dwSSPIFlags = ISC_REQ_SEQUENCE_DETECT |
+            ISC_REQ_REPLAY_DETECT |
+            ISC_REQ_CONFIDENTIALITY |
+            ISC_RET_EXTENDED_ERROR |
+            //ISC_REQ_ALLOCATE_MEMORY |
+            ISC_REQ_STREAM;
+
+
+        //--------------------------------------------------------------------
+        //  Prepare the buffers.
+
+        OutBuffDesc.ulVersion = 0;
+        OutBuffDesc.cBuffers = 1;
+        OutBuffDesc.pBuffers = &OutSecBuff;
+
+        OutSecBuff.cbBuffer = _outBuffer.size();
+        OutSecBuff.BufferType = SECBUFFER_TOKEN;
+        OutSecBuff.pvBuffer = _outBuffer.data();
+
+        //-------------------------------------------------------------------
+        //  The input buffer is created only if a message has been received 
+        //  from the server.
+
+        if (_buffer.size()) {
+            InBuffDesc.ulVersion = 0;
+            InBuffDesc.cBuffers = 2;
+            InBuffDesc.pBuffers = &InSecBuff[0];
+
+            InSecBuff[0].cbBuffer = _buffer.size();
+            InSecBuff[0].BufferType = SECBUFFER_TOKEN;
+            InSecBuff[0].pvBuffer = _buffer.data();
+
+            InSecBuff[1].cbBuffer = 0;
+            InSecBuff[1].BufferType = SECBUFFER_EMPTY;
+            InSecBuff[1].pvBuffer = NULL;
+
+            ss = InitializeSecurityContextA(
+                &hcred,
+                _hctxt,
+                pszTarget,
+                dwSSPIFlags,
+                0,
+                SECURITY_NATIVE_DREP,
+                &InBuffDesc,
+                0,
+                NULL,
+                &OutBuffDesc,
+                &ContextAttributes,
+                &Lifetime);
+        } else {
+            ss = InitializeSecurityContextA(
+                &hcred,
+                NULL,
+                pszTarget,
+                dwSSPIFlags,
+                0,
+                SECURITY_NATIVE_DREP,
+                NULL,
+                0,
+                _hctxt,
+                &OutBuffDesc,
+                &ContextAttributes,
+                &Lifetime);
+        }
+
+        if (!SEC_SUCCESS(ss)) {
+            if (ss == SEC_E_INCOMPLETE_MESSAGE) {
+                printf("Need more data for GenClientContext");
+                return engine::want_input_and_retry;
+            }
+
+            ASIO_ASSERT(false);
+        }
+
+        if (_buffer.size()) {
+            // Locate (optional) extra buffers.
+            SecBuffer* pExtraBuffer = NULL;
+
+            for (int i = 0; i < 2; i++) {
+                if (pExtraBuffer == NULL && InSecBuff[i].BufferType == SECBUFFER_EXTRA) {
+                    pExtraBuffer = &InSecBuff[i];
+                }
+            }
+
+            if (pExtraBuffer != NULL && pExtraBuffer->cbBuffer > 0) {
+                // TODO: assert _extraEncryptedBuffer.size() == 0
+                _extraEncryptedBuffer.clear();
+                std::copy(reinterpret_cast<unsigned char*>(pExtraBuffer->pvBuffer),
+                    reinterpret_cast<unsigned char*>(pExtraBuffer->pvBuffer) + pExtraBuffer->cbBuffer,
+                    std::back_inserter(_extraEncryptedBuffer));
+            }
+        }
+        //-------------------------------------------------------------------
+        //  If necessary, complete the token.
+        bool needOutput{false};
+        if (SEC_I_COMPLETE_AND_CONTINUE == ss || SEC_I_CONTINUE_NEEDED == ss) {
+            needOutput = true;
+        }
+
+        if ((SEC_I_COMPLETE_NEEDED == ss)
+            || (SEC_I_COMPLETE_AND_CONTINUE == ss)) {
+            ss = CompleteAuthToken(_hctxt, &OutBuffDesc);
+            if (!SEC_SUCCESS(ss)) {
+                fprintf(stderr, "complete failed: 0x%08x\n", ss);
+                ASIO_ASSERT(false);
+            }
+        }
+
+        _outBuffer.resize(OutSecBuff.cbBuffer);
+
+        printf("Token buffer generated (%lu bytes):\n", OutSecBuff.cbBuffer);
+        //PrintHexDump(OutSecBuff.cbBuffer, (PBYTE)OutSecBuff.pvBuffer);
+        if (needOutput) {
+            return engine::want_output_and_retry;
+        }
+
+
+        // assert ss == SEC_I_COMPLETE_NEEDED
+        return engine::want_nothing;
+    }
+
+
 
     PCCERT_CONTEXT getServerCertificate()
     {
@@ -874,18 +1071,20 @@ class SSLWriteBuffer {
     void setState(State s) {
         _state = s;
     }
+    PCtxtHandle    _hctxt;
 
-    SSLWriteBuffer(_SecHandle* hctxt, ULONG cbSecurityHeader, ULONG cbSecurityTrailer) : _state(State::HaveEmptyBuffer), _hctxt(hctxt),
+    ULONG cbSecurityTrailer;
+    ULONG cbSecurityHeader;
+
+
+public:
+
+    SSLWriteBuffer(PCtxtHandle hctxt, ULONG cbSecurityHeader, ULONG cbSecurityTrailer) : _state(State::HaveEmptyBuffer), _hctxt(hctxt),
         cbSecurityHeader(cbSecurityHeader), cbSecurityTrailer(cbSecurityTrailer),
         _buffer(16 * 1024)
     {
         
     }
-
-    _SecHandle* _hctxt;
-
-    ULONG cbSecurityTrailer;
-    ULONG cbSecurityHeader;
 
     engine::want writeUnecryptedData
     (void* pMessage, std::size_t cbMessage, asio::error_code& ec) {
@@ -976,11 +1175,7 @@ class SSLWriteBuffer {
 
     void readOutputBuffer(void* data, size_t inLength, size_t &outLength) {
         
-        engine::want foo = _buffer.read(data, inLength, &outLength);
-        if(length > )
-
-
-#error TODO
+        _buffer.read(data, inLength, &outLength);
     }
 };
 
@@ -1044,13 +1239,6 @@ const asio::error_code& engine::map_error_code(
     ec = asio::ssl::error::stream_truncated;
     return ec;
   }
-
-  // SSL v2 doesn't provide a protocol-level shutdown, so an eof on the
-  // underlying transport is passed through.
-#if (OPENSSL_VERSION_NUMBER < 0x10100000L)
-  if (ssl_->version == SSL2_VERSION)
-    return ec;
-#endif // (OPENSSL_VERSION_NUMBER < 0x10100000L)
 
   // Otherwise, the peer should have negotiated a proper shutdown.
   if ((::SSL_get_shutdown(ssl_) & SSL_RECEIVED_SHUTDOWN) == 0)

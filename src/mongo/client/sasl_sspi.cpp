@@ -30,8 +30,6 @@
 
 #define MONGO_LOG_DEFAULT_COMPONENT ::mongo::logger::LogComponent::kNetwork
 
-#define SECURITY_WIN32 1  // Required for SSPI support.
-
 #include "mongo/platform/basic.h"
 
 #include <sasl/sasl.h>

@@ -858,6 +858,14 @@ Status SSLManager::initSSLContext(SSL_CTX* context,
     return Status::OK();
 }
 
+Status SSLManager::initSSLContext(SSL_CTX* context,
+    const SSLParams& params,
+    ConnectionDirection direction) {
+
+    // TODO
+    return Status::OK();
+}
+
 bool SSLManager::_initSynchronousSSLContext(UniqueSSLContext* contextPtr,
                                             const SSLParams& params,
                                             ConnectionDirection direction) {
@@ -1436,6 +1444,13 @@ StatusWith<boost::optional<SSLPeerInfo>> SSLManager::parseAndValidatePeerCertifi
     }
 
     return boost::make_optional(SSLPeerInfo(peerSubjectName, stdx::unordered_set<RoleName>()));
+}
+
+
+StatusWith<boost::optional<SSLPeerInfo>> SSLManager::parseAndValidatePeerCertificate(
+    PCtxtHandle conn, const std::string& remoteHost) {
+    // TODO:
+    return{boost::none};
 }
 
 

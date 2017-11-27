@@ -67,12 +67,12 @@ class stream :
 public:
   /// The native handle type of the SSL stream.
   //typedef SSL* native_handle_type;
-  typedef _SecHandle native_handle_type;
+  typedef PCtxtHandle native_handle_type;
 
   /// Structure for use with deprecated impl_type.
   struct impl_struct
   {
-    SSL* ssl;
+      PCtxtHandle ssl;
   };
 
   /// The type of the next layer.

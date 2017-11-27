@@ -62,7 +62,7 @@ public:
   ASIO_DECL ~engine();
 
   // Get the underlying implementation in the native type.
-  ASIO_DECL _SecHandle* native_handle();
+  ASIO_DECL PCtxtHandle native_handle();
 
   // Set the peer verification mode.
   ASIO_DECL asio::error_code set_verify_mode(
@@ -144,6 +144,7 @@ private:
   ASIO_DECL int do_write(void* data, std::size_t length);
 
   _SecHandle ssl_;
+  PCtxtHandle _hcxt;
 
 
 /*
