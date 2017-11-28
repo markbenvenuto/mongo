@@ -363,6 +363,10 @@ public:
                           const SSLParams& params,
                           ConnectionDirection direction) final;
 
+    Status initSSLContext(PCtxtHandle context,
+        const SSLParams& params,
+        ConnectionDirection direction) final;
+
     virtual SSLConnection* connect(Socket* socket);
 
     virtual SSLConnection* accept(Socket* socket, const char* initialBytes, int len);
@@ -372,6 +376,11 @@ public:
 
     StatusWith<boost::optional<SSLPeerInfo>> parseAndValidatePeerCertificate(
         SSL* conn, const std::string& remoteHost) final;
+
+
+    StatusWith<boost::optional<SSLPeerInfo>> parseAndValidatePeerCertificate(
+        PCtxtHandle ssl, const std::string& remoteHost) final;
+
 
     virtual const SSLConfiguration& getSSLConfiguration() const {
         return _sslConfiguration;
@@ -858,7 +867,7 @@ Status SSLManager::initSSLContext(SSL_CTX* context,
     return Status::OK();
 }
 
-Status SSLManager::initSSLContext(SSL_CTX* context,
+Status SSLManager::initSSLContext(PCtxtHandle context,
     const SSLParams& params,
     ConnectionDirection direction) {
 

@@ -17,7 +17,7 @@
 
 #include <boost/asio/detail/config.hpp>
 #include <boost/asio/ssl/error.hpp>
-#include <boost/asio/ssl/detail/openssl_init.hpp>
+//#include <boost/asio/ssl/detail/openssl_init.hpp>
 
 #include <boost/asio/detail/push_options.hpp>
 

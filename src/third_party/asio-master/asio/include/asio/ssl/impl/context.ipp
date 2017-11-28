@@ -1160,7 +1160,7 @@ namespace asio {
 namespace ssl {
 
 context::context(context::method m)
-  : handle_({0,0})
+  : handle_(NULL)
 {
   // No-op on Windows since context is not used until accept
 }
@@ -1185,7 +1185,7 @@ context::~context()
 {
   if (SecIsValidHandle(&handle_))
   {
-    ::FreeCredentialsHandle(&handle_);
+    //::FreeCredentialsHandle(handle_);
   }
 }
 

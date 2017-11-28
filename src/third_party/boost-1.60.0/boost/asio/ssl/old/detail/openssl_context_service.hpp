@@ -24,7 +24,7 @@
 #include <boost/asio/error.hpp>
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/ssl/context_base.hpp>
-#include <boost/asio/ssl/detail/openssl_init.hpp>
+// #include <boost/asio/ssl/detail/openssl_init.hpp>
 #include <boost/asio/ssl/detail/openssl_types.hpp>
 
 #include <boost/asio/detail/push_options.hpp>

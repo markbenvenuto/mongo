@@ -22,7 +22,7 @@
 #include "asio/io_context.hpp"
 #include "asio/ssl/context_base.hpp"
 #include "asio/ssl/detail/openssl_types.hpp"
-#include "asio/ssl/detail/openssl_init.hpp"
+//#include "asio/ssl/detail/openssl_init.hpp"
 #include "asio/ssl/detail/password_callback.hpp"
 #include "asio/ssl/detail/verify_callback.hpp"
 #include "asio/ssl/verify_mode.hpp"
@@ -39,7 +39,7 @@ class context
 public:
   /// The native handle type of the SSL context.
   //typedef SSL_CTX* native_handle_type;
-  typedef _SecHandle native_handle_type;
+  typedef PCtxtHandle native_handle_type;
 
   /// Constructor.
   ASIO_DECL explicit context(method m);

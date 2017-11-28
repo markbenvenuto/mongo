@@ -17,7 +17,7 @@
 
 #include "asio/detail/config.hpp"
 #include "asio/ssl/error.hpp"
-#include "asio/ssl/detail/openssl_init.hpp"
+// #include "asio/ssl/detail/openssl_init.hpp"
 
 #include "asio/detail/push_options.hpp"
 

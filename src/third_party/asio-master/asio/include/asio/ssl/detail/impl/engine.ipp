@@ -330,9 +330,13 @@ namespace asio {
 namespace ssl {
 namespace detail {
 
-engine::engine(_SecHandle context)
-  : ssl_({0,0}})
+engine::engine(PCtxtHandle context)
+    : _hcxt({0, 0}),
+    _handshakeBuffer(&_hcxt),
+    _readBuffer(&_hcxt),
+    _writeBuffer(&_hcxt)
 {
+    ASIO_ASSERT(context == nullptr);
 }
 
 engine::~engine()
@@ -341,7 +345,7 @@ engine::~engine()
 
 PCtxtHandle engine::native_handle()
 {
-  return _hcxt;
+  return &_hcxt;
 }
 
 asio::error_code engine::set_verify_mode(
@@ -373,13 +377,20 @@ asio::error_code engine::set_verify_callback(
 engine::want engine::handshake(
     stream_base::handshake_type type, asio::error_code& ec)
 {
-  return perform((type == asio::ssl::stream_base::client)
-      ? &engine::do_connect : &engine::do_accept, 0, 0, ec, 0);
+    _handshakeBuffer.setMode((type == asio::ssl::stream_base::client) ? SSLHandshakeBuffer::HandshakeMode::Client : SSLHandshakeBuffer::HandshakeMode::Server);
+    auto w = _handshakeBuffer.next(ec);
+    if (w == want::want_nothing) {
+        _state = EngineState::InProgress;
+    }
+
+    return w;
 }
 
 engine::want engine::shutdown(asio::error_code& ec)
 {
-  return perform(&engine::do_shutdown, 0, 0, ec, 0);
+    // TODO:
+    return want::want_nothing;
+  //return perform(&engine::do_shutdown, 0, 0, ec, 0);
 }
 engine::want engine::write(const asio::const_buffer& data,
     asio::error_code& ec, std::size_t& bytes_transferred)
@@ -390,9 +401,12 @@ engine::want engine::write(const asio::const_buffer& data,
     return engine::want_nothing;
   }
 
-  return perform(&engine::do_write,
-      const_cast<void*>(data.data()),
-      data.size(), ec, &bytes_transferred);
+  if (_state == EngineState::NeedsHandshake) {
+      ASIO_ASSERT(false);
+      return want::want_nothing;
+  } else {
+      return _writeBuffer.writeUnecryptedData(data.data(), data.size(), bytes_transferred, ec);
+  }
 }
 
 engine::want engine::read(const asio::mutable_buffer& data,
@@ -404,28 +418,39 @@ engine::want engine::read(const asio::mutable_buffer& data,
     return engine::want_nothing;
   }
 
-  return perform(&engine::do_read, data.data(),
-      data.size(), ec, &bytes_transferred);
+
+  if (_state == EngineState::NeedsHandshake) {
+      ASIO_ASSERT(false);
+      return want::want_nothing;
+  } else {
+      return _readBuffer.readDecryptedData(data.data(), data.size(), ec, bytes_transferred);
+  }
 }
 
 asio::mutable_buffer engine::get_output(
     const asio::mutable_buffer& data)
 {
-  int length = ::BIO_read(ext_bio_,
-      data.data(), static_cast<int>(data.size()));
+    std::size_t length;
+    if (_state == EngineState::NeedsHandshake) {
+        _handshakeBuffer.readOutputBuffer(data.data(), data.size(), &length);
+    } else {
+        _writeBuffer.readOutputBuffer(data.data(), data.size(), &length);
+    }
 
-  return asio::buffer(data,
-      length > 0 ? static_cast<std::size_t>(length) : 0);
+    return asio::buffer(data, length);
 }
 
 asio::const_buffer engine::put_input(
     const asio::const_buffer& data)
 {
-  int length = ::BIO_write(ext_bio_,
-      data.data(), static_cast<int>(data.size()));
+    if (_state == EngineState::NeedsHandshake) {
+        _handshakeBuffer.writeEncryptedData(data.data(), data.size());
+    } else {
 
-  return asio::buffer(data +
-      (length > 0 ? static_cast<std::size_t>(length) : 0));
+        _readBuffer.writeData(data.data(), data.size());
+    }
+
+    return asio::buffer(data + data.size());
 }
 
 const asio::error_code& engine::map_error_code(
@@ -435,109 +460,23 @@ const asio::error_code& engine::map_error_code(
   if (ec != asio::error::eof)
     return ec;
 
-  // If there's data yet to be read, it's an error.
-  if (BIO_wpending(ext_bio_))
-  {
-    ec = asio::ssl::error::stream_truncated;
-    return ec;
-  }
+  // TODO
+  //// If there's data yet to be read, it's an error.
+  //if (BIO_wpending(ext_bio_))
+  //{
+  //  ec = asio::ssl::error::stream_truncated;
+  //  return ec;
+  //}
 
-  // Otherwise, the peer should have negotiated a proper shutdown.
-  if ((::SSL_get_shutdown(ssl_) & SSL_RECEIVED_SHUTDOWN) == 0)
-  {
-    ec = asio::ssl::error::stream_truncated;
-  }
+  //// Otherwise, the peer should have negotiated a proper shutdown.
+  //if ((::SSL_get_shutdown(ssl_) & SSL_RECEIVED_SHUTDOWN) == 0)
+  //{
+  //  ec = asio::ssl::error::stream_truncated;
+  //}
 
   return ec;
 }
 
-engine::want engine::perform(int (engine::* op)(void*, std::size_t),
-    void* data, std::size_t length, asio::error_code& ec,
-    std::size_t* bytes_transferred)
-{
-  std::size_t pending_output_before = ::BIO_ctrl_pending(ext_bio_);
-  ::ERR_clear_error();
-  int result = (this->*op)(data, length);
-  int ssl_error = ::SSL_get_error(ssl_, result);
-  int sys_error = static_cast<int>(::ERR_get_error());
-  std::size_t pending_output_after = ::BIO_ctrl_pending(ext_bio_);
-
-  if (ssl_error == SSL_ERROR_SSL)
-  {
-    ec = asio::error_code(sys_error,
-        asio::error::get_ssl_category());
-    return want_nothing;
-  }
-
-  if (ssl_error == SSL_ERROR_SYSCALL)
-  {
-    ec = asio::error_code(sys_error,
-        asio::error::get_system_category());
-    return want_nothing;
-  }
-
-  if (result > 0 && bytes_transferred)
-    *bytes_transferred = static_cast<std::size_t>(result);
-
-  if (ssl_error == SSL_ERROR_WANT_WRITE)
-  {
-    ec = asio::error_code();
-    return want_output_and_retry;
-  }
-  else if (pending_output_after > pending_output_before)
-  {
-    ec = asio::error_code();
-    return result > 0 ? want_output : want_output_and_retry;
-  }
-  else if (ssl_error == SSL_ERROR_WANT_READ)
-  {
-    ec = asio::error_code();
-    return want_input_and_retry;
-  }
-  else if (::SSL_get_shutdown(ssl_) & SSL_RECEIVED_SHUTDOWN)
-  {
-    ec = asio::error::eof;
-    return want_nothing;
-  }
-  else
-  {
-    ec = asio::error_code();
-    return want_nothing;
-  }
-}
-
-int engine::do_accept(void*, std::size_t)
-{
-#if (OPENSSL_VERSION_NUMBER < 0x10000000L)
-  asio::detail::static_mutex::scoped_lock lock(accept_mutex());
-#endif // (OPENSSL_VERSION_NUMBER < 0x10000000L)
-  return ::SSL_accept(ssl_);
-}
-
-int engine::do_connect(void*, std::size_t)
-{
-  return ::SSL_connect(ssl_);
-}
-
-int engine::do_shutdown(void*, std::size_t)
-{
-  int result = ::SSL_shutdown(ssl_);
-  if (result == 0)
-    result = ::SSL_shutdown(ssl_);
-  return result;
-}
-
-int engine::do_read(void* data, std::size_t length)
-{
-  return ::SSL_read(ssl_, data,
-      length < INT_MAX ? static_cast<int>(length) : INT_MAX);
-}
-
-int engine::do_write(void* data, std::size_t length)
-{
-  return ::SSL_write(ssl_, data,
-      length < INT_MAX ? static_cast<int>(length) : INT_MAX);
-}
 
 } // namespace detail
 } // namespace ssl
