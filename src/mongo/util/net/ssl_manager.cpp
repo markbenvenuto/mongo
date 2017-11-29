@@ -363,7 +363,7 @@ public:
                           const SSLParams& params,
                           ConnectionDirection direction) final;
 
-    Status initSSLContext(PCtxtHandle context,
+    Status initSSLContext(SCHANNEL_CRED* cred,
         const SSLParams& params,
         ConnectionDirection direction) final;
 
@@ -494,6 +494,10 @@ private:
      */
     static int password_cb(char* buf, int num, int rwflag, void* userdata);
     static int verify_cb(int ok, X509_STORE_CTX* ctx);
+
+
+    // WINDOWS
+
 };
 
 void setupFIPS() {
@@ -867,13 +871,123 @@ Status SSLManager::initSSLContext(SSL_CTX* context,
     return Status::OK();
 }
 
-Status SSLManager::initSSLContext(PCtxtHandle context,
+
+struct CERTFree {
+    void operator()(PCCERT_CONTEXT const p) noexcept {
+        if (p) {
+            ::CertFreeCertificateContext(p);
+        }
+    }
+};
+
+typedef std::unique_ptr<const CERT_CONTEXT, CERTFree> UniqueCertificate;
+
+UniqueCertificate readPEMFile(StringData fileName, StringData password) {
+
+    PCERT_CONTEXT p{0};
+
+    return UniqueCertificate(p);
+}
+
+Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
     const SSLParams& params,
     ConnectionDirection direction) {
 
-    // TODO
+    uint32_t supportedProtocols = 0;
+    
+    if (direction == ConnectionDirection::kIncoming) {
+        supportedProtocols = SP_PROT_TLS1_CLIENT | SP_PROT_TLS1_0_CLIENT | SP_PROT_TLS1_1_CLIENT | SP_PROT_TLS1_2_CLIENT;
+    } else {
+        supportedProtocols = SP_PROT_TLS1_SERVER | SP_PROT_TLS1_0_SERVER | SP_PROT_TLS1_1_SERVER | SP_PROT_TLS1_2_SERVER;
+    }
+
+    // Set the supported TLS protocols. Allow --sslDisabledProtocols to disable selected
+    // ciphers.
+    for (const SSLParams::Protocols& protocol : params.sslDisabledProtocols) {
+        if (protocol == SSLParams::Protocols::TLS1_0) {
+            supportedProtocols &= ~(SP_PROT_TLS1_0_CLIENT | SP_PROT_TLS1_0_SERVER);
+        } else if (protocol == SSLParams::Protocols::TLS1_1) {
+            supportedProtocols &= ~(SP_PROT_TLS1_1_CLIENT | SP_PROT_TLS1_1_SERVER);
+        } else if (protocol == SSLParams::Protocols::TLS1_2) {
+            supportedProtocols &= ~(SP_PROT_TLS1_2_CLIENT | SP_PROT_TLS1_2_SERVER);
+        }
+    }
+
+    // TODO - support somehow
+    // HIGH - Enable strong ciphers
+    // !EXPORT - Disable export ciphers (40/56 bit)
+    // !aNULL - Disable anonymous auth ciphers
+    // @STRENGTH - Sort ciphers based on strength
+    std::string cipherConfig = "HIGH:!EXPORT:!aNULL@STRENGTH";
+
+    // Allow the cipher configuration string to be overriden by --sslCipherConfig
+    if (!params.sslCipherConfig.empty()) {
+        // TODO: error - we do not have the same syntax
+        cipherConfig = params.sslCipherConfig;
+    }
+
+    if (direction == ConnectionDirection::kOutgoing && !params.sslClusterFile.empty()) {
+        ::EVP_set_pw_prompt("Enter cluster certificate passphrase");
+        if (!_setupPEM(context, params.sslClusterFile, params.sslClusterPassword)) {
+            return Status(ErrorCodes::InvalidSSLConfiguration, "Can not set up ssl clusterFile.");
+        }
+    } else if (!params.sslPEMKeyFile.empty()) {
+        // Use the pemfile for everything else
+        ::EVP_set_pw_prompt("Enter PEM passphrase");
+        if (!_setupPEM(context, params.sslPEMKeyFile, params.sslPEMKeyPassword)) {
+            return Status(ErrorCodes::InvalidSSLConfiguration, "Can not set up PEM key file.");
+        }
+    }
+
+    const auto status =
+        params.sslCAFile.empty() ? _setupSystemCA(context) : _setupCA(context, params.sslCAFile);
+    if (!status.isOK())
+        return status;
+
+    if (!params.sslCRLFile.empty()) {
+        if (!_setupCRL(context, params.sslCRLFile)) {
+            return Status(ErrorCodes::InvalidSSLConfiguration, "Can not set up CRL file.");
+        }
+    }
+
+    if (!params.sslPEMTempDHParam.empty()) {
+        try {
+            std::ifstream dhparamPemFile(params.sslPEMTempDHParam, std::ios_base::binary);
+            if (dhparamPemFile.fail() || dhparamPemFile.bad()) {
+                return Status(ErrorCodes::InvalidSSLConfiguration,
+                    str::stream() << "Cannot open PEM DHParams file.");
+            }
+
+            std::vector<std::uint8_t> paramData{std::istreambuf_iterator<char>(dhparamPemFile),
+                std::istreambuf_iterator<char>()};
+            auto bio = makeUniqueMemBio(paramData);
+
+            UniqueDHParams dhparams(::PEM_read_bio_DHparams(bio.get(), nullptr, nullptr, nullptr));
+            if (!dhparams) {
+                return Status(ErrorCodes::InvalidSSLConfiguration,
+                    str::stream() << "Error reading DHParams file."
+                    << getSSLErrorMessage(ERR_get_error()));
+            }
+
+            if (::SSL_CTX_set_tmp_dh(context, dhparams.get()) != 1) {
+                return Status(ErrorCodes::InvalidSSLConfiguration,
+                    str::stream() << "Failure to set PFS DH parameters: "
+                    << getSSLErrorMessage(ERR_get_error()));
+            }
+        }
+        catch (const std::exception& ex) {
+            return Status(ErrorCodes::InvalidSSLConfiguration, ex.what());
+        }
+    }
+
+    // We always set ECDH mode anyhow, if available.
+    setECDHModeAuto(context);
+
     return Status::OK();
 }
+
+
+
 
 bool SSLManager::_initSynchronousSSLContext(UniqueSSLContext* contextPtr,
                                             const SSLParams& params,

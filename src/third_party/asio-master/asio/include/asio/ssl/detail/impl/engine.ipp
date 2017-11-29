@@ -330,12 +330,13 @@ namespace asio {
 namespace ssl {
 namespace detail {
 
-engine::engine(PCtxtHandle context)
+engine::engine(SCHANNEL_CRED* context)
     : _hcxt({0, 0}),
     _hcred({0, 0}),
     _handshakeBuffer(&_hcxt, &_hcred),
     _readBuffer(&_hcxt, &_hcred),
-    _writeBuffer(&_hcxt)
+    _writeBuffer(&_hcxt),
+    _pCred(context)
 {
     ASIO_ASSERT(context == nullptr);
 }

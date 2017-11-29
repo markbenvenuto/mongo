@@ -177,7 +177,7 @@ public:
                                   const SSLParams& params,
                                   ConnectionDirection direction) = 0;
 
-    virtual Status initSSLContext(PCtxtHandle context,
+    virtual Status initSSLContext(SCHANNEL_CRED* cred,
         const SSLParams& params,
         ConnectionDirection direction) = 0;
 

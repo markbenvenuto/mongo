@@ -216,7 +216,7 @@ public:
   };
 
   // Construct a new engine for the specified context.
-  ASIO_DECL explicit engine(PCtxtHandle context);
+  ASIO_DECL explicit engine(SCHANNEL_CRED* context);
 
   // Destructor.
   ASIO_DECL ~engine();
@@ -277,6 +277,7 @@ private:
 
   CtxtHandle _hcxt;
   CredHandle _hcred;
+  SCHANNEL_CRED* _pCred;
 
   enum class EngineState {
     NeedsHandshake,
@@ -593,6 +594,8 @@ private:
               fprintf(stderr, "AcquireCreds failed: 0x%08x\n", ss);
               ASIO_ASSERT(false);
           }
+
+          CertFreeCertificateContext(serverCert);
 
       }
 

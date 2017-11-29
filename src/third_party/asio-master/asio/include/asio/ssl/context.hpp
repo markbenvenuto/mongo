@@ -39,7 +39,7 @@ class context
 public:
   /// The native handle type of the SSL context.
   //typedef SSL_CTX* native_handle_type;
-  typedef PCtxtHandle native_handle_type;
+  typedef SCHANNEL_CRED* native_handle_type;
 
   /// Constructor.
   ASIO_DECL explicit context(method m);
@@ -738,6 +738,8 @@ private:
 
   // Helper function to make a BIO from a memory buffer.
 //   ASIO_DECL BIO* make_buffer_bio(const const_buffer& b);
+
+  SCHANNEL_CRED _cred;
 
   // The underlying native implementation.
   native_handle_type handle_;
