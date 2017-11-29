@@ -882,9 +882,42 @@ struct CERTFree {
 
 typedef std::unique_ptr<const CERT_CONTEXT, CERTFree> UniqueCertificate;
 
-UniqueCertificate readPEMFile(StringData fileName, StringData password) {
+StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData password) {
+    std::string buf;
 
-    PCERT_CONTEXT p{0};
+    std::ifstream pemFile(fileName.toString(), std::ios::binary);
+    if (!pemFile.is_open()) {
+        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "Failed to open PEM file: " << fileName);
+    }
+
+    std::string str((std::istreambuf_iterator<char>(pemFile)),
+        std::istreambuf_iterator<char>());
+
+    pemFile.close();
+
+    CERT_BLOB certBlob;
+    certBlob.cbData = buf.size();
+    certBlob.pbData = reinterpret_cast<BYTE*>(const_cast<char*>(buf.data()));
+
+    PCCERT_CONTEXT cert;
+    BOOL ret = CryptQueryObject(
+        CERT_QUERY_OBJECT_BLOB,
+        &certBlob,
+        CERT_QUERY_CONTENT_FLAG_CERT, // CERT_QUERY_CONTENT_FLAG_ALL??
+        CERT_QUERY_FORMAT_FLAG_BASE64_ENCODED,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        reinterpret_cast<const void       **>(&cert)
+    );
+
+    if (!ret) {
+        DWORD gle = GetLastError();
+        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptQueryObject Failed " << errnoWithDescription(gle));
+    }
 
     return UniqueCertificate(p);
 }
