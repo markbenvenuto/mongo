@@ -377,9 +377,14 @@ asio::error_code engine::set_verify_callback(
 engine::want engine::handshake(
     stream_base::handshake_type type, asio::error_code& ec)
 {
+    if (_state != EngineState::NeedsHandshake) {
+        return want::want_nothing;
+    }
+
     _handshakeBuffer.setMode((type == asio::ssl::stream_base::client) ? SSLHandshakeBuffer::HandshakeMode::Client : SSLHandshakeBuffer::HandshakeMode::Server);
-    auto w = _handshakeBuffer.next(ec);
-    if (w == want::want_nothing) {
+    bool fDone{false};
+    auto w = _handshakeBuffer.next(ec, &fDone);
+    if (w == want::want_nothing || fDone == true) {
         _state = EngineState::InProgress;
     }
 
@@ -431,7 +436,7 @@ asio::mutable_buffer engine::get_output(
     const asio::mutable_buffer& data)
 {
     std::size_t length;
-    if (_state == EngineState::NeedsHandshake) {
+    if (_state == EngineState::NeedsHandshake || _handshakeBuffer.hasOutputData()) {
         _handshakeBuffer.readOutputBuffer(data.data(), data.size(), &length);
     } else {
         _writeBuffer.readOutputBuffer(data.data(), data.size(), &length);

@@ -32,31 +32,117 @@ namespace detail {
 
 
 #define SEC_SUCCESS(Status) ((Status) >= 0)
+//
+//class ReusableBuffer {
+//    std::vector<unsigned char> _buffer;
+//    size_t _bufPos{0};
+//public:
+//    // TODO: reset output to iniatial size
+//    ReusableBuffer(std::size_t initialSize) {
+//        _buffer.reserve(initialSize);
+//    }
+//    bool empty() const { return _buffer.empty(); }
+//
+//    unsigned char* data() {
+//        return _buffer.data();
+//    }
+//
+//    std::size_t size() const {
+//        return _buffer.size();
+//    }
+//
+//    void resize(std::size_t size) {
+//        _buffer.resize(size);
+//    }
+//
+//    void reset() {
+//        _bufPos = 0;
+//        _buffer.clear();
+//    }
+//
+//    void resetPos(void* pos, std::size_t size) {
+//        ASIO_ASSERT(pos >= _buffer.data() && pos < (_buffer.data() + _buffer.size()));
+//        _bufPos = (unsigned char*)pos - _buffer.data();
+//        resize(_bufPos + size);
+//    }
+//
+//    void fill(const void* data, std::size_t length) {
+//        ASIO_ASSERT(_buffer.empty());
+//        ASIO_ASSERT(_bufPos == 0);
+//        append(data, length);
+//    }
+//
+//    void fill(const std::vector<unsigned char> &vec) {
+//        append(vec.data(), vec.size());
+//    }
+//
+//
+//    void append(const void* data, std::size_t length) {
+//        ASIO_ASSERT(_bufPos == 0);
+//        std::copy(reinterpret_cast<const unsigned char*>(data),
+//            reinterpret_cast<const unsigned char*>(data) + length, std::back_inserter(_buffer));
+//    }
+//
+//    void read(void* data, std::size_t length, std::size_t *outLength) {
+//        if (length >= (_buffer.size() - _bufPos)) {
+//            // We have less then ASIO wants, give them everything we have
+//            *outLength = _buffer.size();
+//            memcpy(data, _buffer.data() + _bufPos, _buffer.size() - _bufPos);
+//
+//            // We are empty so reset our state to need encrypted data for the next call
+//            _bufPos = 0;
+//            _buffer.clear();
+//            ASIO_ASSERT(_buffer.size() == 0);
+//        } else {
+//            // ASIO wants less then we have so give them just what they want
+//            *outLength = length;
+//            memcpy(data, _buffer.data(), length);
+//
+//            _bufPos+= length;
+//        }
+//    }
+//};
 
 class ReusableBuffer {
-    std::vector<unsigned char> _buffer;
+    std::unique_ptr<unsigned char[]> _buffer;
     size_t _bufPos{0};
+    size_t _size{0};
+    size_t _capacity;
 public:
+    // TODO: reset output to iniatial size
     ReusableBuffer(std::size_t initialSize) {
-        _buffer.reserve(initialSize);
+        _buffer.reset(new unsigned char[initialSize]);
+        _capacity = initialSize;
     }
-    bool empty() const { return _buffer.empty(); }
+    bool empty() const { return _size == 0; }
 
     unsigned char* data() {
-        return _buffer.data();
+        return _buffer.get();
     }
 
     std::size_t size() const {
-        return _buffer.size();
+        return _size;
     }
 
+        void reset() {
+            _bufPos = 0;
+            _size =0;
+        }
+
     void resize(std::size_t size) {
-        _buffer.resize(size);
+        if (size > _capacity) {
+            std::unique_ptr<unsigned char[]> temp(new unsigned char[size]);
+
+            memcpy(temp.get(), _buffer.get(), _size);
+            _buffer.swap(temp);
+            _capacity = _size;
+        }
+        _size = size;
     }
 
 
     void fill(const void* data, std::size_t length) {
-        ASIO_ASSERT(_buffer.empty());
+        ASIO_ASSERT(_size == 0);
         ASIO_ASSERT(_bufPos == 0);
         append(data, length);
     }
@@ -66,27 +152,37 @@ public:
     }
 
 
+    void resetPos(void* pos, std::size_t size) {
+        ASIO_ASSERT(pos >= _buffer.get() && pos < (_buffer.get() + _size));
+        _bufPos = (unsigned char*)pos - _buffer.get();
+        resize(_bufPos + size);
+    }
+
     void append(const void* data, std::size_t length) {
         ASIO_ASSERT(_bufPos == 0);
+        auto originalSize = _size;
+        resize(_size + length);
+        printf("-- Pushing data to %d - %d\n", (int)originalSize, (int)length);
         std::copy(reinterpret_cast<const unsigned char*>(data),
-            reinterpret_cast<const unsigned char*>(data) + length, std::back_inserter(_buffer));
+            reinterpret_cast<const unsigned char*>(data) + length, _buffer.get() + originalSize);
     }
 
     void read(void* data, std::size_t length, std::size_t *outLength) {
-        if (length >= (_buffer.size() - _bufPos)) {
+        printf("-- Reading data from %d - %d\n", (int)_size, (int)length);
+        if (length >= (size() - _bufPos)) {
             // We have less then ASIO wants, give them everything we have
-            *outLength = _buffer.size();
-            memcpy(data, _buffer.data() + _bufPos, _buffer.size() - _bufPos);
+            *outLength = size() - _bufPos;
+            memcpy(data, _buffer.get() + _bufPos, size() - _bufPos);
 
             // We are empty so reset our state to need encrypted data for the next call
             _bufPos = 0;
-            _buffer.clear();
+            _size = 0;
         } else {
             // ASIO wants less then we have so give them just what they want
             *outLength = length;
-            memcpy(data, _buffer.data(), length);
+            memcpy(data, _buffer.get() + _bufPos, length);
 
-            _bufPos = length;
+            _bufPos += length;
         }
     }
 };
@@ -324,8 +420,7 @@ private:
               }
           }
 
-          ASIO_ASSERT(pDataBuffer->pvBuffer == _buffer.data());
-          _buffer.resize(pDataBuffer->cbBuffer);
+          _buffer.resetPos(pDataBuffer->pvBuffer, pDataBuffer->cbBuffer);
 
           if (pExtraBuffer != NULL && pExtraBuffer->cbBuffer > 0) {
               ASIO_ASSERT(_extraEncryptedBuffer.empty());
@@ -334,6 +429,9 @@ private:
                   reinterpret_cast<unsigned char*>(pExtraBuffer->pvBuffer) + pExtraBuffer->cbBuffer,
                   std::back_inserter(_extraEncryptedBuffer));
           }
+
+          setState(State::HaveDecryptedData);
+
 
           return engine::want_nothing;
       }
@@ -385,12 +483,11 @@ private:
           _buffer(16 * 1024), _outBuffer(16 * 1024), _mode(HandshakeMode::Unknown) {
       }
 
-      engine::want next(asio::error_code& ec) {
+      engine::want next(asio::error_code& ec, bool *fDone) {
           ASIO_ASSERT(_mode != HandshakeMode::Unknown);
+          *fDone = false;
 
           if (_state == State::HandshakeStart) {
-
-
               engine::want want;
               if (_mode == HandshakeMode::Server) {
                   // ASIO will ask for the handshake to start when the input buffer is empty
@@ -400,7 +497,7 @@ private:
 
                   startServerHandshake(ec);
 
-                  want = TryAcceptClientToken(true, ec);
+                  want = TryAcceptClientToken(true, ec, fDone);
               } else {
                   startClientHandshake(ec);
 
@@ -416,13 +513,15 @@ private:
 
               engine::want want;
               if (_mode == HandshakeMode::Server) {
-                  want = TryAcceptClientToken(false, ec);
+                  want = TryAcceptClientToken(false, ec, fDone);
               } else {
                   want = TryGenClientContext(ec);
               }
 
-              if (want == engine::want_nothing) {
+              if (want == engine::want_nothing || *fDone == true) {
                   setState(State::Done);
+              } else {
+                  setState(State::NeedMoreHandshakeData);
               }
 
               return want;
@@ -433,7 +532,9 @@ private:
       void writeEncryptedData(const void* data, std::size_t length) {
           // We have more data, it may not be enough to decode
           // but we will figure that out later
-          setState(State::HaveEncryptedData);
+          if (_state != State::HandshakeStart) {
+              setState(State::HaveEncryptedData);
+          }
 
           // If we have extra encrypted data from the last encryption, copy it over to our buffer
           if (_extraEncryptedBuffer.size()) {
@@ -444,6 +545,11 @@ private:
           _buffer.append(data, length);
       }
 
+      bool hasOutputData() {
+
+          return !_outBuffer.empty();
+      }
+
       void readOutputBuffer(void* data, size_t inLength, size_t *outLength) {
 
           _outBuffer.read(data, inLength, outLength);
@@ -451,7 +557,6 @@ private:
 
   private:
       void startServerHandshake(asio::error_code& ec) {
-          SCHANNEL_CRED credData;
           TimeStamp         Lifetime;
 
           PCCERT_CONTEXT serverCert; // server-side certificate
@@ -461,6 +566,11 @@ private:
           if (!(serverCert = getServerCertificate())) {
               ASIO_ASSERT(false);
           }
+
+          SCHANNEL_CRED credData;
+
+          ZeroMemory(&credData, sizeof(credData));
+          credData.dwVersion = SCHANNEL_CRED_VERSION;
 
           // getServerCertificate is a placeholder function.
           credData.cCreds = 1;
@@ -516,7 +626,7 @@ private:
       }
 
       engine::want TryAcceptClientToken(
-          bool fNewConversation, asio::error_code& ec) {
+          bool fNewConversation, asio::error_code& ec, bool *fDone) {
           SECURITY_STATUS   ss;
           TimeStamp         Lifetime;
           SecBufferDesc     OutBuffDesc;
@@ -532,6 +642,7 @@ private:
           OutBuffDesc.cBuffers = 1;
           OutBuffDesc.pBuffers = &OutSecBuff;
 
+          _outBuffer.resize(16 * 1024);
           OutSecBuff.cbBuffer = _outBuffer.size();
           OutSecBuff.BufferType = SECBUFFER_TOKEN;
           OutSecBuff.pvBuffer = _outBuffer.data();
@@ -581,7 +692,7 @@ private:
               }
 
               fprintf(stderr, "AcceptSecurityContext failed: 0x%08x\n", ss);
-              //TODO verify(false);
+              ASIO_ASSERT(false);
           }
           printf("AcceptSecurityContext result = 0x%08x\n", ss);
 
@@ -607,11 +718,16 @@ private:
 
           bool needOutput{false};
 
+          if (SEC_I_CONTINUE_NEEDED == ss || SEC_I_COMPLETE_AND_CONTINUE == ss || (SEC_E_OK == ss && OutSecBuff.cbBuffer != 0)) {
+              needOutput = true;
+          }
+
+          if (SEC_E_OK == ss && OutSecBuff.cbBuffer != 0) {
+              *fDone = true;
+          }
+
           if ((SEC_I_COMPLETE_NEEDED == ss)
               || (SEC_I_COMPLETE_AND_CONTINUE == ss)) {
-              if (SEC_I_COMPLETE_AND_CONTINUE == ss) {
-                  needOutput = true;
-              }
 
               ss = CompleteAuthToken(_hctxt, &OutBuffDesc);
               if (!SEC_SUCCESS(ss)) {
@@ -625,6 +741,11 @@ private:
           _outBuffer.resize(OutSecBuff.cbBuffer);
 
           if (needOutput) {
+              _buffer.reset();
+    
+              if (*fDone == true) {
+                  return engine::want_output;
+              }
               return engine::want_output_and_retry;
           }
 
@@ -662,6 +783,7 @@ private:
           OutBuffDesc.cBuffers = 1;
           OutBuffDesc.pBuffers = &OutSecBuff;
 
+          _outBuffer.resize(16 * 1024);
           OutSecBuff.cbBuffer = _outBuffer.size();
           OutSecBuff.BufferType = SECBUFFER_TOKEN;
           OutSecBuff.pvBuffer = _outBuffer.data();
@@ -832,20 +954,11 @@ private:
       }
       PCtxtHandle    _hctxt;
 
-      ULONG cbSecurityTrailer;
-      ULONG cbSecurityHeader;
-
+      ULONG cbSecurityTrailer{ULONG_MAX};
+      ULONG cbSecurityHeader{ULONG_MAX};
 
   public:
-
-      void setSizes(ULONG cbSecurityHeader, ULONG cbSecurityTrailer) {
-          cbSecurityHeader = cbSecurityHeader;
-          cbSecurityTrailer = cbSecurityTrailer;
-
-      }
-
       SSLWriteBuffer(PCtxtHandle hctxt) : _state(State::HaveEmptyBuffer), _hctxt(hctxt),
-          cbSecurityHeader(0), cbSecurityTrailer(0),
           _buffer(16 * 1024)
       {
 
@@ -859,10 +972,31 @@ private:
 
           ULONG             ulQop = 0;
 
+          if (cbSecurityTrailer == ULONG_MAX) {
+              SecPkgContext_StreamSizes SecPkgContextStreamSizes;
+
+              ss = QueryContextAttributes(
+                  _hctxt,
+                  SECPKG_ATTR_STREAM_SIZES,
+                  &SecPkgContextStreamSizes);
+
+              if (!SEC_SUCCESS(ss)) {
+                  fprintf(stderr, "QueryContextAttributes failed: 0x%08x\n", ss);
+                  ASIO_ASSERT(false);
+              }
+
+              //----------------------------------------------------------------
+              //  The following values are used for encryption and signing.
+
+              //cbMaxSignature = SecPkgContextStreamSizes.cbMaxSignature;
+
+              cbSecurityTrailer = SecPkgContextStreamSizes.cbTrailer;
+              cbSecurityHeader = SecPkgContextStreamSizes.cbHeader;
+          }
+
           //-----------------------------------------------------------------
           //  The size of the trailer (signature + padding) block is 
           //  determined from the global cbSecurityTrailer.
-
           ULONG SigBufferSize = cbSecurityTrailer + cbSecurityHeader;
 
           //printf("Data before encryption: %s\n", pMessage);
