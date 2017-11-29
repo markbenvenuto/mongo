@@ -236,8 +236,14 @@ class _FastFieldUsageChecker(_FieldUsageCheckerBase):
                     with writer.IndentedScopedBlock(self._writer, 'if (!usedFields[%s]) {' %
                                                     (_gen_field_usage_constant(field)), '}'):
                         if field.default:
-                            self._writer.write_line('%s = %s;' %
-                                                    (_get_field_member_name(field), field.default))
+                            if field.chained_struct_field:
+                                self._writer.write_line('%s.%s(%s);' %
+                                                        (_get_field_member_name(field.chained_struct_field),
+                                                            _get_field_member_setter_name(field),
+                                                            field.default))
+                            else:                            
+                                self._writer.write_line('%s = %s;' %
+                                                        (_get_field_member_name(field), field.default))
                         else:
                             self._writer.write_line('ctxt.throwMissingField(%s);' %
                                                     (_get_field_constant_name(field)))
@@ -766,7 +772,13 @@ class _CppSourceFileWriter(_CppFileWriterBase):
 
             self._writer.write_line('++expectedFieldNumber;')
 
-        self._writer.write_line('%s = std::move(values);' % (_get_field_member_name(field)))
+        if field.chained_struct_field:
+            self._writer.write_line('%s.%s(std::move(values));' %
+                                    (_get_field_member_name(field.chained_struct_field),
+                                        _get_field_member_setter_name(field)))
+        else:
+            self._writer.write_line('%s = std::move(values);' % (_get_field_member_name(field)))
+
 
     def gen_field_deserializer(self, field, bson_object):
         # type: (ast.Field, unicode) -> None
