@@ -332,8 +332,9 @@ namespace detail {
 
 engine::engine(PCtxtHandle context)
     : _hcxt({0, 0}),
-    _handshakeBuffer(&_hcxt),
-    _readBuffer(&_hcxt),
+    _hcred({0, 0}),
+    _handshakeBuffer(&_hcxt, &_hcred),
+    _readBuffer(&_hcxt, &_hcred),
     _writeBuffer(&_hcxt)
 {
     ASIO_ASSERT(context == nullptr);
@@ -341,6 +342,8 @@ engine::engine(PCtxtHandle context)
 
 engine::~engine()
 {
+    DeleteSecurityContext(&_hcxt);
+    FreeCredentialsHandle(&_hcred);
 }
 
 PCtxtHandle engine::native_handle()

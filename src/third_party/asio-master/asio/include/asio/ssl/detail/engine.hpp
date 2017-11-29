@@ -276,6 +276,7 @@ private:
 //       int preverified, X509_STORE_CTX* ctx);
 
   CtxtHandle _hcxt;
+  CredHandle _hcred;
 
   enum class EngineState {
     NeedsHandshake,
@@ -300,10 +301,11 @@ private:
           _state = s;
       }
 
-      PCtxtHandle _hctxt;
+      PCtxtHandle _phctxt;
+      PCredHandle _phcred;
   public:
 
-      SSLReadBuffer(PCtxtHandle hctxt) : _state(State::NeedMoreEncryptedData), _hctxt(hctxt), _buffer(16 * 1024) {
+      SSLReadBuffer(PCtxtHandle hctxt, PCredHandle hcred) : _state(State::NeedMoreEncryptedData), _phctxt(hctxt), _phcred(hcred), _buffer(16 * 1024) {
       }
 
       engine::want readDecryptedData(void* data, std::size_t length, asio::error_code& ec, std::size_t &outLength) {
@@ -386,7 +388,7 @@ private:
           SecBuff[3].pvBuffer = 0;
 
           ss = DecryptMessage(
-              _hctxt,
+              _phctxt,
               &BuffDesc,
               0,
               &ulQop);
@@ -454,7 +456,6 @@ private:
 
       ReusableBuffer _outBuffer;
       size_t bufPos;
-      CredHandle hcred;
 
 
       void setState(State s) {
@@ -462,8 +463,8 @@ private:
       }
 
 
-      PCtxtHandle _hctxt;
-
+      PCtxtHandle _phctxt;
+      PCredHandle _phcred;
   public:
       enum class HandshakeMode {
           Unknown,
@@ -479,8 +480,8 @@ private:
           _mode = mode;
       }
 
-      SSLHandshakeBuffer(PCtxtHandle hctxt) : _state(State::HandshakeStart), _hctxt(hctxt),
-          _buffer(16 * 1024), _outBuffer(16 * 1024), _mode(HandshakeMode::Unknown) {
+      SSLHandshakeBuffer(PCtxtHandle hctxt, PCredHandle phcred) : _state(State::HandshakeStart), _phctxt(hctxt),
+          _phcred(phcred),          _buffer(16 * 1024), _outBuffer(16 * 1024), _mode(HandshakeMode::Unknown) {
       }
 
       engine::want next(asio::error_code& ec, bool *fDone) {
@@ -585,7 +586,7 @@ private:
               &credData,
               NULL,
               NULL,
-              &hcred,
+              _phcred,
               &Lifetime);
 
           if (!SEC_SUCCESS(ss)) {
@@ -617,7 +618,7 @@ private:
               &credData,
               NULL,
               NULL,
-              &hcred,
+              _phcred,
               &Lifetime);
 
           if (!(SEC_SUCCESS(ss))) {
@@ -674,12 +675,12 @@ private:
               ASC_REQ_STREAM;
 
           ss = AcceptSecurityContext(
-              &hcred,
-              fNewConversation ? NULL : _hctxt,
+              _phcred,
+              fNewConversation ? NULL : _phctxt,
               &InBuffDesc,
               Attribs,
               SECURITY_NATIVE_DREP,
-              _hctxt,
+              _phctxt,
               &OutBuffDesc,
               &Attribs,
               &Lifetime);
@@ -729,7 +730,7 @@ private:
           if ((SEC_I_COMPLETE_NEEDED == ss)
               || (SEC_I_COMPLETE_AND_CONTINUE == ss)) {
 
-              ss = CompleteAuthToken(_hctxt, &OutBuffDesc);
+              ss = CompleteAuthToken(_phctxt, &OutBuffDesc);
               if (!SEC_SUCCESS(ss)) {
                   fprintf(stderr, "complete failed: 0x%08x\n", ss);
                   ASIO_ASSERT(false);
@@ -806,8 +807,8 @@ private:
               InSecBuff[1].pvBuffer = NULL;
 
               ss = InitializeSecurityContextA(
-                  &hcred,
-                  _hctxt,
+                  _phcred,
+                  _phctxt,
                   (SEC_CHAR*)pszTarget,
                   dwSSPIFlags,
                   0,
@@ -820,7 +821,7 @@ private:
                   &Lifetime);
           } else {
               ss = InitializeSecurityContextA(
-                  &hcred,
+                  _phcred,
                   NULL,
                   (SEC_CHAR*)pszTarget,
                   dwSSPIFlags,
@@ -828,7 +829,7 @@ private:
                   SECURITY_NATIVE_DREP,
                   NULL,
                   0,
-                  _hctxt,
+                  _phctxt,
                   &OutBuffDesc,
                   &ContextAttributes,
                   &Lifetime);
@@ -870,7 +871,7 @@ private:
 
           if ((SEC_I_COMPLETE_NEEDED == ss)
               || (SEC_I_COMPLETE_AND_CONTINUE == ss)) {
-              ss = CompleteAuthToken(_hctxt, &OutBuffDesc);
+              ss = CompleteAuthToken(_phctxt, &OutBuffDesc);
               if (!SEC_SUCCESS(ss)) {
                   fprintf(stderr, "complete failed: 0x%08x\n", ss);
                   ASIO_ASSERT(false);
@@ -952,13 +953,13 @@ private:
       void setState(State s) {
           _state = s;
       }
-      PCtxtHandle    _hctxt;
+      PCtxtHandle    _phctxt;
 
       ULONG cbSecurityTrailer{ULONG_MAX};
       ULONG cbSecurityHeader{ULONG_MAX};
 
   public:
-      SSLWriteBuffer(PCtxtHandle hctxt) : _state(State::HaveEmptyBuffer), _hctxt(hctxt),
+      SSLWriteBuffer(PCtxtHandle hctxt) : _state(State::HaveEmptyBuffer), _phctxt(hctxt),
           _buffer(16 * 1024)
       {
 
@@ -976,7 +977,7 @@ private:
               SecPkgContext_StreamSizes SecPkgContextStreamSizes;
 
               ss = QueryContextAttributes(
-                  _hctxt,
+                  _phctxt,
                   SECPKG_ATTR_STREAM_SIZES,
                   &SecPkgContextStreamSizes);
 
@@ -1035,7 +1036,7 @@ private:
           SecBuff[3].pvBuffer = 0;
 
           ss = EncryptMessage(
-              _hctxt,
+              _phctxt,
               ulQop,
               &BuffDesc,
               0);
