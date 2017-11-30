@@ -73,6 +73,8 @@
 #endif
 #endif
 
+#include <stdio.h>
+#include "mongo/util/uuid.h"
 
 
 typedef struct _CLIENT_ID {
@@ -432,7 +434,9 @@ static const int DATE_LEN = 128;
 struct CERTFree {
     void operator()(PCCERT_CONTEXT const p) noexcept {
         if (p) {
-            ::CertFreeCertificateContext(p);
+            // TODO: fix this????
+            //invariant(false);
+            //::CertFreeCertificateContext(p);
         }
     }
 };
@@ -1159,11 +1163,13 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     // TODO: leak or free? CryptReleaseContext
     // Note: must use PROV_RSA_SCHANNEL 
     HCRYPTPROV hProv;
-    ret = CryptAcquireContextA(&hProv,
-        NULL,
-        MS_DEF_RSA_SCHANNEL_PROV_A,
+    UUID uuid = UUID::gen();
+    std::wstring wstr = toWideString(uuid.toString().c_str());
+    ret = CryptAcquireContextW(&hProv,
+        wstr.c_str(),
+        MS_DEF_RSA_SCHANNEL_PROV_W,
         PROV_RSA_SCHANNEL,
-        CRYPT_VERIFYCONTEXT
+        CRYPT_NEWKEYSET
     );
     if (!ret) {
         DWORD gle = GetLastError();
@@ -1177,7 +1183,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
         privateBlobBuf.get(),
         privateBlobLen,
         0,
-        0,
+        CRYPT_EXPORTABLE,
         &hkey);
     if (!ret) {
         DWORD gle = GetLastError();
@@ -1194,29 +1200,31 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
         return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertSetCertificateContextProperty Failed  " << errnoWithDescription(gle));
     }
 
-    DWORD keyBlobLen;
+    {
+        DWORD keyBlobLen;
 
-    ret = CertGetCertificateContextProperty(cert,
-        CERT_KEY_PROV_HANDLE_PROP_ID,
-        NULL,
-        &keyBlobLen);
+        ret = CertGetCertificateContextProperty(cert,
+            CERT_KEY_PROV_HANDLE_PROP_ID,
+            NULL,
+            &keyBlobLen);
 
-    if (!ret) {
-        DWORD gle = GetLastError();
-        if (gle != ERROR_MORE_DATA) {
+        if (!ret) {
+            DWORD gle = GetLastError();
+            if (gle != ERROR_MORE_DATA) {
+                return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertGetCertificateContextProperty Failed to get size of key " << errnoWithDescription(gle));
+            }
+        }
+
+        std::unique_ptr<BYTE> keyBlob(new BYTE[keyBlobLen]);
+        ret = CertGetCertificateContextProperty(cert,
+            CERT_KEY_PROV_HANDLE_PROP_ID,
+            keyBlob.get(),
+            &keyBlobLen);
+
+        if (!ret) {
+            DWORD gle = GetLastError();
             return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertGetCertificateContextProperty Failed to get size of key " << errnoWithDescription(gle));
         }
-    }
-
-    std::unique_ptr<BYTE> keyBlob(new BYTE[keyBlobLen]);
-    ret = CertGetCertificateContextProperty(cert,
-        CERT_KEY_PROV_HANDLE_PROP_ID,
-        keyBlob.get(),
-        &keyBlobLen);
-
-    if (!ret) {
-        DWORD gle = GetLastError();
-            return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertGetCertificateContextProperty Failed to get size of key " << errnoWithDescription(gle));
     }
 
 
@@ -1258,8 +1266,68 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     //    return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertSetCertificateContextProperty Failed  " << errnoWithDescription(gle));
     //}
 
+    //CERT_KEY_CONTEXT keyContext;
+    //memset(&keyContext, 0, sizeof(keyContext));
+    //keyContext.cbSize = sizeof(keyContext);
+    //keyContext.hCryptProv = hProv;
+    //keyContext.dwKeySpec = AT_KEYEXCHANGE;
+    //if (!CertSetCertificateContextProperty(cert, CERT_KEY_CONTEXT_PROP_ID, 0, &keyContext)) {
+    //    DWORD gle = GetLastError();
+    //    return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertSetCertificateContextProperty Failed  " << errnoWithDescription(gle));
+    //}
+
+    //PCCERT_CONTEXT certOut;
+    //UniqueCertStore certStore = CertOpenStore(
+    //    CERT_STORE_PROV_MEMORY,
+    //    0, // Note needed
+    //    NULL,
+    //    0,
+    //    NULL);
+    //if (certStore == nullptr) {
+    //    DWORD gle = GetLastError();
+    //    return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertOpenStore Failed  " << errnoWithDescription(gle));
+    //}
+
+
+    //ret = CertAddCertificateContextToStore(certStore, certHolder.get(),
+    //    CERT_STORE_ADD_NEW, &certOut);
+
+    //if (!ret) {
+    //    DWORD gle = GetLastError();
+    //    return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertAddCertificateContextToStore Failed  " << errnoWithDescription(gle));
+    //}
+
+    //CRYPT_KEY_PROV_INFO keyProvInfo;
+    //memset(&keyProvInfo, 0, sizeof(keyProvInfo));
+    //keyProvInfo.pwszContainerName = (LPWSTR)wstr.c_str();
+    //keyProvInfo.pwszProvName = const_cast<wchar_t*>(MS_ENHANCED_PROV);
+    //keyProvInfo.dwProvType = PROV_RSA_FULL;
+    //keyProvInfo.dwKeySpec = AT_KEYEXCHANGE;
+    //if (!CertSetCertificateContextProperty(certOut, CERT_KEY_PROV_INFO_PROP_ID, 0, &keyProvInfo)) {
+    //    DWORD gle = GetLastError();
+    //    return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertSetCertificateContextProperty Failed  " << errnoWithDescription(gle));
+    //}
+
+
+    ////return std::move(certHolder);
+
+    //return UniqueCertificate(certOut);
+
+
+    CRYPT_KEY_PROV_INFO keyProvInfo;
+    memset(&keyProvInfo, 0, sizeof(keyProvInfo));
+    keyProvInfo.pwszContainerName = (LPWSTR)wstr.c_str();
+    keyProvInfo.pwszProvName = const_cast<wchar_t*>(MS_ENHANCED_PROV);
+    keyProvInfo.dwProvType = PROV_RSA_FULL;
+    keyProvInfo.dwKeySpec = AT_KEYEXCHANGE;
+    if (!CertSetCertificateContextProperty(cert, CERT_KEY_PROV_INFO_PROP_ID, 0, &keyProvInfo)) {
+        DWORD gle = GetLastError();
+        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertSetCertificateContextProperty Failed  " << errnoWithDescription(gle));
+    }
+
 
     return std::move(certHolder);
+
 }
 
 StatusWith<UniqueCertificate> readCAPEMFile(StringData fileName) {
@@ -1313,7 +1381,7 @@ StatusWith<UniqueCertStore> readCertChains(StringData caFile, StringData crlFile
         NULL,
         0,
         NULL);
-    if (certStore != nullptr) {
+    if (certStore == nullptr) {
         DWORD gle = GetLastError();
         return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertOpenStore Failed  " << errnoWithDescription(gle));
     }
@@ -1329,7 +1397,7 @@ StatusWith<UniqueCertStore> readCertChains(StringData caFile, StringData crlFile
 
             if (!ret) {
                 DWORD gle = GetLastError();
-                return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertOpenStore Failed  " << errnoWithDescription(gle));
+                return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertAddCertificateContextToStore Failed  " << errnoWithDescription(gle));
             }
     }
 
@@ -1341,6 +1409,19 @@ StatusWith<UniqueCertStore> readCertChains(StringData caFile, StringData crlFile
     return std::move(certStore);
     //return{std::move(certStore)};
 }
+
+//-------------------------------------------------------------------
+//    MyHandleError
+void MyHandleError(const char* psz)
+{
+    int gle = GetLastError();
+    fprintf(stderr, "An error occurred in the program. \n");
+    fprintf(stderr, "%s\n", psz);
+    fprintf(stderr, "Error number %x.\n", gle);
+    fprintf(stderr, "Program terminating. \n");
+    ::DebugBreak();
+} // End of MyHandleError
+
 
 Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
     const SSLParams& params,
@@ -1402,23 +1483,140 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
             return swCertificate.getStatus();
         }
 
-        //_certificate = std::move(swCertificate.getValue());
+        _certificate = std::move(swCertificate.getValue());
+        cred->cCreds = 1;
+        _certificates[0] = _certificate.get();
+        cred->paCred = _certificates;
+
+        {
+            CRYPT_DATA_BLOB SignedMessageBlob;
+
+            CRYPT_DATA_BLOB* pSignedMessageBlob = &SignedMessageBlob;
+
+            {
+                bool fReturn = false;
+                BYTE* pbMessage;
+                DWORD cbMessage;
+                CRYPT_SIGN_MESSAGE_PARA  SigParams;
+                DWORD cbSignedMessageBlob;
+                BYTE  *pbSignedMessageBlob = NULL;
+
+                // Initialize the output pointer.
+                pSignedMessageBlob->cbData = 0;
+                pSignedMessageBlob->pbData = NULL;
+
+                // The message to be signed.
+                // Usually, the message exists somewhere and a pointer is
+                // passed to the application.
+                pbMessage =
+                    (BYTE*)TEXT("CryptoAPI is a good way to handle security");
+
+                // Calculate the size of message. To include the 
+                // terminating null character, the length is one more byte 
+                // than the length returned by the strlen function.
+                cbMessage = (lstrlen((TCHAR*)pbMessage) + 1) * sizeof(TCHAR);
+
+                // Create the MessageArray and the MessageSizeArray.
+                const BYTE* MessageArray[] = {pbMessage};
+                DWORD MessageSizeArray[1];
+                MessageSizeArray[0] = cbMessage;
+
+                //  Begin processing. 
+                printf("The message to be signed is \"%s\".\n",
+                    pbMessage);
+#define CERT_STORE_NAME  L"MY"
+
+
+#define MY_ENCODING_TYPE  (PKCS_7_ASN_ENCODING | X509_ASN_ENCODING)
+#define SIGNER_NAME L"Insert_signer_name_here"
+
+                PCCERT_CONTEXT localCert = _certificate.get();
+
+                // Initialize the signature structure.
+                SigParams.cbSize = sizeof(CRYPT_SIGN_MESSAGE_PARA);
+                SigParams.dwMsgEncodingType = MY_ENCODING_TYPE;
+                SigParams.pSigningCert = _certificate.get();
+                SigParams.HashAlgorithm.pszObjId = (LPSTR)szOID_ECDSA_SHA256;
+                SigParams.HashAlgorithm.Parameters.cbData = NULL;
+                SigParams.cMsgCert = 1;
+                SigParams.rgpMsgCert = &localCert;
+                SigParams.cAuthAttr = 0;
+                SigParams.dwInnerContentType = 0;
+                SigParams.cMsgCrl = 0;
+                SigParams.cUnauthAttr = 0;
+                SigParams.dwFlags = 0;
+                SigParams.pvHashAuxInfo = NULL;
+                SigParams.rgAuthAttr = NULL;
+
+                // First, get the size of the signed BLOB.
+                if (CryptSignMessage(
+                    &SigParams,
+                    FALSE,
+                    1,
+                    MessageArray,
+                    MessageSizeArray,
+                    NULL,
+                    &cbSignedMessageBlob)) {
+                    printf("%d bytes needed for the encoded BLOB.\n",
+                        cbSignedMessageBlob);
+                } else {
+                    MyHandleError("Getting signed BLOB size failed");
+                }
+
+                // Allocate memory for the signed BLOB.
+                if (!(pbSignedMessageBlob =
+                    (BYTE*)malloc(cbSignedMessageBlob))) {
+                    MyHandleError(
+                        "Memory allocation error while signing.");
+                }
+
+                // Get the signed message BLOB.
+                if (CryptSignMessage(
+                    &SigParams,
+                    FALSE,
+                    1,
+                    MessageArray,
+                    MessageSizeArray,
+                    pbSignedMessageBlob,
+                    &cbSignedMessageBlob)) {
+                    printf("The message was signed successfully. \n");
+
+                    // pbSignedMessageBlob now contains the signed BLOB.
+                    fReturn = true;
+                } else {
+                    MyHandleError("Error getting signed BLOB");
+                }
+
+
+            }
+        }
+
+        //PCCERT_CONTEXT certOut;
+        //UniqueCertStore certStore = CertOpenStore(
+        //    CERT_STORE_PROV_MEMORY,
+        //    0, // Note needed
+        //    NULL,
+        //    0,
+        //    NULL);
+        //if (certStore == nullptr) {
+        //    DWORD gle = GetLastError();
+        //    return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertOpenStore Failed  " << errnoWithDescription(gle));
+        //}
+
+
+        //BOOL ret = CertAddCertificateContextToStore(certStore, swCertificate.getValue().get(),
+        //    CERT_STORE_ADD_NEW, &certOut);
+
+        //if (!ret) {
+        //    DWORD gle = GetLastError();
+        //    return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertAddCertificateContextToStore Failed  " << errnoWithDescription(gle));
+        //}
+
+
+        //_certificate = UniqueCertificate(certOut);
         //cred->cCreds = 1;
         //_certificates[0] = _certificate.get();
         //cred->paCred = _certificates;
-
-
-        UniqueCertStore certStore = CertOpenStore(
-            CERT_STORE_PROV_MEMORY,
-            0, // Note needed
-            NULL,
-            0,
-            NULL);
-        if (certStore != nullptr) {
-            DWORD gle = GetLastError();
-            return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertOpenStore Failed  " << errnoWithDescription(gle));
-        }
-
     }
 
     if (!params.sslCAFile.empty() || !params.sslCAFile.empty()) {

@@ -563,6 +563,35 @@ private:
           TimeStamp         Lifetime;
 
 #if 1
+
+          //{
+          //    DWORD keyBlobLen;
+
+          //    BOOL ret = CertGetCertificateContextProperty(_cred->paCred[0],
+          //        CERT_KEY_PROV_HANDLE_PROP_ID,
+          //        NULL,
+          //        &keyBlobLen);
+
+          //    if (!ret) {
+          //        DWORD gle = GetLastError();
+          //        if (gle != ERROR_MORE_DATA) {
+          //            ASIO_ASSERT(false);
+          //        }
+          //    }
+
+          //    std::unique_ptr<BYTE> keyBlob(new BYTE[keyBlobLen]);
+          //    ret = CertGetCertificateContextProperty(_cred->paCred[0],
+          //        CERT_KEY_PROV_HANDLE_PROP_ID,
+          //        keyBlob.get(),
+          //        &keyBlobLen);
+
+          //    if (!ret) {
+          //        DWORD gle = GetLastError();
+          //        ASIO_ASSERT(false);
+          //    }
+          //}
+
+
           SECURITY_STATUS ss = AcquireCredentialsHandleA(
               NULL,
               (LPSTR)"SChannel",
