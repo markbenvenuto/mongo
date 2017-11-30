@@ -1163,13 +1163,13 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     // TODO: leak or free? CryptReleaseContext
     // Note: must use PROV_RSA_SCHANNEL 
     HCRYPTPROV hProv;
-    UUID uuid = UUID::gen();
-    std::wstring wstr = toWideString(uuid.toString().c_str());
+    //UUID uuid = UUID::gen();
+    //std::wstring wstr = toWideString(uuid.toString().c_str());
     ret = CryptAcquireContextW(&hProv,
-        wstr.c_str(),
+        NULL,
         MS_DEF_RSA_SCHANNEL_PROV_W,
         PROV_RSA_SCHANNEL,
-        CRYPT_NEWKEYSET
+        0
     );
     if (!ret) {
         DWORD gle = GetLastError();
@@ -1312,11 +1312,38 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     ////return std::move(certHolder);
 
     //return UniqueCertificate(certOut);
+    DWORD nameBlobLen{0};
+
+    ret = CryptGetProvParam(hProv,
+        PP_CONTAINER,
+        NULL,
+        &nameBlobLen,
+        0);
+
+    if (!ret) {
+        DWORD gle = GetLastError();
+        if (gle != ERROR_MORE_DATA) {
+            return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptGetProvParam Failed to get size of key " << errnoWithDescription(gle));
+        }
+    }
+
+    std::unique_ptr<BYTE> nameBlob(new BYTE[nameBlobLen]);
+    ret = CryptGetProvParam(hProv,
+        PP_CONTAINER,
+        nameBlob.get(),
+        &nameBlobLen,
+        0);
+    if (!ret) {
+        DWORD gle = GetLastError();
+        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptGetProvParam Failed to get size of key " << errnoWithDescription(gle));
+    }
+
+    std::wstring wKeyName = toWideString((char*)nameBlob.get());
 
 
     CRYPT_KEY_PROV_INFO keyProvInfo;
     memset(&keyProvInfo, 0, sizeof(keyProvInfo));
-    keyProvInfo.pwszContainerName = (LPWSTR)wstr.c_str();
+    keyProvInfo.pwszContainerName = (LPWSTR)wKeyName.c_str();
     keyProvInfo.pwszProvName = const_cast<wchar_t*>(MS_ENHANCED_PROV);
     keyProvInfo.dwProvType = PROV_RSA_FULL;
     keyProvInfo.dwKeySpec = AT_KEYEXCHANGE;
