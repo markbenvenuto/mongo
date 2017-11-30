@@ -333,12 +333,11 @@ namespace detail {
 engine::engine(SCHANNEL_CRED* context)
     : _hcxt({0, 0}),
     _hcred({0, 0}),
-    _handshakeBuffer(&_hcxt, &_hcred),
+    _handshakeBuffer(&_hcxt, &_hcred, context),
     _readBuffer(&_hcxt, &_hcred),
     _writeBuffer(&_hcxt),
     _pCred(context)
 {
-    ASIO_ASSERT(context == nullptr);
 }
 
 engine::~engine()

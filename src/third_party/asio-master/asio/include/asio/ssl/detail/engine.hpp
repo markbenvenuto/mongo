@@ -464,6 +464,7 @@ private:
       }
 
 
+      SCHANNEL_CRED* _cred;
       PCtxtHandle _phctxt;
       PCredHandle _phcred;
   public:
@@ -481,7 +482,7 @@ private:
           _mode = mode;
       }
 
-      SSLHandshakeBuffer(PCtxtHandle hctxt, PCredHandle phcred) : _state(State::HandshakeStart), _phctxt(hctxt),
+      SSLHandshakeBuffer(PCtxtHandle hctxt, PCredHandle phcred, SCHANNEL_CRED* cred) : _state(State::HandshakeStart), _phctxt(hctxt), _cred(cred),
           _phcred(phcred),          _buffer(16 * 1024), _outBuffer(16 * 1024), _mode(HandshakeMode::Unknown) {
       }
 
@@ -594,8 +595,7 @@ private:
               fprintf(stderr, "AcquireCreds failed: 0x%08x\n", ss);
               ASIO_ASSERT(false);
           }
-
-          CertFreeCertificateContext(serverCert);
+          //CertFreeCertificateContext(serverCert);
 
       }
 
@@ -603,14 +603,14 @@ private:
           static CHAR      lpPackageName[1024];
 
           TimeStamp         Lifetime;
-          SCHANNEL_CRED credData;
+          //SCHANNEL_CRED credData;
 
-          ZeroMemory(&credData, sizeof(credData));
-          credData.dwVersion = SCHANNEL_CRED_VERSION;
-          //-------------------------------------------------------
-          // Specify the TLS V1.0 (client-side) security protocol.
-          credData.grbitEnabledProtocols = SP_PROT_TLS1_0_CLIENT;
-          credData.dwFlags |= SCH_CRED_NO_DEFAULT_CREDS | SCH_CRED_MANUAL_CRED_VALIDATION;
+          //ZeroMemory(&credData, sizeof(credData));
+          //credData.dwVersion = SCHANNEL_CRED_VERSION;
+          ////-------------------------------------------------------
+          //// Specify the TLS V1.0 (client-side) security protocol.
+          //credData.grbitEnabledProtocols = SP_PROT_TLS1_0_CLIENT;
+          //credData.dwFlags |= SCH_CRED_NO_DEFAULT_CREDS | SCH_CRED_MANUAL_CRED_VALIDATION;
 
           strcpy_s(lpPackageName, 1024 * sizeof(CHAR), "SChannel");
           SECURITY_STATUS ss = AcquireCredentialsHandleA(
@@ -618,7 +618,7 @@ private:
               lpPackageName,
               SECPKG_CRED_OUTBOUND,
               NULL,
-              &credData,
+              _cred,
               NULL,
               NULL,
               _phcred,
@@ -868,9 +868,14 @@ private:
           //-------------------------------------------------------------------
           //  If necessary, complete the token.
           bool needOutput{false};
-          if (SEC_I_COMPLETE_AND_CONTINUE == ss || SEC_I_CONTINUE_NEEDED == ss) {
+
+          if (SEC_I_CONTINUE_NEEDED == ss || SEC_I_COMPLETE_AND_CONTINUE == ss || (SEC_E_OK == ss && OutSecBuff.cbBuffer != 0)) {
               needOutput = true;
           }
+
+  /*        if (SEC_E_OK == ss && OutSecBuff.cbBuffer != 0) {
+              *fDone = true;
+          }*/
 
           if ((SEC_I_COMPLETE_NEEDED == ss)
               || (SEC_I_COMPLETE_AND_CONTINUE == ss)) {
@@ -886,6 +891,7 @@ private:
           printf("Token buffer generated (%lu bytes):\n", OutSecBuff.cbBuffer);
           //PrintHexDump(OutSecBuff.cbBuffer, (PBYTE)OutSecBuff.pvBuffer);
           if (needOutput) {
+              _buffer.reset();
               return engine::want_output_and_retry;
           }
 

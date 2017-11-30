@@ -351,6 +351,18 @@ using UniqueSSLContext = std::unique_ptr<SSL_CTX, decltype(&free_ssl_context)>;
 static const int BUFFER_SIZE = 8 * 1024;
 static const int DATE_LEN = 128;
 
+
+
+struct CERTFree {
+    void operator()(PCCERT_CONTEXT const p) noexcept {
+        if (p) {
+            ::CertFreeCertificateContext(p);
+        }
+    }
+};
+
+typedef std::unique_ptr<const CERT_CONTEXT, CERTFree> UniqueCertificate;
+
 class SSLManager : public SSLManagerInterface {
 public:
     explicit SSLManager(const SSLParams& params, bool isServer);
@@ -410,6 +422,9 @@ private:
     bool _allowInvalidCertificates;
     bool _allowInvalidHostnames;
     SSLConfiguration _sslConfiguration;
+
+    UniqueCertificate _certificate;
+    PCCERT_CONTEXT _certificates[1];
 
     /**
      * creates an SSL object to be used for this file descriptor.
@@ -872,39 +887,54 @@ Status SSLManager::initSSLContext(SSL_CTX* context,
 }
 
 
-struct CERTFree {
-    void operator()(PCCERT_CONTEXT const p) noexcept {
-        if (p) {
-            ::CertFreeCertificateContext(p);
-        }
-    }
-};
-
-typedef std::unique_ptr<const CERT_CONTEXT, CERTFree> UniqueCertificate;
-
 StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData password) {
-    std::string buf;
 
     std::ifstream pemFile(fileName.toString(), std::ios::binary);
     if (!pemFile.is_open()) {
         return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "Failed to open PEM file: " << fileName);
     }
 
-    std::string str((std::istreambuf_iterator<char>(pemFile)),
+    std::string buf((std::istreambuf_iterator<char>(pemFile)),
         std::istreambuf_iterator<char>());
 
     pemFile.close();
 
-    CERT_BLOB certBlob;
-    certBlob.cbData = buf.size();
-    certBlob.pbData = reinterpret_cast<BYTE*>(const_cast<char*>(buf.data()));
+    // Search the buffer for the various strings that make up a PEM file
 
-    PCCERT_CONTEXT cert;
-    BOOL ret = CryptQueryObject(
+    size_t publicKey = buf.find("-----BEGIN CERTIFICATE-----");
+    if (publicKey == std::string::npos) {
+        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "Failed to find Certifiate in: " << fileName);
+    }
+
+    //StringData privateKey = buf.find("-----BEGIN ENCRYPTED PRIVATE KEY-----");
+
+    //if (pem_private) {
+    //    MONGOC_ERROR("Detected unsupported encrypted private key");
+    //    goto fail;
+    //}
+
+    // TODO: check if we need both
+    size_t privateKey = buf.find("-----BEGIN RSA PRIVATE KEY-----");
+    if (privateKey == std::string::npos) {
+        privateKey = buf.find("-----BEGIN PRIVATE KEY-----");
+    }
+
+    if (privateKey == std::string::npos) {
+        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "Failed to find privateKey in: " << fileName);
+    }
+
+    CERT_BLOB certBlob;
+    certBlob.cbData = buf.size() - publicKey;
+    certBlob.pbData = reinterpret_cast<BYTE*>(const_cast<char*>(buf.data() + publicKey));
+
+    BOOL ret;
+
+     PCCERT_CONTEXT cert;
+    ret = CryptQueryObject(
         CERT_QUERY_OBJECT_BLOB,
         &certBlob,
-        CERT_QUERY_CONTENT_FLAG_CERT, // CERT_QUERY_CONTENT_FLAG_ALL??
-        CERT_QUERY_FORMAT_FLAG_BASE64_ENCODED,
+        CERT_QUERY_CONTENT_FLAG_ALL, //CERT_QUERY_CONTENT_FLAG_CERT, // CERT_QUERY_CONTENT_FLAG_ALL??
+        CERT_QUERY_FORMAT_FLAG_ALL, //CERT_QUERY_FORMAT_FLAG_BASE64_ENCODED,
         NULL,
         NULL,
         NULL,
@@ -913,18 +943,144 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
         NULL,
         reinterpret_cast<const void       **>(&cert)
     );
-
-    if (!ret) {
+/*
+    PCCERT_CONTEXT  cert = CertCreateCertificateContext(X509_ASN_ENCODING, certBlob.pbData, certBlob.cbData);
+    if (cert) {
         DWORD gle = GetLastError();
         return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptQueryObject Failed " << errnoWithDescription(gle));
     }
+*/
+    DWORD privateKeyLen{0};
 
-    return UniqueCertificate(p);
+    ret = CryptStringToBinaryA(
+        buf.c_str() + privateKey,
+        0, // null terminated string
+        CRYPT_STRING_BASE64HEADER,
+        NULL,
+        &privateKeyLen,
+        NULL,
+        NULL
+    );
+    if (!ret) {
+        DWORD gle = GetLastError();
+        if (gle != ERROR_MORE_DATA) {
+            return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptStringToBinaryA Failed to get size of key " << errnoWithDescription(gle));
+        }
+    }
+
+    std::unique_ptr<BYTE> privateKeyBuf(new BYTE[privateKeyLen]);
+    ret = CryptStringToBinaryA(
+        buf.c_str() + privateKey,
+        0, // null terminated string
+        CRYPT_STRING_BASE64HEADER,
+        privateKeyBuf.get(),
+        &privateKeyLen,
+        NULL,
+        NULL
+    );
+    if (!ret) {
+        DWORD gle = GetLastError();
+        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptStringToBinaryA Failed to read key " << errnoWithDescription(gle));
+    }
+
+
+    DWORD privateBlobLen{0};
+
+    ret = CryptDecodeObjectEx(
+        X509_ASN_ENCODING,
+        PKCS_RSA_PRIVATE_KEY,
+        privateKeyBuf.get(),
+        privateKeyLen,
+        0,
+        NULL,
+        NULL,
+        &privateBlobLen);
+    if (!ret) {
+        DWORD gle = GetLastError();
+        if (gle != ERROR_MORE_DATA) {
+            return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptDecodeObjectEx Failed to get size of key " << errnoWithDescription(gle));
+        }
+    }
+
+
+    std::unique_ptr<BYTE> privateBlobBuf(new BYTE[privateBlobLen]);
+
+    ret = CryptDecodeObjectEx(
+        X509_ASN_ENCODING,
+        PKCS_RSA_PRIVATE_KEY,
+        privateKeyBuf.get(),
+        privateKeyLen,
+        0,
+        NULL,
+        privateBlobBuf.get(),
+        &privateBlobLen);
+    if (!ret) {
+        DWORD gle = GetLastError();
+        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptDecodeObjectEx Failed to get size of key " << errnoWithDescription(gle));
+    }
+
+    const wchar_t* keySetName = L"FooBar123";
+
+
+    // TODO: leak or free? CryptReleaseContext
+    HCRYPTPROV hProv;
+    ret = CryptAcquireContextA(&hProv,
+        NULL,
+        MS_ENH_RSA_AES_PROV_A,
+        PROV_RSA_AES,
+        CRYPT_VERIFYCONTEXT
+    );
+    if (!ret) {
+        DWORD gle = GetLastError();
+        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptAcquireContextA Failed  " << errnoWithDescription(gle));
+    }
+
+    // TODO: CryptDestroyKey
+    HCRYPTKEY hkey;
+    ret = CryptImportKey(
+        hProv,
+        privateBlobBuf.get(),
+        privateBlobLen,
+        0,
+        0,
+        &hkey);
+    if (!ret) {
+        DWORD gle = GetLastError();
+        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptImportKey Failed  " << errnoWithDescription(gle));
+    }
+
+    ret = CertSetCertificateContextProperty(
+        cert,
+        CERT_KEY_PROV_HANDLE_PROP_ID,
+        0,
+        (const void *)hProv);
+    if (!ret) {
+        DWORD gle = GetLastError();
+        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertSetCertificateContextProperty Failed  " << errnoWithDescription(gle));
+    }
+
+
+    //CRYPT_KEY_PROV_INFO keyProvInfo;
+    //memset(&keyProvInfo, 0, sizeof(keyProvInfo));
+    //keyProvInfo.pwszContainerName = const_cast<wchar_t*>(keySetName);
+    //keyProvInfo.pwszProvName = const_cast<wchar_t*>(MS_DEF_PROV_W);
+    //keyProvInfo.dwProvType = PROV_RSA_FULL;
+    //keyProvInfo.dwKeySpec = AT_KEYEXCHANGE;
+    //if (!CertSetCertificateContextProperty(cert, CERT_KEY_PROV_INFO_PROP_ID, 0, &keyProvInfo)) {
+    //    DWORD gle = GetLastError();
+    //    return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertSetCertificateContextProperty Failed  " << errnoWithDescription(gle));
+    //}
+
+
+    return UniqueCertificate(cert);
 }
 
 Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
     const SSLParams& params,
     ConnectionDirection direction) {
+
+    ZeroMemory(cred, sizeof(&cred));
+    cred->dwVersion = SCHANNEL_CRED_VERSION;
 
     uint32_t supportedProtocols = 0;
     
@@ -946,6 +1102,8 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
         }
     }
 
+    cred->grbitEnabledProtocols = supportedProtocols;
+
     // TODO - support somehow
     // HIGH - Enable strong ciphers
     // !EXPORT - Disable export ciphers (40/56 bit)
@@ -960,61 +1118,39 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
     }
 
     if (direction == ConnectionDirection::kOutgoing && !params.sslClusterFile.empty()) {
-        ::EVP_set_pw_prompt("Enter cluster certificate passphrase");
-        if (!_setupPEM(context, params.sslClusterFile, params.sslClusterPassword)) {
-            return Status(ErrorCodes::InvalidSSLConfiguration, "Can not set up ssl clusterFile.");
+        //::EVP_set_pw_prompt("Enter cluster certificate passphrase");
+        auto swCertificate = readPEMFile(params.sslClusterFile, params.sslClusterPassword);
+        if (!swCertificate.isOK()) {
+            return swCertificate.getStatus();
         }
+        
+        _certificate = std::move(swCertificate.getValue());
+        cred->cCreds = 1;
+        _certificates[0] = _certificate.get();
+        cred->paCred = _certificates;
     } else if (!params.sslPEMKeyFile.empty()) {
-        // Use the pemfile for everything else
-        ::EVP_set_pw_prompt("Enter PEM passphrase");
-        if (!_setupPEM(context, params.sslPEMKeyFile, params.sslPEMKeyPassword)) {
-            return Status(ErrorCodes::InvalidSSLConfiguration, "Can not set up PEM key file.");
+        auto swCertificate = readPEMFile(params.sslPEMKeyFile, params.sslPEMKeyPassword);
+        if (!swCertificate.isOK()) {
+            return swCertificate.getStatus();
         }
+
+        _certificate = std::move(swCertificate.getValue());
+        cred->cCreds = 1;
+        _certificates[0] = _certificate.get();
+        cred->paCred = _certificates;
     }
 
-    const auto status =
-        params.sslCAFile.empty() ? _setupSystemCA(context) : _setupCA(context, params.sslCAFile);
-    if (!status.isOK())
-        return status;
+    //const auto status =
+    //    params.sslCAFile.empty() ? _setupSystemCA(context) : _setupCA(context, params.sslCAFile);
+    //if (!status.isOK())
+    //    return status;
 
-    if (!params.sslCRLFile.empty()) {
-        if (!_setupCRL(context, params.sslCRLFile)) {
-            return Status(ErrorCodes::InvalidSSLConfiguration, "Can not set up CRL file.");
-        }
-    }
+    //if (!params.sslCRLFile.empty()) {
+    //    if (!_setupCRL(context, params.sslCRLFile)) {
+    //        return Status(ErrorCodes::InvalidSSLConfiguration, "Can not set up CRL file.");
+    //    }
+    //}
 
-    if (!params.sslPEMTempDHParam.empty()) {
-        try {
-            std::ifstream dhparamPemFile(params.sslPEMTempDHParam, std::ios_base::binary);
-            if (dhparamPemFile.fail() || dhparamPemFile.bad()) {
-                return Status(ErrorCodes::InvalidSSLConfiguration,
-                    str::stream() << "Cannot open PEM DHParams file.");
-            }
-
-            std::vector<std::uint8_t> paramData{std::istreambuf_iterator<char>(dhparamPemFile),
-                std::istreambuf_iterator<char>()};
-            auto bio = makeUniqueMemBio(paramData);
-
-            UniqueDHParams dhparams(::PEM_read_bio_DHparams(bio.get(), nullptr, nullptr, nullptr));
-            if (!dhparams) {
-                return Status(ErrorCodes::InvalidSSLConfiguration,
-                    str::stream() << "Error reading DHParams file."
-                    << getSSLErrorMessage(ERR_get_error()));
-            }
-
-            if (::SSL_CTX_set_tmp_dh(context, dhparams.get()) != 1) {
-                return Status(ErrorCodes::InvalidSSLConfiguration,
-                    str::stream() << "Failure to set PFS DH parameters: "
-                    << getSSLErrorMessage(ERR_get_error()));
-            }
-        }
-        catch (const std::exception& ex) {
-            return Status(ErrorCodes::InvalidSSLConfiguration, ex.what());
-        }
-    }
-
-    // We always set ECDH mode anyhow, if available.
-    setECDHModeAuto(context);
 
     return Status::OK();
 }
