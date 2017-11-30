@@ -562,6 +562,23 @@ private:
       void startServerHandshake(asio::error_code& ec) {
           TimeStamp         Lifetime;
 
+#if 1
+          SECURITY_STATUS ss = AcquireCredentialsHandleA(
+              NULL,
+              (LPSTR)"SChannel",
+              SECPKG_CRED_INBOUND,
+              NULL,
+              _cred,
+              NULL,
+              NULL,
+              _phcred,
+              &Lifetime);
+
+          if (!SEC_SUCCESS(ss)) {
+              fprintf(stderr, "AcquireCreds failed: 0x%08x\n", ss);
+              ASIO_ASSERT(false);
+          }
+#else
           PCCERT_CONTEXT serverCert; // server-side certificate
                                      //-------------------------------------------------------
                                      // Get the server certificate. 
@@ -595,6 +612,8 @@ private:
               fprintf(stderr, "AcquireCreds failed: 0x%08x\n", ss);
               ASIO_ASSERT(false);
           }
+
+#endif
           //CertFreeCertificateContext(serverCert);
 
       }
@@ -933,7 +952,7 @@ private:
               X509_ASN_ENCODING,
               0,
               CERT_FIND_SUBJECT_STR_A,
-              "MongoWinSSL", // use appropriate subject name
+              "server", // use appropriate subject name
               NULL
           );
 

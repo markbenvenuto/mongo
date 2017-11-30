@@ -73,6 +73,82 @@
 #endif
 #endif
 
+
+
+typedef struct _CLIENT_ID {
+    HANDLE UniqueProcess;
+    HANDLE UniqueThread;
+} CLIENT_ID;
+
+
+typedef struct _MONGO_TEB {
+
+
+
+    NT_TIB                  Tib;
+    PVOID                   EnvironmentPointer;
+    CLIENT_ID               Cid;
+    PVOID                   ActiveRpcInfo;
+    PVOID                   ThreadLocalStoragePointer;
+    PPEB                    Peb;
+    ULONG                   LastErrorValue;
+    ULONG                   CountOfOwnedCriticalSections;
+    PVOID                   CsrClientThread;
+    PVOID                   Win32ThreadInfo;
+    ULONG                   Win32ClientInfo[0x1F];
+    PVOID                   WOW32Reserved;
+    ULONG                   CurrentLocale;
+    ULONG                   FpSoftwareStatusRegister;
+    PVOID                   SystemReserved1[0x36];
+    PVOID                   Spare1;
+    ULONG                   ExceptionCode;
+    ULONG                   SpareBytes1[0x28];
+    PVOID                   SystemReserved2[0xA];
+    ULONG                   GdiRgn;
+    ULONG                   GdiPen;
+    ULONG                   GdiBrush;
+    CLIENT_ID               RealClientId;
+    PVOID                   GdiCachedProcessHandle;
+    ULONG                   GdiClientPID;
+    ULONG                   GdiClientTID;
+    PVOID                   GdiThreadLocaleInfo;
+    PVOID                   UserReserved[5];
+    PVOID                   GlDispatchTable[0x118];
+    ULONG                   GlReserved1[0x1A];
+    PVOID                   GlReserved2;
+    PVOID                   GlSectionInfo;
+    PVOID                   GlSection;
+    PVOID                   GlTable;
+    PVOID                   GlCurrentRC;
+    PVOID                   GlContext;
+    NTSTATUS                LastStatusValue;
+    UNICODE_STRING          StaticUnicodeString;
+    WCHAR                   StaticUnicodeBuffer[0x105];
+    PVOID                   DeallocationStack;
+    PVOID                   TlsSlots[0x40];
+    LIST_ENTRY              TlsLinks;
+    PVOID                   Vdm;
+    PVOID                   ReservedForNtRpc;
+    PVOID                   DbgSsReserved[0x2];
+    ULONG                   HardErrorDisabled;
+    PVOID                   Instrumentation[0x10];
+    PVOID                   WinSockData;
+    ULONG                   GdiBatchCount;
+    ULONG                   Spare2;
+    ULONG                   Spare3;
+    ULONG                   Spare4;
+    PVOID                   ReservedForOle;
+    ULONG                   WaitingOnLoaderLock;
+    PVOID                   StackCommit;
+    PVOID                   StackCommitMax;
+    PVOID                   StackReserved;
+
+} MONGO_TEB;
+
+
+static MONGO_TEB foobar123;
+
+
 namespace mongo {
 
 namespace {
@@ -363,6 +439,61 @@ struct CERTFree {
 
 typedef std::unique_ptr<const CERT_CONTEXT, CERTFree> UniqueCertificate;
 
+
+//struct CertStoreFree {
+//    void operator()(HCERTSTORE const p) noexcept {
+//        if (p) {
+//            // For leak detection, add CERT_CLOSE_STORE_CHECK_FLAG
+//            ::CertCloseStore(p, 0);
+//        }
+//    }
+//};
+//
+//typedef std::unique_ptr<const HCERTSTORE, CertStoreFree> UniqueCertificateStore;
+
+template < typename HandleT, class Deleter>
+class AutoHandle {
+public:
+    AutoHandle() : _handle(nullptr) {}
+    AutoHandle(HandleT handle) : _handle(handle) {}
+    AutoHandle(AutoHandle<HandleT, Deleter>&& handle) : _handle(handle._handle) { handle._handle = nullptr;  }
+    ~AutoHandle() {
+        if (_handle != nullptr) {
+            Deleter()(_handle);
+        }
+    }
+    AutoHandle(const AutoHandle&) = delete;
+
+    AutoHandle& operator = (const HandleT other) {
+        _handle = other;
+        return *this;
+    }
+    
+    AutoHandle& operator= (const AutoHandle<HandleT, Deleter>& other) = delete;
+
+    AutoHandle& operator= (AutoHandle<HandleT, Deleter>&& other) {
+        _handle = other._handle;
+        other._handle = nullptr;
+        return *this;
+    }
+
+    operator HandleT() { return _handle; }
+
+private:
+    HandleT _handle;
+};
+
+struct CertStoreFree {
+    void operator()(HCERTSTORE const p) noexcept {
+        if (p) {
+            // For leak detection, add CERT_CLOSE_STORE_CHECK_FLAG
+            ::CertCloseStore(p, 0);
+        }
+    }
+};
+
+typedef AutoHandle<HCERTSTORE, CertStoreFree> UniqueCertStore;
+
 class SSLManager : public SSLManagerInterface {
 public:
     explicit SSLManager(const SSLParams& params, bool isServer);
@@ -423,8 +554,10 @@ private:
     bool _allowInvalidHostnames;
     SSLConfiguration _sslConfiguration;
 
+    // Windows
     UniqueCertificate _certificate;
     PCCERT_CONTEXT _certificates[1];
+    UniqueCertStore _certstore;
 
     /**
      * creates an SSL object to be used for this file descriptor.
@@ -943,6 +1076,8 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
         NULL,
         reinterpret_cast<const void       **>(&cert)
     );
+
+    UniqueCertificate certHolder(cert);
 /*
     PCCERT_CONTEXT  cert = CertCreateCertificateContext(X509_ASN_ENCODING, certBlob.pbData, certBlob.cbData);
     if (cert) {
@@ -1019,15 +1154,15 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
         return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptDecodeObjectEx Failed to get size of key " << errnoWithDescription(gle));
     }
 
-    const wchar_t* keySetName = L"FooBar123";
-
-
+    //const wchar_t* keySetNameW = L"FooBar1234";
+    //const char* keySetNameA = "FooBar1234";
     // TODO: leak or free? CryptReleaseContext
+    // Note: must use PROV_RSA_SCHANNEL 
     HCRYPTPROV hProv;
     ret = CryptAcquireContextA(&hProv,
         NULL,
-        MS_ENH_RSA_AES_PROV_A,
-        PROV_RSA_AES,
+        MS_DEF_RSA_SCHANNEL_PROV_A,
+        PROV_RSA_SCHANNEL,
         CRYPT_VERIFYCONTEXT
     );
     if (!ret) {
@@ -1059,11 +1194,63 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
         return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertSetCertificateContextProperty Failed  " << errnoWithDescription(gle));
     }
 
+    DWORD keyBlobLen;
+
+    ret = CertGetCertificateContextProperty(cert,
+        CERT_KEY_PROV_HANDLE_PROP_ID,
+        NULL,
+        &keyBlobLen);
+
+    if (!ret) {
+        DWORD gle = GetLastError();
+        if (gle != ERROR_MORE_DATA) {
+            return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertGetCertificateContextProperty Failed to get size of key " << errnoWithDescription(gle));
+        }
+    }
+
+    std::unique_ptr<BYTE> keyBlob(new BYTE[keyBlobLen]);
+    ret = CertGetCertificateContextProperty(cert,
+        CERT_KEY_PROV_HANDLE_PROP_ID,
+        keyBlob.get(),
+        &keyBlobLen);
+
+    if (!ret) {
+        DWORD gle = GetLastError();
+            return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertGetCertificateContextProperty Failed to get size of key " << errnoWithDescription(gle));
+    }
+
+
+    //DWORD keyBlobLen;
+
+    //ret = CertGetCertificateContextProperty(cert,
+    //    CERT_KEY_PROV_INFO_PROP_ID,
+    //    NULL,
+    //    &keyBlobLen);
+   
+    //if (!ret) {
+    //    DWORD gle = GetLastError();
+    //    if (gle != ERROR_MORE_DATA) {
+    //        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertGetCertificateContextProperty Failed to get size of key " << errnoWithDescription(gle));
+    //    }
+    //}
+
+    //std::unique_ptr<BYTE> keyBlob(new BYTE[keyBlobLen]);
+    //ret = CertGetCertificateContextProperty(cert,
+    //    CERT_KEY_PROV_INFO_PROP_ID,
+    //    keyBlob.get(),
+    //    &keyBlobLen);
+
+    //if (!ret) {
+    //    DWORD gle = GetLastError();
+    //        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertGetCertificateContextProperty Failed to get size of key " << errnoWithDescription(gle));
+    //}
+
+    //CRYPT_KEY_PROV_INFO* foo = (CRYPT_KEY_PROV_INFO*)(keyBlob.get());
 
     //CRYPT_KEY_PROV_INFO keyProvInfo;
     //memset(&keyProvInfo, 0, sizeof(keyProvInfo));
-    //keyProvInfo.pwszContainerName = const_cast<wchar_t*>(keySetName);
-    //keyProvInfo.pwszProvName = const_cast<wchar_t*>(MS_DEF_PROV_W);
+    //keyProvInfo.pwszContainerName = NULL;
+    //keyProvInfo.pwszProvName = const_cast<wchar_t*>(MS_ENHANCED_PROV);
     //keyProvInfo.dwProvType = PROV_RSA_FULL;
     //keyProvInfo.dwKeySpec = AT_KEYEXCHANGE;
     //if (!CertSetCertificateContextProperty(cert, CERT_KEY_PROV_INFO_PROP_ID, 0, &keyProvInfo)) {
@@ -1072,7 +1259,87 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     //}
 
 
+    return std::move(certHolder);
+}
+
+StatusWith<UniqueCertificate> readCAPEMFile(StringData fileName) {
+
+    std::ifstream pemFile(fileName.toString(), std::ios::binary);
+    if (!pemFile.is_open()) {
+        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "Failed to open PEM file: " << fileName);
+    }
+
+    std::string buf((std::istreambuf_iterator<char>(pemFile)),
+        std::istreambuf_iterator<char>());
+
+    pemFile.close();
+
+    // Search the buffer for the various strings that make up a PEM file
+
+    size_t publicKey = buf.find("-----BEGIN CERTIFICATE-----");
+    if (publicKey == std::string::npos) {
+        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "Failed to find Certifiate in: " << fileName);
+    }
+
+    CERT_BLOB certBlob;
+    certBlob.cbData = buf.size() - publicKey;
+    certBlob.pbData = reinterpret_cast<BYTE*>(const_cast<char*>(buf.data() + publicKey));
+
+    BOOL ret;
+
+    PCCERT_CONTEXT cert;
+    ret = CryptQueryObject(
+        CERT_QUERY_OBJECT_BLOB,
+        &certBlob,
+        CERT_QUERY_CONTENT_FLAG_ALL, //CERT_QUERY_CONTENT_FLAG_CERT, // CERT_QUERY_CONTENT_FLAG_ALL??
+        CERT_QUERY_FORMAT_FLAG_ALL, //CERT_QUERY_FORMAT_FLAG_BASE64_ENCODED,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        reinterpret_cast<const void       **>(&cert)
+    );
+
     return UniqueCertificate(cert);
+}
+
+
+StatusWith<UniqueCertStore> readCertChains(StringData caFile, StringData crlFile) {
+    UniqueCertStore certStore = CertOpenStore(
+        CERT_STORE_PROV_MEMORY,
+        0, // Note needed
+        NULL,
+        0,
+        NULL);
+    if (certStore != nullptr) {
+        DWORD gle = GetLastError();
+        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertOpenStore Failed  " << errnoWithDescription(gle));
+    }
+
+    if (!caFile.empty()) {
+        auto swCertificate = readCAPEMFile(caFile);
+        if (!swCertificate.isOK()) {
+            return swCertificate.getStatus();
+        }
+
+        BOOL ret = CertAddCertificateContextToStore(certStore, swCertificate.getValue().get(),
+            CERT_STORE_ADD_NEW, NULL);
+
+            if (!ret) {
+                DWORD gle = GetLastError();
+                return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertOpenStore Failed  " << errnoWithDescription(gle));
+            }
+    }
+
+    if (!crlFile.empty()) {
+        // TODO
+    }
+
+
+    return std::move(certStore);
+    //return{std::move(certStore)};
 }
 
 Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
@@ -1081,6 +1348,7 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
 
     ZeroMemory(cred, sizeof(&cred));
     cred->dwVersion = SCHANNEL_CRED_VERSION;
+    cred->dwFlags = SCH_CRED_NO_SYSTEM_MAPPER;
 
     uint32_t supportedProtocols = 0;
     
@@ -1134,12 +1402,37 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
             return swCertificate.getStatus();
         }
 
-        _certificate = std::move(swCertificate.getValue());
-        cred->cCreds = 1;
-        _certificates[0] = _certificate.get();
-        cred->paCred = _certificates;
+        //_certificate = std::move(swCertificate.getValue());
+        //cred->cCreds = 1;
+        //_certificates[0] = _certificate.get();
+        //cred->paCred = _certificates;
+
+
+        UniqueCertStore certStore = CertOpenStore(
+            CERT_STORE_PROV_MEMORY,
+            0, // Note needed
+            NULL,
+            0,
+            NULL);
+        if (certStore != nullptr) {
+            DWORD gle = GetLastError();
+            return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertOpenStore Failed  " << errnoWithDescription(gle));
+        }
+
     }
 
+    if (!params.sslCAFile.empty() || !params.sslCAFile.empty()) {
+        auto swCertStore = readCertChains(params.sslCAFile, params.sslCAFile);
+        if (!swCertStore.isOK()) {
+            return swCertStore.getStatus();
+        }
+
+        _certstore = std::move(swCertStore.getValue());
+
+        cred->hRootStore = _certstore;
+    }
+
+    printf("%llux", (uint64_t)&foobar123);
     //const auto status =
     //    params.sslCAFile.empty() ? _setupSystemCA(context) : _setupCA(context, params.sslCAFile);
     //if (!status.isOK())
