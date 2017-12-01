@@ -432,11 +432,10 @@ static const int DATE_LEN = 128;
 
 
 struct CERTFree {
-    void operator()(PCCERT_CONTEXT const p) noexcept {
+    void operator()(const CERT_CONTEXT * p) noexcept {
         if (p) {
-            // TODO: fix this????
             //invariant(false);
-            //::CertFreeCertificateContext(p);
+            ::CertFreeCertificateContext(p);
         }
     }
 };
