@@ -139,6 +139,14 @@ add_option('ssl',
     nargs=0
 )
 
+add_option('ssl-provider',
+    choices=['openssl', 'native', 'auto'],
+    default='auto',
+    help='Use OpenSSL or platform native SSL library for OS',
+    nargs='?',
+    type='choice',
+)
+
 add_option('mmapv1',
     choices=['auto', 'on', 'off'],
     default='auto',
@@ -1731,6 +1739,17 @@ if get_option("system-boost-lib-search-suffixes") is not None:
     else:
         boostSuffixList = boostSuffixList.split(',')
 
+# OpenSSL is the default, and is the native type on Linux
+ssl_provider = 'openssl'
+if get_option('ssl-provider') == 'auto':
+    if env.TargetOSIs('windows'):
+        ssl_provider = 'windows'
+
+elif get_option('ssl-provider') == 'native':
+    if env.TargetOSIs('windows'):
+        ssl_provider = 'windows'
+
+
 # discover modules, and load the (python) module for each module's build.py
 mongo_modules = moduleconfig.discover_modules('src/mongo/db/modules', get_option('modules'))
 env['MONGO_MODULES'] = [m.name for m in mongo_modules]
@@ -2687,7 +2706,7 @@ def doConfigure(myenv):
         else:
             return False
 
-    if has_option( "ssl" ):
+    if has_option( "ssl" ) and ssl_provider == 'openssl':
         sslLibName = "ssl"
         cryptoLibName = "crypto"
         if conf.env.TargetOSIs('windows'):
@@ -2822,8 +2841,14 @@ def doConfigure(myenv):
         if conf.CheckOpenSSL_EC_DH():
             conf.env.SetConfigHeaderDefine('MONGO_CONFIG_HAS_SSL_SET_ECDH_AUTO')
         env.SetConfigHeaderDefine("MONGO_CONFIG_SSL")
+        env.SetConfigHeaderDefine("MONGO_CONFIG_SSL_PROVIDER", "OPENSSL")
+
+    elif has_option( "ssl" ) and ssl_provider == 'windows':
+        env.SetConfigHeaderDefine("MONGO_CONFIG_SSL")
+        env.SetConfigHeaderDefine("MONGO_CONFIG_SSL_PROVIDER", "WINDOWS")
         
-        #env.Append( MONGO_CRYPTO=["windows"] )
+        # TODO: implement Windows MONGO_CRYPTO
+        env.Append( MONGO_CRYPTO=["tom"] )
 
     else:
         env.Append( MONGO_CRYPTO=["tom"] )
@@ -3077,7 +3102,7 @@ def checkErrorCodes():
     if x.checkErrorCodes() == False:
         env.FatalError("next id to use: {0}", x.getNextCode())
 
-checkErrorCodes()
+#checkErrorCodes()
 
 # Resource Files are Windows specific
 def env_windows_resource_file(env, path):
@@ -3179,6 +3204,7 @@ Export("debugBuild optBuild")
 Export("wiredtiger")
 Export("mmapv1")
 Export("endian")
+Export("ssl_provider")
 
 def injectMongoIncludePaths(thisEnv):
     thisEnv.AppendUnique(CPPPATH=['$BUILD_DIR'])

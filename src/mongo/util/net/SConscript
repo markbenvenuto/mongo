@@ -2,7 +2,15 @@
 
 Import('env')
 
+Import('ssl_provider')
+
 env = env.Clone()
+
+ssl_manager = 'ssl_manager_openssl.cpp'
+
+# TODO use % specifier instead?
+if ssl_provider == 'windows':
+    ssl_manager = 'ssl_manager_windows.cpp'
 
 env.Library(
     target='network',
@@ -19,7 +27,7 @@ env.Library(
         "sock.cpp",
         "sockaddr.cpp",
         "socket_exception.cpp",
-        "ssl_manager.cpp",
+        ssl_manager,
         "ssl_options.cpp",
         "thread_idle_callback.cpp",
     ],
