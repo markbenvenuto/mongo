@@ -41,6 +41,7 @@
 #include <vector>
 
 #include "mongo/base/init.h"
+#include "mongo/base/initializer_context.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/config.h"
 #include "mongo/db/server_parameters.h"
@@ -331,28 +332,6 @@ private:
      */
     bool _hostNameMatch(const char* nameToMatch, const char* certHostName);
 };
-
-void setupFIPS() {
-// Turn on FIPS mode if requested, OPENSSL_FIPS must be defined by the OpenSSL headers
-#if defined(MONGO_CONFIG_HAVE_FIPS_MODE_SET)
-    int status = FIPS_mode_set(1);
-    if (!status) {
-        severe() << "can't activate FIPS mode: "
-                 << SSLManagerInterface::getSSLErrorMessage(ERR_get_error());
-        fassertFailedNoTrace(16703);
-    }
-    log() << "FIPS 140-2 mode activated";
-#else
-    severe() << "this version of mongodb was not compiled with FIPS support";
-    fassertFailedNoTrace(17089);
-#endif
-}
-
-}  // namespace
-
-// Global variable indicating if this is a server or a client instance
-bool isSSLServer = false;
-
 
 MONGO_INITIALIZER(SSLManager)(InitializerContext*) {
     stdx::lock_guard<SimpleMutex> lck(sslManagerMtx);
@@ -1063,7 +1042,7 @@ Status SSLManager::_parseAndValidateCertificate(const std::string& keyFile,
     }
 
     *subjectName = getCertificateSubjectName(x509);
-    if (serverCertificateExpirationDate != NULL) {
+    if (serverCertificateExpirationDate != nullptr) {
         unsigned long long notBeforeMillis = _convertASN1ToMillis(X509_get_notBefore(x509));
         if (notBeforeMillis == 0) {
             error() << "date conversion failed";

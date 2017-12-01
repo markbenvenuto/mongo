@@ -46,6 +46,10 @@
 #ifndef MONGO_CONFIG_SSL_PROVIDER_WINDOWS
 #include <openssl/err.h>
 #include <openssl/ssl.h>
+#else
+
+#include <asio.hpp>
+#include <asio/ssl.hpp>
 #endif
 
 #endif  // #ifdef MONGO_CONFIG_SSL
@@ -85,7 +89,7 @@ class SSLConnection {
 public:
     SCHANNEL_CRED* _creds;
     Socket* socket;
-    asio::ssl:detail::engine _engine;
+    asio::ssl::detail::engine _engine;
 
     SSLConnection(SCHANNEL_CRED* creds, Socket* sock, const char* initialBytes, int len);
 
