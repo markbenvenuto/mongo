@@ -817,6 +817,8 @@ private:
           ULONG             ContextAttributes;
 
           // TODO???
+          // TODO: SCH_CRED_SNI_CREDENTIAL
+          // TODO: set target name to SNI name
           const char* pszTarget = "mark";
 
 

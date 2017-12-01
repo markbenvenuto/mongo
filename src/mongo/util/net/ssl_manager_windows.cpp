@@ -251,10 +251,6 @@ public:
      * Initializes an OpenSSL context according to the provided settings. Only settings which are
      * acceptable on non-blocking connections are set.
      */
-    Status initSSLContext(SSL_CTX* context,
-                          const SSLParams& params,
-                          ConnectionDirection direction) final;
-
     Status initSSLContext(SCHANNEL_CRED* cred,
         const SSLParams& params,
         ConnectionDirection direction) final;
@@ -265,10 +261,6 @@ public:
 
     virtual SSLPeerInfo parseAndValidatePeerCertificateDeprecated(const SSLConnection* conn,
                                                                   const std::string& remoteHost);
-
-    StatusWith<boost::optional<SSLPeerInfo>> parseAndValidatePeerCertificate(
-        SSL* conn, const std::string& remoteHost) final;
-
 
     StatusWith<boost::optional<SSLPeerInfo>> parseAndValidatePeerCertificate(
         PCtxtHandle ssl, const std::string& remoteHost) final;
@@ -293,46 +285,18 @@ public:
     virtual void SSL_free(SSLConnection* conn);
 
 private:
-    const int _rolesNid = OBJ_create(mongodbRolesOID.identifier.c_str(),
-                                     mongodbRolesOID.shortDescription.c_str(),
-                                     mongodbRolesOID.longDescription.c_str());
-    UniqueSSLContext _serverContext;  // SSL context for incoming connections
-    UniqueSSLContext _clientContext;  // SSL context for outgoing connections
     bool _weakValidation;
     bool _allowInvalidCertificates;
     bool _allowInvalidHostnames;
     SSLConfiguration _sslConfiguration;
 
+    SCHANNEL_CRED _clientCred;
+    SCHANNEL_CRED _serverCred;
+
     // Windows
     UniqueCertificate _certificate;
     PCCERT_CONTEXT _certificates[1];
     UniqueCertStore _certstore;
-
-    /**
-     * creates an SSL object to be used for this file descriptor.
-     * caller must SSL_free it.
-     */
-    SSL* _secure(SSL_CTX* context, int fd);
-
-    /**
-     * Given an error code from an SSL-type IO function, logs an
-     * appropriate message and throws a SocketException.
-     */
-    MONGO_COMPILER_NORETURN void _handleSSLError(int code, int ret);
-
-    /*
-     * Init the SSL context using parameters provided in params. This SSL context will
-     * be configured for blocking send/receive.
-     */
-    bool _initSynchronousSSLContext(UniqueSSLContext* context,
-                                    const SSLParams& params,
-                                    ConnectionDirection direction);
-
-    /*
-     * Converts time from OpenSSL return value to unsigned long long
-     * representing the milliseconds since the epoch.
-     */
-    unsigned long long _convertASN1ToMillis(ASN1_TIME* t);
 
     /*
      * Parse and store x509 subject name from the PEM keyfile.
@@ -350,26 +314,7 @@ private:
                                       Date_t* serverNotAfter);
 
 
-    StatusWith<stdx::unordered_set<RoleName>> _parsePeerRoles(X509* peerCert) const;
-
-    /** @return true if was successful, otherwise false */
-    bool _setupPEM(SSL_CTX* context, const std::string& keyFile, const std::string& password);
-
-    /*
-     * Set up an SSL context for certificate validation by loading a CA
-     */
-    Status _setupCA(SSL_CTX* context, const std::string& caFile);
-
-    /*
-     * Set up an SSL context for certificate validation by loading the system's CA store
-     */
-    Status _setupSystemCA(SSL_CTX* context);
-
-    /*
-     * Import a certificate revocation list into an SSL context
-     * for use with validating certificates
-     */
-    bool _setupCRL(SSL_CTX* context, const std::string& crlFile);
+    StatusWith<stdx::unordered_set<RoleName>> _parsePeerRoles(PCCERT_CONTEXT peerCert) const;
 
     /*
      * sub function for checking the result of an SSL operation
@@ -385,16 +330,6 @@ private:
      * match a remote host name to an x.509 host name
      */
     bool _hostNameMatch(const char* nameToMatch, const char* certHostName);
-
-    /**
-     * Callbacks for SSL functions.
-     */
-    static int password_cb(char* buf, int num, int rwflag, void* userdata);
-    static int verify_cb(int ok, X509_STORE_CTX* ctx);
-
-
-    // WINDOWS
-
 };
 
 void setupFIPS() {
@@ -419,30 +354,12 @@ void setupFIPS() {
 bool isSSLServer = false;
 
 
-MONGO_INITIALIZER(SetupOpenSSL)(InitializerContext*) {
-    SSL_library_init();
-    SSL_load_error_strings();
-    ERR_load_crypto_strings();
-
-    if (sslGlobalParams.sslFIPSMode) {
-        setupFIPS();
-    }
-
-    // Add all digests and ciphers to OpenSSL's internal table
-    // so that encryption/decryption is backwards compatible
-    OpenSSL_add_all_algorithms();
-
-    // Setup OpenSSL multithreading callbacks and mutexes
-    SSLThreadInfo::init();
-
-    return Status::OK();
-}
-
-MONGO_INITIALIZER_WITH_PREREQUISITES(SSLManager, ("SetupOpenSSL"))(InitializerContext*) {
+MONGO_INITIALIZER(SSLManager)(InitializerContext*) {
     stdx::lock_guard<SimpleMutex> lck(sslManagerMtx);
     if (!isSSLServer || (sslGlobalParams.sslMode.load() != SSLParams::SSLMode_disabled)) {
         theSSLManager = new SSLManager(sslGlobalParams, isSSLServer);
     }
+
     return Status::OK();
 }
 
@@ -458,109 +375,46 @@ SSLManagerInterface* getSSLManager() {
     return NULL;
 }
 
-std::string getCertificateSubjectName(X509* cert) {
-    std::string result;
-
-    BIO* out = BIO_new(BIO_s_mem());
-    uassert(16884, "unable to allocate BIO memory", NULL != out);
-    ON_BLOCK_EXIT(BIO_free, out);
-
-    if (X509_NAME_print_ex(out, X509_get_subject_name(cert), 0, XN_FLAG_RFC2253) >= 0) {
-        if (BIO_number_written(out) > 0) {
-            result.resize(BIO_number_written(out));
-            BIO_read(out, &result[0], result.size());
-        }
-    } else {
-        log() << "failed to convert subject name to RFC2253 format";
+std::string getCertificateSubjectName(PCCERT_CONTEXT cert) {
+    DWORD cbNeeded = CertGetNameStringA(cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, NULL, NULL, 0);
+    if (cbNeeded == 0) {
+        invariant(false);
     }
 
-    return result;
+    std::unique_ptr<BYTE> nameBuf(new BYTE[privateKeyLen]);
+    DWORD cbConverted = CertGetNameStringA(cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, NULL, nameBuf.get(), cbNeeded);
+    if (cbConverted != cbNeeded) {
+        invariant(false);
+    }
+
+    return std::string(nameBuf);
 }
 
-SSLConnection::SSLConnection(SSL_CTX* context, Socket* sock, const char* initialBytes, int len)
-    : socket(sock) {
-    ssl = SSL_new(context);
-
-    std::string sslErr =
-        NULL != getSSLManager() ? getSSLManager()->getSSLErrorMessage(ERR_get_error()) : "";
-    massert(15861, "Error creating new SSL object " + sslErr, ssl);
-
-    BIO_new_bio_pair(&internalBIO, BUFFER_SIZE, &networkBIO, BUFFER_SIZE);
-    SSL_set_bio(ssl, internalBIO, internalBIO);
+SSLConnection::SSLConnection(SCHANNEL_CRED* cred, Socket* sock, const char* initialBytes, int len)
+    : _cred(cred), socket(sock), _engine(_cred) {
 
     if (len > 0) {
-        int toBIO = BIO_write(networkBIO, initialBytes, len);
-        if (toBIO != len) {
-            LOG(3) << "Failed to write initial network data to the SSL BIO layer";
-            throw SocketException(SocketException::RECV_ERROR, socket->remoteString());
-        }
+        _engine.put_input();
+        //int toBIO = BIO_write(networkBIO, initialBytes, len);
+        //if (toBIO != len) {
+        //    LOG(3) << "Failed to write initial network data to the SSL BIO layer";
+        //    throw SocketException(SocketException::RECV_ERROR, socket->remoteString());
+        //}
     }
 }
 
 SSLConnection::~SSLConnection() {
-    if (ssl) {  // The internalBIO is automatically freed as part of SSL_free
-        SSL_free(ssl);
-    }
-    if (networkBIO) {
-        BIO_free(networkBIO);
-    }
-}
 
-namespace {
-void canonicalizeClusterDN(std::vector<std::string>* dn) {
-    // remove all RDNs we don't care about
-    for (size_t i = 0; i < dn->size(); i++) {
-        std::string& comp = dn->at(i);
-        boost::algorithm::trim(comp);
-        if (!mongoutils::str::startsWith(comp.c_str(), "DC=") &&
-            !mongoutils::str::startsWith(comp.c_str(), "O=") &&
-            !mongoutils::str::startsWith(comp.c_str(), "OU=")) {
-            dn->erase(dn->begin() + i);
-            i--;
-        }
-    }
-    std::stable_sort(dn->begin(), dn->end());
-}
-}  // namespace
-
-bool SSLConfiguration::isClusterMember(StringData subjectName) const {
-    std::vector<std::string> clientRDN = StringSplitter::split(subjectName.toString(), ",");
-    std::vector<std::string> serverRDN = StringSplitter::split(serverSubjectName, ",");
-
-    canonicalizeClusterDN(&clientRDN);
-    canonicalizeClusterDN(&serverRDN);
-
-    if (clientRDN.size() == 0 || clientRDN.size() != serverRDN.size()) {
-        return false;
-    }
-
-    for (size_t i = 0; i < serverRDN.size(); i++) {
-        if (clientRDN[i] != serverRDN[i]) {
-            return false;
-        }
-    }
-    return true;
-}
-
-BSONObj SSLConfiguration::getServerStatusBSON() const {
-    BSONObjBuilder security;
-    security.append("SSLServerSubjectName", serverSubjectName);
-    security.appendBool("SSLServerHasCertificateAuthority", hasCA);
-    security.appendDate("SSLServerCertificateExpirationDate", serverCertificateExpirationDate);
-    return security.obj();
 }
 
 SSLManagerInterface::~SSLManagerInterface() {}
 
 SSLManager::SSLManager(const SSLParams& params, bool isServer)
-    : _serverContext(nullptr, free_ssl_context),
-      _clientContext(nullptr, free_ssl_context),
-      _weakValidation(params.sslWeakCertificateValidation),
+    : _weakValidation(params.sslWeakCertificateValidation),
       _allowInvalidCertificates(params.sslAllowInvalidCertificates),
       _allowInvalidHostnames(params.sslAllowInvalidHostnames) {
-    if (!_initSynchronousSSLContext(&_clientContext, params, ConnectionDirection::kOutgoing)) {
-        uasserted(16768, "ssl initialization problem");
-    }
+
+    uassertStatusOk(initSSLContext(&_clientContext, params, ConnectionDirection::kOutgoing));
 
     // pick the certificate for use in outgoing connections,
     std::string clientPEM, clientPassword;
@@ -581,11 +435,10 @@ SSLManager::SSLManager(const SSLParams& params, bool isServer)
             uasserted(16941, "ssl initialization problem");
         }
     }
+    
     // SSL server specific initialization
     if (isServer) {
-        if (!_initSynchronousSSLContext(&_serverContext, params, ConnectionDirection::kIncoming)) {
-            uasserted(16562, "ssl initialization problem");
-        }
+        uassertStatusOk(initSSLContext(&_clientContext, params, ConnectionDirection::kIngoing));
 
         if (!_parseAndValidateCertificate(params.sslPEMKeyFile,
                                           params.sslPEMKeyPassword,
@@ -597,21 +450,6 @@ SSLManager::SSLManager(const SSLParams& params, bool isServer)
         static CertificateExpirationMonitor task =
             CertificateExpirationMonitor(_sslConfiguration.serverCertificateExpirationDate);
     }
-}
-
-int SSLManager::password_cb(char* buf, int num, int rwflag, void* userdata) {
-    // Unless OpenSSL misbehaves, num should always be positive
-    fassert(17314, num > 0);
-    invariant(userdata);
-    auto pw = static_cast<const std::string*>(userdata);
-
-    const size_t copied = pw->copy(buf, num - 1);
-    buf[copied] = '\0';
-    return copied;
-}
-
-int SSLManager::verify_cb(int ok, X509_STORE_CTX* ctx) {
-    return 1;  // always succeed; we will catch the error in our get_verify_result() call
 }
 
 int SSLManager::SSL_read(SSLConnection* conn, void* buf, int num) {
@@ -662,112 +500,6 @@ int SSLManager::SSL_shutdown(SSLConnection* conn) {
 void SSLManager::SSL_free(SSLConnection* conn) {
     return ::SSL_free(conn->ssl);
 }
-
-Status SSLManager::initSSLContext(SSL_CTX* context,
-                                  const SSLParams& params,
-                                  ConnectionDirection direction) {
-    // SSL_OP_ALL - Activate all bug workaround options, to support buggy client SSL's.
-    // SSL_OP_NO_SSLv2 - Disable SSL v2 support
-    // SSL_OP_NO_SSLv3 - Disable SSL v3 support
-    long supportedProtocols = SSL_OP_ALL | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;
-
-    // Set the supported TLS protocols. Allow --sslDisabledProtocols to disable selected
-    // ciphers.
-    for (const SSLParams::Protocols& protocol : params.sslDisabledProtocols) {
-        if (protocol == SSLParams::Protocols::TLS1_0) {
-            supportedProtocols |= SSL_OP_NO_TLSv1;
-        } else if (protocol == SSLParams::Protocols::TLS1_1) {
-            supportedProtocols |= SSL_OP_NO_TLSv1_1;
-        } else if (protocol == SSLParams::Protocols::TLS1_2) {
-            supportedProtocols |= SSL_OP_NO_TLSv1_2;
-        }
-    }
-    ::SSL_CTX_set_options(context, supportedProtocols);
-
-    // HIGH - Enable strong ciphers
-    // !EXPORT - Disable export ciphers (40/56 bit)
-    // !aNULL - Disable anonymous auth ciphers
-    // @STRENGTH - Sort ciphers based on strength
-    std::string cipherConfig = "HIGH:!EXPORT:!aNULL@STRENGTH";
-
-    // Allow the cipher configuration string to be overriden by --sslCipherConfig
-    if (!params.sslCipherConfig.empty()) {
-        cipherConfig = params.sslCipherConfig;
-    }
-
-    if (0 == ::SSL_CTX_set_cipher_list(context, cipherConfig.c_str())) {
-        return Status(ErrorCodes::InvalidSSLConfiguration,
-                      str::stream() << "Can not set supported cipher suites: "
-                                    << getSSLErrorMessage(ERR_get_error()));
-    }
-
-    // We use the address of the context as the session id context.
-    if (0 == ::SSL_CTX_set_session_id_context(
-                 context, reinterpret_cast<unsigned char*>(&context), sizeof(context))) {
-        return Status(ErrorCodes::InvalidSSLConfiguration,
-                      str::stream() << "Can not store ssl session id context: "
-                                    << getSSLErrorMessage(ERR_get_error()));
-    }
-
-    if (direction == ConnectionDirection::kOutgoing && !params.sslClusterFile.empty()) {
-        ::EVP_set_pw_prompt("Enter cluster certificate passphrase");
-        if (!_setupPEM(context, params.sslClusterFile, params.sslClusterPassword)) {
-            return Status(ErrorCodes::InvalidSSLConfiguration, "Can not set up ssl clusterFile.");
-        }
-    } else if (!params.sslPEMKeyFile.empty()) {
-        // Use the pemfile for everything else
-        ::EVP_set_pw_prompt("Enter PEM passphrase");
-        if (!_setupPEM(context, params.sslPEMKeyFile, params.sslPEMKeyPassword)) {
-            return Status(ErrorCodes::InvalidSSLConfiguration, "Can not set up PEM key file.");
-        }
-    }
-
-    const auto status =
-        params.sslCAFile.empty() ? _setupSystemCA(context) : _setupCA(context, params.sslCAFile);
-    if (!status.isOK())
-        return status;
-
-    if (!params.sslCRLFile.empty()) {
-        if (!_setupCRL(context, params.sslCRLFile)) {
-            return Status(ErrorCodes::InvalidSSLConfiguration, "Can not set up CRL file.");
-        }
-    }
-
-    if (!params.sslPEMTempDHParam.empty()) {
-        try {
-            std::ifstream dhparamPemFile(params.sslPEMTempDHParam, std::ios_base::binary);
-            if (dhparamPemFile.fail() || dhparamPemFile.bad()) {
-                return Status(ErrorCodes::InvalidSSLConfiguration,
-                              str::stream() << "Cannot open PEM DHParams file.");
-            }
-
-            std::vector<std::uint8_t> paramData{std::istreambuf_iterator<char>(dhparamPemFile),
-                                                std::istreambuf_iterator<char>()};
-            auto bio = makeUniqueMemBio(paramData);
-
-            UniqueDHParams dhparams(::PEM_read_bio_DHparams(bio.get(), nullptr, nullptr, nullptr));
-            if (!dhparams) {
-                return Status(ErrorCodes::InvalidSSLConfiguration,
-                              str::stream() << "Error reading DHParams file."
-                                            << getSSLErrorMessage(ERR_get_error()));
-            }
-
-            if (::SSL_CTX_set_tmp_dh(context, dhparams.get()) != 1) {
-                return Status(ErrorCodes::InvalidSSLConfiguration,
-                              str::stream() << "Failure to set PFS DH parameters: "
-                                            << getSSLErrorMessage(ERR_get_error()));
-            }
-        } catch (const std::exception& ex) {
-            return Status(ErrorCodes::InvalidSSLConfiguration, ex.what());
-        }
-    }
-
-    // We always set ECDH mode anyhow, if available.
-    setECDHModeAuto(context);
-
-    return Status::OK();
-}
-
 
 StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData password) {
 
@@ -1182,18 +914,6 @@ StatusWith<UniqueCertStore> readCertChains(StringData caFile, StringData crlFile
     //return{std::move(certStore)};
 }
 
-//-------------------------------------------------------------------
-//    MyHandleError
-void MyHandleError(const char* psz)
-{
-    int gle = GetLastError();
-    fprintf(stderr, "An error occurred in the program. \n");
-    fprintf(stderr, "%s\n", psz);
-    fprintf(stderr, "Error number %x.\n", gle);
-    fprintf(stderr, "Program terminating. \n");
-    ::DebugBreak();
-} // End of MyHandleError
-
 
 Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
     const SSLParams& params,
@@ -1202,6 +922,7 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
     ZeroMemory(cred, sizeof(&cred));
     cred->dwVersion = SCHANNEL_CRED_VERSION;
     cred->dwFlags = SCH_CRED_NO_SYSTEM_MAPPER;
+    // TODO: SNI supprt - SCH_CRED_SNI_CREDENTIAL
 
     uint32_t supportedProtocols = 0;
     
@@ -1259,109 +980,6 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
         cred->cCreds = 1;
         _certificates[0] = _certificate.get();
         cred->paCred = _certificates;
-
-        {
-            CRYPT_DATA_BLOB SignedMessageBlob;
-
-            CRYPT_DATA_BLOB* pSignedMessageBlob = &SignedMessageBlob;
-
-            {
-                bool fReturn = false;
-                BYTE* pbMessage;
-                DWORD cbMessage;
-                CRYPT_SIGN_MESSAGE_PARA  SigParams;
-                DWORD cbSignedMessageBlob;
-                BYTE  *pbSignedMessageBlob = NULL;
-
-                // Initialize the output pointer.
-                pSignedMessageBlob->cbData = 0;
-                pSignedMessageBlob->pbData = NULL;
-
-                // The message to be signed.
-                // Usually, the message exists somewhere and a pointer is
-                // passed to the application.
-                pbMessage =
-                    (BYTE*)TEXT("CryptoAPI is a good way to handle security");
-
-                // Calculate the size of message. To include the 
-                // terminating null character, the length is one more byte 
-                // than the length returned by the strlen function.
-                cbMessage = (lstrlen((TCHAR*)pbMessage) + 1) * sizeof(TCHAR);
-
-                // Create the MessageArray and the MessageSizeArray.
-                const BYTE* MessageArray[] = {pbMessage};
-                DWORD MessageSizeArray[1];
-                MessageSizeArray[0] = cbMessage;
-
-                //  Begin processing. 
-                printf("The message to be signed is \"%s\".\n",
-                    pbMessage);
-#define CERT_STORE_NAME  L"MY"
-
-
-#define MY_ENCODING_TYPE  (PKCS_7_ASN_ENCODING | X509_ASN_ENCODING)
-#define SIGNER_NAME L"Insert_signer_name_here"
-
-                PCCERT_CONTEXT localCert = _certificate.get();
-
-                // Initialize the signature structure.
-                SigParams.cbSize = sizeof(CRYPT_SIGN_MESSAGE_PARA);
-                SigParams.dwMsgEncodingType = MY_ENCODING_TYPE;
-                SigParams.pSigningCert = _certificate.get();
-                SigParams.HashAlgorithm.pszObjId = (LPSTR)szOID_ECDSA_SHA256;
-                SigParams.HashAlgorithm.Parameters.cbData = NULL;
-                SigParams.cMsgCert = 1;
-                SigParams.rgpMsgCert = &localCert;
-                SigParams.cAuthAttr = 0;
-                SigParams.dwInnerContentType = 0;
-                SigParams.cMsgCrl = 0;
-                SigParams.cUnauthAttr = 0;
-                SigParams.dwFlags = 0;
-                SigParams.pvHashAuxInfo = NULL;
-                SigParams.rgAuthAttr = NULL;
-
-                // First, get the size of the signed BLOB.
-                if (CryptSignMessage(
-                    &SigParams,
-                    FALSE,
-                    1,
-                    MessageArray,
-                    MessageSizeArray,
-                    NULL,
-                    &cbSignedMessageBlob)) {
-                    printf("%d bytes needed for the encoded BLOB.\n",
-                        cbSignedMessageBlob);
-                } else {
-                    MyHandleError("Getting signed BLOB size failed");
-                }
-
-                // Allocate memory for the signed BLOB.
-                if (!(pbSignedMessageBlob =
-                    (BYTE*)malloc(cbSignedMessageBlob))) {
-                    MyHandleError(
-                        "Memory allocation error while signing.");
-                }
-
-                // Get the signed message BLOB.
-                if (CryptSignMessage(
-                    &SigParams,
-                    FALSE,
-                    1,
-                    MessageArray,
-                    MessageSizeArray,
-                    pbSignedMessageBlob,
-                    &cbSignedMessageBlob)) {
-                    printf("The message was signed successfully. \n");
-
-                    // pbSignedMessageBlob now contains the signed BLOB.
-                    fReturn = true;
-                } else {
-                    MyHandleError("Error getting signed BLOB");
-                }
-
-
-            }
-        }
 
         //PCCERT_CONTEXT certOut;
         //UniqueCertStore certStore = CertOpenStore(
@@ -1435,70 +1053,14 @@ bool SSLManager::_initSynchronousSSLContext(UniqueSSLContext* contextPtr,
     return true;
 }
 
-unsigned long long SSLManager::_convertASN1ToMillis(ASN1_TIME* asn1time) {
-    BIO* outBIO = BIO_new(BIO_s_mem());
-    int timeError = ASN1_TIME_print(outBIO, asn1time);
-    ON_BLOCK_EXIT(BIO_free, outBIO);
-
-    if (timeError <= 0) {
-        error() << "ASN1_TIME_print failed or wrote no data.";
-        return 0;
-    }
-
-    char dateChar[DATE_LEN];
-    timeError = BIO_gets(outBIO, dateChar, DATE_LEN);
-    if (timeError <= 0) {
-        error() << "BIO_gets call failed to transfer contents to buf";
-        return 0;
-    }
-
-    // Ensure that day format is two digits for parsing.
-    // Jun  8 17:00:03 2014 becomes Jun 08 17:00:03 2014.
-    if (dateChar[4] == ' ') {
-        dateChar[4] = '0';
-    }
-
-    std::istringstream inStringStream((std::string(dateChar, 20)));
-    boost::posix_time::time_input_facet* inputFacet =
-        new boost::posix_time::time_input_facet("%b %d %H:%M:%S %Y");
-
-    inStringStream.imbue(std::locale(std::cout.getloc(), inputFacet));
-    boost::posix_time::ptime posixTime;
-    inStringStream >> posixTime;
-
-    const boost::gregorian::date epoch = boost::gregorian::date(1970, boost::gregorian::Jan, 1);
-
-    return (posixTime - boost::posix_time::ptime(epoch)).total_milliseconds();
-}
-
-bool SSLManager::_parseAndValidateCertificate(const std::string& keyFile,
+Status SSLManager::_parseAndValidateCertificate(const std::string& keyFile,
                                               const std::string& keyPassword,
                                               std::string* subjectName,
                                               Date_t* serverCertificateExpirationDate) {
-    BIO* inBIO = BIO_new(BIO_s_file());
-    if (inBIO == NULL) {
-        error() << "failed to allocate BIO object: " << getSSLErrorMessage(ERR_get_error());
-        return false;
+    auto swCertificate = readPEMFile(keyFile, keyPassword);
+    if (!swCertificate.isOK()) {
+        return swCertificate.getStatus();
     }
-
-    ON_BLOCK_EXIT(BIO_free, inBIO);
-    if (BIO_read_filename(inBIO, keyFile.c_str()) <= 0) {
-        error() << "cannot read key file when setting subject name: " << keyFile << ' '
-                << getSSLErrorMessage(ERR_get_error());
-        return false;
-    }
-
-    // Callback will not manipulate the password, so const_cast is safe.
-    X509* x509 = PEM_read_bio_X509(inBIO,
-                                   NULL,
-                                   &SSLManager::password_cb,
-                                   const_cast<void*>(static_cast<const void*>(&keyPassword)));
-    if (x509 == NULL) {
-        error() << "cannot retrieve certificate from keyfile: " << keyFile << ' '
-                << getSSLErrorMessage(ERR_get_error());
-        return false;
-    }
-    ON_BLOCK_EXIT(X509_free, x509);
 
     *subjectName = getCertificateSubjectName(x509);
     if (serverCertificateExpirationDate != NULL) {
@@ -1522,261 +1084,6 @@ bool SSLManager::_parseAndValidateCertificate(const std::string& keyFile,
         *serverCertificateExpirationDate = Date_t::fromMillisSinceEpoch(notAfterMillis);
     }
 
-    return true;
-}
-
-bool SSLManager::_setupPEM(SSL_CTX* context,
-                           const std::string& keyFile,
-                           const std::string& password) {
-    if (SSL_CTX_use_certificate_chain_file(context, keyFile.c_str()) != 1) {
-        error() << "cannot read certificate file: " << keyFile << ' '
-                << getSSLErrorMessage(ERR_get_error());
-        return false;
-    }
-
-    BIO* inBio = BIO_new(BIO_s_file());
-    if (!inBio) {
-        error() << "failed to allocate BIO object: " << getSSLErrorMessage(ERR_get_error());
-        return false;
-    }
-    const auto bioGuard = MakeGuard([&inBio]() { BIO_free(inBio); });
-
-    if (BIO_read_filename(inBio, keyFile.c_str()) <= 0) {
-        error() << "cannot read PEM key file: " << keyFile << ' '
-                << getSSLErrorMessage(ERR_get_error());
-        return false;
-    }
-
-    // If password is empty, use default OpenSSL callback, which uses the terminal
-    // to securely request the password interactively from the user.
-    decltype(&SSLManager::password_cb) password_cb = nullptr;
-    void* userdata = nullptr;
-    if (!password.empty()) {
-        password_cb = &SSLManager::password_cb;
-        // SSLManager::password_cb will not manipulate the password, so const_cast is safe.
-        userdata = const_cast<void*>(static_cast<const void*>(&password));
-    }
-    EVP_PKEY* privateKey = PEM_read_bio_PrivateKey(inBio, nullptr, password_cb, userdata);
-    if (!privateKey) {
-        error() << "cannot read PEM key file: " << keyFile << ' '
-                << getSSLErrorMessage(ERR_get_error());
-        return false;
-    }
-    const auto privateKeyGuard = MakeGuard([&privateKey]() { EVP_PKEY_free(privateKey); });
-
-    if (SSL_CTX_use_PrivateKey(context, privateKey) != 1) {
-        error() << "cannot use PEM key file: " << keyFile << ' '
-                << getSSLErrorMessage(ERR_get_error());
-        return false;
-    }
-
-    // Verify that the certificate and the key go together.
-    if (SSL_CTX_check_private_key(context) != 1) {
-        error() << "SSL certificate validation: " << getSSLErrorMessage(ERR_get_error());
-        return false;
-    }
-
-    return true;
-}
-
-Status SSLManager::_setupCA(SSL_CTX* context, const std::string& caFile) {
-    // Set the list of CAs sent to clients
-    STACK_OF(X509_NAME)* certNames = SSL_load_client_CA_file(caFile.c_str());
-    if (certNames == NULL) {
-        return Status(ErrorCodes::InvalidSSLConfiguration,
-                      str::stream() << "cannot read certificate authority file: " << caFile << " "
-                                    << getSSLErrorMessage(ERR_get_error()));
-    }
-    SSL_CTX_set_client_CA_list(context, certNames);
-
-    // Load trusted CA
-    if (SSL_CTX_load_verify_locations(context, caFile.c_str(), NULL) != 1) {
-        return Status(ErrorCodes::InvalidSSLConfiguration,
-                      str::stream() << "cannot read certificate authority file: " << caFile << " "
-                                    << getSSLErrorMessage(ERR_get_error()));
-    }
-
-    // Set SSL to require peer (client) certificate verification
-    // if a certificate is presented
-    SSL_CTX_set_verify(context, SSL_VERIFY_PEER, &SSLManager::verify_cb);
-    _sslConfiguration.hasCA = true;
-    return Status::OK();
-}
-
-inline Status checkX509_STORE_error() {
-    const auto errCode = ERR_peek_last_error();
-    if (ERR_GET_LIB(errCode) != ERR_LIB_X509 ||
-        ERR_GET_REASON(errCode) != X509_R_CERT_ALREADY_IN_HASH_TABLE) {
-        return {ErrorCodes::InvalidSSLConfiguration,
-                str::stream() << "Error adding certificate to X509 store: "
-                              << ERR_reason_error_string(errCode)};
-    }
-    return Status::OK();
-}
-
-#if defined(_WIN32)
-// This imports the certificates in a given Windows certificate store into an X509_STORE for
-// openssl to use during certificate validation.
-Status importCertStoreToX509_STORE(const wchar_t* storeName,
-                                   DWORD storeLocation,
-                                   X509_STORE* verifyStore) {
-    HCERTSTORE systemStore = CertOpenStore(CERT_STORE_PROV_SYSTEM_W,
-                                           0,
-                                           NULL,
-                                           storeLocation | CERT_STORE_READONLY_FLAG,
-                                           const_cast<LPWSTR>(storeName));
-    if (systemStore == NULL) {
-        return {ErrorCodes::InvalidSSLConfiguration,
-                str::stream() << "error opening system CA store: " << errnoWithDescription()};
-    }
-    auto systemStoreGuard = MakeGuard([systemStore]() { CertCloseStore(systemStore, 0); });
-
-    PCCERT_CONTEXT certCtx = NULL;
-    while ((certCtx = CertEnumCertificatesInStore(systemStore, certCtx)) != NULL) {
-        auto certBytes = static_cast<const unsigned char*>(certCtx->pbCertEncoded);
-        X509* x509Obj = d2i_X509(NULL, &certBytes, certCtx->cbCertEncoded);
-        if (x509Obj == NULL) {
-            return {ErrorCodes::InvalidSSLConfiguration,
-                    str::stream() << "Error parsing X509 object from Windows certificate store"
-                                  << SSLManagerInterface::getSSLErrorMessage(ERR_get_error())};
-        }
-        const auto x509ObjGuard = MakeGuard([&x509Obj]() { X509_free(x509Obj); });
-
-        if (X509_STORE_add_cert(verifyStore, x509Obj) != 1) {
-            auto status = checkX509_STORE_error();
-            if (!status.isOK())
-                return status;
-        }
-    }
-    int lastError = GetLastError();
-    if (lastError != CRYPT_E_NOT_FOUND) {
-        return {ErrorCodes::InvalidSSLConfiguration,
-                str::stream() << "Error enumerating certificates: "
-                              << errnoWithDescription(lastError)};
-    }
-
-    return Status::OK();
-}
-#elif defined(__APPLE__)
-
-template <typename T>
-class CFTypeRefHolder {
-public:
-    explicit CFTypeRefHolder(T ptr) : ref(static_cast<CFTypeRef>(ptr)) {}
-    ~CFTypeRefHolder() {
-        CFRelease(ref);
-    }
-    operator T() {
-        return static_cast<T>(ref);
-    }
-
-private:
-    CFTypeRef ref = nullptr;
-};
-template <typename T>
-CFTypeRefHolder<T> makeCFTypeRefHolder(T ptr) {
-    return CFTypeRefHolder<T>(ptr);
-}
-
-std::string OSStatusToString(OSStatus status) {
-    auto errMsg = makeCFTypeRefHolder(SecCopyErrorMessageString(status, NULL));
-    return std::string{CFStringGetCStringPtr(errMsg, kCFStringEncodingUTF8)};
-}
-
-Status importKeychainToX509_STORE(X509_STORE* verifyStore) {
-    CFArrayRef result;
-    OSStatus status;
-
-    // This copies all the certificates trusted by the system (regardless of what keychain they're
-    // attached to) into a CFArray.
-    if ((status = SecTrustCopyAnchorCertificates(&result)) != 0) {
-        return {ErrorCodes::InvalidSSLConfiguration,
-                str::stream() << "Error enumerating certificates: " << OSStatusToString(status)};
-    }
-    const auto resultGuard = makeCFTypeRefHolder(result);
-
-    for (CFIndex i = 0; i < CFArrayGetCount(result); i++) {
-        SecCertificateRef cert =
-            static_cast<SecCertificateRef>(const_cast<void*>(CFArrayGetValueAtIndex(result, i)));
-
-        auto rawData = makeCFTypeRefHolder(SecCertificateCopyData(cert));
-        if (!rawData) {
-            return {ErrorCodes::InvalidSSLConfiguration,
-                    str::stream() << "Error enumerating certificates: "
-                                  << OSStatusToString(status)};
-        }
-        const uint8_t* rawDataPtr = CFDataGetBytePtr(rawData);
-
-        // Parse an openssl X509 object from each returned certificate
-        X509* x509Cert = d2i_X509(nullptr, &rawDataPtr, CFDataGetLength(rawData));
-        if (!x509Cert) {
-            return {ErrorCodes::InvalidSSLConfiguration,
-                    str::stream() << "Error parsing X509 certificate from system keychain: "
-                                  << ERR_reason_error_string(ERR_peek_last_error())};
-        }
-        const auto x509CertGuard = MakeGuard([&x509Cert]() { X509_free(x509Cert); });
-
-        // Add the parsed X509 object to the X509_STORE verification store
-        if (X509_STORE_add_cert(verifyStore, x509Cert) != 1) {
-            auto status = checkX509_STORE_error();
-            if (!status.isOK())
-                return status;
-        }
-    }
-
-    return Status::OK();
-}
-#endif
-
-Status SSLManager::_setupSystemCA(SSL_CTX* context) {
-#if !defined(_WIN32) && !defined(__APPLE__)
-    // On non-Windows/non-Apple platforms, the OpenSSL libraries should have been configured
-    // with default locations for CA certificates.
-    if (SSL_CTX_set_default_verify_paths(context) != 1) {
-        return {ErrorCodes::InvalidSSLConfiguration,
-                str::stream() << "error loading system CA certificates "
-                              << "(default certificate file: "
-                              << X509_get_default_cert_file()
-                              << ", "
-                              << "default certificate path: "
-                              << X509_get_default_cert_dir()
-                              << ")"};
-    }
-    return Status::OK();
-#else
-
-    X509_STORE* verifyStore = SSL_CTX_get_cert_store(context);
-    if (!verifyStore) {
-        return {ErrorCodes::InvalidSSLConfiguration,
-                "no X509 store found for SSL context while loading system certificates"};
-    }
-#if defined(_WIN32)
-    auto status = importCertStoreToX509_STORE(L"root", CERT_SYSTEM_STORE_CURRENT_USER, verifyStore);
-    if (!status.isOK())
-        return status;
-    return importCertStoreToX509_STORE(L"CA", CERT_SYSTEM_STORE_CURRENT_USER, verifyStore);
-#elif defined(__APPLE__)
-    return importKeychainToX509_STORE(verifyStore);
-#endif
-#endif
-}
-
-bool SSLManager::_setupCRL(SSL_CTX* context, const std::string& crlFile) {
-    X509_STORE* store = SSL_CTX_get_cert_store(context);
-    fassert(16583, store);
-
-    X509_STORE_set_flags(store, X509_V_FLAG_CRL_CHECK);
-    X509_LOOKUP* lookup = X509_STORE_add_lookup(store, X509_LOOKUP_file());
-    fassert(16584, lookup);
-
-    int status = X509_load_crl_file(lookup, crlFile.c_str(), X509_FILETYPE_PEM);
-    if (status == 0) {
-        error() << "cannot read CRL file: " << crlFile << ' '
-                << getSSLErrorMessage(ERR_get_error());
-        return false;
-    }
-    log() << "ssl imported " << status << " revoked certificate" << ((status == 1) ? "" : "s")
-          << " from the revocation list.";
     return true;
 }
 
@@ -2141,14 +1448,6 @@ StatusWith<stdx::unordered_set<RoleName>> SSLManager::_parsePeerRoles(X509* peer
     return roles;
 }
 
-std::string SSLManagerInterface::getSSLErrorMessage(int code) {
-    // 120 from the SSL documentation for ERR_error_string
-    static const size_t msglen = 120;
-
-    char msg[msglen];
-    ERR_error_string_n(code, msg, msglen);
-    return msg;
-}
 
 void SSLManager::_handleSSLError(int code, int ret) {
     int err = ERR_get_error();
@@ -2189,13 +1488,5 @@ void SSLManager::_handleSSLError(int code, int ret) {
     }
     throw SocketException(SocketException::CONNECT_ERROR, "");
 }
-#else
 
-MONGO_INITIALIZER(SSLManager)(InitializerContext*) {
-    // we need a no-op initializer so that we can depend on SSLManager as a prerequisite in
-    // non-SSL builds.
-    return Status::OK();
-}
-
-#endif  // #ifdef MONGO_CONFIG_SSL
 }  // namespace mongo

@@ -1749,6 +1749,8 @@ elif get_option('ssl-provider') == 'native':
     if env.TargetOSIs('windows'):
         ssl_provider = 'windows'
 
+if not has_option('ssl'):
+    ssl_provider = 'none'
 
 # discover modules, and load the (python) module for each module's build.py
 mongo_modules = moduleconfig.discover_modules('src/mongo/db/modules', get_option('modules'))
@@ -2841,11 +2843,10 @@ def doConfigure(myenv):
         if conf.CheckOpenSSL_EC_DH():
             conf.env.SetConfigHeaderDefine('MONGO_CONFIG_HAS_SSL_SET_ECDH_AUTO')
         env.SetConfigHeaderDefine("MONGO_CONFIG_SSL")
-        env.SetConfigHeaderDefine("MONGO_CONFIG_SSL_PROVIDER", "OPENSSL")
 
     elif has_option( "ssl" ) and ssl_provider == 'windows':
         env.SetConfigHeaderDefine("MONGO_CONFIG_SSL")
-        env.SetConfigHeaderDefine("MONGO_CONFIG_SSL_PROVIDER", "WINDOWS")
+        env.SetConfigHeaderDefine("MONGO_CONFIG_SSL_PROVIDER_WINDOWS")
         
         # TODO: implement Windows MONGO_CRYPTO
         env.Append( MONGO_CRYPTO=["tom"] )

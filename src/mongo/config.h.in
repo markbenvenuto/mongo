@@ -70,8 +70,11 @@
 // Defined if OpenSSL has SEQUENCE_ANY
 @mongo_config_ssl_has_asn1_any_definitions@
 
-// SSL Provider to use - either OPENSSL, APPLE, or WINDOWS
-@mongo_config_ssl_provider@
+// Defined if SSL support is to use Windows SChannel
+@mongo_config_ssl_provider_windows@
+
+// Defined if SSL support is to use Apple SecureTransport
+@mongo_config_ssl_provider_apple@
 
 // Defined if OpenSSL has `SSL_CTX_set_ecdh_auto` and `SSL_set_ecdh_auto`
 @mongo_config_has_ssl_set_ecdh_auto@

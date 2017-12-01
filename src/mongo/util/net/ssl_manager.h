@@ -43,8 +43,10 @@
 #include "mongo/util/net/ssl_types.h"
 #include "mongo/util/time_support.h"
 
+#ifndef MONGO_CONFIG_SSL_PROVIDER_WINDOWS
 #include <openssl/err.h>
 #include <openssl/ssl.h>
+#endif
 
 #endif  // #ifdef MONGO_CONFIG_SSL
 
@@ -59,6 +61,10 @@ const std::string getSSLVersion(const std::string& prefix, const std::string& su
 namespace mongo {
 struct SSLParams;
 
+#ifndef MONGO_CONFIG_SSL_PROVIDER_WINDOWS
+typedef SSL_CTX* SSLContextType;
+typedef SSL* SSLConnectionType;
+
 class SSLConnection {
 public:
     SSL* ssl;
@@ -70,6 +76,22 @@ public:
 
     ~SSLConnection();
 };
+
+#else
+typedef SCHANNEL_CRED* SSLContextType;
+typedef PCtxtHandle SSLConnectionType;
+
+class SSLConnection {
+public:
+    SCHANNEL_CRED* _creds;
+    Socket* socket;
+    asio::ssl:detail::engine _engine;
+
+    SSLConnection(SCHANNEL_CRED* creds, Socket* sock, const char* initialBytes, int len);
+
+    ~SSLConnection();
+};
+#endif
 
 struct SSLConfiguration {
     SSLConfiguration() : serverSubjectName(""), clientSubjectName("") {}
@@ -173,13 +195,9 @@ public:
      * acceptable on non-blocking connections are set. "direction" specifies whether the SSL_CTX
      * will be used to make outgoing connections or accept incoming connections.
      */
-    virtual Status initSSLContext(SSL_CTX* context,
+    virtual Status initSSLContext(SSLContextType context,
                                   const SSLParams& params,
                                   ConnectionDirection direction) = 0;
-
-    virtual Status initSSLContext(SCHANNEL_CRED* cred,
-        const SSLParams& params,
-        ConnectionDirection direction) = 0;
 
     /**
      * Fetches a peer certificate and validates it if it exists. If validation fails, but weak
@@ -189,9 +207,7 @@ public:
      * X509 authorization will be returned.
      */
     virtual StatusWith<boost::optional<SSLPeerInfo>> parseAndValidatePeerCertificate(
-        SSL* ssl, const std::string& remoteHost) = 0;
-    virtual StatusWith<boost::optional<SSLPeerInfo>> parseAndValidatePeerCertificate(
-        PCtxtHandle ssl, const std::string& remoteHost) = 0;
+        SSLConnectionType ssl, const std::string& remoteHost) = 0;
 };
 
 // Access SSL functions through this instance.
