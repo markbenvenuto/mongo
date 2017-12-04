@@ -73,6 +73,7 @@ types:
 structs:
     default_values:
         description: UnitTest for a single safeInt32
+        generate_comparison_operators: true
         fields:
             stringfield:
                 type: string

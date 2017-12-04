@@ -139,6 +139,10 @@ public:
         _hasUuidField = true;
     }
 
+    friend bool operator==(const Default_values& left, const Default_values& right);
+    friend bool operator!=(const Default_values& left, const Default_values& right);
+    friend bool operator<(const Default_values& left, const Default_values& right);
+
 protected:
     void parseProtected(const IDLParserErrorContext& ctxt, const BSONObj& bsonObject);
 
@@ -157,5 +161,60 @@ private:
     bool _hasBinDataField : 1;
     bool _hasUuidField : 1;
 };
+
+inline bool operator==(const Default_values& left, const Default_values& right) {
+    return std::tie(left._stringfield,
+                    left._intfield,
+                    left._numericfield,
+                    left._nsfield,
+                    left._optionalField,
+                    left._vectorField,
+                    left._binDataField,
+                    left._uuidField) == std::tie(right._stringfield,
+                                                 right._intfield,
+                                                 right._numericfield,
+                                                 right._nsfield,
+                                                 right._optionalField,
+                                                 right._vectorField,
+                                                 right._binDataField,
+                                                 right._uuidField);
+}
+
+inline bool operator!=(const Default_values& left, const Default_values& right) {
+    return std::tie(left._stringfield,
+                    left._intfield,
+                    left._numericfield,
+                    left._nsfield,
+                    left._optionalField,
+                    left._vectorField,
+                    left._binDataField,
+                    left._uuidField) != std::tie(right._stringfield,
+                                                 right._intfield,
+                                                 right._numericfield,
+                                                 right._nsfield,
+                                                 right._optionalField,
+                                                 right._vectorField,
+                                                 right._binDataField,
+                                                 right._uuidField);
+}
+
+inline bool operator<(const Default_values& left, const Default_values& right) {
+    return std::tie(left._stringfield,
+                    left._intfield,
+                    left._numericfield,
+                    left._nsfield,
+                    left._optionalField,
+                    left._vectorField,
+                    left._binDataField,
+                    left._uuidField) < std::tie(right._stringfield,
+                                                right._intfield,
+                                                right._numericfield,
+                                                right._nsfield,
+                                                right._optionalField,
+                                                right._vectorField,
+                                                right._binDataField,
+                                                right._uuidField);
+}
+
 
 }  // namespace mongo
