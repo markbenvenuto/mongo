@@ -393,7 +393,7 @@ SSLManager::SSLManager(const SSLParams& params, bool isServer)
       _allowInvalidCertificates(params.sslAllowInvalidCertificates),
       _allowInvalidHostnames(params.sslAllowInvalidHostnames) {
 
-    uassertStatusOk(initSSLContext(&_clientContext, params, ConnectionDirection::kOutgoing));
+    uassertStatusOK(initSSLContext(&_clientCred, params, ConnectionDirection::kOutgoing));
 
     // pick the certificate for use in outgoing connections,
     std::string clientPEM, clientPassword;
@@ -417,7 +417,7 @@ SSLManager::SSLManager(const SSLParams& params, bool isServer)
     
     // SSL server specific initialization
     if (isServer) {
-        uassertStatusOk(initSSLContext(&_clientContext, params, ConnectionDirection::kIngoing));
+        uassertStatusOK(initSSLContext(&_serverCred, params, ConnectionDirection::kIngoing));
 
         if (!_parseAndValidateCertificate(params.sslPEMKeyFile,
                                           params.sslPEMKeyPassword,
