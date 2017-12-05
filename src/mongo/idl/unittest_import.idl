@@ -15,7 +15,7 @@
 
 # IDL Unit Tests IDL file for testing imported structs
 global:
-    cpp_namespace: "mongo"
+    cpp_namespace: "mongo::idl::import"
 
 imports:
     - "mongo/idl/basic_types.idl"
@@ -110,3 +110,13 @@ structs:
         generate_comparison_operators: true
         fields:
             value: uuid
+
+enums:
+
+    IntEnum:
+        description: "An example int enum"
+        type: int
+        values:
+            a0: 0
+            b1: 1
+            c2: 2
