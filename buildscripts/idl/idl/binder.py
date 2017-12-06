@@ -549,7 +549,7 @@ def _bind_chained_struct(ctxt, parsed_spec, ast_struct, chained_struct):
     ast_chained_field.description = struct.description
     ast_chained_field.struct_type = struct.name
     ast_chained_field.bson_serialization_type = ["object"]
-
+    
     ast_chained_field.chained = True
 
     if not _is_duplicate_field(ctxt, chained_struct.name, ast_struct.fields, ast_chained_field):
@@ -563,7 +563,7 @@ def _bind_chained_struct(ctxt, parsed_spec, ast_struct, chained_struct):
         if ast_field and not _is_duplicate_field(ctxt, chained_struct.name, ast_struct.fields,
                                                  ast_field):
 
-            if ast_struct.inline_chained_structs:
+            if ast_struct.inline_chained_structs: # and ast_field.struct_type:
                 ast_field.chained_struct_field = ast_chained_field
             else:
                 # For non-inlined structs, mark them as ignore

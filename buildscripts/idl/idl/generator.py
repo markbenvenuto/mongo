@@ -937,7 +937,7 @@ class _CppSourceFileWriter(_CppFileWriterBase):
             first_field = True
             for field in struct.fields:
                 # Do not parse chained fields as fields since they are actually chained types.
-                if field.chained:
+                if field.chained and not field.chained_struct_field:
                     continue
 
                 field_predicate = 'fieldName == %s' % (_get_field_constant_name(field))
@@ -971,14 +971,16 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                         self._writer.write_line('ctxt.throwUnknownField(fieldName);')
 
         # Parse chained types if not inlined
-        if not struct.inline_chained_structs:
-            for field in struct.fields:
-                if not field.chained:
-                    continue
+#        if not struct.inline_chained_structs:
+        for field in struct.fields:
+            if not field.chained or \
+                    (field.chained and ( field.chained_struct_field) 
+                    #and struct.inline_chained_structs):
+                continue
 
-                # Simply generate deserializers since these are all 'any' types
-                self.gen_field_deserializer(field, bson_object)
-        self._writer.write_empty_line()
+            # Simply generate deserializers since these are all 'any' types
+            self.gen_field_deserializer(field, bson_object)
+            self._writer.write_empty_line()
 
         self._writer.write_empty_line()
 
