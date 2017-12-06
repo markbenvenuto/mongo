@@ -885,16 +885,18 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
 
     ZeroMemory(cred, sizeof(*cred));
     cred->dwVersion = SCHANNEL_CRED_VERSION;
-    cred->dwFlags = SCH_CRED_NO_SYSTEM_MAPPER;
+    cred->dwFlags = 0;
     // TODO: SNI supprt - SCH_CRED_SNI_CREDENTIAL
 
     uint32_t supportedProtocols = 0;
     
     if (direction == ConnectionDirection::kIncoming) {
+        cred->dwFlags |= SCH_CRED_NO_SYSTEM_MAPPER; // Do not map certificate to user account
         supportedProtocols = SP_PROT_TLS1_SERVER | SP_PROT_TLS1_0_SERVER | SP_PROT_TLS1_1_SERVER | SP_PROT_TLS1_2_SERVER;
     } else {
         supportedProtocols = SP_PROT_TLS1_CLIENT | SP_PROT_TLS1_0_CLIENT | SP_PROT_TLS1_1_CLIENT | SP_PROT_TLS1_2_CLIENT;
-        //cred->dwFlags |= SCH_CRED_NO_DEFAULT_CREDS | SCH_CRED_MANUAL_CRED_VALIDATION;
+        cred->dwFlags |= SCH_CRED_NO_DEFAULT_CREDS // No Default Certificate
+            | SCH_CRED_MANUAL_CRED_VALIDATION; // Validate Certificate Manually
     }
 
     // Set the supported TLS protocols. Allow --sslDisabledProtocols to disable selected
