@@ -145,45 +145,6 @@ static MONGO_TEB foobar123;
 
 namespace mongo {
 
-namespace {
-
-// Because the hostname having a slash is used by `mongo::SockAddr` to determine if a hostname is a
-// Unix Domain Socket endpoint, this function uses the same logic.  (See
-// `mongo::SockAddr::Sockaddr(StringData, int, sa_family_t)`).  A user explicitly specifying a Unix
-// Domain Socket in the present working directory, through a code path which supplies `sa_family_t`
-// as `AF_UNIX` will cause this code to lie.  This will, in turn, cause the
-// `SSLManager::parseAndValidatePeerCertificate` code to believe a socket is a host, which will then
-// cause a connection failure if and only if that domain socket also has a certificate for SSL and
-// the connection is an SSL connection.
-bool isUnixDomainSocket(const std::string& hostname) {
-    return end(hostname) != std::find(begin(hostname), end(hostname), '/');
-}
-
-const transport::Session::Decoration<SSLPeerInfo> peerInfoForSession =
-    transport::Session::declareDecoration<SSLPeerInfo>();
-
-/**
- * Configurable via --setParameter disableNonSSLConnectionLogging=true. If false (default)
- * if the sslMode is set to preferSSL, we will log connections that are not using SSL.
- * If true, such log messages will be suppressed.
- */
-ExportedServerParameter<bool, ServerParameterType::kStartupOnly>
-    disableNonSSLConnectionLoggingParameter(ServerParameterSet::getGlobal(),
-                                            "disableNonSSLConnectionLogging",
-                                            &sslGlobalParams.disableNonSSLConnectionLogging);
-}  // namespace
-
-SSLPeerInfo& SSLPeerInfo::forSession(const transport::SessionHandle& session) {
-    return peerInfoForSession(session.get());
-}
-
-SSLParams sslGlobalParams;
-
-const SSLParams& getSSLGlobalParams() {
-    return sslGlobalParams;
-}
-
-
 SimpleMutex sslManagerMtx;
 SSLManagerInterface* theSSLManager = NULL;
 
@@ -309,29 +270,24 @@ private:
      * date is to be checked (as for a server certificate) and null otherwise.
      * @return bool showing if the function was successful.
      */
-    bool _parseAndValidateCertificate(const std::string& keyFile,
+    Status _parseAndValidateCertificate(const std::string& keyFile,
                                       const std::string& keyPassword,
                                       std::string* subjectName,
                                       Date_t* serverNotAfter);
 
 
+    void handshake(SSLConnection* conn, bool client);
+
     StatusWith<stdx::unordered_set<RoleName>> _parsePeerRoles(PCCERT_CONTEXT peerCert) const;
-
-    /*
-     * sub function for checking the result of an SSL operation
-     */
-    bool _doneWithSSLOp(SSLConnection* conn, int status);
-
-    /*
-     * Send and receive network data
-     */
-    void _flushNetworkBIO(SSLConnection* conn);
 
     /*
      * match a remote host name to an x.509 host name
      */
     bool _hostNameMatch(const char* nameToMatch, const char* certHostName);
 };
+
+// Global variable indicating if this is a server or a client instance
+bool isSSLServer = false;
 
 MONGO_INITIALIZER(SSLManager)(InitializerContext*) {
     stdx::lock_guard<SimpleMutex> lck(sslManagerMtx);
@@ -360,25 +316,20 @@ std::string getCertificateSubjectName(PCCERT_CONTEXT cert) {
         invariant(false);
     }
 
-    std::unique_ptr<BYTE> nameBuf(new BYTE[privateKeyLen]);
-    DWORD cbConverted = CertGetNameStringA(cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, NULL, nameBuf.get(), cbNeeded);
+    std::unique_ptr<BYTE> nameBuf(new BYTE[cbNeeded]);
+    DWORD cbConverted = CertGetNameStringA(cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, NULL, (LPSTR)nameBuf.get(), cbNeeded);
     if (cbConverted != cbNeeded) {
         invariant(false);
     }
 
-    return std::string(nameBuf);
+    return std::string(reinterpret_cast<char*>(nameBuf.get()));
 }
 
 SSLConnection::SSLConnection(SCHANNEL_CRED* cred, Socket* sock, const char* initialBytes, int len)
     : _cred(cred), socket(sock), _engine(_cred) {
 
     if (len > 0) {
-        _engine.put_input();
-        //int toBIO = BIO_write(networkBIO, initialBytes, len);
-        //if (toBIO != len) {
-        //    LOG(3) << "Failed to write initial network data to the SSL BIO layer";
-        //    throw SocketException(SocketException::RECV_ERROR, socket->remoteString());
-        //}
+        _engine.put_input(asio::const_buffer(initialBytes, len));
     }
 }
 
@@ -409,22 +360,19 @@ SSLManager::SSLManager(const SSLParams& params, bool isServer)
     }
 
     if (!clientPEM.empty()) {
-        if (!_parseAndValidateCertificate(
-                clientPEM, clientPassword, &_sslConfiguration.clientSubjectName, NULL)) {
-            uasserted(16941, "ssl initialization problem");
-        }
+        uassertStatusOK(_parseAndValidateCertificate(
+            clientPEM, clientPassword, &_sslConfiguration.clientSubjectName, NULL));
     }
     
     // SSL server specific initialization
     if (isServer) {
-        uassertStatusOK(initSSLContext(&_serverCred, params, ConnectionDirection::kIngoing));
+        uassertStatusOK(initSSLContext(&_serverCred, params, ConnectionDirection::kIncoming));
 
-        if (!_parseAndValidateCertificate(params.sslPEMKeyFile,
-                                          params.sslPEMKeyPassword,
-                                          &_sslConfiguration.serverSubjectName,
-                                          &_sslConfiguration.serverCertificateExpirationDate)) {
-            uasserted(16942, "ssl initialization problem");
-        }
+        uassertStatusOK(
+            _parseAndValidateCertificate(params.sslPEMKeyFile,
+                params.sslPEMKeyPassword,
+                &_sslConfiguration.serverSubjectName,
+                &_sslConfiguration.serverCertificateExpirationDate));
 
         static CertificateExpirationMonitor task =
             CertificateExpirationMonitor(_sslConfiguration.serverCertificateExpirationDate);
@@ -432,52 +380,89 @@ SSLManager::SSLManager(const SSLParams& params, bool isServer)
 }
 
 int SSLManager::SSL_read(SSLConnection* conn, void* buf, int num) {
-    int status;
-    do {
-        status = ::SSL_read(conn->ssl, buf, num);
-    } while (!_doneWithSSLOp(conn, status));
+read_start:
+    size_t bytes_transferred;
+    asio::error_code ec;
+    asio::ssl::detail::engine::want want = conn->_engine.read(asio::mutable_buffer(buf, num), ec, bytes_transferred);
 
-    if (status <= 0)
-        _handleSSLError(SSL_get_error(conn, status), status);
-    return status;
+    // TODO: handle error
+
+    switch (want) {
+    case asio::ssl::detail::engine::want_input_and_retry:
+    {
+        // ASIO wants more data before it can continue,
+        // 1. fetch some from the network
+        // 2. give it to ASIO
+        // 3. retry
+        int ret = conn->socket->unsafe_recv(reinterpret_cast<char*>(buf), num);
+
+        conn->_engine.put_input(asio::const_buffer(buf, ret));
+
+        goto read_start;
+    }
+    case asio::ssl::detail::engine::want_nothing:
+    {
+        // ASIO wants nothing, return to caller with anything transfered
+        return bytes_transferred;
+    }
+    default:
+        MONGO_UNREACHABLE;
+    }
 }
 
 int SSLManager::SSL_write(SSLConnection* conn, const void* buf, int num) {
-    int status;
-    do {
-        status = ::SSL_write(conn->ssl, buf, num);
-    } while (!_doneWithSSLOp(conn, status));
+write_start:
+    size_t bytes_transferred;
+    asio::error_code ec;
+    asio::ssl::detail::engine::want want = conn->_engine.write(asio::const_buffer(buf, num), ec, bytes_transferred);
 
-    if (status <= 0)
-        _handleSSLError(SSL_get_error(conn, status), status);
-    return status;
+    // TODO: handle error
+
+    switch (want) {
+    case asio::ssl::detail::engine::want_output:
+    case asio::ssl::detail::engine::want_output_and_retry:
+    {
+        // ASIO wants us to send data out
+        // 1. get data from ASIO
+        // 2. give it to the network
+        // 3. retry
+        char tempbuf[17 * 1024];
+
+        asio::mutable_buffer outBuf = conn->_engine.get_output(asio::mutable_buffer(tempbuf, sizeof(tempbuf)));
+
+        int ret = conn->socket->send_unsafe(reinterpret_cast<const char*>(outBuf.data()), outBuf.size());
+
+        if (want == asio::ssl::detail::engine::want_output_and_retry) {
+            goto write_start;
+        }
+
+        return bytes_transferred;
+    }
+    default:
+        MONGO_UNREACHABLE;
+    }
 }
 
 unsigned long SSLManager::ERR_get_error() {
-    return ::ERR_get_error();
+    return 0;
 }
 
+const char* emptystr = "";
 char* SSLManager::ERR_error_string(unsigned long e, char* buf) {
-    return ::ERR_error_string(e, buf);
+    return (char*)emptystr;
 }
 
 int SSLManager::SSL_get_error(const SSLConnection* conn, int ret) {
-    return ::SSL_get_error(conn->ssl, ret);
+    return 0;
 }
 
 int SSLManager::SSL_shutdown(SSLConnection* conn) {
-    int status;
-    do {
-        status = ::SSL_shutdown(conn->ssl);
-    } while (!_doneWithSSLOp(conn, status));
-
-    if (status < 0)
-        _handleSSLError(SSL_get_error(conn, status), status);
-    return status;
+    // TODO - we really only need to drop buffers, and destroy SSLConnection
+    return 0;
 }
 
 void SSLManager::SSL_free(SSLConnection* conn) {
-    return ::SSL_free(conn->ssl);
+    // Do nothing
 }
 
 StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData password) {
@@ -898,7 +883,7 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
     const SSLParams& params,
     ConnectionDirection direction) {
 
-    ZeroMemory(cred, sizeof(&cred));
+    ZeroMemory(cred, sizeof(*cred));
     cred->dwVersion = SCHANNEL_CRED_VERSION;
     cred->dwFlags = SCH_CRED_NO_SYSTEM_MAPPER;
     // TODO: SNI supprt - SCH_CRED_SNI_CREDENTIAL
@@ -906,9 +891,10 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
     uint32_t supportedProtocols = 0;
     
     if (direction == ConnectionDirection::kIncoming) {
-        supportedProtocols = SP_PROT_TLS1_CLIENT | SP_PROT_TLS1_0_CLIENT | SP_PROT_TLS1_1_CLIENT | SP_PROT_TLS1_2_CLIENT;
-    } else {
         supportedProtocols = SP_PROT_TLS1_SERVER | SP_PROT_TLS1_0_SERVER | SP_PROT_TLS1_1_SERVER | SP_PROT_TLS1_2_SERVER;
+    } else {
+        supportedProtocols = SP_PROT_TLS1_CLIENT | SP_PROT_TLS1_0_CLIENT | SP_PROT_TLS1_1_CLIENT | SP_PROT_TLS1_2_CLIENT;
+        //cred->dwFlags |= SCH_CRED_NO_DEFAULT_CREDS | SCH_CRED_MANUAL_CRED_VALIDATION;
     }
 
     // Set the supported TLS protocols. Allow --sslDisabledProtocols to disable selected
@@ -1015,21 +1001,8 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
     return Status::OK();
 }
 
-
-
-
-bool SSLManager::_initSynchronousSSLContext(UniqueSSLContext* contextPtr,
-                                            const SSLParams& params,
-                                            ConnectionDirection direction) {
-    *contextPtr = UniqueSSLContext(SSL_CTX_new(SSLv23_method()), free_ssl_context);
-
-    uassertStatusOK(initSSLContext(contextPtr->get(), params, direction));
-
-    // If renegotiation is needed, don't return from recv() or send() until it's successful.
-    // Note: this is for blocking sockets only.
-    SSL_CTX_set_mode(contextPtr->get(), SSL_MODE_AUTO_RETRY);
-
-    return true;
+unsigned long long FiletimeToULL(FILETIME ft) {
+    return *reinterpret_cast<unsigned long long*>(&ft);
 }
 
 Status SSLManager::_parseAndValidateCertificate(const std::string& keyFile,
@@ -1041,127 +1014,103 @@ Status SSLManager::_parseAndValidateCertificate(const std::string& keyFile,
         return swCertificate.getStatus();
     }
 
-    *subjectName = getCertificateSubjectName(x509);
+    PCCERT_CONTEXT cert = swCertificate.getValue().get();
+    *subjectName = getCertificateSubjectName(cert);
+
     if (serverCertificateExpirationDate != nullptr) {
-        unsigned long long notBeforeMillis = _convertASN1ToMillis(X509_get_notBefore(x509));
-        if (notBeforeMillis == 0) {
-            error() << "date conversion failed";
-            return false;
-        }
+        FILETIME currentTime;
+        GetSystemTimeAsFileTime(&currentTime);
+        unsigned long long currentTimeLong = FiletimeToULL(currentTime);
 
-        unsigned long long notAfterMillis = _convertASN1ToMillis(X509_get_notAfter(x509));
-        if (notAfterMillis == 0) {
-            error() << "date conversion failed";
-            return false;
-        }
-
-        if ((notBeforeMillis > curTimeMillis64()) || (curTimeMillis64() > notAfterMillis)) {
+        if ((FiletimeToULL(cert->pCertInfo->NotBefore) > currentTimeLong) || 
+            (currentTimeLong > FiletimeToULL(cert->pCertInfo->NotAfter))) {
             severe() << "The provided SSL certificate is expired or not yet valid.";
             fassertFailedNoTrace(28652);
         }
 
-        *serverCertificateExpirationDate = Date_t::fromMillisSinceEpoch(notAfterMillis);
+        // TODO: fix me and call __wt_epoch_raw
+        *serverCertificateExpirationDate = Date_t::fromMillisSinceEpoch(FiletimeToULL(cert->pCertInfo->NotAfter));
     }
 
-    return true;
+    return Status::OK();
 }
 
-/*
-* The interface layer between network and BIO-pair. The BIO-pair buffers
-* the data to/from the TLS layer.
-*/
-void SSLManager::_flushNetworkBIO(SSLConnection* conn) {
-    char buffer[BUFFER_SIZE];
-    int wantWrite;
-
-    /*
-    * Write the complete contents of the buffer. Leaving the buffer
-    * unflushed could cause a deadlock.
-    */
-    while ((wantWrite = BIO_ctrl_pending(conn->networkBIO)) > 0) {
-        if (wantWrite > BUFFER_SIZE) {
-            wantWrite = BUFFER_SIZE;
-        }
-        int fromBIO = BIO_read(conn->networkBIO, buffer, wantWrite);
-
-        int writePos = 0;
-        do {
-            int numWrite = fromBIO - writePos;
-            numWrite = send(conn->socket->rawFD(), buffer + writePos, numWrite, portSendFlags);
-            if (numWrite < 0) {
-                conn->socket->handleSendError(numWrite, "");
-            }
-            writePos += numWrite;
-        } while (writePos < fromBIO);
-    }
-
-    int wantRead;
-    while ((wantRead = BIO_ctrl_get_read_request(conn->networkBIO)) > 0) {
-        if (wantRead > BUFFER_SIZE) {
-            wantRead = BUFFER_SIZE;
-        }
-
-        int numRead = recv(conn->socket->rawFD(), buffer, wantRead, portRecvFlags);
-        if (numRead <= 0) {
-            conn->socket->handleRecvError(numRead, wantRead);
-            continue;
-        }
-
-        int toBIO = BIO_write(conn->networkBIO, buffer, numRead);
-        if (toBIO != numRead) {
-            LOG(3) << "Failed to write network data to the SSL BIO layer";
-            throw SocketException(SocketException::RECV_ERROR, conn->socket->remoteString());
-        }
-    }
-}
-
-bool SSLManager::_doneWithSSLOp(SSLConnection* conn, int status) {
-    int sslErr = SSL_get_error(conn, status);
-    switch (sslErr) {
-        case SSL_ERROR_NONE:
-            _flushNetworkBIO(conn);  // success, flush network BIO before leaving
-            return true;
-        case SSL_ERROR_WANT_WRITE:
-        case SSL_ERROR_WANT_READ:
-            _flushNetworkBIO(conn);  // not ready, flush network BIO and try again
-            return false;
-        default:
-            return true;
-    }
-}
 
 SSLConnection* SSLManager::connect(Socket* socket) {
     std::unique_ptr<SSLConnection> sslConn =
-        stdx::make_unique<SSLConnection>(_clientContext.get(), socket, (const char*)NULL, 0);
+        stdx::make_unique<SSLConnection>(&_clientCred, socket, (const char*)NULL, 0);
+    
+    // TODO: SNI support
+    // int ret = ::SSL_set_tlsext_host_name(sslConn->ssl, socket->remoteAddr().hostOrIp().c_str());
 
-    int ret = ::SSL_set_tlsext_host_name(sslConn->ssl, socket->remoteAddr().hostOrIp().c_str());
-    if (ret != 1)
-        _handleSSLError(SSL_get_error(sslConn.get(), ret), ret);
-
-    do {
-        ret = ::SSL_connect(sslConn->ssl);
-    } while (!_doneWithSSLOp(sslConn.get(), ret));
-
-    if (ret != 1)
-        _handleSSLError(SSL_get_error(sslConn.get(), ret), ret);
-
+    handshake(sslConn.get(), true);
     return sslConn.release();
 }
 
 SSLConnection* SSLManager::accept(Socket* socket, const char* initialBytes, int len) {
     std::unique_ptr<SSLConnection> sslConn =
-        stdx::make_unique<SSLConnection>(_serverContext.get(), socket, initialBytes, len);
+        stdx::make_unique<SSLConnection>(&_serverCred, socket, initialBytes, len);
 
-    int ret;
-    do {
-        ret = ::SSL_accept(sslConn->ssl);
-    } while (!_doneWithSSLOp(sslConn.get(), ret));
-
-    if (ret != 1)
-        _handleSSLError(SSL_get_error(sslConn.get(), ret), ret);
+    handshake(sslConn.get(), false);
 
     return sslConn.release();
 }
+
+void SSLManager::handshake(SSLConnection* conn, bool client) {
+    initSSLContext(conn->_cred, getSSLGlobalParams(), client ?
+        SSLManagerInterface::ConnectionDirection::kOutgoing : SSLManagerInterface::ConnectionDirection::kIncoming);
+
+handshake_start:
+    asio::error_code ec;
+    asio::ssl::detail::engine::want want = conn->_engine.handshake(client ? asio::ssl::stream_base::handshake_type::client : asio::ssl::stream_base::handshake_type::server, ec);
+
+    // TODO: handle error
+
+    switch (want) {
+    case asio::ssl::detail::engine::want_input_and_retry:
+    {
+        // ASIO wants more data before it can continue,
+        // 1. fetch some from the network
+        // 2. give it to ASIO
+        // 3. retry
+        char tempbuf[17 * 1024];
+
+        int ret = conn->socket->unsafe_recv(reinterpret_cast<char*>(tempbuf), sizeof(tempbuf));
+
+        conn->_engine.put_input(asio::const_buffer(tempbuf, ret));
+
+        goto handshake_start;
+    }
+    case asio::ssl::detail::engine::want_output:
+    case asio::ssl::detail::engine::want_output_and_retry:
+    {
+        // ASIO wants us to send data out
+        // 1. get data from ASIO
+        // 2. give it to the network
+        // 3. retry
+        char tempbuf[17 * 1024];
+
+        asio::mutable_buffer outBuf = conn->_engine.get_output(asio::mutable_buffer(tempbuf, sizeof(tempbuf)));
+
+        int ret = conn->socket->send_unsafe(reinterpret_cast<const char*>(outBuf.data()), outBuf.size());
+
+        if (want == asio::ssl::detail::engine::want_output_and_retry) {
+            goto handshake_start;
+        }
+
+        // ASIO wants nothing, return to caller since we are done with handshake
+        return;
+    }
+    case asio::ssl::detail::engine::want_nothing:
+    {
+        // ASIO wants nothing, return to caller since we are done with handshake
+        return;
+    }
+    default:
+        MONGO_UNREACHABLE;
+    }
+}
+
 
 // TODO SERVER-11601 Use NFC Unicode canonicalization
 bool SSLManager::_hostNameMatch(const char* nameToMatch, const char* certHostName) {
@@ -1180,10 +1129,11 @@ bool SSLManager::_hostNameMatch(const char* nameToMatch, const char* certHostNam
 }
 
 StatusWith<boost::optional<SSLPeerInfo>> SSLManager::parseAndValidatePeerCertificate(
-    SSL* conn, const std::string& remoteHost) {
+    PCtxtHandle ssl, const std::string& remoteHost) {
+    return{boost::none};
+    /*
     if (!_sslConfiguration.hasCA && isSSLServer)
         return {boost::none};
-
     X509* peerCert = SSL_get_peer_certificate(conn);
 
     if (NULL == peerCert) {  // no certificate presented by peer
@@ -1285,19 +1235,12 @@ StatusWith<boost::optional<SSLPeerInfo>> SSLManager::parseAndValidatePeerCertifi
     }
 
     return boost::make_optional(SSLPeerInfo(peerSubjectName, stdx::unordered_set<RoleName>()));
-}
-
-
-StatusWith<boost::optional<SSLPeerInfo>> SSLManager::parseAndValidatePeerCertificate(
-    PCtxtHandle conn, const std::string& remoteHost) {
-    // TODO:
-    return{boost::none};
-}
-
+    */
+    }
 
 SSLPeerInfo SSLManager::parseAndValidatePeerCertificateDeprecated(const SSLConnection* conn,
                                                                   const std::string& remoteHost) {
-    auto swPeerSubjectName = parseAndValidatePeerCertificate(conn->ssl, remoteHost);
+    auto swPeerSubjectName = parseAndValidatePeerCertificate(const_cast<SSLConnection*>(conn)->_engine.native_handle(), remoteHost);
     // We can't use uassertStatusOK here because we need to throw a SocketException.
     if (!swPeerSubjectName.isOK()) {
         throw SocketException(SocketException::CONNECT_ERROR,
@@ -1306,6 +1249,7 @@ SSLPeerInfo SSLManager::parseAndValidatePeerCertificateDeprecated(const SSLConne
     return swPeerSubjectName.getValue().get_value_or(SSLPeerInfo());
 }
 
+#if 0
 StatusWith<stdx::unordered_set<RoleName>> SSLManager::_parsePeerRoles(X509* peerCert) const {
     // exts is owned by the peerCert
     const STACK_OF(X509_EXTENSION)* exts = X509_get0_extensions(peerCert);
@@ -1426,46 +1370,6 @@ StatusWith<stdx::unordered_set<RoleName>> SSLManager::_parsePeerRoles(X509* peer
 
     return roles;
 }
-
-
-void SSLManager::_handleSSLError(int code, int ret) {
-    int err = ERR_get_error();
-
-    switch (code) {
-        case SSL_ERROR_WANT_READ:
-        case SSL_ERROR_WANT_WRITE:
-            // should not happen because we turned on AUTO_RETRY
-            // However, it turns out this CAN happen during a connect, if the other side
-            // accepts the socket connection but fails to do the SSL handshake in a timely
-            // manner.
-            error() << "SSL: " << code << ", possibly timed out during connect";
-            break;
-
-        case SSL_ERROR_ZERO_RETURN:
-            // TODO: Check if we can avoid throwing an exception for this condition
-            LOG(3) << "SSL network connection closed";
-            break;
-        case SSL_ERROR_SYSCALL:
-            // If ERR_get_error returned 0, the error queue is empty
-            // check the return value of the actual SSL operation
-            if (err != 0) {
-                error() << "SSL: " << getSSLErrorMessage(err);
-            } else if (ret == 0) {
-                error() << "Unexpected EOF encountered during SSL communication";
-            } else {
-                error() << "The SSL BIO reported an I/O error " << errnoWithDescription();
-            }
-            break;
-        case SSL_ERROR_SSL: {
-            error() << "SSL: " << getSSLErrorMessage(err);
-            break;
-        }
-
-        default:
-            error() << "unrecognized SSL error";
-            break;
-    }
-    throw SocketException(SocketException::CONNECT_ERROR, "");
-}
+#endif
 
 }  // namespace mongo

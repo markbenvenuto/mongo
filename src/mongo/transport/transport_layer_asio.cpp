@@ -218,7 +218,7 @@ Status TransportLayerASIO::setup() {
         return sslManager
             ->initSSLContext(_sslContext->native_handle(),
                 sslParams,
-                SSLManagerInterface::ConnectionDirection::kOutgoing);
+                SSLManagerInterface::ConnectionDirection::kIncoming);
     }
 #endif
 

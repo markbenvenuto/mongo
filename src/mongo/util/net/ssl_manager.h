@@ -87,11 +87,11 @@ typedef PCtxtHandle SSLConnectionType;
 
 class SSLConnection {
 public:
-    SCHANNEL_CRED* _creds;
+    SCHANNEL_CRED* _cred;
     Socket* socket;
     asio::ssl::detail::engine _engine;
 
-    SSLConnection(SCHANNEL_CRED* creds, Socket* sock, const char* initialBytes, int len);
+    SSLConnection(SCHANNEL_CRED* cred, Socket* sock, const char* initialBytes, int len);
 
     ~SSLConnection();
 };

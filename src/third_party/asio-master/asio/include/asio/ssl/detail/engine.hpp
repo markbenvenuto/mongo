@@ -174,7 +174,7 @@ public:
             *outLength = size() - _bufPos;
             memcpy(data, _buffer.get() + _bufPos, size() - _bufPos);
 
-            // We are empty so reset our state to need encrypted data for the next call
+            // We are empty so reset our state to need encrypted data for the next callwant_
             _bufPos = 0;
             _size = 0;
         } else {

@@ -412,17 +412,19 @@ SSLPeerInfo Socket::doSSLHandshake(const char* firstBytes, int len) {
 }
 
 std::string Socket::getSNIServerName() const {
-    if (!_sslConnection)
-        return "";
+    //if (!_sslConnection)
+    //    return "";
 
-    if (!_sslConnection->ssl)
-        return "";
+    //// TODO: move this method to ssl connection
+    //if (!_sslConnection->ssl)
+    //    return "";
 
-    const char* name = SSL_get_servername(_sslConnection->ssl, TLSEXT_NAMETYPE_host_name);
-    if (!name)
-        return "";
+    //const char* name = SSL_get_servername(_sslConnection->ssl, TLSEXT_NAMETYPE_host_name);
+    //if (!name)
+    //    return "";
 
-    return name;
+    //return name;
+    return "";
 }
 #endif
 
@@ -543,10 +545,16 @@ int Socket::_send(const char* data, int len, const char* context) {
         return _sslManager->SSL_write(_sslConnection.get(), data, len);
     }
 #endif
+    return send_unsafe(data, len);
+}
+
+// throws if SSL_write or send fails
+int Socket::send_unsafe(const char* data, int len) {
     int ret = ::send(_fd, data, len, portSendFlags);
 
     return ret;
 }
+
 
 // sends all data or throws an exception
 void Socket::send(const char* data, int len, const char* context) {

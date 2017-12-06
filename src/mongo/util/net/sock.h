@@ -141,6 +141,7 @@ public:
     void close();
     void send(const char* data, int len, const char* context);
     void send(const std::vector<std::pair<char*, int>>& data, const char* context);
+    int send_unsafe(const char* data, int len);
 
     // recv len or throw SocketException
     void recv(char* data, int len);
