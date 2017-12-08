@@ -14,7 +14,7 @@ if ssl_provider == 'windows':
 elif ssl_provider == 'openssl':
     ssl_manager_platform = 'ssl_manager_openssl.cpp'
 else:
-    ssl_provider = 'ssl_manager_none.cpp'
+    ssl_manager_platform = 'ssl_manager_none.cpp'
 
 env.Library(
     target='network',
