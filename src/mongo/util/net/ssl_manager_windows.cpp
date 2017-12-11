@@ -671,7 +671,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     }
 
 
-    if (client) {
+    if (false) {
     //DWORD keyBlobLen;
 
     //ret = CertGetCertificateContextProperty(cert,
