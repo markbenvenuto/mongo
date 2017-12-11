@@ -811,7 +811,7 @@ private:
           SECURITY_STATUS   ss;
           TimeStamp         Lifetime;
           SecBufferDesc     OutBuffDesc;
-          SecBuffer         OutSecBuff;
+          SecBuffer         OutSecBuff[2];
           SecBufferDesc     InBuffDesc;
           SecBuffer         InSecBuff[2];
           ULONG             ContextAttributes;
@@ -822,32 +822,39 @@ private:
           const char* pszTarget = "mark";
 
 
-          DWORD dwSSPIFlags = ISC_REQ_SEQUENCE_DETECT |
+          DWORD dwSSPIFlags = 
+              ISC_REQ_SEQUENCE_DETECT |
               ISC_REQ_REPLAY_DETECT |
               ISC_REQ_CONFIDENTIALITY |
               ISC_RET_EXTENDED_ERROR |
               //ISC_REQ_ALLOCATE_MEMORY |
+              ISC_REQ_USE_SUPPLIED_CREDS | 
+              ISC_REQ_MANUAL_CRED_VALIDATION |
               ISC_REQ_STREAM;
 
 
           //--------------------------------------------------------------------
           //  Prepare the buffers.
 
-          OutBuffDesc.ulVersion = 0;
+          OutBuffDesc.ulVersion = SECBUFFER_VERSION;
           OutBuffDesc.cBuffers = 1;
-          OutBuffDesc.pBuffers = &OutSecBuff;
+          OutBuffDesc.pBuffers = &OutSecBuff[0];
 
           _outBuffer.resize(16 * 1024);
-          OutSecBuff.cbBuffer = _outBuffer.size();
-          OutSecBuff.BufferType = SECBUFFER_TOKEN;
-          OutSecBuff.pvBuffer = _outBuffer.data();
+          OutSecBuff[0].cbBuffer = _outBuffer.size();
+          OutSecBuff[0].BufferType = SECBUFFER_TOKEN;
+          OutSecBuff[0].pvBuffer = _outBuffer.data();
+
+          //OutSecBuff[1].cbBuffer = _outBuffer.size();
+          //OutSecBuff[1].BufferType = SECBUFFER_TOKEN;
+          //OutSecBuff[1].pvBuffer = _outBuffer.data();
 
           //-------------------------------------------------------------------
           //  The input buffer is created only if a message has been received 
           //  from the server.
 
           if (_buffer.size()) {
-              InBuffDesc.ulVersion = 0;
+              InBuffDesc.ulVersion = SECBUFFER_VERSION;
               InBuffDesc.cBuffers = 2;
               InBuffDesc.pBuffers = &InSecBuff[0];
 
@@ -865,10 +872,10 @@ private:
                   (SEC_CHAR*)pszTarget,
                   dwSSPIFlags,
                   0,
-                  SECURITY_NATIVE_DREP,
+                  0,
                   &InBuffDesc,
                   0,
-                  NULL,
+                  _phctxt,
                   &OutBuffDesc,
                   &ContextAttributes,
                   &Lifetime);
@@ -879,7 +886,7 @@ private:
                   (SEC_CHAR*)pszTarget,
                   dwSSPIFlags,
                   0,
-                  SECURITY_NATIVE_DREP,
+                  0,
                   NULL,
                   0,
                   _phctxt,
@@ -919,14 +926,14 @@ private:
           //  If necessary, complete the token.
           bool needOutput{false};
 
-          if (SEC_I_CONTINUE_NEEDED == ss || SEC_I_COMPLETE_AND_CONTINUE == ss || (SEC_E_OK == ss && OutSecBuff.cbBuffer != 0)) {
+          if (SEC_I_CONTINUE_NEEDED == ss || SEC_I_COMPLETE_AND_CONTINUE == ss || (SEC_E_OK == ss && OutSecBuff[0].cbBuffer != 0)) {
               needOutput = true;
           }
 
-  /*        if (SEC_E_OK == ss && OutSecBuff.cbBuffer != 0) {
+  /*        if (SEC_E_OK == ss && OutSecBuff[0].cbBuffer == 0) {
               *fDone = true;
-          }*/
-
+          }
+*/
           if ((SEC_I_COMPLETE_NEEDED == ss)
               || (SEC_I_COMPLETE_AND_CONTINUE == ss)) {
               ss = CompleteAuthToken(_phctxt, &OutBuffDesc);
@@ -936,9 +943,9 @@ private:
               }
           }
 
-          _outBuffer.resize(OutSecBuff.cbBuffer);
+          _outBuffer.resize(OutSecBuff[0].cbBuffer);
 
-          printf("Token buffer generated (%lu bytes):\n", OutSecBuff.cbBuffer);
+          printf("Token buffer generated (%lu bytes):\n", OutSecBuff[0].cbBuffer);
           //PrintHexDump(OutSecBuff.cbBuffer, (PBYTE)OutSecBuff.pvBuffer);
           if (needOutput) {
               _buffer.reset();
@@ -1072,7 +1079,7 @@ private:
           //------------------------------------------------------------------
           //  Prepare buffers.
 
-          BuffDesc.ulVersion = 0;
+          BuffDesc.ulVersion = SECBUFFER_VERSION;
           BuffDesc.cBuffers = 4;
           BuffDesc.pBuffers = SecBuff;
 
@@ -1125,7 +1132,9 @@ private:
           //    cbMessage);
 
           _buffer.resize(size);
-          bytes_transferred = size;
+
+          // Tell them we transfered all the bytes in the original payload, ignore the SSL overhead
+          bytes_transferred = cbMessage;
           printf("data after encryption including trailer (%lu bytes):\n",
               size);
           //PrintHexDump(*pcbOutput, *ppOutput);

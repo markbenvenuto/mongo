@@ -394,8 +394,9 @@ read_start:
         // 1. fetch some from the network
         // 2. give it to ASIO
         // 3. retry
-        int ret = conn->socket->unsafe_recv(reinterpret_cast<char*>(buf), num);
-
+        int ret = recv(conn->socket->rawFD(), reinterpret_cast<char*>(buf), num, 0);
+        //int ret = conn->socket->unsafe_recv(reinterpret_cast<char*>(buf), num);
+        // TODO: check error
         conn->_engine.put_input(asio::const_buffer(buf, ret));
 
         goto read_start;
@@ -431,6 +432,7 @@ write_start:
         asio::mutable_buffer outBuf = conn->_engine.get_output(asio::mutable_buffer(tempbuf, sizeof(tempbuf)));
 
         int ret = conn->socket->send_unsafe(reinterpret_cast<const char*>(outBuf.data()), outBuf.size());
+        // TODO: check error
 
         if (want == asio::ssl::detail::engine::want_output_and_retry) {
             goto write_start;
@@ -465,7 +467,7 @@ void SSLManager::SSL_free(SSLConnection* conn) {
     // Do nothing
 }
 
-StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData password) {
+StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData password, bool client) {
 
     std::ifstream pemFile(fileName.toString(), std::ios::binary);
     if (!pemFile.is_open()) {
@@ -507,7 +509,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
 
     BOOL ret;
 
-     PCCERT_CONTEXT cert;
+    PCCERT_CONTEXT cert;
     ret = CryptQueryObject(
         CERT_QUERY_OBJECT_BLOB,
         &certBlob,
@@ -523,13 +525,13 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     );
 
     UniqueCertificate certHolder(cert);
-/*
-    PCCERT_CONTEXT  cert = CertCreateCertificateContext(X509_ASN_ENCODING, certBlob.pbData, certBlob.cbData);
-    if (cert) {
-        DWORD gle = GetLastError();
-        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptQueryObject Failed " << errnoWithDescription(gle));
-    }
-*/
+    /*
+        PCCERT_CONTEXT  cert = CertCreateCertificateContext(X509_ASN_ENCODING, certBlob.pbData, certBlob.cbData);
+        if (cert) {
+            DWORD gle = GetLastError();
+            return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptQueryObject Failed " << errnoWithDescription(gle));
+        }
+    */
     DWORD privateKeyLen{0};
 
     ret = CryptStringToBinaryA(
@@ -669,13 +671,14 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     }
 
 
+    if (client) {
     //DWORD keyBlobLen;
 
     //ret = CertGetCertificateContextProperty(cert,
     //    CERT_KEY_PROV_INFO_PROP_ID,
     //    NULL,
     //    &keyBlobLen);
-   
+
     //if (!ret) {
     //    DWORD gle = GetLastError();
     //    if (gle != ERROR_MORE_DATA) {
@@ -753,6 +756,8 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     ////return std::move(certHolder);
 
     //return UniqueCertificate(certOut);
+}
+else {
     DWORD nameBlobLen{0};
 
     ret = CryptGetProvParam(hProv,
@@ -793,6 +798,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
         return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertSetCertificateContextProperty Failed  " << errnoWithDescription(gle));
     }
 
+}
 
     return std::move(certHolder);
 
@@ -888,7 +894,8 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
     cred->dwFlags = 0;
     // TODO: SNI supprt - SCH_CRED_SNI_CREDENTIAL
 
-    uint32_t supportedProtocols = 0;
+    // TODO: weaken this??
+    uint32_t supportedProtocols = SCH_USE_STRONG_CRYPTO;
     
     if (direction == ConnectionDirection::kIncoming) {
         cred->dwFlags |= SCH_CRED_NO_SYSTEM_MAPPER; // Do not map certificate to user account
@@ -928,7 +935,7 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
 
     if (direction == ConnectionDirection::kOutgoing && !params.sslClusterFile.empty()) {
         //::EVP_set_pw_prompt("Enter cluster certificate passphrase");
-        auto swCertificate = readPEMFile(params.sslClusterFile, params.sslClusterPassword);
+        auto swCertificate = readPEMFile(params.sslClusterFile, params.sslClusterPassword, true);
         if (!swCertificate.isOK()) {
             return swCertificate.getStatus();
         }
@@ -938,7 +945,7 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
         _certificates[0] = _certificate.get();
         cred->paCred = _certificates;
     } else if (!params.sslPEMKeyFile.empty()) {
-        auto swCertificate = readPEMFile(params.sslPEMKeyFile, params.sslPEMKeyPassword);
+        auto swCertificate = readPEMFile(params.sslPEMKeyFile, params.sslPEMKeyPassword, direction == ConnectionDirection::kOutgoing);
         if (!swCertificate.isOK()) {
             return swCertificate.getStatus();
         }
@@ -1011,7 +1018,7 @@ Status SSLManager::_parseAndValidateCertificate(const std::string& keyFile,
                                               const std::string& keyPassword,
                                               std::string* subjectName,
                                               Date_t* serverCertificateExpirationDate) {
-    auto swCertificate = readPEMFile(keyFile, keyPassword);
+    auto swCertificate = readPEMFile(keyFile, keyPassword, false);
     if (!swCertificate.isOK()) {
         return swCertificate.getStatus();
     }
@@ -1132,6 +1139,27 @@ bool SSLManager::_hostNameMatch(const char* nameToMatch, const char* certHostNam
 
 StatusWith<boost::optional<SSLPeerInfo>> SSLManager::parseAndValidatePeerCertificate(
     PCtxtHandle ssl, const std::string& remoteHost) {
+    if (!_sslConfiguration.hasCA && isSSLServer)
+        return{boost::none};
+
+    //return{boost::none};
+
+    PCCERT_CONTEXT cert;
+
+    SECURITY_STATUS ss = QueryContextAttributes(
+        ssl,
+        SECPKG_ATTR_REMOTE_CERT_CONTEXT,
+        &cert);
+
+    // returns SEC_E_NO_CREDENTIALS if no peer certificate
+
+    if (!SEC_SUCCESS(ss)) {
+        fprintf(stderr, "QueryContextAttributes failed: 0x%08x\n", ss);
+        invariant(false);
+    }
+
+    // Missing Cert???
+
     return{boost::none};
     /*
     if (!_sslConfiguration.hasCA && isSSLServer)
