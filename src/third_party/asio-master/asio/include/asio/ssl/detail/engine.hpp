@@ -594,7 +594,7 @@ private:
 
           SECURITY_STATUS ss = AcquireCredentialsHandleA(
               NULL,
-              (LPSTR)"SChannel",
+              (LPSTR)UNISP_NAME_A,
               SECPKG_CRED_INBOUND,
               NULL,
               _cred,
@@ -663,7 +663,7 @@ private:
           strcpy_s(lpPackageName, 1024 * sizeof(CHAR), "SChannel");
           SECURITY_STATUS ss = AcquireCredentialsHandleA(
               NULL,
-              lpPackageName,
+              (char*)UNISP_NAME_A,
               SECPKG_CRED_OUTBOUND,
               NULL,
               _cred,
@@ -827,7 +827,7 @@ private:
               ISC_REQ_REPLAY_DETECT |
               ISC_REQ_CONFIDENTIALITY |
               ISC_RET_EXTENDED_ERROR |
-              //ISC_REQ_ALLOCATE_MEMORY |
+              ISC_REQ_ALLOCATE_MEMORY |
               ISC_REQ_USE_SUPPLIED_CREDS | 
               ISC_REQ_MANUAL_CRED_VALIDATION |
               ISC_REQ_STREAM;
@@ -841,9 +841,9 @@ private:
           OutBuffDesc.pBuffers = &OutSecBuff[0];
 
           _outBuffer.resize(16 * 1024);
-          OutSecBuff[0].cbBuffer = _outBuffer.size();
+          OutSecBuff[0].cbBuffer = 0;
           OutSecBuff[0].BufferType = SECBUFFER_TOKEN;
-          OutSecBuff[0].pvBuffer = _outBuffer.data();
+          OutSecBuff[0].pvBuffer = NULL;
 
           //OutSecBuff[1].cbBuffer = _outBuffer.size();
           //OutSecBuff[1].BufferType = SECBUFFER_TOKEN;
@@ -943,7 +943,11 @@ private:
               }
           }
 
-          _outBuffer.resize(OutSecBuff[0].cbBuffer);
+          _outBuffer.reset();
+          _outBuffer.append(OutSecBuff[0].pvBuffer, OutSecBuff[0].cbBuffer);
+          //_outBuffer.resize(OutSecBuff[0].cbBuffer);
+
+          FreeContextBuffer(OutSecBuff[0].pvBuffer);
 
           printf("Token buffer generated (%lu bytes):\n", OutSecBuff[0].cbBuffer);
           //PrintHexDump(OutSecBuff.cbBuffer, (PBYTE)OutSecBuff.pvBuffer);

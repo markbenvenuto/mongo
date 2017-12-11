@@ -610,8 +610,10 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     //std::wstring wstr = toWideString(uuid.toString().c_str());
     ret = CryptAcquireContextW(&hProv,
         NULL,
-        MS_DEF_RSA_SCHANNEL_PROV_W,
-        PROV_RSA_SCHANNEL,
+        MS_ENHANCED_PROV,     /* pszProvider */
+        PROV_RSA_FULL,        /* dwProvType */
+        //MS_DEF_RSA_SCHANNEL_PROV_W,
+        //PROV_RSA_SCHANNEL,
         0
     );
     if (!ret) {
@@ -643,32 +645,32 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
         return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertSetCertificateContextProperty Failed  " << errnoWithDescription(gle));
     }
 
-    {
-        DWORD keyBlobLen;
+    //{
+    //    DWORD keyBlobLen;
 
-        ret = CertGetCertificateContextProperty(cert,
-            CERT_KEY_PROV_HANDLE_PROP_ID,
-            NULL,
-            &keyBlobLen);
+    //    ret = CertGetCertificateContextProperty(cert,
+    //        CERT_KEY_PROV_HANDLE_PROP_ID,
+    //        NULL,
+    //        &keyBlobLen);
 
-        if (!ret) {
-            DWORD gle = GetLastError();
-            if (gle != ERROR_MORE_DATA) {
-                return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertGetCertificateContextProperty Failed to get size of key " << errnoWithDescription(gle));
-            }
-        }
+    //    if (!ret) {
+    //        DWORD gle = GetLastError();
+    //        if (gle != ERROR_MORE_DATA) {
+    //            return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertGetCertificateContextProperty Failed to get size of key " << errnoWithDescription(gle));
+    //        }
+    //    }
 
-        std::unique_ptr<BYTE> keyBlob(new BYTE[keyBlobLen]);
-        ret = CertGetCertificateContextProperty(cert,
-            CERT_KEY_PROV_HANDLE_PROP_ID,
-            keyBlob.get(),
-            &keyBlobLen);
+    //    std::unique_ptr<BYTE> keyBlob(new BYTE[keyBlobLen]);
+    //    ret = CertGetCertificateContextProperty(cert,
+    //        CERT_KEY_PROV_HANDLE_PROP_ID,
+    //        keyBlob.get(),
+    //        &keyBlobLen);
 
-        if (!ret) {
-            DWORD gle = GetLastError();
-            return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertGetCertificateContextProperty Failed to get size of key " << errnoWithDescription(gle));
-        }
-    }
+    //    if (!ret) {
+    //        DWORD gle = GetLastError();
+    //        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertGetCertificateContextProperty Failed to get size of key " << errnoWithDescription(gle));
+    //    }
+    //}
 
 
     if (false) {
@@ -902,8 +904,8 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
         supportedProtocols = SP_PROT_TLS1_SERVER | SP_PROT_TLS1_0_SERVER | SP_PROT_TLS1_1_SERVER | SP_PROT_TLS1_2_SERVER;
     } else {
         supportedProtocols = SP_PROT_TLS1_CLIENT | SP_PROT_TLS1_0_CLIENT | SP_PROT_TLS1_1_CLIENT | SP_PROT_TLS1_2_CLIENT;
-        cred->dwFlags |= SCH_CRED_NO_DEFAULT_CREDS // No Default Certificate
-            | SCH_CRED_MANUAL_CRED_VALIDATION; // Validate Certificate Manually
+        //cred->dwFlags |= SCH_CRED_NO_DEFAULT_CREDS // No Default Certificate
+        //    | SCH_CRED_MANUAL_CRED_VALIDATION; // Validate Certificate Manually
     }
 
     // Set the supported TLS protocols. Allow --sslDisabledProtocols to disable selected
@@ -983,8 +985,8 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
         //cred->paCred = _certificates;
     }
 
-    if (!params.sslCAFile.empty() || !params.sslCAFile.empty()) {
-        auto swCertStore = readCertChains(params.sslCAFile, params.sslCAFile);
+    if (!params.sslCAFile.empty() || !params.sslCRLFile.empty()) {
+        auto swCertStore = readCertChains(params.sslCAFile, params.sslCRLFile);
         if (!swCertStore.isOK()) {
             return swCertStore.getStatus();
         }
