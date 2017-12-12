@@ -255,9 +255,10 @@ private:
     SCHANNEL_CRED _clientCred;
     SCHANNEL_CRED _serverCred;
 
-    // Windows
-    UniqueCertificate _certificate;
-    PCCERT_CONTEXT _certificates[1];
+    UniqueCertificate _clientCertificate;
+    UniqueCertificate _serverCertificate;
+    PCCERT_CONTEXT _clientCertificates[1];
+    PCCERT_CONTEXT _serverCertificates[1];
     UniqueCertStore _certstore;
 
     /*
@@ -275,6 +276,7 @@ private:
                                       std::string* subjectName,
                                       Date_t* serverNotAfter);
 
+    Status loadCertificates(const SSLParams& params);
 
     void handshake(SSLConnection* conn, bool client);
 
@@ -343,6 +345,8 @@ SSLManager::SSLManager(const SSLParams& params, bool isServer)
     : _weakValidation(params.sslWeakCertificateValidation),
       _allowInvalidCertificates(params.sslAllowInvalidCertificates),
       _allowInvalidHostnames(params.sslAllowInvalidHostnames) {
+
+    uassertStatusOK(loadCertificates(params));
 
     uassertStatusOK(initSSLContext(&_clientCred, params, ConnectionDirection::kOutgoing));
 
@@ -895,6 +899,52 @@ StatusWith<UniqueCertStore> readCertChains(StringData caFile, StringData crlFile
     //return{std::move(certStore)};
 }
 
+Status SSLManager::loadCertificates(const SSLParams& params) {
+
+    // Load a client certificate
+    if (!params.sslClusterFile.empty()) {
+        //::EVP_set_pw_prompt("Enter cluster certificate passphrase");
+        auto swCertificate = readPEMFile(params.sslClusterFile, params.sslClusterPassword, true);
+        if (!swCertificate.isOK()) {
+            return swCertificate.getStatus();
+        }
+
+        _clientCertificate = std::move(swCertificate.getValue());
+        _clientCertificates[0] = _clientCertificate.get();
+
+    } else if (!params.sslPEMKeyFile.empty()) {
+        auto swCertificate = readPEMFile(params.sslPEMKeyFile, params.sslPEMKeyPassword, true);
+        if (!swCertificate.isOK()) {
+            return swCertificate.getStatus();
+        }
+
+        _clientCertificate = std::move(swCertificate.getValue());
+        _clientCertificates[0] = _clientCertificate.get();
+    }
+
+    // Load a server certificate
+    if (!params.sslPEMKeyFile.empty()) {
+        auto swCertificate = readPEMFile(params.sslPEMKeyFile, params.sslPEMKeyPassword, false);
+        if (!swCertificate.isOK()) {
+            return swCertificate.getStatus();
+        }
+
+        _serverCertificate = std::move(swCertificate.getValue());
+        _serverCertificates[0] = _serverCertificate.get();
+    }
+
+    if (!params.sslCAFile.empty() || !params.sslCRLFile.empty()) {
+        auto swCertStore = readCertChains(params.sslCAFile, params.sslCRLFile);
+        if (!swCertStore.isOK()) {
+            return swCertStore.getStatus();
+        }
+
+        _certstore = std::move(swCertStore.getValue());
+    }
+
+    return Status::OK();
+}
+
 
 Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
     const SSLParams& params,
@@ -949,82 +999,12 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
         cipherConfig = params.sslCipherConfig;
     }
 
-    if (direction == ConnectionDirection::kOutgoing && !params.sslClusterFile.empty()) {
-        //::EVP_set_pw_prompt("Enter cluster certificate passphrase");
-        auto swCertificate = readPEMFile(params.sslClusterFile, params.sslClusterPassword, true);
-        if (!swCertificate.isOK()) {
-            return swCertificate.getStatus();
-        }
-        
-        _certificate = std::move(swCertificate.getValue());
-        cred->cCreds = 1;
-        _certificates[0] = _certificate.get();
-        cred->paCred = _certificates;
+    cred->cCreds = 1;
+    if (direction == ConnectionDirection::kOutgoing) {
+        cred->paCred = _clientCertificates;
 
-
-        //auto cert = mongoc_secure_channel_setup_certificate_from_file(params.sslClusterFile.c_str());
-
-        //_certificate = UniqueCertificate(cert);
-        //cred->cCreds = 1;
-        //_certificates[0] = _certificate.get();
-        //cred->paCred = _certificates;
-
-    } else if (!params.sslPEMKeyFile.empty()) {
-        //auto cert = mongoc_secure_channel_setup_certificate_from_file(params.sslPEMKeyFile.c_str());
-
-        //_certificate = UniqueCertificate(cert);
-        //cred->cCreds = 1;
-        //_certificates[0] = _certificate.get();
-        //cred->paCred = _certificates;
-
-
-        auto swCertificate = readPEMFile(params.sslPEMKeyFile, params.sslPEMKeyPassword, direction == ConnectionDirection::kOutgoing);
-        if (!swCertificate.isOK()) {
-            return swCertificate.getStatus();
-        }
-
-        _certificate = std::move(swCertificate.getValue());
-        cred->cCreds = 1;
-        _certificates[0] = _certificate.get();
-        cred->paCred = _certificates;
-
-        //PCCERT_CONTEXT certOut;
-        //UniqueCertStore certStore = CertOpenStore(
-        //    CERT_STORE_PROV_MEMORY,
-        //    0, // Note needed
-        //    NULL,
-        //    0,
-        //    NULL);
-        //if (certStore == nullptr) {
-        //    DWORD gle = GetLastError();
-        //    return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertOpenStore Failed  " << errnoWithDescription(gle));
-        //}
-
-
-        //BOOL ret = CertAddCertificateContextToStore(certStore, swCertificate.getValue().get(),
-        //    CERT_STORE_ADD_NEW, &certOut);
-
-        //if (!ret) {
-        //    DWORD gle = GetLastError();
-        //    return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertAddCertificateContextToStore Failed  " << errnoWithDescription(gle));
-        //}
-
-
-        //_certificate = UniqueCertificate(certOut);
-        //cred->cCreds = 1;
-        //_certificates[0] = _certificate.get();
-        //cred->paCred = _certificates;
-    }
-
-    if (!params.sslCAFile.empty() || !params.sslCRLFile.empty()) {
-        auto swCertStore = readCertChains(params.sslCAFile, params.sslCRLFile);
-        if (!swCertStore.isOK()) {
-            return swCertStore.getStatus();
-        }
-
-        _certstore = std::move(swCertStore.getValue());
-
-        cred->hRootStore = _certstore;
+    } else {
+        cred->paCred = _serverCertificates;
     }
 
     printf("%llux", (uint64_t)&foobar123);
