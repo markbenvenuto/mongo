@@ -282,6 +282,7 @@ private:
   enum class EngineState {
     NeedsHandshake,
     InProgress,
+    //TODO: InShutdown,
   };
   EngineState _state{EngineState::NeedsHandshake};
 
@@ -406,6 +407,12 @@ private:
                   // TODO: SEC_I_RENEGOTIATE
               }
           }
+
+          // Shutdown has been initiated at the client side
+          if (ss == SEC_I_CONTEXT_EXPIRED) {
+              ASIO_ASSERT(false);
+          }
+
 
           // Locate data and (optional) extra buffers.
           SecBuffer* pDataBuffer = NULL;
@@ -648,8 +655,6 @@ private:
       }
 
       void startClientHandshake(asio::error_code& ec) {
-          static CHAR      lpPackageName[1024];
-
           TimeStamp         Lifetime;
           //SCHANNEL_CRED credData;
 
@@ -660,10 +665,9 @@ private:
           //credData.grbitEnabledProtocols = SP_PROT_TLS1_0_CLIENT;
           //credData.dwFlags |= SCH_CRED_NO_DEFAULT_CREDS | SCH_CRED_MANUAL_CRED_VALIDATION;
 
-          strcpy_s(lpPackageName, 1024 * sizeof(CHAR), "SChannel");
-          SECURITY_STATUS ss = AcquireCredentialsHandleA(
+          SECURITY_STATUS ss = AcquireCredentialsHandleW(
               NULL,
-              (char*)UNISP_NAME_A,
+              (LPWSTR)UNISP_NAME,
               SECPKG_CRED_OUTBOUND,
               NULL,
               _cred,
@@ -811,7 +815,7 @@ private:
           SECURITY_STATUS   ss;
           TimeStamp         Lifetime;
           SecBufferDesc     OutBuffDesc;
-          SecBuffer         OutSecBuff[2];
+          SecBuffer         OutSecBuff[3];
           SecBufferDesc     InBuffDesc;
           SecBuffer         InSecBuff[2];
           ULONG             ContextAttributes;
@@ -819,7 +823,7 @@ private:
           // TODO???
           // TODO: SCH_CRED_SNI_CREDENTIAL
           // TODO: set target name to SNI name
-          const char* pszTarget = "mark";
+          const char* pszTarget = "localhost";
 
 
           DWORD dwSSPIFlags = 
@@ -832,12 +836,13 @@ private:
               ISC_REQ_MANUAL_CRED_VALIDATION |
               ISC_REQ_STREAM;
 
+          dwSSPIFlags = 0x811c;
 
           //--------------------------------------------------------------------
           //  Prepare the buffers.
 
           OutBuffDesc.ulVersion = SECBUFFER_VERSION;
-          OutBuffDesc.cBuffers = 1;
+          OutBuffDesc.cBuffers = 3;
           OutBuffDesc.pBuffers = &OutSecBuff[0];
 
           _outBuffer.resize(16 * 1024);
@@ -845,9 +850,13 @@ private:
           OutSecBuff[0].BufferType = SECBUFFER_TOKEN;
           OutSecBuff[0].pvBuffer = NULL;
 
-          //OutSecBuff[1].cbBuffer = _outBuffer.size();
-          //OutSecBuff[1].BufferType = SECBUFFER_TOKEN;
-          //OutSecBuff[1].pvBuffer = _outBuffer.data();
+          OutSecBuff[1].cbBuffer = 0;
+          OutSecBuff[1].BufferType = SECBUFFER_ALERT;
+          OutSecBuff[1].pvBuffer = NULL;
+
+          OutSecBuff[2].cbBuffer = 0;
+          OutSecBuff[2].BufferType = SECBUFFER_EMPTY;
+          OutSecBuff[2].pvBuffer = NULL;
 
           //-------------------------------------------------------------------
           //  The input buffer is created only if a message has been received 

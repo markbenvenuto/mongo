@@ -155,7 +155,7 @@ struct CERTFree {
     void operator()(const CERT_CONTEXT * p) noexcept {
         if (p) {
             //invariant(false);
-            ::CertFreeCertificateContext(p);
+            //::CertFreeCertificateContext(p);
         }
     }
 };
@@ -198,7 +198,7 @@ struct CertStoreFree {
     void operator()(HCERTSTORE const p) noexcept {
         if (p) {
             // For leak detection, add CERT_CLOSE_STORE_CHECK_FLAG
-            ::CertCloseStore(p, 0);
+            //::CertCloseStore(p, 0);
         }
     }
 };
@@ -614,7 +614,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
         PROV_RSA_FULL,        /* dwProvType */
         //MS_DEF_RSA_SCHANNEL_PROV_W,
         //PROV_RSA_SCHANNEL,
-        0
+        CRYPT_VERIFYCONTEXT
     );
     if (!ret) {
         DWORD gle = GetLastError();
@@ -628,7 +628,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
         privateBlobBuf.get(),
         privateBlobLen,
         0,
-        CRYPT_EXPORTABLE,
+        0, // CRYPT_EXPORTABLE, 
         &hkey);
     if (!ret) {
         DWORD gle = GetLastError();
@@ -760,51 +760,272 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     //return UniqueCertificate(certOut);
 }
 else {
-    DWORD nameBlobLen{0};
+    //DWORD nameBlobLen{0};
 
-    ret = CryptGetProvParam(hProv,
-        PP_CONTAINER,
-        NULL,
-        &nameBlobLen,
-        0);
+    //ret = CryptGetProvParam(hProv,
+    //    PP_CONTAINER,
+    //    NULL,
+    //    &nameBlobLen,
+    //    0);
 
-    if (!ret) {
-        DWORD gle = GetLastError();
-        if (gle != ERROR_MORE_DATA) {
-            return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptGetProvParam Failed to get size of key " << errnoWithDescription(gle));
-        }
-    }
+    //if (!ret) {
+    //    DWORD gle = GetLastError();
+    //    if (gle != ERROR_MORE_DATA) {
+    //        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptGetProvParam Failed to get size of key " << errnoWithDescription(gle));
+    //    }
+    //}
 
-    std::unique_ptr<BYTE> nameBlob(new BYTE[nameBlobLen]);
-    ret = CryptGetProvParam(hProv,
-        PP_CONTAINER,
-        nameBlob.get(),
-        &nameBlobLen,
-        0);
-    if (!ret) {
-        DWORD gle = GetLastError();
-        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptGetProvParam Failed to get size of key " << errnoWithDescription(gle));
-    }
+    //std::unique_ptr<BYTE> nameBlob(new BYTE[nameBlobLen]);
+    //ret = CryptGetProvParam(hProv,
+    //    PP_CONTAINER,
+    //    nameBlob.get(),
+    //    &nameBlobLen,
+    //    0);
+    //if (!ret) {
+    //    DWORD gle = GetLastError();
+    //    return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptGetProvParam Failed to get size of key " << errnoWithDescription(gle));
+    //}
 
-    std::wstring wKeyName = toWideString((char*)nameBlob.get());
+    //std::wstring wKeyName = toWideString((char*)nameBlob.get());
 
 
-    CRYPT_KEY_PROV_INFO keyProvInfo;
-    memset(&keyProvInfo, 0, sizeof(keyProvInfo));
-    keyProvInfo.pwszContainerName = (LPWSTR)wKeyName.c_str();
-    keyProvInfo.pwszProvName = const_cast<wchar_t*>(MS_ENHANCED_PROV);
-    keyProvInfo.dwProvType = PROV_RSA_FULL;
-    keyProvInfo.dwKeySpec = AT_KEYEXCHANGE;
-    if (!CertSetCertificateContextProperty(cert, CERT_KEY_PROV_INFO_PROP_ID, 0, &keyProvInfo)) {
-        DWORD gle = GetLastError();
-        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertSetCertificateContextProperty Failed  " << errnoWithDescription(gle));
-    }
+    //CRYPT_KEY_PROV_INFO keyProvInfo;
+    //memset(&keyProvInfo, 0, sizeof(keyProvInfo));
+    //keyProvInfo.pwszContainerName = (LPWSTR)wKeyName.c_str();
+    //keyProvInfo.pwszProvName = const_cast<wchar_t*>(MS_ENHANCED_PROV);
+    //keyProvInfo.dwProvType = PROV_RSA_FULL;
+    //keyProvInfo.dwKeySpec = AT_KEYEXCHANGE;
+    //if (!CertSetCertificateContextProperty(cert, CERT_KEY_PROV_INFO_PROP_ID, 0, &keyProvInfo)) {
+    //    DWORD gle = GetLastError();
+    //    return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertSetCertificateContextProperty Failed  " << errnoWithDescription(gle));
+    //}
 
 }
 
     return std::move(certHolder);
 
 }
+
+#define bson_malloc0 malloc
+#define MONGOC_ERROR(...) invariant(false);
+#define bson_free free
+
+PCCERT_CONTEXT
+mongoc_secure_channel_setup_certificate_from_file(const char *filename)
+{
+    char *pem;
+    FILE *file;
+    bool success;
+    HCRYPTKEY hKey;
+    long pem_length;
+    HCRYPTPROV provider;
+    CERT_BLOB public_blob;
+    const char *pem_public;
+    const char *pem_private;
+    LPBYTE blob_private = NULL;
+    PCCERT_CONTEXT cert = NULL;
+    DWORD blob_private_len = 0;
+    HCERTSTORE cert_store = NULL;
+    DWORD encrypted_cert_len = 0;
+    LPBYTE encrypted_cert = NULL;
+    DWORD encrypted_private_len = 0;
+    LPBYTE encrypted_private = NULL;
+
+
+    file = fopen(filename, "rb");
+    if (!file) {
+        MONGOC_ERROR("Couldn't open file '%s'", filename);
+        return false;
+    }
+
+    fseek(file, 0, SEEK_END);
+    pem_length = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    if (pem_length < 1) {
+        MONGOC_ERROR("Couldn't determine file size of '%s'", filename);
+        return false;
+    }
+
+    pem = (char *)bson_malloc0(pem_length);
+    fread((void *)pem, 1, pem_length, file);
+    fclose(file);
+
+    pem_public = strstr(pem, "-----BEGIN CERTIFICATE-----");
+    pem_private = strstr(pem, "-----BEGIN ENCRYPTED PRIVATE KEY-----");
+
+    if (pem_private) {
+        MONGOC_ERROR("Detected unsupported encrypted private key");
+        goto fail;
+    }
+
+    pem_private = strstr(pem, "-----BEGIN RSA PRIVATE KEY-----");
+    if (!pem_private) {
+        pem_private = strstr(pem, "-----BEGIN PRIVATE KEY-----");
+    }
+
+    if (!pem_private) {
+        MONGOC_ERROR("Can't find private key in '%s'", filename);
+        goto fail;
+    }
+
+    public_blob.cbData = (DWORD)strlen(pem_public);
+    public_blob.pbData = (BYTE *)pem_public;
+
+    /* https://msdn.microsoft.com/en-us/library/windows/desktop/aa380264%28v=vs.85%29.aspx
+    */
+    CryptQueryObject(
+        CERT_QUERY_OBJECT_BLOB,      /* dwObjectType, blob or file */
+        &public_blob,                /* pvObject, Unicode filename */
+        CERT_QUERY_CONTENT_FLAG_ALL, /* dwExpectedContentTypeFlags */
+        CERT_QUERY_FORMAT_FLAG_ALL,  /* dwExpectedFormatTypeFlags */
+        0,                           /* dwFlags, reserved for "future use" */
+        NULL,                        /* pdwMsgAndCertEncodingType, OUT, unused */
+        NULL, /* pdwContentType (dwExpectedContentTypeFlags), OUT, unused */
+        NULL, /* pdwFormatType (dwExpectedFormatTypeFlags,), OUT, unused */
+        NULL, /* phCertStore, OUT, HCERTSTORE.., unused, for now */
+        NULL, /* phMsg, OUT, HCRYPTMSG, only for PKC7, unused */
+        (const void **)&cert /* ppvContext, OUT, the Certificate Context */
+    );
+
+    if (!cert) {
+        MONGOC_ERROR("Failed to extract public key from '%s'. Error 0x%.8X",
+            filename,
+            GetLastError());
+        goto fail;
+    }
+
+    /* https://msdn.microsoft.com/en-us/library/windows/desktop/aa380285%28v=vs.85%29.aspx
+    */
+    success =
+        CryptStringToBinaryA(pem_private,               /* pszString */
+            0,                         /* cchString */
+            CRYPT_STRING_BASE64HEADER, /* dwFlags */
+            NULL,                      /* pbBinary */
+            &encrypted_private_len,    /* pcBinary, IN/OUT */
+            NULL,                      /* pdwSkip */
+            NULL);                     /* pdwFlags */
+    if (!success) {
+        MONGOC_ERROR("Failed to convert base64 private key. Error 0x%.8X",
+            GetLastError());
+        goto fail;
+    }
+
+    encrypted_private = (LPBYTE)bson_malloc0(encrypted_private_len);
+    success = CryptStringToBinaryA(pem_private,
+        0,
+        CRYPT_STRING_BASE64HEADER,
+        encrypted_private,
+        &encrypted_private_len,
+        NULL,
+        NULL);
+    if (!success) {
+        MONGOC_ERROR("Failed to convert base64 private key. Error 0x%.8X",
+            GetLastError());
+        goto fail;
+    }
+
+    /* https://msdn.microsoft.com/en-us/library/windows/desktop/aa379912%28v=vs.85%29.aspx
+    */
+    success = CryptDecodeObjectEx(
+        X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, /* dwCertEncodingType */
+        PKCS_RSA_PRIVATE_KEY,                    /* lpszStructType */
+        encrypted_private,                       /* pbEncoded */
+        encrypted_private_len,                   /* cbEncoded */
+        0,                                       /* dwFlags */
+        NULL,                                    /* pDecodePara */
+        NULL,                                    /* pvStructInfo */
+        &blob_private_len);                      /* pcbStructInfo */
+    if (!success) {
+        LPTSTR msg = NULL;
+        FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
+            FORMAT_MESSAGE_FROM_SYSTEM |
+            FORMAT_MESSAGE_ARGUMENT_ARRAY,
+            NULL,
+            GetLastError(),
+            LANG_NEUTRAL,
+            (LPTSTR)&msg,
+            0,
+            NULL);
+        MONGOC_ERROR(
+            "Failed to parse private key. %s (0x%.8X)", msg, GetLastError());
+        LocalFree(msg);
+        goto fail;
+    }
+
+    blob_private = (LPBYTE)bson_malloc0(blob_private_len);
+    success = CryptDecodeObjectEx(X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
+        PKCS_RSA_PRIVATE_KEY,
+        encrypted_private,
+        encrypted_private_len,
+        0,
+        NULL,
+        blob_private,
+        &blob_private_len);
+    if (!success) {
+        MONGOC_ERROR("Failed to parse private key. Error 0x%.8X",
+            GetLastError());
+        goto fail;
+    }
+
+    /* https://msdn.microsoft.com/en-us/library/windows/desktop/aa379886%28v=vs.85%29.aspx
+    */
+    success = CryptAcquireContext(&provider,            /* phProv */
+        NULL,                 /* pszContainer */
+        MS_ENHANCED_PROV,     /* pszProvider */
+        PROV_RSA_FULL,        /* dwProvType */
+        CRYPT_VERIFYCONTEXT); /* dwFlags */
+    if (!success) {
+        MONGOC_ERROR("CryptAcquireContext failed with error 0x%.8X",
+            GetLastError());
+        goto fail;
+    }
+
+    /* https://msdn.microsoft.com/en-us/library/windows/desktop/aa380207%28v=vs.85%29.aspx
+    */
+    success = CryptImportKey(provider,         /* hProv */
+        blob_private,     /* pbData */
+        blob_private_len, /* dwDataLen */
+        0,                /* hPubKey */
+        0,                /* dwFlags */
+        &hKey);           /* phKey, OUT */
+    if (!success) {
+        MONGOC_ERROR("CryptImportKey for private key failed with error 0x%.8X",
+            GetLastError());
+        goto fail;
+    }
+
+    /* https://msdn.microsoft.com/en-us/library/windows/desktop/aa376573%28v=vs.85%29.aspx
+    */
+    success = CertSetCertificateContextProperty(
+        cert,                         /* pCertContext */
+        CERT_KEY_PROV_HANDLE_PROP_ID, /* dwPropId */
+        0,                            /* dwFlags */
+        (const void *)provider);     /* pvData */
+    if (success) {
+        //TRACE("%s", "Successfully loaded client certificate");
+        return cert;
+    }
+
+    MONGOC_ERROR("Can't associate private key with public key: 0x%.8X",
+        GetLastError());
+
+fail:
+    SecureZeroMemory(pem, pem_length);
+    bson_free(pem);
+    if (encrypted_private) {
+        SecureZeroMemory(encrypted_private, encrypted_private_len);
+        bson_free(encrypted_private);
+    }
+
+    if (blob_private) {
+        SecureZeroMemory(blob_private, blob_private_len);
+        bson_free(blob_private);
+    }
+
+    return NULL;
+}
+
+
 
 StatusWith<UniqueCertificate> readCAPEMFile(StringData fileName) {
 
@@ -904,6 +1125,10 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
         supportedProtocols = SP_PROT_TLS1_SERVER | SP_PROT_TLS1_0_SERVER | SP_PROT_TLS1_1_SERVER | SP_PROT_TLS1_2_SERVER;
     } else {
         supportedProtocols = SP_PROT_TLS1_CLIENT | SP_PROT_TLS1_0_CLIENT | SP_PROT_TLS1_1_CLIENT | SP_PROT_TLS1_2_CLIENT;
+
+        cred->dwFlags |=
+            SCH_CRED_AUTO_CRED_VALIDATION | SCH_CRED_REVOCATION_CHECK_CHAIN
+            | SCH_CRED_NO_SERVERNAME_CHECK;
         //cred->dwFlags |= SCH_CRED_NO_DEFAULT_CREDS // No Default Certificate
         //    | SCH_CRED_MANUAL_CRED_VALIDATION; // Validate Certificate Manually
     }
@@ -920,6 +1145,8 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
         }
     }
 
+
+    cred->dwFlags = 0x40180c;
     cred->grbitEnabledProtocols = supportedProtocols;
 
     // TODO - support somehow
@@ -946,7 +1173,24 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
         cred->cCreds = 1;
         _certificates[0] = _certificate.get();
         cred->paCred = _certificates;
+
+
+        //auto cert = mongoc_secure_channel_setup_certificate_from_file(params.sslClusterFile.c_str());
+
+        //_certificate = UniqueCertificate(cert);
+        //cred->cCreds = 1;
+        //_certificates[0] = _certificate.get();
+        //cred->paCred = _certificates;
+
     } else if (!params.sslPEMKeyFile.empty()) {
+        //auto cert = mongoc_secure_channel_setup_certificate_from_file(params.sslPEMKeyFile.c_str());
+
+        //_certificate = UniqueCertificate(cert);
+        //cred->cCreds = 1;
+        //_certificates[0] = _certificate.get();
+        //cred->paCred = _certificates;
+
+
         auto swCertificate = readPEMFile(params.sslPEMKeyFile, params.sslPEMKeyPassword, direction == ConnectionDirection::kOutgoing);
         if (!swCertificate.isOK()) {
             return swCertificate.getStatus();
