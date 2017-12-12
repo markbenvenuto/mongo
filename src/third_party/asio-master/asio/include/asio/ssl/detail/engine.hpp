@@ -836,8 +836,6 @@ private:
               ISC_REQ_MANUAL_CRED_VALIDATION |
               ISC_REQ_STREAM;
 
-          dwSSPIFlags = 0x811c;
-
           //--------------------------------------------------------------------
           //  Prepare the buffers.
 
