@@ -28,7 +28,7 @@ if not use_system_version_of_library('tcmalloc'):
         ('gperftools', '#/src/third_party/gperftools' + gperftoolsSuffix + '/src'))
 
 thirdPartyIncludePathList.append(
-    ('jemalloc', '#/src/third_party/jemalloc' + jemallocSuffix + '/src'))
+    ('jemalloc', '#/src/third_party/jemalloc' + jemallocSuffix + '/include'))
 
 if not use_system_version_of_library('pcre'):
     thirdPartyIncludePathList.append(
