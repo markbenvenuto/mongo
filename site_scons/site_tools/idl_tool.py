@@ -71,12 +71,14 @@ def generate(env):
 
     env.Append(SCANNERS = idl_scanner)
 
+    print(env.Dump())
+
     env['BUILDERS']['Idlc'] = bld
 
     env['IDLC'] = sys.executable + " buildscripts/idl/idlc.py"
     env['IDLCFLAGS'] = ''
     base_dir = env.subst('$BUILD_ROOT/$VARIANT_DIR').replace("#", "")
-    env['IDLCCOM'] = '$IDLC --include src --base_dir %s --header ${TARGETS[1]} --output ${TARGETS[0]} $SOURCES ' % (base_dir)
+    env['IDLCCOM'] = '$IDLC --include src --base_dir %s --target_arch %s --header ${TARGETS[1]} --output ${TARGETS[0]} $SOURCES ' % (base_dir, env['TARGET_ARCH'])
     env['IDLCSUFFIX'] = '.idl'
 
 
