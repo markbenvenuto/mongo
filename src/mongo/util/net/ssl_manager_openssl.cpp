@@ -293,6 +293,26 @@ void free_ssl_context(SSL_CTX* ctx) {
 }
 }  // namespace
 
+class SSLConnection : public SSLConnectionInterface {
+public:
+    SSL* ssl;
+    BIO* networkBIO;
+    BIO* internalBIO;
+    Socket* socket;
+
+    SSLConnection(SSL_CTX* ctx, Socket* sock, const char* initialBytes, int len);
+
+    ~SSLConnection();
+
+    std::string getSNIServerName() const final {
+        const char* name = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
+        if (!name)
+            return "";
+
+        return name;
+    }
+};
+
 ////////////////////////////////////////////////////////////////
 
 SimpleMutex sslManagerMtx;
@@ -313,12 +333,12 @@ public:
                           const SSLParams& params,
                           ConnectionDirection direction) final;
 
-    virtual SSLConnection* connect(Socket* socket);
+    virtual SSLConnectionInterface* connect(Socket* socket);
 
-    virtual SSLConnection* accept(Socket* socket, const char* initialBytes, int len);
+    virtual SSLConnectionInterface* accept(Socket* socket, const char* initialBytes, int len);
 
-    virtual SSLPeerInfo parseAndValidatePeerCertificateDeprecated(const SSLConnection* conn,
-                                                                  const std::string& remoteHost);
+    virtual SSLPeerInfo parseAndValidatePeerCertificateDeprecated(
+        const SSLConnectionInterface* conn, const std::string& remoteHost);
 
     StatusWith<boost::optional<SSLPeerInfo>> parseAndValidatePeerCertificate(
         SSL* conn, const std::string& remoteHost) final;
@@ -327,19 +347,19 @@ public:
         return _sslConfiguration;
     }
 
-    virtual int SSL_read(SSLConnection* conn, void* buf, int num);
+    virtual int SSL_read(SSLConnectionInterface* conn, void* buf, int num);
 
-    virtual int SSL_write(SSLConnection* conn, const void* buf, int num);
+    virtual int SSL_write(SSLConnectionInterface* conn, const void* buf, int num);
 
     virtual unsigned long ERR_get_error();
 
     virtual char* ERR_error_string(unsigned long e, char* buf);
 
-    virtual int SSL_get_error(const SSLConnection* conn, int ret);
+    virtual int SSL_get_error(const SSLConnectionInterface* conn, int ret);
 
-    virtual int SSL_shutdown(SSLConnection* conn);
+    virtual int SSL_shutdown(SSLConnectionInterface* conn);
 
-    virtual void SSL_free(SSLConnection* conn);
+    virtual void SSL_free(SSLConnectionInterface* conn);
 
 private:
     const int _rolesNid = OBJ_create(mongodbRolesOID.identifier.c_str(),
@@ -603,8 +623,9 @@ int SSLManager::verify_cb(int ok, X509_STORE_CTX* ctx) {
     return 1;  // always succeed; we will catch the error in our get_verify_result() call
 }
 
-int SSLManager::SSL_read(SSLConnection* conn, void* buf, int num) {
+int SSLManager::SSL_read(SSLConnectionInterface* connInterface, void* buf, int num) {
     int status;
+    SSLConnection* conn = static_cast<SSLConnection*>(connInterface);
     do {
         status = ::SSL_read(conn->ssl, buf, num);
     } while (!_doneWithSSLOp(conn, status));
@@ -614,8 +635,9 @@ int SSLManager::SSL_read(SSLConnection* conn, void* buf, int num) {
     return status;
 }
 
-int SSLManager::SSL_write(SSLConnection* conn, const void* buf, int num) {
+int SSLManager::SSL_write(SSLConnectionInterface* connInterface, const void* buf, int num) {
     int status;
+    SSLConnection* conn = static_cast<SSLConnection*>(connInterface);
     do {
         status = ::SSL_write(conn->ssl, buf, num);
     } while (!_doneWithSSLOp(conn, status));
@@ -633,12 +655,14 @@ char* SSLManager::ERR_error_string(unsigned long e, char* buf) {
     return ::ERR_error_string(e, buf);
 }
 
-int SSLManager::SSL_get_error(const SSLConnection* conn, int ret) {
+int SSLManager::SSL_get_error(const SSLConnectionInterface* connInterface, int ret) {
+    const SSLConnection* conn = static_cast<const SSLConnection*>(connInterface);
     return ::SSL_get_error(conn->ssl, ret);
 }
 
-int SSLManager::SSL_shutdown(SSLConnection* conn) {
+int SSLManager::SSL_shutdown(SSLConnectionInterface* connInterface) {
     int status;
+    SSLConnection* conn = static_cast<SSLConnection*>(connInterface);
     do {
         status = ::SSL_shutdown(conn->ssl);
     } while (!_doneWithSSLOp(conn, status));
@@ -648,7 +672,8 @@ int SSLManager::SSL_shutdown(SSLConnection* conn) {
     return status;
 }
 
-void SSLManager::SSL_free(SSLConnection* conn) {
+void SSLManager::SSL_free(SSLConnectionInterface* connInterface) {
+    SSLConnection* conn = static_cast<SSLConnection*>(connInterface);
     return ::SSL_free(conn->ssl);
 }
 
@@ -1180,7 +1205,7 @@ bool SSLManager::_doneWithSSLOp(SSLConnection* conn, int status) {
     }
 }
 
-SSLConnection* SSLManager::connect(Socket* socket) {
+SSLConnectionInterface* SSLManager::connect(Socket* socket) {
     std::unique_ptr<SSLConnection> sslConn =
         stdx::make_unique<SSLConnection>(_clientContext.get(), socket, (const char*)NULL, 0);
 
@@ -1199,7 +1224,7 @@ SSLConnection* SSLManager::connect(Socket* socket) {
     return sslConn.release();
 }
 
-SSLConnection* SSLManager::accept(Socket* socket, const char* initialBytes, int len) {
+SSLConnectionInterface* SSLManager::accept(Socket* socket, const char* initialBytes, int len) {
     std::unique_ptr<SSLConnection> sslConn =
         stdx::make_unique<SSLConnection>(_serverContext.get(), socket, initialBytes, len);
 
@@ -1323,8 +1348,10 @@ StatusWith<boost::optional<SSLPeerInfo>> SSLManager::parseAndValidatePeerCertifi
 }
 
 
-SSLPeerInfo SSLManager::parseAndValidatePeerCertificateDeprecated(const SSLConnection* conn,
-                                                                  const std::string& remoteHost) {
+SSLPeerInfo SSLManager::parseAndValidatePeerCertificateDeprecated(
+    const SSLConnectionInterface* connInterface, const std::string& remoteHost) {
+    const SSLConnection* conn = static_cast<const SSLConnection*>(connInterface);
+
     auto swPeerSubjectName = parseAndValidatePeerCertificate(conn->ssl, remoteHost);
     // We can't use uassertStatusOK here because we need to throw a NetworkException.
     if (!swPeerSubjectName.isOK()) {
