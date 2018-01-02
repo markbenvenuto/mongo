@@ -6,19 +6,19 @@
  * public APIs to be prefixed.  This makes it possible, with some care, to use
  * multiple allocators simultaneously.
  */
-/* #undef JEMALLOC_PREFIX */
-/* #undef JEMALLOC_CPREFIX */
+#define JEMALLOC_PREFIX "je_"
+#define JEMALLOC_CPREFIX "JE_"
 
 /*
  * Define overrides for non-standard allocator-related functions if they are
  * present on the system.
  */
-#define JEMALLOC_OVERRIDE___LIBC_CALLOC 
-#define JEMALLOC_OVERRIDE___LIBC_FREE 
-#define JEMALLOC_OVERRIDE___LIBC_MALLOC 
-#define JEMALLOC_OVERRIDE___LIBC_MEMALIGN 
-#define JEMALLOC_OVERRIDE___LIBC_REALLOC 
-#define JEMALLOC_OVERRIDE___LIBC_VALLOC 
+/* #undef JEMALLOC_OVERRIDE___LIBC_CALLOC */
+/* #undef JEMALLOC_OVERRIDE___LIBC_FREE */
+/* #undef JEMALLOC_OVERRIDE___LIBC_MALLOC */
+/* #undef JEMALLOC_OVERRIDE___LIBC_MEMALIGN */
+/* #undef JEMALLOC_OVERRIDE___LIBC_REALLOC */
+/* #undef JEMALLOC_OVERRIDE___LIBC_VALLOC */
 /* #undef JEMALLOC_OVERRIDE___POSIX_MEMALIGN */
 
 /*
@@ -33,7 +33,7 @@
  * Hyper-threaded CPUs may need a special instruction inside spin loops in
  * order to yield to another virtual CPU.
  */
-#define CPU_SPINWAIT __asm__ volatile("pause")
+#define CPU_SPINWAIT _mm_pause()
 
 /*
  * Number of significant bits in virtual addresses.  This may be less than the
@@ -43,13 +43,13 @@
 #define LG_VADDR 48
 
 /* Defined if C11 atomics are available. */
-#define JEMALLOC_C11_ATOMICS 1
+/* #undef JEMALLOC_C11_ATOMICS */
 
 /* Defined if GCC __atomic atomics are available. */
-#define JEMALLOC_GCC_ATOMIC_ATOMICS 1
+/* #undef JEMALLOC_GCC_ATOMIC_ATOMICS */
 
 /* Defined if GCC __sync atomics are available. */
-#define JEMALLOC_GCC_SYNC_ATOMICS 1
+/* #undef JEMALLOC_GCC_SYNC_ATOMICS */
 
 /*
  * Defined if __sync_add_and_fetch(uint32_t *, uint32_t) and
@@ -70,7 +70,7 @@
 /*
  * Defined if __builtin_clz() and __builtin_clzl() are available.
  */
-#define JEMALLOC_HAVE_BUILTIN_CLZ 
+/* #undef JEMALLOC_HAVE_BUILTIN_CLZ */
 
 /*
  * Defined if os_unfair_lock_*() functions are available, as provided by Darwin.
@@ -84,12 +84,12 @@
 /* #undef JEMALLOC_OSSPIN */
 
 /* Defined if syscall(2) is usable. */
-#define JEMALLOC_USE_SYSCALL 
+/* #undef JEMALLOC_USE_SYSCALL */
 
 /*
  * Defined if secure_getenv(3) is available.
  */
-#define JEMALLOC_HAVE_SECURE_GETENV 
+/* #undef JEMALLOC_HAVE_SECURE_GETENV */
 
 /*
  * Defined if issetugid(2) is available.
@@ -97,20 +97,20 @@
 /* #undef JEMALLOC_HAVE_ISSETUGID */
 
 /* Defined if pthread_atfork(3) is available. */
-#define JEMALLOC_HAVE_PTHREAD_ATFORK 
+/* #undef JEMALLOC_HAVE_PTHREAD_ATFORK */
 
 /* Defined if pthread_setname_np(3) is available. */
-#define JEMALLOC_HAVE_PTHREAD_SETNAME_NP 
+/* #undef JEMALLOC_HAVE_PTHREAD_SETNAME_NP */
 
 /*
  * Defined if clock_gettime(CLOCK_MONOTONIC_COARSE, ...) is available.
  */
-#define JEMALLOC_HAVE_CLOCK_MONOTONIC_COARSE 1
+/* #undef JEMALLOC_HAVE_CLOCK_MONOTONIC_COARSE */
 
 /*
  * Defined if clock_gettime(CLOCK_MONOTONIC, ...) is available.
  */
-#define JEMALLOC_HAVE_CLOCK_MONOTONIC 1
+/* #undef JEMALLOC_HAVE_CLOCK_MONOTONIC */
 
 /*
  * Defined if mach_absolute_time() is available.
@@ -131,7 +131,7 @@
  * Among other things, it must be possible to initialize a mutex without
  * triggering allocation in order for threaded allocation to be safe.
  */
-#define JEMALLOC_THREADED_INIT 
+/* #undef JEMALLOC_THREADED_INIT */
 
 /*
  * Defined if the pthreads implementation defines
@@ -141,7 +141,7 @@
 /* #undef JEMALLOC_MUTEX_INIT_CB */
 
 /* Non-empty if the tls_model attribute is supported. */
-#define JEMALLOC_TLS_MODEL __attribute__((tls_model("initial-exec")))
+#define JEMALLOC_TLS_MODEL 
 
 /*
  * JEMALLOC_DEBUG enables assertions and other sanity checks, and disables
@@ -168,7 +168,7 @@
  * JEMALLOC_DSS enables use of sbrk(2) to allocate extents from the data storage
  * segment (DSS).
  */
-#define JEMALLOC_DSS 
+/* #undef JEMALLOC_DSS */
 
 /* Support memory filling (junk/zero). */
 #define JEMALLOC_FILL 
@@ -205,7 +205,7 @@
  * VirtualAlloc()/VirtualFree() operations must be precisely matched, i.e.
  * mappings do *not* coalesce/fragment.
  */
-#define JEMALLOC_MAPS_COALESCE 
+/* #undef JEMALLOC_MAPS_COALESCE */
 
 /*
  * If defined, retain memory for later reuse by default rather than using e.g.
@@ -213,24 +213,24 @@
  * common sequences of mmap()/munmap() calls will cause virtual memory map
  * holes.
  */
-#define JEMALLOC_RETAIN 
+/* #undef JEMALLOC_RETAIN */
 
 /* TLS is used to map arenas and magazine caches to threads. */
-#define JEMALLOC_TLS 
+/* #undef JEMALLOC_TLS */
 
 /*
  * Used to mark unreachable code to quiet "end of non-void" compiler warnings.
  * Don't use this directly; instead use unreachable() from util.h
  */
-#define JEMALLOC_INTERNAL_UNREACHABLE __builtin_unreachable
+#define JEMALLOC_INTERNAL_UNREACHABLE abort
 
 /*
  * ffs*() functions to use for bitmapping.  Don't use these directly; instead,
  * use ffs_*() from util.h.
  */
-#define JEMALLOC_INTERNAL_FFSLL __builtin_ffsll
-#define JEMALLOC_INTERNAL_FFSL __builtin_ffsl
-#define JEMALLOC_INTERNAL_FFS __builtin_ffs
+#define JEMALLOC_INTERNAL_FFSLL ffsll
+#define JEMALLOC_INTERNAL_FFSL ffsl
+#define JEMALLOC_INTERNAL_FFS ffs
 
 /*
  * If defined, explicitly attempt to more uniformly distribute large allocation
@@ -250,10 +250,10 @@
  * JEMALLOC_SYSCTL_VM_OVERCOMMIT: FreeBSD's vm.overcommit sysctl.
  */
 /* #undef JEMALLOC_SYSCTL_VM_OVERCOMMIT */
-#define JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY 
+/* #undef JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY */
 
 /* Defined if madvise(2) is available. */
-#define JEMALLOC_HAVE_MADVISE 
+/* #undef JEMALLOC_HAVE_MADVISE */
 
 /*
  * Methods for purging unused pages differ between operating systems.
@@ -268,21 +268,21 @@
  *                                 MADV_FREE, though typically with higher
  *                                 system overhead.
  */
-#define JEMALLOC_PURGE_MADVISE_FREE 
-#define JEMALLOC_PURGE_MADVISE_DONTNEED 
-#define JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS 1
+/* #undef JEMALLOC_PURGE_MADVISE_FREE */
+/* #undef JEMALLOC_PURGE_MADVISE_DONTNEED */
+/* #undef JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS */
 
 /*
  * Defined if transparent huge pages (THPs) are supported via the
  * MADV_[NO]HUGEPAGE arguments to madvise(2), and THP support is enabled.
  */
-#define JEMALLOC_THP 
+/* #undef JEMALLOC_THP */
 
 /* Define if operating system has alloca.h header. */
-#define JEMALLOC_HAS_ALLOCA_H 1
+/* #undef JEMALLOC_HAS_ALLOCA_H */
 
 /* C99 restrict keyword supported. */
-#define JEMALLOC_HAS_RESTRICT 1
+/* #undef JEMALLOC_HAS_RESTRICT */
 
 /* For use by hash code. */
 /* #undef JEMALLOC_BIG_ENDIAN */
@@ -291,7 +291,7 @@
 #define LG_SIZEOF_INT 2
 
 /* sizeof(long) == 2^LG_SIZEOF_LONG. */
-#define LG_SIZEOF_LONG 3
+#define LG_SIZEOF_LONG 2
 
 /* sizeof(long long) == 2^LG_SIZEOF_LONG_LONG. */
 #define LG_SIZEOF_LONG_LONG 3
@@ -300,30 +300,30 @@
 #define LG_SIZEOF_INTMAX_T 3
 
 /* glibc malloc hooks (__malloc_hook, __realloc_hook, __free_hook). */
-#define JEMALLOC_GLIBC_MALLOC_HOOK 
+/* #undef JEMALLOC_GLIBC_MALLOC_HOOK */
 
 /* glibc memalign hook. */
-#define JEMALLOC_GLIBC_MEMALIGN_HOOK 
+/* #undef JEMALLOC_GLIBC_MEMALIGN_HOOK */
 
 /* pthread support */
-#define JEMALLOC_HAVE_PTHREAD 
+/* #undef JEMALLOC_HAVE_PTHREAD */
 
 /* dlsym() support */
-#define JEMALLOC_HAVE_DLSYM 
+/* #undef JEMALLOC_HAVE_DLSYM */
 
 /* Adaptive mutex support in pthreads. */
-#define JEMALLOC_HAVE_PTHREAD_MUTEX_ADAPTIVE_NP 
+/* #undef JEMALLOC_HAVE_PTHREAD_MUTEX_ADAPTIVE_NP */
 
 /* GNU specific sched_getcpu support */
-#define JEMALLOC_HAVE_SCHED_GETCPU 
+/* #undef JEMALLOC_HAVE_SCHED_GETCPU */
 
 /* GNU specific sched_setaffinity support */
-#define JEMALLOC_HAVE_SCHED_SETAFFINITY 
+/* #undef JEMALLOC_HAVE_SCHED_SETAFFINITY */
 
 /*
  * If defined, all the features necessary for background threads are present.
  */
-#define JEMALLOC_BACKGROUND_THREAD 1
+/* #undef JEMALLOC_BACKGROUND_THREAD */
 
 /*
  * If defined, jemalloc symbols are not exported (doesn't work when
@@ -335,6 +335,6 @@
 #define JEMALLOC_CONFIG_MALLOC_CONF ""
 
 /* If defined, jemalloc takes the malloc/free/etc. symbol names. */
-#define JEMALLOC_IS_MALLOC 1
+/* #undef JEMALLOC_IS_MALLOC */
 
 #endif /* JEMALLOC_INTERNAL_DEFS_H_ */
