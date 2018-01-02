@@ -18,5 +18,3 @@
 #define je_sallocx JEMALLOC_N(sallocx)
 #define je_sdallocx JEMALLOC_N(sdallocx)
 #define je_xallocx JEMALLOC_N(xallocx)
-#define je_memalign JEMALLOC_N(memalign)
-#define je_valloc JEMALLOC_N(valloc)
