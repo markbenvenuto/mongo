@@ -40,6 +40,15 @@ void	operator delete[](void *ptr, std::size_t size) noexcept;
 #endif
 
 template <bool IsNoExcept>
+void throw_bad_alloc();
+
+template <>
+void throw_bad_alloc<true>() noexcept { }
+
+template <>
+void throw_bad_alloc<false>() { throw std::bad_alloc(); }
+
+template <bool IsNoExcept>
 void *
 newImpl(std::size_t size) noexcept(IsNoExcept) {
 	void *ptr = je_malloc(size);
@@ -69,7 +78,7 @@ newImpl(std::size_t size) noexcept(IsNoExcept) {
 	}
 
 	if (ptr == nullptr && !IsNoExcept)
-		std::__throw_bad_alloc();
+		throw_bad_alloc<IsNoExcept>();
 	return ptr;
 }
 

@@ -29,12 +29,17 @@
 
 #include "mongo/platform/basic.h"
 
-#include "jemalloc/jemalloc.h"
+//#include "jemalloc/jemalloc.h"
 
 #include "mongo/base/init.h"
 #include "mongo/db/commands/server_status.h"
 #include "mongo/util/log.h"
 #include "mongo/util/net/listen.h"
+
+
+ int je_mallctl(const char *name,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen);
+
 
 namespace mongo {
 
@@ -120,7 +125,7 @@ private:
                                                  StringData bsonName,
                                                  const char* property) {
         size_t sz, value;
-	if (mallctl(property, &value, &sz, NULL, 0) == 0)
+	if (je_mallctl(property, &value, &sz, NULL, 0) == 0)
             builder.appendNumber(bsonName, value);
     }
 
