@@ -24,6 +24,16 @@
 #define	free 			tc_free
 #endif
 
+#ifdef HAVE_LIBJEMALLOC_FOO
+#include <jemalloc/jemalloc.h>
+
+#define	calloc			je_calloc
+#define	malloc			je_malloc
+#define	realloc 		je_realloc
+#define	posix_memalign 		je_posix_memalign
+#define	free 			je_free
+#endif
+
 /*
  * __wt_calloc --
  *	ANSI calloc function.

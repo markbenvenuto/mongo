@@ -50,6 +50,9 @@ if env.TargetOSIs('windows'):
     if env['MONGO_ALLOCATOR'] == 'tcmalloc':
         env.InjectThirdPartyIncludePaths(libraries=['gperftools'])
         env.Append(CPPDEFINES=['HAVE_LIBTCMALLOC'])
+    elif env['MONGO_ALLOCATOR'] == 'jemalloc':
+        #env.InjectThirdPartyIncludePaths(libraries=['jemalloc'])
+        env.Append(CPPDEFINES=['HAVE_LIBJEMALLOC'])
 elif env.TargetOSIs('darwin'):
     env.Append(CPPPATH=["build_darwin"])
 elif env.TargetOSIs('solaris'):
