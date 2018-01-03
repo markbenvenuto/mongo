@@ -44,13 +44,22 @@ env.Append(CPPPATH=["include"])
 
 if env.TargetOSIs('windows'):
     env.Append(CPPPATH=["build_windows"])
+    env.Append(CPPPATH=["include\msvc_compat"])
+
+    # env.Append(
+    #     CPPDEFINES=["JEMALLOC_DEBUG"],
+    # )
+
+    # Make sure functions are not marked with dllimport/dllexport
+    env.Append(
+        CFLAGS=["/DJEMALLOC_EXPORT="],
+    )
+
 elif env.TargetOSIs('linux'):
     env.Append(CPPPATH=["build_linux"])
-
-# Linux
-env.Append(
-    CPPDEFINES=["_GNU_SOURCE"],
-)
+    env.Append(
+        CPPDEFINES=["_GNU_SOURCE"],
+    )
 
 def removeIfPresent(lst, item):
     try:
