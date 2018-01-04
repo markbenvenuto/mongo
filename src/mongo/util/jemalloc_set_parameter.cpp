@@ -41,12 +41,12 @@
 #include "mongo/util/processinfo.h"
 
 extern "C" {
- void malloc_stats_print(
+void je_malloc_stats_print(
     void (*write_cb)(void *, const char *), void *je_cbopaque,
     const char *opts);
 
 
- int mallctl(const char *name,
+ int je_mallctl(const char *name,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen);
 }
 
