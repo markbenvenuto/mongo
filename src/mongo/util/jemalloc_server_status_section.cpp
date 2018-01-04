@@ -36,8 +36,9 @@
 #include "mongo/util/log.h"
 #include "mongo/util/net/listen.h"
 
+
 extern "C" {
- int mallctl(const char *name,
+ int je_mallctl(const char *name,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen);
 }
 
