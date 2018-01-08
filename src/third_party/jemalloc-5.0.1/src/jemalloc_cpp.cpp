@@ -39,6 +39,7 @@ void	operator delete(void *ptr, std::size_t size) noexcept;
 void	operator delete[](void *ptr, std::size_t size) noexcept;
 #endif
 
+#ifdef _MSC_VER
 template <bool IsNoExcept>
 void throw_bad_alloc();
 
@@ -46,7 +47,9 @@ template <>
 void throw_bad_alloc<true>() noexcept { }
 
 template <>
-void throw_bad_alloc<false>() { throw std::bad_alloc(); }
+void throw_bad_alloc<false>() 
+{ throw std::bad_alloc(); }
+#endif
 
 template <bool IsNoExcept>
 void *
@@ -78,7 +81,11 @@ newImpl(std::size_t size) noexcept(IsNoExcept) {
 	}
 
 	if (ptr == nullptr && !IsNoExcept)
+	#ifdef _MSC_VER
 		throw_bad_alloc<IsNoExcept>();
+	#else
+		std::__throw_bad_alloc();
+	#endif
 	return ptr;
 }
 

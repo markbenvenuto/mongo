@@ -56,10 +56,15 @@ if env.TargetOSIs('windows'):
     )
 
 elif env.TargetOSIs('linux'):
-    env.Append(CPPPATH=["build_linux"])
+    env.Append(CPPPATH=["build_linux_x64"])
     env.Append(
         CPPDEFINES=["_GNU_SOURCE"],
     )
+    # env.Append(
+    #     CPPDEFINES=["JEMALLOC_NO_DEMANGLE"],
+    # )
+
+
 
 def removeIfPresent(lst, item):
     try:

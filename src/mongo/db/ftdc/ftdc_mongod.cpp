@@ -39,6 +39,17 @@
 #include "mongo/db/repl/replication_coordinator_global.h"
 #include "mongo/db/storage/storage_options.h"
 
+
+extern "C" {
+ void malloc_stats_print(
+    void (*write_cb)(void *, const char *), void *je_cbopaque,
+    const char *opts);
+
+
+ int mallctl(const char *name,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen);
+}
+
 namespace mongo {
 
 namespace {
@@ -71,6 +82,9 @@ void startMongoDFTDC() {
 
 void stopMongoDFTDC() {
     stopFTDC();
+
+    // Dump allocator statistics to stderr.
+    malloc_stats_print(NULL, NULL, NULL);
 }
 
 }  // namespace mongo
