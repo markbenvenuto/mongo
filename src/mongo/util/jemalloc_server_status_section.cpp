@@ -36,10 +36,10 @@
 #include "mongo/util/log.h"
 #include "mongo/util/net/listen.h"
 
-
- int je_mallctl(const char *name,
+extern "C" {
+ int mallctl(const char *name,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen);
-
+}
 
 namespace mongo {
 
@@ -67,30 +67,30 @@ public:
         // For a list of properties see the jemalloc man page
         {
             BSONObjBuilder sub(builder.subobjStart("generic"));
-            appendNumericPropertyIfAvailable(
+            appendNumericPropertyIfAvailable<size_t>(
                 sub, "current_allocated_bytes", "stats.allocated");
 	    /* TODO: I think this is right? */
-            appendNumericPropertyIfAvailable(sub, "heap_size", "stats.active");
+            appendNumericPropertyIfAvailable<size_t>(sub, "heap_size", "stats.active");
         }
         {
             BSONObjBuilder sub(builder.subobjStart("jemalloc_stats"));
 
-            appendNumericPropertyIfAvailable(
+            appendNumericPropertyIfAvailable<size_t>(
                 sub, "allocated", "stats.allocated");
-            appendNumericPropertyIfAvailable(
+            appendNumericPropertyIfAvailable<size_t>(
                 sub, "active", "stats.active");
-            appendNumericPropertyIfAvailable(
+            appendNumericPropertyIfAvailable<size_t>(
                 sub, "metadata", "stats.metadata");
-            appendNumericPropertyIfAvailable(
+            appendNumericPropertyIfAvailable<size_t>(
                 sub, "resident", "stats.resident");
-            appendNumericPropertyIfAvailable(
+            appendNumericPropertyIfAvailable<size_t>(
                 sub, "mapped", "stats.mapped");
-            appendNumericPropertyIfAvailable(
+            appendNumericPropertyIfAvailable<size_t>(
                 sub, "retained", "stats.retained");
 
-            appendNumericPropertyIfAvailable(
+            appendNumericPropertyIfAvailable<size_t>(
                 sub, "background_num_threads", "stats.background_thread.num_threads");
-            appendNumericPropertyIfAvailable(
+            appendNumericPropertyIfAvailable<size_t>(
                 sub, "background_num_runs", "stats.background_thread.num_runs");
 
 	    /* TODO: Should switch this to malloc_stats_print
@@ -103,31 +103,53 @@ public:
         {
             BSONObjBuilder sub(builder.subobjStart("jemalloc_arenas"));
 
-            appendNumericPropertyIfAvailable(
+            appendNumericPropertyIfAvailable<size_t>(
                 sub, "quantum", "arenas.quantum");
-            appendNumericPropertyIfAvailable(
+            appendNumericPropertyIfAvailable<size_t>(
                 sub, "page", "arenas.page");
-            appendNumericPropertyIfAvailable(
+            appendNumericPropertyIfAvailable<size_t>(
                 sub, "tcache_max", "arenas.tcache_max");
-            appendNumericPropertyIfAvailable(
+            appendNumericPropertyIfAvailableUnsigned(
                 sub, "nbins", "arenas.nbins");
-            appendNumericPropertyIfAvailable(
+            appendNumericPropertyIfAvailableUnsigned(
                 sub, "nhbins", "arenas.nhbins");
-            appendNumericPropertyIfAvailable(
+            appendNumericPropertyIfAvailableUnsigned(
                 sub, "nlextents", "arenas.nlextents");
+            appendNumericPropertyIfAvailableUnsigned(
+                sub, "nlextents", "arenas.narenas");
         }
 
         return builder.obj();
     }
 
 private:
+    template<typename value_t>
     static void appendNumericPropertyIfAvailable(BSONObjBuilder& builder,
                                                  StringData bsonName,
                                                  const char* property) {
-        size_t sz, value;
-	if (je_mallctl(property, &value, &sz, NULL, 0) == 0)
+        size_t sz;
+        value_t value;
+        sz = sizeof(value);
+        //EINVAL
+    int ret = mallctl(property, &value, &sz, NULL, 0);
+    invariant(ret != EINVAL);
+	if (ret == 0)
             builder.appendNumber(bsonName, value);
     }
+
+    static void appendNumericPropertyIfAvailableUnsigned(BSONObjBuilder& builder,
+                                                 StringData bsonName,
+                                                 const char* property) {
+        size_t sz;
+        unsigned value;
+        sz = sizeof(value);
+        //EINVAL
+    int ret = mallctl(property, &value, &sz, NULL, 0);
+    invariant(ret != EINVAL);
+	if (ret == 0)
+            builder.appendNumber(bsonName, (uint64_t)value);
+    }
+
 
 } jemallocServerStatusSection;
 }
