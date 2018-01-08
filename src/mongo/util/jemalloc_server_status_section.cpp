@@ -38,6 +38,11 @@
 
 
 extern "C" {
+    #ifndef _WIN32
+    #define je_malloc_stats_print malloc_stats_print
+    #define je_mallctl mallctl
+#endif
+
  int je_mallctl(const char *name,
     void *oldp, size_t *oldlenp, void *newp, size_t newlen);
 }
@@ -132,7 +137,7 @@ private:
         value_t value;
         sz = sizeof(value);
         //EINVAL
-    int ret = mallctl(property, &value, &sz, NULL, 0);
+    int ret = je_mallctl(property, &value, &sz, NULL, 0);
     invariant(ret != EINVAL);
 	if (ret == 0)
             builder.appendNumber(bsonName, value);
@@ -145,7 +150,7 @@ private:
         unsigned value;
         sz = sizeof(value);
         //EINVAL
-    int ret = mallctl(property, &value, &sz, NULL, 0);
+    int ret = je_mallctl(property, &value, &sz, NULL, 0);
     invariant(ret != EINVAL);
 	if (ret == 0)
             builder.appendNumber(bsonName, (uint64_t)value);
