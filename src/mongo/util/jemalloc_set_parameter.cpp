@@ -41,6 +41,11 @@
 #include "mongo/util/processinfo.h"
 
 extern "C" {
+#ifndef _WIN32
+    #define je_malloc_stats_print malloc_stats_print
+    #define je_mallctl mallctl
+#endif
+
 void je_malloc_stats_print(
     void (*write_cb)(void *, const char *), void *je_cbopaque,
     const char *opts);
@@ -80,7 +85,7 @@ void JemallocNumericPropertyServerParameter::append(OperationContext* txn,
                                                     BSONObjBuilder& b,
                                                     const std::string& name) {
     size_t sz, value;
-    if (mallctl(_jemallocPropertyName.c_str(), &value, &sz, NULL, 0)) {
+    if (je_mallctl(_jemallocPropertyName.c_str(), &value, &sz, NULL, 0)) {
         b.appendNumber(name, value);
     }
 }
@@ -106,7 +111,7 @@ Status JemallocNumericPropertyServerParameter::set(const BSONElement& newValueEl
                                                           std::numeric_limits<long long>::max()));
     }
     size_t valueAsSizet = static_cast<size_t>(valueAsLongLong);
-    if (!mallctl(_jemallocPropertyName.c_str(),
+    if (!je_mallctl(_jemallocPropertyName.c_str(),
             NULL, 0, &valueAsSizet, sizeof(size_t))) {
         return Status(ErrorCodes::InternalError,
                       str::stream() << "Failed to set internal jemalloc property "
@@ -147,10 +152,10 @@ MONGO_INITIALIZER_GENERAL(JemallocConfigurationDefaults,
     //(void)jemallocMaxArenas.setFromString("8");
 
     bool enable = true;
-    invariant(mallctl("background_thread", nullptr, nullptr, &enable, sizeof(enable)) == 0);
+    invariant(je_mallctl("background_thread", nullptr, nullptr, &enable, sizeof(enable)) == 0);
 
     // Dump allocator statistics to stderr.
-    malloc_stats_print(NULL, NULL, NULL);
+    je_malloc_stats_print(NULL, NULL, NULL);
 
     return Status::OK();
 }
