@@ -151,9 +151,12 @@ MONGO_INITIALIZER_GENERAL(JemallocConfigurationDefaults,
     //(void)jemallocRedzone.setFromString("0");
     //(void)jemallocMaxArenas.setFromString("8");
 
+#ifndef _WIN32
+    // background thread is not available on Windows at the moment, needs cond var impl to be done in jemalloc
+
     bool enable = true;
     invariant(je_mallctl("background_thread", nullptr, nullptr, &enable, sizeof(enable)) == 0);
-
+#endif
     // Dump allocator statistics to stderr.
     je_malloc_stats_print(NULL, NULL, NULL);
 
