@@ -41,13 +41,13 @@
 
 
 extern "C" {
- void malloc_stats_print(
+#ifndef _WIN32
+    #define je_malloc_stats_print malloc_stats_print
+#endif
+
+ void je_malloc_stats_print(
     void (*write_cb)(void *, const char *), void *je_cbopaque,
     const char *opts);
-
-
- int mallctl(const char *name,
-    void *oldp, size_t *oldlenp, void *newp, size_t newlen);
 }
 
 namespace mongo {
@@ -84,7 +84,7 @@ void stopMongoDFTDC() {
     stopFTDC();
 
     // Dump allocator statistics to stderr.
-    malloc_stats_print(NULL, NULL, NULL);
+    je_malloc_stats_print(NULL, NULL, NULL);
 }
 
 }  // namespace mongo
