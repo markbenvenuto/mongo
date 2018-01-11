@@ -18,7 +18,8 @@ ftdcEnv.Library(
         'file_reader.cpp',
         'file_writer.cpp',
         'util.cpp',
-        'varint.cpp'
+        'varint.cpp',
+        'stall.c',
     ],
     LIBDEPS=[
         '$BUILD_DIR/mongo/base',

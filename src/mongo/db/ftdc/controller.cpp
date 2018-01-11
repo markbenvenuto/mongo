@@ -44,6 +44,11 @@
 #include "mongo/util/exit.h"
 #include "mongo/util/log.h"
 #include "mongo/util/time_support.h"
+#include "mongo/util/timer.h"
+
+extern "C" {
+    void ftdc_register_no_stall();
+}
 
 namespace mongo {
 
@@ -194,6 +199,8 @@ void FTDCController::doLoop() {
         Client::initThread("ftdc");
         Client* client = &cc();
 
+        ftdc_register_no_stall();
+
         while (true) {
             // Compute the next interval to run regardless of how we were woken up
             // Skipping an interval due to a race condition with a config signal is harmless.
@@ -241,6 +248,9 @@ void FTDCController::doLoop() {
                     _mgr = uassertStatusOK(std::move(swMgr));
                 }
 
+                Microseconds elapsed;
+                Timer t;
+
                 auto collectSample = _periodicCollectors.collect(client);
 
                 Status s = _mgr->writeSampleAndRotateIfNeeded(
@@ -248,6 +258,10 @@ void FTDCController::doLoop() {
 
                 uassertStatusOK(s);
 
+                if (elapsed > Seconds(1)) {
+                    log() << "FTDC was slow, took: " << duration_cast<Milliseconds>(elapsed);
+                }
+                
                 // Store a reference to the most recent document from the periodic collectors
                 {
                     stdx::lock_guard<stdx::mutex> lock(_mutex);
