@@ -110,6 +110,7 @@ baseSource=[
     'util/assert_util.cpp',
     'util/base64.cpp',
     'util/concurrency/idle_thread_block.cpp',
+    'util/concurrency/stall.c',
     'util/concurrency/thread_name.cpp',
     'util/duration.cpp',
     'util/errno_util.cpp',
