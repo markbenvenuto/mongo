@@ -30,6 +30,11 @@
 #include "mongo/util/assert_util.h"
 #include "mongo/util/concurrency/idle_thread_block.h"
 
+extern "C" {
+    void stall_mark_start_idle();
+
+    void stall_mark_end_idle();
+}
 namespace mongo {
 namespace for_debuggers {
 // This needs external linkage to ensure that debuggers can use it.
@@ -40,10 +45,12 @@ using for_debuggers::idleThreadLocation;
 void IdleThreadBlock::beginIdleThreadBlock(const char* location) {
     invariant(!idleThreadLocation);
     idleThreadLocation = location;
+    stall_mark_start_idle();
 }
 
 void IdleThreadBlock::endIdleThreadBlock() {
     invariant(idleThreadLocation);
     idleThreadLocation = nullptr;
+    stall_mark_end_idle();
 }
 }
