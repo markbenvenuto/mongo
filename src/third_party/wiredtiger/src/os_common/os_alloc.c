@@ -8,6 +8,7 @@
 
 #include "wt_internal.h"
 
+
 /*
  * On systems with poor default allocators for allocations greater than 16 KB,
  * we provide an option to use TCMalloc explicitly.
@@ -24,15 +25,59 @@
 #define	free 			tc_free
 #endif
 
-#ifdef HAVE_LIBJEMALLOC_FOO
-#include <jemalloc/jemalloc.h>
+//#ifndef HAVE_LIBJEMALLOC
+ /*
+ * Bias arena index bits so that 0 encodes "use an automatically chosen arena".
+ */
+#define MALLOCX_ARENA(a)	((((int)(a))+1) << 20)
+
+#define MALLOCX_ZERO	((int)0x40)
+
+#  define MALLOCX_ALIGN(a)						\
+     ((int)(((size_t)(a) < (size_t)INT_MAX) ? ffs((int)(a))-1 :	\
+     ffs((int)(((size_t)(a))>>32))+31))
+
+#ifndef _WIN32
+#define je_rallocx rallocx
+#define je_mallctl mallctl
+#define je_mallocx mallocx
+#define je_free free
+#endif
+
+void *je_mallocx(size_t size, int flags);
+
+void *je_rallocx(void *ptr, size_t size,
+    int flags);
+
+int je_mallctl(const char *name,
+    void *oldp, size_t *oldlenp, void *newp, size_t newlen);
+
+void *je_calloc(size_t num, size_t size);
+void 	*je_malloc(size_t size);
+void *je_realloc(void *ptr, size_t size);
+void je_free(void *ptr);
+
+
+static unsigned wt_arena;
+
+void __wt_arena_init() {
+    // Init arena;
+    // TODO: assert == 0
+    size_t sz = sizeof(wt_arena);
+
+    je_mallctl("arenas.create", (void *)&wt_arena, &sz, NULL, 0);
+}
+
+
+ 
+ //#include <jemalloc/jemalloc.h>
 
 #define	calloc			je_calloc
 #define	malloc			je_malloc
 #define	realloc 		je_realloc
 #define	posix_memalign 		je_posix_memalign
 #define	free 			je_free
-#endif
+//#endif
 
 /*
  * __wt_calloc --
@@ -59,7 +104,7 @@ __wt_calloc(WT_SESSION_IMPL *session, size_t number, size_t size, void *retp)
 	if (session != NULL)
 		WT_STAT_CONN_INCR(session, memory_allocation);
 
-	if ((p = calloc(number, size)) == NULL)
+    if ((p = je_mallocx(number * size, MALLOCX_ARENA(wt_arena) | MALLOCX_ZERO)) == NULL)
 		WT_RET_MSG(session, __wt_errno(),
 		    "memory allocation of %" WT_SIZET_FMT " bytes failed",
 		    size * number);
@@ -92,7 +137,7 @@ __wt_malloc(WT_SESSION_IMPL *session, size_t bytes_to_allocate, void *retp)
 	if (session != NULL)
 		WT_STAT_CONN_INCR(session, memory_allocation);
 
-	if ((p = malloc(bytes_to_allocate)) == NULL)
+    if ((p = je_mallocx(bytes_to_allocate, MALLOCX_ARENA(wt_arena))) == NULL)
 		WT_RET_MSG(session, __wt_errno(),
 		    "memory allocation of %" WT_SIZET_FMT " bytes failed",
 		    bytes_to_allocate);
@@ -137,10 +182,17 @@ __realloc_func(WT_SESSION_IMPL *session,
 			WT_STAT_CONN_INCR(session, memory_grow);
 	}
 
-	if ((p = realloc(p, bytes_to_allocate)) == NULL)
-		WT_RET_MSG(session, __wt_errno(),
-		    "memory allocation of %" WT_SIZET_FMT " bytes failed",
-		    bytes_to_allocate);
+    if (p == NULL) {
+        if ((p = je_mallocx(bytes_to_allocate, MALLOCX_ARENA(wt_arena))) == NULL)
+            WT_RET_MSG(session, __wt_errno(),
+                "memory allocation of %" WT_SIZET_FMT " bytes failed",
+                bytes_to_allocate);
+    }
+    else 
+        if ((p = je_rallocx(p, bytes_to_allocate, MALLOCX_ARENA(wt_arena))) == NULL)
+		    WT_RET_MSG(session, __wt_errno(),
+		        "memory allocation of %" WT_SIZET_FMT " bytes failed",
+		        bytes_to_allocate);
 
 	/*
 	 * Clear the allocated memory, parts of WiredTiger depend on allocated
@@ -229,16 +281,18 @@ __wt_realloc_aligned(WT_SESSION_IMPL *session,
 
 		WT_STAT_CONN_INCR(session, memory_allocation);
 
-		if ((ret = posix_memalign(&newp,
-		    S2C(session)->buffer_alignment,
-		    bytes_to_allocate)) != 0)
+        if (p == NULL) {
+            if ((newp = je_mallocx(bytes_to_allocate, MALLOCX_ARENA(wt_arena) | MALLOCX_ALIGN(S2C(session)->buffer_alignment))) == NULL)
+                WT_RET_MSG(session, __wt_errno(),
+                    "memory allocation of %" WT_SIZET_FMT " bytes failed",
+                    bytes_to_allocate);
+        }
+		else if ((newp = je_rallocx(p,
+		    bytes_to_allocate, MALLOCX_ARENA(wt_arena) | MALLOCX_ALIGN(S2C(session)->buffer_alignment))) != 0)
 			WT_RET_MSG(session, ret,
 			     "memory allocation of %" WT_SIZET_FMT
 			     " bytes failed", bytes_to_allocate);
 
-		if (p != NULL)
-			memcpy(newp, p, bytes_allocated);
-		__wt_free(session, p);
 		p = newp;
 
 		/* Update caller's bytes allocated value. */

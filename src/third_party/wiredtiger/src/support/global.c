@@ -11,6 +11,8 @@
 WT_PROCESS __wt_process;			/* Per-process structure */
 static int __wt_pthread_once_failed;		/* If initialization failed */
 
+void __wt_arena_init();
+
 /*
  * __wt_endian_check --
  *	Check the build matches the machine.
@@ -56,6 +58,8 @@ __wt_global_once(void)
 	}
 
 	__wt_checksum_init();
+
+	__wt_arena_init();
 
 	TAILQ_INIT(&__wt_process.connqh);
 
