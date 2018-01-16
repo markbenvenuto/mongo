@@ -5,17 +5,16 @@
 #
 # NOTES
 
-git mv ..\..\include\jemalloc\jemalloc.h .
-git mv ..\..\include\jemalloc\jemalloc_defs.h .
-git mv ..\..\include\jemalloc\jemalloc_macros.h .
- git mv ..\..\include\jemalloc\jemalloc_mangle.h .
-git mv ..\..\include\jemalloc\jemalloc_mangle_jet.h .
-git mv ..\..\include\jemalloc\jemalloc_rename.h .
- git mv ..\..\..\include\jemalloc\internal\public_namespace.h
+mv -f ../../include/jemalloc/jemalloc.h .
+mv -f ../../include/jemalloc/jemalloc_defs.h .
+mv -f ../../include/jemalloc/jemalloc_macros.h .
+mv -f ../../include/jemalloc/jemalloc_mangle.h .
+mv -f ../../include/jemalloc/jemalloc_mangle_jet.h .
+mv -f ../../include/jemalloc/jemalloc_rename.h .
 
- git mv ..\..\..\include\jemalloc\internal\public_namespace.h .
- git mv ..\..\..\include\jemalloc\internal\public_unnamespace.h .
- git mv ..\..\..\include\jemalloc\internal\jemalloc_internal_decls.h
+mv -f ../../../include/jemalloc/internal/public_namespace.h .
+mv -f ../../../include/jemalloc/internal/public_unnamespace.h .
+mv -f ../../../include/jemalloc/internal/jemalloc_internal_decls.h .
 
 exit 1
 
@@ -53,7 +52,7 @@ fi
 tar -zxvf $TARBALL
 
 rm -rf $TEMP_DIR
-mv $TARBALL_DIR $TEMP_DIR
+mv -f $TARBALL_DIR $TEMP_DIR
 
 # Do a deep copy if this is the first time
 if [ ! -d $DEST_DIR ]; then

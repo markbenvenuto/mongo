@@ -1,6 +1,6 @@
 #!/bin/sh
 
-for i in autoconf; do
+for i in autoconf268; do
     echo "$i"
     $i
     if [ $? -ne 0 ]; then
