@@ -351,12 +351,6 @@ public:
 
     virtual int SSL_write(SSLConnectionInterface* conn, const void* buf, int num);
 
-    virtual unsigned long ERR_get_error();
-
-    virtual char* ERR_error_string(unsigned long e, char* buf);
-
-    virtual int SSL_get_error(const SSLConnectionInterface* conn, int ret);
-
     virtual int SSL_shutdown(SSLConnectionInterface* conn);
 
     virtual void SSL_free(SSLConnectionInterface* conn);
@@ -631,7 +625,7 @@ int SSLManager::SSL_read(SSLConnectionInterface* connInterface, void* buf, int n
     } while (!_doneWithSSLOp(conn, status));
 
     if (status <= 0)
-        _handleSSLError(SSL_get_error(conn, status), status);
+        _handleSSLError(SSL_get_error(conn->ssl, status), status);
     return status;
 }
 
@@ -643,21 +637,8 @@ int SSLManager::SSL_write(SSLConnectionInterface* connInterface, const void* buf
     } while (!_doneWithSSLOp(conn, status));
 
     if (status <= 0)
-        _handleSSLError(SSL_get_error(conn, status), status);
+        _handleSSLError(SSL_get_error(conn->ssl, status), status);
     return status;
-}
-
-unsigned long SSLManager::ERR_get_error() {
-    return ::ERR_get_error();
-}
-
-char* SSLManager::ERR_error_string(unsigned long e, char* buf) {
-    return ::ERR_error_string(e, buf);
-}
-
-int SSLManager::SSL_get_error(const SSLConnectionInterface* connInterface, int ret) {
-    const SSLConnection* conn = static_cast<const SSLConnection*>(connInterface);
-    return ::SSL_get_error(conn->ssl, ret);
 }
 
 int SSLManager::SSL_shutdown(SSLConnectionInterface* connInterface) {
@@ -668,7 +649,7 @@ int SSLManager::SSL_shutdown(SSLConnectionInterface* connInterface) {
     } while (!_doneWithSSLOp(conn, status));
 
     if (status < 0)
-        _handleSSLError(SSL_get_error(conn, status), status);
+        _handleSSLError(SSL_get_error(conn->ssl, status), status);
     return status;
 }
 
@@ -1191,7 +1172,7 @@ void SSLManager::_flushNetworkBIO(SSLConnection* conn) {
 }
 
 bool SSLManager::_doneWithSSLOp(SSLConnection* conn, int status) {
-    int sslErr = SSL_get_error(conn, status);
+    int sslErr = SSL_get_error(conn->ssl, status);
     switch (sslErr) {
         case SSL_ERROR_NONE:
             _flushNetworkBIO(conn);  // success, flush network BIO before leaving
@@ -1212,14 +1193,14 @@ SSLConnectionInterface* SSLManager::connect(Socket* socket) {
     const auto undotted = removeFQDNRoot(socket->remoteAddr().hostOrIp());
     int ret = ::SSL_set_tlsext_host_name(sslConn->ssl, undotted.c_str());
     if (ret != 1)
-        _handleSSLError(SSL_get_error(sslConn.get(), ret), ret);
+        _handleSSLError(SSL_get_error(sslConn.get()->ssl, ret), ret);
 
     do {
         ret = ::SSL_connect(sslConn->ssl);
     } while (!_doneWithSSLOp(sslConn.get(), ret));
 
     if (ret != 1)
-        _handleSSLError(SSL_get_error(sslConn.get(), ret), ret);
+        _handleSSLError(SSL_get_error(sslConn.get()->ssl, ret), ret);
 
     return sslConn.release();
 }
@@ -1234,7 +1215,7 @@ SSLConnectionInterface* SSLManager::accept(Socket* socket, const char* initialBy
     } while (!_doneWithSSLOp(sslConn.get(), ret));
 
     if (ret != 1)
-        _handleSSLError(SSL_get_error(sslConn.get(), ret), ret);
+        _handleSSLError(SSL_get_error(sslConn.get()->ssl, ret), ret);
 
     return sslConn.release();
 }
