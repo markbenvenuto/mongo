@@ -1758,9 +1758,11 @@ mongo_modules = moduleconfig.discover_modules('src/mongo/db/modules', get_option
 env['MONGO_MODULES'] = [m.name for m in mongo_modules]
 
 # --- check system ---
-
+ssl_provider = None
+ 
 def doConfigure(myenv):
     global wiredtiger
+    global ssl_provider
 
     # Check that the compilers work.
     #
@@ -2859,6 +2861,7 @@ def doConfigure(myenv):
                 # TODO: Replace SSL implementation as well.
                 # For now, let openssl fill that role.
                 checkOpenSSL(conf)
+                ssl_provider = 'openssl'
 
     if ssl_provider == 'openssl':
         if has_option("ssl"):
@@ -2873,7 +2876,8 @@ def doConfigure(myenv):
         # Either crypto engine is native,
         # or it's OpenSSL and has been checked to be working.
         conf.env.SetConfigHeaderDefine("MONGO_CONFIG_SSL")
-
+    else:
+        ssl_provider = "none"
 
     if use_system_version_of_library("pcre"):
         conf.FindSysLibDep("pcre", ["pcre"])
@@ -3226,6 +3230,7 @@ Export("debugBuild optBuild")
 Export("wiredtiger")
 Export("mmapv1")
 Export("endian")
+Export("ssl_provider")
 
 def injectMongoIncludePaths(thisEnv):
     thisEnv.AppendUnique(CPPPATH=['$BUILD_DIR'])
