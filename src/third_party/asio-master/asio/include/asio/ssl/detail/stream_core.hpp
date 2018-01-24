@@ -37,7 +37,11 @@ struct stream_core
   // sufficient to hold the largest possible TLS record.
   enum { max_tls_record_size = 17 * 1024 };
 
+#if !defined(MONGO_CONFIG_SSL_PROVIDER_WINDOWS)
   stream_core(SSL_CTX* context, asio::io_context& io_context)
+#else
+  stream_core(SCHANNEL_CRED* context, asio::io_context& io_context)
+#endif
     : engine_(context),
       pending_read_(io_context),
       pending_write_(io_context),

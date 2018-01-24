@@ -26,6 +26,12 @@
 
 #include "asio/detail/push_options.hpp"
 
+#if defined(MONGO_CONFIG_SSL_PROVIDER_WINDOWS)
+
+#include "asio/ssl/impl/context_schannel.ipp"
+
+#else 
+
 namespace asio {
 namespace ssl {
 
@@ -1150,6 +1156,7 @@ BIO* context::make_buffer_bio(const const_buffer& b)
 
 } // namespace ssl
 } // namespace asio
+#endif
 
 #include "asio/detail/pop_options.hpp"
 

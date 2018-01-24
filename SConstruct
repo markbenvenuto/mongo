@@ -1621,6 +1621,8 @@ elif env.TargetOSIs('windows'):
             'version.lib',
             'winmm.lib',
             'ws2_32.lib',
+            'secur32.lib',
+            'crypt32.lib',
         ],
     )
 
@@ -2854,7 +2856,10 @@ def doConfigure(myenv):
     if ssl_provider == 'native':
         if conf.env.TargetOSIs('windows'):
             # TODO: Implement native crypto for windows
-            ssl_provider = 'openssl'
+            ssl_provider = 'windows'
+            env.SetConfigHeaderDefine("MONGO_CONFIG_SSL_PROVIDER_WINDOWS")
+            conf.env.Append( MONGO_CRYPTO=["tom"] )
+
         elif conf.env.TargetOSIs('darwin', 'macOS'):
             conf.env.Append( MONGO_CRYPTO=["apple"] )
             if has_option("ssl"):

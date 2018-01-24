@@ -67,6 +67,9 @@
 // Defined if SSL support is enabled
 @mongo_config_ssl@
 
+// Defined if SSL support is to use Windows SChannel
+@mongo_config_ssl_provider_windows@
+
 // Defined if OpenSSL has SEQUENCE_ANY
 @mongo_config_ssl_has_asn1_any_definitions@
 

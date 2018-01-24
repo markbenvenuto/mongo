@@ -1,43 +1,14 @@
-//
-// ssl/detail/engine.hpp
-// ~~~~~~~~~~~~~~~~~~~~~
-//
-// Copyright (c) 2003-2017 Christopher M. Kohlhoff (chris at kohlhoff dot com)
-//
-// Distributed under the Boost Software License, Version 1.0. (See accompanying
-// file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
-//
-
-#ifndef ASIO_SSL_DETAIL_ENGINE_HPP
-#define ASIO_SSL_DETAIL_ENGINE_HPP
-
-#if defined(_MSC_VER) && (_MSC_VER >= 1200)
-# pragma once
-#endif // defined(_MSC_VER) && (_MSC_VER >= 1200)
-
-#include "asio/detail/config.hpp"
-
-#include "asio/buffer.hpp"
-#include "asio/detail/static_mutex.hpp"
+// SChannel implementation
 #if !defined(MONGO_CONFIG_SSL_PROVIDER_WINDOWS)
-#include "asio/ssl/detail/openssl_types.hpp"
+#error Only include this file in the SChannel Implementation
 #endif
-#include "asio/ssl/detail/verify_callback.hpp"
-#include "asio/ssl/stream_base.hpp"
-#include "asio/ssl/verify_mode.hpp"
 
-#include "asio/detail/push_options.hpp"
-
-
-#if defined(MONGO_CONFIG_SSL_PROVIDER_WINDOWS)
-
-#include "asio/ssl/detail/engine_schannel.hpp"
-
-#else
+#include "asio/ssl/detail/schannel.hpp"
 
 namespace asio {
 namespace ssl {
 namespace detail {
+
 
 class engine
 {
@@ -65,13 +36,13 @@ public:
   };
 
   // Construct a new engine for the specified context.
-  ASIO_DECL explicit engine(SSL_CTX* context);
+  ASIO_DECL explicit engine(SCHANNEL_CRED* context);
 
   // Destructor.
   ASIO_DECL ~engine();
 
   // Get the underlying implementation in the native type.
-  ASIO_DECL SSL* native_handle();
+  ASIO_DECL PCtxtHandle native_handle();
 
   // Set the peer verification mode.
   ASIO_DECL asio::error_code set_verify_mode(
@@ -120,51 +91,31 @@ private:
   engine(const engine&);
   engine& operator=(const engine&);
 
-  // Callback used when the SSL implementation wants to verify a certificate.
-  ASIO_DECL static int verify_callback_function(
-      int preverified, X509_STORE_CTX* ctx);
+private:
 
-#if (OPENSSL_VERSION_NUMBER < 0x10000000L)
-  // The SSL_accept function may not be thread safe. This mutex is used to
-  // protect all calls to the SSL_accept function.
-  ASIO_DECL static asio::detail::static_mutex& accept_mutex();
-#endif // (OPENSSL_VERSION_NUMBER < 0x10000000L)
+    CtxtHandle _hcxt;
+    CredHandle _hcred;
+    SCHANNEL_CRED* _pCred;
 
-  // Perform one operation. Returns >= 0 on success or error, want_read if the
-  // operation needs more input, or want_write if it needs to write some output
-  // before the operation can complete.
-  ASIO_DECL want perform(int (engine::* op)(void*, std::size_t),
-      void* data, std::size_t length, asio::error_code& ec,
-      std::size_t* bytes_transferred);
+    enum class EngineState {
+        // Initial State
+        NeedsHandshake,
+        InProgress,
+        //TODO: InShutdown,
+    };
 
-  // Adapt the SSL_accept function to the signature needed for perform().
-  ASIO_DECL int do_accept(void*, std::size_t);
+    EngineState _state{EngineState::NeedsHandshake};
 
-  // Adapt the SSL_connect function to the signature needed for perform().
-  ASIO_DECL int do_connect(void*, std::size_t);
+    void setState(EngineState newState);
 
-  // Adapt the SSL_shutdown function to the signature needed for perform().
-  ASIO_DECL int do_shutdown(void*, std::size_t);
+    ReusableBuffer _inBuffer;
+    ReusableBuffer _outBuffer;
 
-  // Adapt the SSL_read function to the signature needed for perform().
-  ASIO_DECL int do_read(void* data, std::size_t length);
-
-  // Adapt the SSL_write function to the signature needed for perform().
-  ASIO_DECL int do_write(void* data, std::size_t length);
-
-  SSL* ssl_;
-  BIO* ext_bio_;
+    SSLHandshakeManager _handshakeManager;
+    SSLReadManager _readManager;
+    SSLWriteManager _writeManager;  
 };
 
 } // namespace detail
 } // namespace ssl
 } // namespace asio
-#endif
-
-#include "asio/detail/pop_options.hpp"
-
-#if defined(ASIO_HEADER_ONLY)
-# include "asio/ssl/detail/impl/engine.ipp"
-#endif // defined(ASIO_HEADER_ONLY)
-
-#endif // ASIO_SSL_DETAIL_ENGINE_HPP
