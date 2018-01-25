@@ -30,6 +30,8 @@
 #error Only include this file in the SChannel Implementation
 #endif
 
+#include "asio/ssl/detail/schannel.hpp"
+
 namespace asio {
 namespace ssl {
 namespace detail {
@@ -110,13 +112,58 @@ public:
   ASIO_DECL const asio::error_code& map_error_code(
       asio::error_code& ec) const;
 
+  // MONGODB additions:
+  // Set the Server name for TLS SNI purposes.
+  ASIO_DECL void set_server_name(
+      const std::string name);
 private:
   // Disallow copying and assignment.
   engine(const engine&);
   engine& operator=(const engine&);
 
 private:
+    // SChannel context handle
+    CtxtHandle _hcxt;
 
+    // Credential handle
+    CredHandle _hcred;
+
+    // Credentials for TLS handshake
+    SCHANNEL_CRED* _pCred;
+
+    // TLS SNI server name
+    std::string _serverName;
+
+    // Engine State machine
+    // 
+    enum class EngineState {
+        // Initial State
+        NeedsHandshake,
+
+        // Normal SSL Conversation in progress
+        InProgress,
+
+        // In SSL shutdown
+        InShutdown,
+    };
+
+    // Engine state
+    EngineState _state{EngineState::NeedsHandshake};
+
+    // Data received from remote side, shared across state machines
+    ReusableBuffer _inBuffer;
+
+    // Data to send to remote side, shared across state machines
+    ReusableBuffer _outBuffer;
+
+    // Handshake state machine
+    SSLHandshakeManager _handshakeManager;
+
+    // Read state machine
+    SSLReadManager _readManager;
+
+    // Write state machine
+    SSLWriteManager _writeManager;  
 };
 
 } // namespace detail
