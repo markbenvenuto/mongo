@@ -30,6 +30,8 @@
 #error Only include this file in the SChannel Implementation
 #endif
 
+#include "asio/ssl/detail/schannel.hpp"
+
 namespace asio {
 namespace ssl {
 namespace detail {
@@ -117,6 +119,27 @@ private:
 
 private:
 
+    CtxtHandle _hcxt;
+    CredHandle _hcred;
+    SCHANNEL_CRED* _pCred;
+
+    enum class EngineState {
+        // Initial State
+        NeedsHandshake,
+        InProgress,
+        //TODO: InShutdown,
+    };
+
+    EngineState _state{EngineState::NeedsHandshake};
+
+    void setState(EngineState newState);
+
+    ReusableBuffer _inBuffer;
+    ReusableBuffer _outBuffer;
+
+    SSLHandshakeManager _handshakeManager;
+    SSLReadManager _readManager;
+    SSLWriteManager _writeManager;  
 };
 
 } // namespace detail

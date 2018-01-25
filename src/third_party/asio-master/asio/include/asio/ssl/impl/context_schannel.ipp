@@ -35,8 +35,9 @@ namespace ssl {
 
 
 context::context(context::method m)
-    : handle_(0)
+    : handle_(&_cred)
 {
+    memset(&_cred, 0, sizeof(_cred));
 }
 
 #if defined(ASIO_HAS_MOVE) || defined(GENERATING_DOCUMENTATION)
@@ -44,6 +45,7 @@ context::context(context&& other)
 {
     handle_ = other.handle_;
     other.handle_ = 0;
+    // TODO: SecInvalidateHandle(&other.handle_);
 }
 
 context& context::operator=(context&& other)
@@ -51,12 +53,14 @@ context& context::operator=(context&& other)
     context tmp(ASIO_MOVE_CAST(context)(*this));
     handle_ = other.handle_;
     other.handle_ = 0;
+    // TODO: SecInvalidateHandle(&other.handle_);
     return *this;
 }
 #endif // defined(ASIO_HAS_MOVE) || defined(GENERATING_DOCUMENTATION)
 
 context::~context()
 {
+    // TODO - recursive free of SCHANNEL_CRED
 }
 
 context::native_handle_type context::native_handle()
