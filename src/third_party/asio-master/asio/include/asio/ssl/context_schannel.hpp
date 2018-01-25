@@ -84,6 +84,8 @@ public:
     ASIO_DECL native_handle_type native_handle();
 
 private:
+    SCHANNEL_CRED _cred;
+
     // The underlying native implementation.
     native_handle_type handle_;
 };
