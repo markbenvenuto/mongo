@@ -28,6 +28,7 @@
 #if MONGO_CONFIG_SSL_PROVIDER == SSL_PROVIDER_WINDOWS
 
 #include "asio/ssl/detail/impl/engine_schannel.ipp"
+#include "asio/ssl/detail/impl/schannel.ipp"
 
 #elif MONGO_CONFIG_SSL_PROVIDER == SSL_PROVIDER_OPENSSL
 

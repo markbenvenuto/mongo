@@ -20,6 +20,8 @@
 
 #if MONGO_CONFIG_SSL_PROVIDER == SSL_PROVIDER_OPENSSL
 #include "asio/ssl/detail/openssl_init.hpp"
+#elif MONGO_CONFIG_SSL_PROVIDER == SSL_PROVIDER_WINDOWS
+#include "mongo/util/errno_util.h"
 #endif
 
 #include "asio/detail/push_options.hpp"
@@ -39,9 +41,7 @@ public:
 #if MONGO_CONFIG_SSL_PROVIDER == SSL_PROVIDER_WINDOWS
   std::string message(int value) const
   {
-      // TODO: call FormatMessage
-      ASIO_ASSERT(false);
-      return "asio.ssl error";
+      return mongo::errnoWithDescription(value);
   }
 #elif MONGO_CONFIG_SSL_PROVIDER == SSL_PROVIDER_OPENSSL
   std::string message(int value) const
