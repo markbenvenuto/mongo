@@ -66,13 +66,19 @@ class stream :
 {
 public:
   /// The native handle type of the SSL stream.
+#if !defined(MONGO_CONFIG_SSL_PROVIDER_WINDOWS)
   typedef SSL* native_handle_type;
+#else
+  typedef PCtxtHandle native_handle_type;
+#endif
 
+#if !defined(MONGO_CONFIG_SSL_PROVIDER_WINDOWS)
   /// Structure for use with deprecated impl_type.
   struct impl_struct
   {
     SSL* ssl;
   };
+#endif
 
   /// The type of the next layer.
   typedef typename remove_reference<Stream>::type next_layer_type;

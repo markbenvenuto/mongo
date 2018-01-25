@@ -34,7 +34,9 @@
 #include "mongo/config.h"
 
 #ifdef MONGO_CONFIG_SSL
+#if !defined(MONGO_CONFIG_SSL_PROVIDER_WINDOWS)
 #include <openssl/crypto.h>
+#endif
 #endif
 
 #include <pcrecpp.h>
@@ -145,7 +147,11 @@ void VersionInfoInterface::appendBuildInfo(BSONObjBuilder* result) const {
 
     BSONObjBuilder opensslInfo(result->subobjStart("openssl"));
 #ifdef MONGO_CONFIG_SSL
+#if !defined(MONGO_CONFIG_SSL_PROVIDER_WINDOWS)
     opensslInfo << "running" << openSSLVersion() << "compiled" << OPENSSL_VERSION_TEXT;
+#else
+    opensslInfo << "Windows SChannel";
+#endif
 #else
     opensslInfo << "running"
                 << "disabled"
@@ -168,7 +174,7 @@ void VersionInfoInterface::appendBuildInfo(BSONObjBuilder* result) const {
 }
 
 std::string VersionInfoInterface::openSSLVersion(StringData prefix, StringData suffix) const {
-#ifndef MONGO_CONFIG_SSL
+#if !defined(MONGO_CONFIG_SSL) || defined(MONGO_CONFIG_SSL_PROVIDER_WINDOWS)
     return "";
 #else
     return prefix.toString() + SSLeay_version(SSLEAY_VERSION) + suffix;
@@ -183,7 +189,9 @@ void VersionInfoInterface::logBuildInfo() const {
     log() << "git version: " << gitVersion();
 
 #ifdef MONGO_CONFIG_SSL
+#if !defined(MONGO_CONFIG_SSL_PROVIDER_WINDOWS)
     log() << openSSLVersion("OpenSSL version: ");
+#endif
 #endif
 
     log() << "allocator: " << allocator();

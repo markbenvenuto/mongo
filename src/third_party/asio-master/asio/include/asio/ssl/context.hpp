@@ -21,14 +21,22 @@
 #include "asio/buffer.hpp"
 #include "asio/io_context.hpp"
 #include "asio/ssl/context_base.hpp"
+
+#if !defined(MONGO_CONFIG_SSL_PROVIDER_WINDOWS)
 #include "asio/ssl/detail/openssl_types.hpp"
 #include "asio/ssl/detail/openssl_init.hpp"
 #include "asio/ssl/detail/password_callback.hpp"
 #include "asio/ssl/detail/verify_callback.hpp"
 #include "asio/ssl/verify_mode.hpp"
+#endif
 
 #include "asio/detail/push_options.hpp"
 
+#if defined(MONGO_CONFIG_SSL_PROVIDER_WINDOWS)
+
+#include "asio/ssl/context_schannel.hpp"
+
+#else
 namespace asio {
 namespace ssl {
 
@@ -748,6 +756,7 @@ private:
 
 } // namespace ssl
 } // namespace asio
+#endif
 
 #include "asio/detail/pop_options.hpp"
 
