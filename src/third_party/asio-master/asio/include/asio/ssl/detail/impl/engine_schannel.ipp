@@ -53,7 +53,7 @@ engine::~engine()
 
 PCtxtHandle engine::native_handle()
 {
-  return nullptr;
+  return &_hcxt;
 }
 
 asio::error_code engine::set_verify_mode(

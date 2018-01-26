@@ -142,11 +142,11 @@ typedef AutoHandle<HCERTSTORE, CertStoreFree> UniqueCertStore;
 
 std::string getCertificateSubjectName(PCCERT_CONTEXT cert) {
     DWORD needed = CertGetNameStringA(cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, NULL, NULL, 0);
-    uassert(50660, str::stream() << "CertGetNameString size query failed with: " << needed, needed != 0);
+    uassert(50663, str::stream() << "CertGetNameString size query failed with: " << needed, needed != 0);
 
     std::unique_ptr<BYTE> nameBuf(new BYTE[needed]);
     DWORD cbConverted = CertGetNameStringA(cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, NULL, (LPSTR)nameBuf.get(), needed);
-    uassert(50661, str::stream() << "CertGetNameString retrieval failed with: " << cbConverted, needed == cbConverted);
+    uassert(50664, str::stream() << "CertGetNameString retrieval failed with: " << cbConverted, needed == cbConverted);
 
     return std::string(reinterpret_cast<char*>(nameBuf.get()));
 }
@@ -538,7 +538,8 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     // TODO: leak or free? CryptReleaseContext
     // TODO: fix this
     HCRYPTPROV hProv;
-    if (true) {
+    if (!client) {
+        // Note: Server side requires CRYPT_VERIFYCONTEXT off
         ret = CryptAcquireContextW(&hProv,
             NULL,
             MS_ENHANCED_PROV,
@@ -548,10 +549,17 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     } else {
         ret = CryptAcquireContextW(&hProv,
             NULL,
-            MS_DEF_RSA_SCHANNEL_PROV_W,
-            PROV_RSA_SCHANNEL,
-            0
+            MS_ENHANCED_PROV,
+            PROV_RSA_FULL,
+            CRYPT_VERIFYCONTEXT
         );
+
+        //ret = CryptAcquireContextW(&hProv,
+        //    NULL,
+        //    MS_DEF_RSA_SCHANNEL_PROV_W,
+        //    PROV_RSA_SCHANNEL,
+        //    0
+        //);
 
     }
     if (!ret) {
@@ -566,13 +574,14 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
         privateBlobBuf.get(),
         privateBlobLen,
         0,
-        0, //CRYPT_EXPORTABLE,
+        0,
         &hkey);
     if (!ret) {
         DWORD gle = GetLastError();
         return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptImportKey failed  " << errnoWithDescription(gle));
     }
 
+    // NOTE: This is used to set the certificate for client side SCHannel
     ret = CertSetCertificateContextProperty(
         cert,
         CERT_KEY_PROV_HANDLE_PROP_ID,
@@ -583,46 +592,47 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
         return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertSetCertificateContextProperty failed  " << errnoWithDescription(gle));
     }
 
-    DWORD nameBlobLen{0};
+    if (!client) {
+        DWORD nameBlobLen{0};
 
-    ret = CryptGetProvParam(hProv,
-        PP_CONTAINER,
-        NULL,
-        &nameBlobLen,
-        0);
+        ret = CryptGetProvParam(hProv,
+            PP_CONTAINER,
+            NULL,
+            &nameBlobLen,
+            0);
 
-    if (!ret) {
-        DWORD gle = GetLastError();
-        if (gle != ERROR_MORE_DATA) {
+        if (!ret) {
+            DWORD gle = GetLastError();
+            if (gle != ERROR_MORE_DATA) {
+                return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptGetProvParam Failed to get size of key " << errnoWithDescription(gle));
+            }
+        }
+
+        std::unique_ptr<BYTE> nameBlob(new BYTE[nameBlobLen]);
+        ret = CryptGetProvParam(hProv,
+            PP_CONTAINER,
+            nameBlob.get(),
+            &nameBlobLen,
+            0);
+        if (!ret) {
+            DWORD gle = GetLastError();
             return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptGetProvParam Failed to get size of key " << errnoWithDescription(gle));
         }
+
+        std::wstring wKeyName = toWideString((char*)nameBlob.get());
+
+        // NOTE: This is used to set the certificate for server side SCHannel
+        CRYPT_KEY_PROV_INFO keyProvInfo;
+        memset(&keyProvInfo, 0, sizeof(keyProvInfo));
+        keyProvInfo.pwszContainerName = (LPWSTR)wKeyName.c_str();
+        keyProvInfo.pwszProvName = const_cast<wchar_t*>(MS_ENHANCED_PROV);
+        keyProvInfo.dwProvType = PROV_RSA_FULL;
+        keyProvInfo.dwKeySpec = AT_KEYEXCHANGE;
+        if (!CertSetCertificateContextProperty(cert, CERT_KEY_PROV_INFO_PROP_ID, 0, &keyProvInfo)) {
+            DWORD gle = GetLastError();
+            return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertSetCertificateContextProperty Failed  " << errnoWithDescription(gle));
+        }
     }
-
-    std::unique_ptr<BYTE> nameBlob(new BYTE[nameBlobLen]);
-    ret = CryptGetProvParam(hProv,
-        PP_CONTAINER,
-        nameBlob.get(),
-        &nameBlobLen,
-        0);
-    if (!ret) {
-        DWORD gle = GetLastError();
-        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptGetProvParam Failed to get size of key " << errnoWithDescription(gle));
-    }
-
-    std::wstring wKeyName = toWideString((char*)nameBlob.get());
-
-
-    CRYPT_KEY_PROV_INFO keyProvInfo;
-    memset(&keyProvInfo, 0, sizeof(keyProvInfo));
-    keyProvInfo.pwszContainerName = (LPWSTR)wKeyName.c_str();
-    keyProvInfo.pwszProvName = const_cast<wchar_t*>(MS_ENHANCED_PROV);
-    keyProvInfo.dwProvType = PROV_RSA_FULL;
-    keyProvInfo.dwKeySpec = AT_KEYEXCHANGE;
-    if (!CertSetCertificateContextProperty(cert, CERT_KEY_PROV_INFO_PROP_ID, 0, &keyProvInfo)) {
-        DWORD gle = GetLastError();
-        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertSetCertificateContextProperty Failed  " << errnoWithDescription(gle));
-    }
-    
     return std::move(certHolder);
 }
 
@@ -738,6 +748,48 @@ Status SSLManager::loadCertificates(const SSLParams& params) {
 
         _serverCertificate = std::move(swCertificate.getValue());
         _serverCertificates[0] = _serverCertificate.get();
+
+
+            //HCERTSTORE hMyCertStore = NULL;
+            //PCCERT_CONTEXT aCertContext = NULL;
+
+            ////-------------------------------------------------------
+            //// Open the My store, also called the personal store.
+            //// This call to CertOpenStore opens the Local_Machine My 
+            //// store as opposed to the Current_User's My store.
+
+            //hMyCertStore = CertOpenStore(CERT_STORE_PROV_SYSTEM,
+            //    X509_ASN_ENCODING,
+            //    0,
+            //    CERT_SYSTEM_STORE_CURRENT_USER,
+            //    L"MY");
+
+            //if (hMyCertStore == NULL) {
+            //    invariant(false);
+            //    printf("Error opening MY store for server.\n");
+            //}
+            ////-------------------------------------------------------
+            //// Search for a certificate with some specified
+            //// string in it. This example attempts to find
+            //// a certificate with the string "example server" in
+            //// its subject string. Substitute an appropriate string
+            //// to find a certificate for a specific user.
+
+            //aCertContext = CertFindCertificateInStore(hMyCertStore,
+            //    X509_ASN_ENCODING,
+            //    0,
+            //    CERT_FIND_SUBJECT_STR_A,
+            //    "MongoWinSSL2048", // use appropriate subject name
+            //    NULL
+            //);
+
+            //if (aCertContext == NULL) {
+            //    invariant(false);
+            //    printf("Error retrieving server certificate.");
+            //}
+
+            //_serverCertificate = UniqueCertificate(aCertContext);
+            //_serverCertificates[0] = _serverCertificate.get();
     }
 
     if (!params.sslCAFile.empty() || !params.sslCRLFile.empty()) {
@@ -772,8 +824,8 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
         cred->dwFlags |=
             SCH_CRED_AUTO_CRED_VALIDATION | SCH_CRED_REVOCATION_CHECK_CHAIN
             | SCH_CRED_NO_SERVERNAME_CHECK;
-        //cred->dwFlags |= SCH_CRED_NO_DEFAULT_CREDS // No Default Certificate
-        //    | SCH_CRED_MANUAL_CRED_VALIDATION; // Validate Certificate Manually
+        cred->dwFlags |= SCH_CRED_NO_DEFAULT_CREDS // No Default Certificate
+            | SCH_CRED_MANUAL_CRED_VALIDATION; // Validate Certificate Manually
     }
 
     // Set the supported TLS protocols. Allow --sslDisabledProtocols to disable selected
