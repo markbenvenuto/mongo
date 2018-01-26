@@ -105,7 +105,7 @@ public:
 
     AutoHandle(const AutoHandle&) = delete;
 
-    AutoHandle& operator = (const HandleT other) {
+    AutoHandle& operator= (const HandleT other) {
         _handle = other;
         return *this;
     }
@@ -114,7 +114,7 @@ public:
 
     AutoHandle& operator= (AutoHandle<HandleT, Deleter>&& other) {
         _handle = other._handle;
-        other._handle = nullptr;
+        other._handle = 0;
         return *this;
     }
 
@@ -187,28 +187,26 @@ public:
         const SSLParams& params,
         ConnectionDirection direction) final;
 
-    virtual SSLConnectionInterface* connect(Socket* socket);
+    SSLConnectionInterface* connect(Socket* socket) final;
 
-    virtual SSLConnectionInterface* accept(Socket* socket, const char* initialBytes, int len);
+    SSLConnectionInterface* accept(Socket* socket, const char* initialBytes, int len)  final;
 
-    virtual SSLPeerInfo parseAndValidatePeerCertificateDeprecated(const SSLConnectionInterface* conn,
-                                                                  const std::string& remoteHost);
+    SSLPeerInfo parseAndValidatePeerCertificateDeprecated(const SSLConnectionInterface* conn,
+                                                                  const std::string& remoteHost)  final;
 
     StatusWith<boost::optional<SSLPeerInfo>> parseAndValidatePeerCertificate(
         PCtxtHandle ssl, const std::string& remoteHost) final;
 
 
-    virtual const SSLConfiguration& getSSLConfiguration() const {
+    const SSLConfiguration& getSSLConfiguration() const  final {
         return _sslConfiguration;
-    }
+    } 
 
-    virtual int SSL_read(SSLConnectionInterface* conn, void* buf, int num);
+    int SSL_read(SSLConnectionInterface* conn, void* buf, int num)  final;
 
-    virtual int SSL_write(SSLConnectionInterface* conn, const void* buf, int num);
+    int SSL_write(SSLConnectionInterface* conn, const void* buf, int num)  final;
 
-    virtual int SSL_shutdown(SSLConnectionInterface* conn);
-
-    virtual void SSL_free(SSLConnectionInterface* conn);
+    int SSL_shutdown(SSLConnectionInterface* conn) final;
 
 private:
     bool _weakValidation;
@@ -235,8 +233,7 @@ private:
     * date is to be checked (as for a server certificate) and null otherwise.
     * @return bool showing if the function was successful.
     */
-    Status _parseAndValidateCertificate(const std::string& keyFile,
-        const std::string& keyPassword,
+    Status _validateCertificate(PCCERT_CONTEXT cert,
         std::string* subjectName,
         Date_t* serverNotAfter);
 
@@ -262,6 +259,7 @@ MONGO_INITIALIZER(SSLManager)(InitializerContext*) {
 SSLConnection::SSLConnection(SCHANNEL_CRED* cred, Socket* sock, const char* initialBytes, int len)
     : _cred(cred), socket(sock), _engine(_cred) {
 
+    // TODO: hard code SSL packet size somewhere
     _tempBuffer.resize(17 * 1024);
 
     if (len > 0) {
@@ -272,7 +270,6 @@ SSLConnection::SSLConnection(SCHANNEL_CRED* cred, Socket* sock, const char* init
 SSLConnection::~SSLConnection() {
 
 }
-
 
 std::unique_ptr<SSLManagerInterface> SSLManagerInterface::create(const SSLParams& params,
                                                                  bool isServer) {
@@ -295,22 +292,9 @@ SSLManager::SSLManager(const SSLParams& params, bool isServer)
 
     uassertStatusOK(initSSLContext(&_clientCred, params, ConnectionDirection::kOutgoing));
 
-    // Pick the certificate for use in outgoing connections.
-    std::string clientPEM, clientPassword;
-    if (!isServer || params.sslClusterFile.empty()) {
-        // We are either a client, or a server without a cluster key,
-        // so use the PEM key file, if specified.
-        clientPEM = params.sslPEMKeyFile;
-        clientPassword = params.sslPEMKeyPassword;
-    } else {
-        // We are a server with a cluster key, so use the cluster key file.
-        clientPEM = params.sslClusterFile;
-        clientPassword = params.sslClusterPassword;
-    }
-
-    if (!clientPEM.empty()) {
-        uassertStatusOK(_parseAndValidateCertificate(
-            clientPEM, clientPassword, &_sslConfiguration.clientSubjectName, NULL));
+    if (_clientCertificate) {
+        uassertStatusOK(_validateCertificate(
+            _clientCertificate.get(), &_sslConfiguration.clientSubjectName, NULL));
     }
 
     // SSL server specific initialization
@@ -318,8 +302,7 @@ SSLManager::SSLManager(const SSLParams& params, bool isServer)
         uassertStatusOK(initSSLContext(&_serverCred, params, ConnectionDirection::kIncoming));
 
         uassertStatusOK(
-            _parseAndValidateCertificate(params.sslPEMKeyFile,
-                params.sslPEMKeyPassword,
+            _validateCertificate(_serverCertificate.get(),
                 &_sslConfiguration.serverSubjectName,
                 &_sslConfiguration.serverCertificateExpirationDate));
 
@@ -410,10 +393,6 @@ int SSLManager::SSL_shutdown(SSLConnectionInterface* conn) {
     return 0;
 }
 
-void SSLManager::SSL_free(SSLConnectionInterface* conn) {
-    // Do Nothing
-}
-
 StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData password, bool client) {
 
     std::ifstream pemFile(fileName.toString(), std::ios::binary);
@@ -427,7 +406,6 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     pemFile.close();
 
     // Search the buffer for the various strings that make up a PEM file
-
     size_t publicKey = buf.find("-----BEGIN CERTIFICATE-----");
     if (publicKey == std::string::npos) {
         return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "Failed to find Certifiate in: " << fileName);
@@ -544,7 +522,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
             NULL,
             MS_ENHANCED_PROV,
             PROV_RSA_FULL,
-            0 //CRYPT_VERIFYCONTEXT
+            0
         );
     } else {
         ret = CryptAcquireContextW(&hProv,
@@ -553,14 +531,6 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
             PROV_RSA_FULL,
             CRYPT_VERIFYCONTEXT
         );
-
-        //ret = CryptAcquireContextW(&hProv,
-        //    NULL,
-        //    MS_DEF_RSA_SCHANNEL_PROV_W,
-        //    PROV_RSA_SCHANNEL,
-        //    0
-        //);
-
     }
     if (!ret) {
         DWORD gle = GetLastError();
@@ -581,7 +551,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
         return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptImportKey failed  " << errnoWithDescription(gle));
     }
 
-    // NOTE: This is used to set the certificate for client side SCHannel
+    // NOTE: This is used to set the certificate for client side SChannel
     ret = CertSetCertificateContextProperty(
         cert,
         CERT_KEY_PROV_HANDLE_PROP_ID,
@@ -592,6 +562,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
         return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertSetCertificateContextProperty failed  " << errnoWithDescription(gle));
     }
 
+    // Server-side SChannel requires a different way of attaching the private key to the certificate
     if (!client) {
         DWORD nameBlobLen{0};
 
@@ -633,6 +604,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
             return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertSetCertificateContextProperty Failed  " << errnoWithDescription(gle));
         }
     }
+
     return std::move(certHolder);
 }
 
@@ -849,7 +821,9 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
 
     cred->cCreds = 1;
     if (direction == ConnectionDirection::kOutgoing) {
-        cred->paCred = _clientCertificates;
+        if (_clientCertificate) {
+            cred->paCred = _clientCertificates;
+        }
     } else {
         cred->paCred = _serverCertificates;
     }
@@ -867,16 +841,10 @@ unsigned long long FiletimeToEpocMillis(FILETIME ft) {
     return ns100 / 1000;
 }
 
-Status SSLManager::_parseAndValidateCertificate(const std::string& keyFile,
-    const std::string& keyPassword,
+Status SSLManager::_validateCertificate(
+    PCCERT_CONTEXT cert,
     std::string* subjectName,
     Date_t* serverCertificateExpirationDate) {
-    auto swCertificate = readPEMFile(keyFile, keyPassword, false);
-    if (!swCertificate.isOK()) {
-        return swCertificate.getStatus();
-    }
-
-    PCCERT_CONTEXT cert = swCertificate.getValue().get();
     *subjectName = getCertificateSubjectName(cert);
 
     if (serverCertificateExpirationDate != nullptr) {

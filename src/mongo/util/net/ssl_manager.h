@@ -169,8 +169,6 @@ public:
 
     virtual int SSL_shutdown(SSLConnectionInterface* conn) = 0;
 
-    virtual void SSL_free(SSLConnectionInterface* conn) = 0;
-
     enum class ConnectionDirection { kIncoming, kOutgoing };
 
     /**
