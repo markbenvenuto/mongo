@@ -127,6 +127,8 @@ private:
         // Initial State
         NeedsHandshake,
         InProgress,
+        InShutdown,
+        InRenegotiate,
         //TODO: InShutdown,
     };
 

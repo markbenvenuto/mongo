@@ -88,13 +88,15 @@ engine::want ssl_want_to_engine(ssl_want want) {
 engine::want engine::handshake(
     stream_base::handshake_type type, asio::error_code& ec)
 {
+  // ASIO will call handshake once more after we send out the last data
+  // so we need to tell them we are done with data to send.
   if (_state != EngineState::NeedsHandshake) {
       return want::want_nothing;
   }
 
   _handshakeManager.setMode((type == asio::ssl::stream_base::client) ? SSLHandshakeManager::HandshakeMode::Client : SSLHandshakeManager::HandshakeMode::Server);
   SSLHandshakeManager::HandshakeState state;
-  auto w = _handshakeManager.next(ec, &state);
+  auto w = _handshakeManager.nextHandshake(ec, &state);
   if (w == ssl_want::want_nothing || state == SSLHandshakeManager::HandshakeState::Done) {
       _state = EngineState::InProgress;
   }
@@ -118,7 +120,7 @@ engine::want engine::write(const asio::const_buffer& data,
     return engine::want_nothing;
   }
 
-  if (_state == EngineState::NeedsHandshake) {
+  if (_state == EngineState::NeedsHandshake || _state == EngineState::InShutdown) {
       // Why are we trying to write before the handshake is done?
       ASIO_ASSERT(false);
       return want::want_nothing;
@@ -142,7 +144,21 @@ engine::want engine::read(const asio::mutable_buffer& data,
       ASIO_ASSERT(false);
       return want::want_nothing;
   } else {
-      return ssl_want_to_engine(_readManager.readDecryptedData(data.data(), data.size(), ec, bytes_transferred));
+      SSLReadManager::DecryptState decryptState;
+      engine::want want = ssl_want_to_engine(_readManager.readDecryptedData(data.data(), data.size(), ec, bytes_transferred, &decryptState));
+
+      if (decryptState != SSLReadManager::DecryptState::Continue) {
+          if (decryptState == SSLReadManager::DecryptState::Shutdown) {
+              _state = EngineState::InShutdown;
+
+              return ssl_want_to_engine(_handshakeManager.beginShutdown(ec));
+          } else {
+              // TODO: handle renegogtiate or simply close the connection
+              ASIO_ASSERT(false);
+          }
+      }
+
+      return want;
   }
 }
 

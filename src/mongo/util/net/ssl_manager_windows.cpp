@@ -712,7 +712,7 @@ Status SSLManager::loadCertificates(const SSLParams& params) {
     }
 
     // Load a server certificate
-    if (!params.sslPEMKeyFile.empty()) {
+    if (isSSLServer && !params.sslPEMKeyFile.empty()) {
         auto swCertificate = readPEMFile(params.sslPEMKeyFile, params.sslPEMKeyPassword, false);
         if (!swCertificate.isOK()) {
             return swCertificate.getStatus();
@@ -788,7 +788,8 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
     uint32_t supportedProtocols = SCH_USE_STRONG_CRYPTO;
 
     if (direction == ConnectionDirection::kIncoming) {
-        cred->dwFlags |= SCH_CRED_NO_SYSTEM_MAPPER; // Do not map certificate to user account
+        cred->dwFlags |= SCH_CRED_NO_SYSTEM_MAPPER // Do not map certificate to user account
+            | SCH_CRED_DISABLE_RECONNECTS;
         supportedProtocols = SP_PROT_TLS1_SERVER | SP_PROT_TLS1_0_SERVER | SP_PROT_TLS1_1_SERVER | SP_PROT_TLS1_2_SERVER;
     } else {
         supportedProtocols = SP_PROT_TLS1_CLIENT | SP_PROT_TLS1_0_CLIENT | SP_PROT_TLS1_1_CLIENT | SP_PROT_TLS1_2_CLIENT;
