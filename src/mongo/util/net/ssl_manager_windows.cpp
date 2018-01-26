@@ -551,16 +551,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
         return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptImportKey failed  " << errnoWithDescription(gle));
     }
 
-    // NOTE: This is used to set the certificate for client side SChannel
-    ret = CertSetCertificateContextProperty(
-        cert,
-        CERT_KEY_PROV_HANDLE_PROP_ID,
-        0,
-        (const void *)hProv);
-    if (!ret) {
-        DWORD gle = GetLastError();
-        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertSetCertificateContextProperty failed  " << errnoWithDescription(gle));
-    }
+
 
     // Server-side SChannel requires a different way of attaching the private key to the certificate
     if (!client) {
@@ -597,6 +588,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
         memset(&keyProvInfo, 0, sizeof(keyProvInfo));
         keyProvInfo.pwszContainerName = (LPWSTR)wKeyName.c_str();
         keyProvInfo.pwszProvName = const_cast<wchar_t*>(MS_ENHANCED_PROV);
+        keyProvInfo.dwFlags = CERT_SET_KEY_PROV_HANDLE_PROP_ID | CERT_SET_KEY_CONTEXT_PROP_ID;
         keyProvInfo.dwProvType = PROV_RSA_FULL;
         keyProvInfo.dwKeySpec = AT_KEYEXCHANGE;
         if (!CertSetCertificateContextProperty(cert, CERT_KEY_PROV_INFO_PROP_ID, 0, &keyProvInfo)) {
@@ -604,6 +596,18 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
             return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertSetCertificateContextProperty Failed  " << errnoWithDescription(gle));
         }
     }
+
+    // NOTE: This is used to set the certificate for client side SChannel
+    ret = CertSetCertificateContextProperty(
+        cert,
+        CERT_KEY_PROV_HANDLE_PROP_ID,
+        0,
+        (const void *)hProv);
+    if (!ret) {
+        DWORD gle = GetLastError();
+        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertSetCertificateContextProperty failed  " << errnoWithDescription(gle));
+    }
+
 
     return std::move(certHolder);
 }
