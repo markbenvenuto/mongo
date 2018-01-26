@@ -515,14 +515,18 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
 
     // TODO: leak or free? CryptReleaseContext
     // TODO: fix this
+    auto us = UUID::gen().toString();
+    std::wstring wstr = toNativeString(us.c_str());
+
     HCRYPTPROV hProv;
-    if (!client) {
+    // See https://msdn.microsoft.com/en-us/library/windows/desktop/aa375195(v=vs.85).aspx
+    if (true) {
         // Note: Server side requires CRYPT_VERIFYCONTEXT off
         ret = CryptAcquireContextW(&hProv,
-            NULL,
+            wstr.c_str(),
             MS_ENHANCED_PROV,
             PROV_RSA_FULL,
-            0
+            CRYPT_NEWKEYSET
         );
     } else {
         ret = CryptAcquireContextW(&hProv,
@@ -554,7 +558,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
 
 
     // Server-side SChannel requires a different way of attaching the private key to the certificate
-    if (!client) {
+    if (true) {
         DWORD nameBlobLen{0};
 
         ret = CryptGetProvParam(hProv,
