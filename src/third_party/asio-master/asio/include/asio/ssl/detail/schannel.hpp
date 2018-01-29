@@ -211,12 +211,14 @@ public:
 
     SSLHandshakeManager(PCtxtHandle hctxt,
                         PCredHandle phcred,
+                        std::string& serverName,
                         ReusableBuffer* inBuffer,
                         ReusableBuffer* outBuffer,
                         SCHANNEL_CRED* cred)
         : _state(State::HandshakeStart),
           _phctxt(hctxt),
           _cred(cred),
+          _serverName(serverName),
           _phcred(phcred),
           _pInBuffer(inBuffer),
           _pOutBuffer(outBuffer),
@@ -287,7 +289,6 @@ public:
 
         return startShutdown(ec);
     }
-
 
     /*
      * Injest data from ASIO that has been received.
@@ -374,6 +375,9 @@ private:
 
     }
 
+    /**
+     * Free a buffer allocated by SSPI.
+     */
     class ContextBufferDeleter {
     public:
         ContextBufferDeleter(void** buf) : _buf(buf) {}
@@ -464,16 +468,13 @@ private:
             }
         } else {
             ULONG ContextAttributes;
-            // TODO???
-            // TODO: SCH_CRED_SNI_CREDENTIAL
-            // TODO: set target name to SNI name
             const char* pszTarget = "localhost";
 
             DWORD sspiFlags = getClientFlags() | ISC_REQ_ALLOCATE_MEMORY;
 
             ss = InitializeSecurityContextA(_phcred,
                 _phctxt,
-                (SEC_CHAR*)pszTarget,
+                const_cast<SEC_CHAR*>(_serverName.c_str()),
                 sspiFlags,
                 0,
                 0,
@@ -751,6 +752,8 @@ private:
     State _state;
     HandshakeMode _mode;
 
+    std::string& _serverName;
+
     ReusableBuffer* _pInBuffer;
     std::vector<unsigned char> _extraEncryptedBuffer;
 
@@ -894,14 +897,16 @@ private:
                 return ssl_want::want_nothing;
             }
         }
-
-        // TODO: SEC_I_CONTEXT_EXPIRED
-        // TODO: SEC_I_RENEGOTIATE
+        
         // Shutdown has been initiated at the client side
         if (ss == SEC_I_CONTEXT_EXPIRED) {
             *pDecryptState = DecryptState::Shutdown;
         } else if (ss == SEC_I_RENEGOTIATE) {
             *pDecryptState = DecryptState::Renegotiate;
+
+            // TODO: implement this
+            ec = asio::error::eof;
+            return ssl_want::want_nothing;
         }
 
         // Locate data and (optional) extra buffers.
@@ -985,8 +990,8 @@ public:
         securityBuffers[0].cbBuffer = securityHeaderLength;
         securityBuffers[0].pvBuffer = _pOutBuffer->data();
 
-        // TODO: memcpy_s
-        memcpy(_pOutBuffer->data() + securityHeaderLength, pMessage, messageLength);
+        memcpy_s(_pOutBuffer->data() + securityHeaderLength, _pOutBuffer->size() - securityHeaderLength,
+            pMessage, messageLength);
 
         securityBuffers[1].BufferType = SECBUFFER_DATA;
         securityBuffers[1].cbBuffer = messageLength;

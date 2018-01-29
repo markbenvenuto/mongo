@@ -748,8 +748,7 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
 
     ZeroMemory(cred, sizeof(*cred));
     cred->dwVersion = SCHANNEL_CRED_VERSION;
-    cred->dwFlags = 0;
-    // TODO: SNI supprt - SCH_CRED_SNI_CREDENTIAL
+    cred->dwFlags = SCH_CRED_SNI_CREDENTIAL;
 
     uint32_t supportedProtocols = SCH_USE_STRONG_CRYPTO;
 
@@ -781,9 +780,8 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
 
     cred->grbitEnabledProtocols = supportedProtocols;
     
-    // Allow the cipher configuration string to be overriden by --sslCipherConfig
     if (!params.sslCipherConfig.empty()) {
-        // TODO: warn
+        warning() << "sslCipherConfig parameter is not supported with Windows SChannel and is ignored.";
     }
 
     cred->cCreds = 1;
@@ -836,9 +834,6 @@ Status SSLManager::_validateCertificate(
 SSLConnectionInterface* SSLManager::connect(Socket* socket) {
     std::unique_ptr<SSLConnection> sslConn =
         stdx::make_unique<SSLConnection>(&_clientCred, socket, (const char*)NULL, 0);
-
-    // TODO: SNI support
-    // int ret = ::SSL_set_tlsext_host_name(sslConn->ssl, socket->remoteAddr().hostOrIp().c_str());
 
     handshake(sslConn.get(), true);
     return sslConn.release();
@@ -944,6 +939,7 @@ StatusWith<boost::optional<SSLPeerInfo>> SSLManager::parseAndValidatePeerCertifi
     }
 
     // Missing Cert???
+    // TODO: implement me
 
     return{boost::none};
 }

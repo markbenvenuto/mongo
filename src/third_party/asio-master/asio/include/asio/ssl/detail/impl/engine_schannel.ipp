@@ -39,7 +39,7 @@ engine::engine(SCHANNEL_CRED* context):
   _pCred(context),
   _inBuffer(kDefaultBufferSize),
   _outBuffer(kDefaultBufferSize),
-  _handshakeManager(&_hcxt, &_hcred, &_inBuffer, &_outBuffer, _pCred),
+  _handshakeManager(&_hcxt, &_hcred, _serverName, &_inBuffer, &_outBuffer, _pCred),
   _readManager(&_hcxt, &_hcred, &_inBuffer),
   _writeManager(&_hcxt, &_outBuffer)
 {
@@ -182,6 +182,11 @@ asio::const_buffer engine::put_input(
   }
 
   return asio::buffer(data + data.size());
+}
+
+void engine::set_server_name(
+    const std::string name) {
+    _serverName = name;
 }
 
 const asio::error_code& engine::map_error_code(

@@ -112,6 +112,10 @@ public:
   ASIO_DECL const asio::error_code& map_error_code(
       asio::error_code& ec) const;
 
+  // MONGODB additions:
+  // Set the Server name for TLS SNI purposes.
+  ASIO_DECL void set_server_name(
+      const std::string name);
 private:
   // Disallow copying and assignment.
   engine(const engine&);
@@ -122,6 +126,7 @@ private:
     CtxtHandle _hcxt;
     CredHandle _hcred;
     SCHANNEL_CRED* _pCred;
+    std::string _serverName;
 
     enum class EngineState {
         // Initial State
