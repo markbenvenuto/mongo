@@ -174,6 +174,8 @@ private:
 
 const std::size_t kDefaultBufferSize = 16 * 1024;
 
+// This enum mirrors the engine::want enum. The values must be kept in sync
+// to support a simple conversion from ssl_want to engine::want, see ssl_want_to_engine.
 enum class ssl_want {
     // Returned by functions to indicate that the engine wants input. The input
     // buffer should be updated to point to the data. The engine then needs to
@@ -234,7 +236,6 @@ public:
         ASIO_ASSERT(mode != HandshakeMode::Unknown);
         _mode = mode;
     }
-
 
     ssl_want nextHandshake(asio::error_code& ec, HandshakeState* pHandshakeState) {
         ASIO_ASSERT(_mode != HandshakeMode::Unknown);
@@ -300,7 +301,6 @@ public:
             setState(State::HaveEncryptedData);
         }
 
-        // TODO: reexamine this
         // If we have extra encrypted data from the last encryption, copy it over to our buffer
         if (_extraEncryptedBuffer.size()) {
             _pInBuffer->fill(_extraEncryptedBuffer);
@@ -505,7 +505,7 @@ private:
                                HandshakeState* pHandshakeState) {
         TimeStamp lifetime;
         
-        _pOutBuffer->resize(16 * 1024);
+        _pOutBuffer->resize(kDefaultBufferSize);
 
         SecBuffer outputBuffer;
         outputBuffer.cbBuffer = _pOutBuffer->size();
@@ -700,7 +700,6 @@ private:
             }
 
             if (extraBuffer != NULL && extraBuffer->cbBuffer > 0) {
-                // TODO: assert _extraEncryptedBuffer.size() == 0
                 _extraEncryptedBuffer.clear();
                 std::copy(reinterpret_cast<unsigned char*>(extraBuffer->pvBuffer),
                           reinterpret_cast<unsigned char*>(extraBuffer->pvBuffer) +
@@ -804,9 +803,8 @@ public:
         if (_state == State::NeedMoreEncryptedData) {
             return ssl_want::want_input_and_retry;
         }
-
-
-        // If we have enrypted data, try to decrypt it
+        
+        // If we have encrypted data, try to decrypt it
         if (_state == State::HaveEncryptedData) {
             ssl_want wantState = decryptBuffer(ec, pDecryptState);
             if (*pDecryptState != DecryptState::Continue) {
@@ -832,12 +830,12 @@ public:
         // TODO- examine this again
         if (_pInBuffer->empty()) {
             // If we have some extra encrypted data, it needs to be checked if it is at least a 
-            // valid SSL packet, so set the state machine to reflect that
-            // TODO: examine all extra buffer handling
-            // if(!_extraEncryptedBuffer.empty()) {
-            //     setState(State::HaveEncryptedData);
-            // } else
-             {
+            // valid SSL packet, so set the state machine to reflect that we have some encrypted data.
+             if(!_extraEncryptedBuffer.empty()) {
+                 _pInBuffer->fill(_extraEncryptedBuffer);
+                 _extraEncryptedBuffer.clear();
+                 setState(State::HaveEncryptedData);
+             } else {
                 // We are empty so reset our state to need encrypted data for the next call
                 setState(State::NeedMoreEncryptedData);
             }
@@ -847,16 +845,11 @@ public:
     }
 
     void writeData(const void* data, std::size_t length) {
+        ASIO_ASSERT(_extraEncryptedBuffer.empty());
+        
         // We have more data, it may not be enough to decode
         // but we will figure that out later
         setState(State::HaveEncryptedData);
-
-        // If we have extra encrypted data from the last encryption, copy it over to our buffer
-        // TODO- examine this again - we should process this during decryption instead
-        if (_extraEncryptedBuffer.size()) {
-            _pInBuffer->fill(_extraEncryptedBuffer);
-            _extraEncryptedBuffer.clear();
-        }
 
         _pInBuffer->append(data, length);
     }
@@ -926,6 +919,7 @@ private:
 
         _pInBuffer->resetPos(pDataBuffer->pvBuffer, pDataBuffer->cbBuffer);
 
+        // The network layer may have read more then 1 SSL packet so remember the extra data.
         if (pExtraBuffer != NULL && pExtraBuffer->cbBuffer > 0) {
             ASIO_ASSERT(_extraEncryptedBuffer.empty());
             _extraEncryptedBuffer.clear();
