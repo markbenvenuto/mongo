@@ -93,12 +93,12 @@ typedef std::unique_ptr<const CERT_CONTEXT, CERTFree> UniqueCertificate;
 template < typename HandleT, class Deleter>
 class AutoHandle {
 public:
-    AutoHandle() : _handle(nullptr) {}
+    AutoHandle() : _handle(0) {}
     AutoHandle(HandleT handle) : _handle(handle) {}
     AutoHandle(AutoHandle<HandleT, Deleter>&& handle) : _handle(handle._handle) { handle._handle = nullptr; }
 
     ~AutoHandle() {
-        if (_handle != nullptr) {
+        if (_handle != 0) {
             Deleter()(_handle);
         }
     }
@@ -124,39 +124,55 @@ private:
     HandleT _handle;
 };
 
+///**
+//* Free a CERTSTORE Handle
+//*/
+//struct CertStoreFree {
+//    void operator()(HCERTSTORE const h) noexcept {
+//        if (h) {
+//            // For leak detection, add CERT_CLOSE_STORE_CHECK_FLAG
+//            // Currently, we open very few cert stores and let the certs live beyond the cert store
+//            // so the leak detection flag is not useful.
+//            ::CertCloseStore(h, 0);
+//        }
+//    }
+//};
+//
+//typedef AutoHandle<HCERTSTORE, CertStoreFree> UniqueCertStore;
+
+
 /**
-* Free a CERTSTORE Handle
+* Free a HCRYPTPROV  Handle
 */
-struct CertStoreFree {
-    void operator()(HCERTSTORE const p) noexcept {
-        if (p) {
-            // For leak detection, add CERT_CLOSE_STORE_CHECK_FLAG
-            // Currently, we open very few cert stores and let the certs live beyond the cert store
-            // so the leak detection flag is not useful.
-            ::CertCloseStore(p, 0);
+struct CryptProviderFree {
+    void operator()(HCRYPTPROV const h) noexcept {
+        if (h) {
+            ::CryptReleaseContext(h, 0);
         }
     }
 };
 
-typedef AutoHandle<HCERTSTORE, CertStoreFree> UniqueCertStore;
+typedef AutoHandle<HCRYPTPROV, CryptProviderFree> UniqueCryptProvider;
 
-std::string getCertificateSubjectName(PCCERT_CONTEXT cert) {
-    DWORD needed = CertGetNameStringA(cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, NULL, NULL, 0);
-    uassert(50663, str::stream() << "CertGetNameString size query failed with: " << needed, needed != 0);
+/**
+* Free a HCRYPTKEY  Handle
+*/
+struct CryptKeyFree {
+    void operator()(HCRYPTKEY const h) noexcept {
+        if (h) {
+            ::CryptDestroyKey(h);
+        }
+    }
+};
 
-    std::unique_ptr<BYTE> nameBuf(new BYTE[needed]);
-    DWORD cbConverted = CertGetNameStringA(cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, NULL, (LPSTR)nameBuf.get(), needed);
-    uassert(50664, str::stream() << "CertGetNameString retrieval failed with: " << cbConverted, needed == cbConverted);
-
-    return std::string(reinterpret_cast<char*>(nameBuf.get()));
-}
+typedef AutoHandle<HCRYPTKEY, CryptKeyFree> UniqueCryptKey;
 
 } // namespace
 
 /**
  * Manage state for a SSL Connection. Used by the Socket class.
  */
-class SSLConnection : public SSLConnectionInterface  {
+class SSLConnectionSChannel : public SSLConnectionInterface  {
 public:
     SCHANNEL_CRED* _cred;
     Socket* socket;
@@ -164,9 +180,9 @@ public:
 
     std::vector<char> _tempBuffer;
 
-    SSLConnection(SCHANNEL_CRED* cred, Socket* sock, const char* initialBytes, int len);
+    SSLConnectionSChannel(SCHANNEL_CRED* cred, Socket* sock, const char* initialBytes, int len);
 
-    ~SSLConnection();
+    ~SSLConnectionSChannel();
 
     std::string getSNIServerName() const final { 
         // TODO
@@ -175,9 +191,9 @@ public:
 };
 
 
-class SSLManager : public SSLManagerInterface {
+class SSLManagerSChannel : public SSLManagerInterface {
 public:
-    explicit SSLManager(const SSLParams& params, bool isServer);
+    explicit SSLManagerSChannel(const SSLParams& params, bool isServer);
 
     /**
      * Initializes an OpenSSL context according to the provided settings. Only settings which are
@@ -221,27 +237,10 @@ private:
     UniqueCertificate _clusterPEMCertificate;
     PCCERT_CONTEXT _clientCertificates[1];
     PCCERT_CONTEXT _serverCertificates[1];
-    UniqueCertStore _certstore;
-
-    /*
-    * Parse and store x509 subject name from the PEM keyfile.
-    * For server instances check that PEM certificate is not expired
-    * and extract server certificate notAfter date.
-    * @param keyFile referencing the PEM file to be read.
-    * @param subjectName as a pointer to the subject name variable being set.
-    * @param serverNotAfter a Date_t object pointer that is valued if the
-    * date is to be checked (as for a server certificate) and null otherwise.
-    * @return bool showing if the function was successful.
-    */
-    Status _validateCertificate(PCCERT_CONTEXT cert,
-        std::string* subjectName,
-        Date_t* serverNotAfter);
 
     Status loadCertificates(const SSLParams& params);
 
-    void handshake(SSLConnection* conn, bool client);
-
-    StatusWith<stdx::unordered_set<RoleName>> _parsePeerRoles(PCCERT_CONTEXT peerCert) const;
+    void handshake(SSLConnectionSChannel* conn, bool client);
 };
 
 // Global variable indicating if this is a server or a client instance
@@ -250,13 +249,13 @@ bool isSSLServer = false;
 MONGO_INITIALIZER(SSLManager)(InitializerContext*) {
     stdx::lock_guard<SimpleMutex> lck(sslManagerMtx);
     if (!isSSLServer || (sslGlobalParams.sslMode.load() != SSLParams::SSLMode_disabled)) {
-        theSSLManager = new SSLManager(sslGlobalParams, isSSLServer);
+        theSSLManager = new SSLManagerSChannel(sslGlobalParams, isSSLServer);
     }
 
     return Status::OK();
 }
 
-SSLConnection::SSLConnection(SCHANNEL_CRED* cred, Socket* sock, const char* initialBytes, int len)
+SSLConnectionSChannel::SSLConnectionSChannel(SCHANNEL_CRED* cred, Socket* sock, const char* initialBytes, int len)
     : _cred(cred), socket(sock), _engine(_cred) {
 
     // TODO: hard code SSL packet size somewhere
@@ -267,13 +266,13 @@ SSLConnection::SSLConnection(SCHANNEL_CRED* cred, Socket* sock, const char* init
     }
 }
 
-SSLConnection::~SSLConnection() {
+SSLConnectionSChannel::~SSLConnectionSChannel() {
 
 }
 
 std::unique_ptr<SSLManagerInterface> SSLManagerInterface::create(const SSLParams& params,
                                                                  bool isServer) {
-    return stdx::make_unique<SSLManager>(params, isServer);
+    return stdx::make_unique<SSLManagerSChannel>(params, isServer);
 }
 
 SSLManagerInterface* getSSLManager() {
@@ -283,7 +282,7 @@ SSLManagerInterface* getSSLManager() {
     return NULL;
 }
 
-SSLManager::SSLManager(const SSLParams& params, bool isServer)
+SSLManagerSChannel::SSLManagerSChannel(const SSLParams& params, bool isServer)
     : _weakValidation(params.sslWeakCertificateValidation),
       _allowInvalidCertificates(params.sslAllowInvalidCertificates),
       _allowInvalidHostnames(params.sslAllowInvalidHostnames) {
@@ -292,27 +291,18 @@ SSLManager::SSLManager(const SSLParams& params, bool isServer)
 
     uassertStatusOK(initSSLContext(&_clientCred, params, ConnectionDirection::kOutgoing));
 
-    if (_clientCertificates[0]) {
-        uassertStatusOK(_validateCertificate(
-            _clientCertificates[0], &_sslConfiguration.clientSubjectName, NULL));
-    }
+    // TODO: validate client certificate
 
     // SSL server specific initialization
     if (isServer) {
         uassertStatusOK(initSSLContext(&_serverCred, params, ConnectionDirection::kIncoming));
 
-        uassertStatusOK(
-            _validateCertificate(_serverCertificates[0],
-                &_sslConfiguration.serverSubjectName,
-                &_sslConfiguration.serverCertificateExpirationDate));
-
-        static CertificateExpirationMonitor task =
-            CertificateExpirationMonitor(_sslConfiguration.serverCertificateExpirationDate);
+        // TODO: validate server certificate
     }
 }
 
-int SSLManager::SSL_read(SSLConnectionInterface* connInterface, void* buf, int num) {
-    SSLConnection* conn = static_cast<SSLConnection*>(connInterface);
+int SSLManagerSChannel::SSL_read(SSLConnectionInterface* connInterface, void* buf, int num) {
+    SSLConnectionSChannel* conn = static_cast<SSLConnectionSChannel*>(connInterface);
 
     while (true) {
         size_t bytes_transferred;
@@ -325,7 +315,7 @@ int SSLManager::SSL_read(SSLConnectionInterface* connInterface, void* buf, int n
         switch (want) {
         case asio::ssl::detail::engine::want_input_and_retry:
         {
-            // ASIO wants more data before it can continue,
+            // ASIO wants more data before it can continue:
             // 1. fetch some from the network
             // 2. give it to ASIO
             // 3. retry
@@ -340,7 +330,7 @@ int SSLManager::SSL_read(SSLConnectionInterface* connInterface, void* buf, int n
         }
         case asio::ssl::detail::engine::want_nothing:
         {
-            // ASIO wants nothing, return to caller with anything transfered
+            // ASIO wants nothing, return to caller with anything transfered.
             return bytes_transferred;
         }
         default:
@@ -349,8 +339,8 @@ int SSLManager::SSL_read(SSLConnectionInterface* connInterface, void* buf, int n
     }
 }
 
-int SSLManager::SSL_write(SSLConnectionInterface* connInterface, const void* buf, int num) {
-    SSLConnection* conn = static_cast<SSLConnection*>(connInterface);
+int SSLManagerSChannel::SSL_write(SSLConnectionInterface* connInterface, const void* buf, int num) {
+    SSLConnectionSChannel* conn = static_cast<SSLConnectionSChannel*>(connInterface);
 
     while (true) {
         size_t bytes_transferred;
@@ -364,10 +354,10 @@ int SSLManager::SSL_write(SSLConnectionInterface* connInterface, const void* buf
         case asio::ssl::detail::engine::want_output:
         case asio::ssl::detail::engine::want_output_and_retry:
         {
-            // ASIO wants us to send data out
+            // ASIO wants us to send data out:
             // 1. get data from ASIO
             // 2. give it to the network
-            // 3. retry
+            // 3. retry if needed
             
             asio::mutable_buffer outBuf = conn->_engine.get_output(asio::mutable_buffer(conn->_tempBuffer.data(), conn->_tempBuffer.size()));
 
@@ -388,7 +378,7 @@ int SSLManager::SSL_write(SSLConnectionInterface* connInterface, const void* buf
     }
 }
 
-int SSLManager::SSL_shutdown(SSLConnectionInterface* conn) {
+int SSLManagerSChannel::SSL_shutdown(SSLConnectionInterface* conn) {
     invariant(false);
     return 0;
 }
@@ -443,6 +433,10 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
         NULL,
         reinterpret_cast<const void**>(&cert)
     );
+    if (!ret) {
+        DWORD gle = GetLastError();
+        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptQueryObject failed to get cert: " << errnoWithDescription(gle));
+    }
 
     UniqueCertificate certHolder(cert);
     DWORD privateKeyLen{0};
@@ -459,7 +453,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     if (!ret) {
         DWORD gle = GetLastError();
         if (gle != ERROR_MORE_DATA) {
-            return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptStringToBinaryA failed to get size of key " << errnoWithDescription(gle));
+            return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptStringToBinary failed to get size of key: " << errnoWithDescription(gle));
         }
     }
 
@@ -475,7 +469,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     );
     if (!ret) {
         DWORD gle = GetLastError();
-        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptStringToBinaryA failed to read key " << errnoWithDescription(gle));
+        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptStringToBinary failed to read key: " << errnoWithDescription(gle));
     }
 
 
@@ -493,7 +487,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     if (!ret) {
         DWORD gle = GetLastError();
         if (gle != ERROR_MORE_DATA) {
-            return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptDecodeObjectEx failed to get size of key " << errnoWithDescription(gle));
+            return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptDecodeObjectEx failed to get size of key: " << errnoWithDescription(gle));
         }
     }
 
@@ -510,7 +504,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
         &privateBlobLen);
     if (!ret) {
         DWORD gle = GetLastError();
-        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptDecodeObjectEx failed to get size of key " << errnoWithDescription(gle));
+        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptDecodeObjectEx failed to read key: " << errnoWithDescription(gle));
     }
 
     // TODO: leak or free? CryptReleaseContext
@@ -520,28 +514,20 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
 
     HCRYPTPROV hProv;
     // See https://msdn.microsoft.com/en-us/library/windows/desktop/aa375195(v=vs.85).aspx
-    if (true) {
-        // Note: Server side requires CRYPT_VERIFYCONTEXT off
-        ret = CryptAcquireContextW(&hProv,
-            wstr.c_str(),
-            MS_ENHANCED_PROV,
-            PROV_RSA_FULL,
-            CRYPT_NEWKEYSET
-        );
-    } else {
-        ret = CryptAcquireContextW(&hProv,
-            NULL,
-            MS_ENHANCED_PROV,
-            PROV_RSA_FULL,
-            CRYPT_VERIFYCONTEXT
-        );
-    }
+    // Note: Server side requires CRYPT_VERIFYCONTEXT off
+    ret = CryptAcquireContextW(&hProv,
+        wstr.c_str(),
+        MS_ENHANCED_PROV,
+        PROV_RSA_FULL,
+        CRYPT_NEWKEYSET
+    );
     if (!ret) {
         DWORD gle = GetLastError();
         return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptAcquireContextA failed  " << errnoWithDescription(gle));
     }
 
-    // TODO: CryptDestroyKey
+    UniqueCryptProvider cryptProvider(hProv);
+
     HCRYPTKEY hkey;
     ret = CryptImportKey(
         hProv,
@@ -554,8 +540,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
         DWORD gle = GetLastError();
         return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CryptImportKey failed  " << errnoWithDescription(gle));
     }
-
-
+    UniqueCryptKey(hKey);
 
     // Server-side SChannel requires a different way of attaching the private key to the certificate
     if (true) {
@@ -616,88 +601,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     return std::move(certHolder);
 }
 
-StatusWith<UniqueCertificate> readCAPEMFile(StringData fileName) {
-
-    std::ifstream pemFile(fileName.toString(), std::ios::binary);
-    if (!pemFile.is_open()) {
-        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "Failed to open PEM file: " << fileName);
-    }
-
-    std::string buf((std::istreambuf_iterator<char>(pemFile)),
-        std::istreambuf_iterator<char>());
-
-    pemFile.close();
-
-    // TODO: add support for multiple certificates in a file
-    // Search the buffer for the various strings that make up a PEM file
-
-    size_t publicKey = buf.find("-----BEGIN CERTIFICATE-----");
-    if (publicKey == std::string::npos) {
-        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "Failed to find Certifiate in: " << fileName);
-    }
-
-    CERT_BLOB certBlob;
-    certBlob.cbData = buf.size() - publicKey;
-    certBlob.pbData = reinterpret_cast<BYTE*>(const_cast<char*>(buf.data() + publicKey));
-
-    BOOL ret;
-
-    PCCERT_CONTEXT cert;
-    ret = CryptQueryObject(
-        CERT_QUERY_OBJECT_BLOB,
-        &certBlob,
-        CERT_QUERY_CONTENT_FLAG_ALL, //CERT_QUERY_CONTENT_FLAG_CERT, // CERT_QUERY_CONTENT_FLAG_ALL??
-        CERT_QUERY_FORMAT_FLAG_ALL, //CERT_QUERY_FORMAT_FLAG_BASE64_ENCODED,
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        reinterpret_cast<const void       **>(&cert)
-    );
-
-    return UniqueCertificate(cert);
-}
-
-
-StatusWith<UniqueCertStore> readCertChains(StringData caFile, StringData crlFile) {
-    UniqueCertStore certStore = CertOpenStore(
-        CERT_STORE_PROV_MEMORY,
-        0, // Note needed
-        NULL,
-        0,
-        NULL);
-    if (certStore == nullptr) {
-        DWORD gle = GetLastError();
-        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertOpenStore Failed  " << errnoWithDescription(gle));
-    }
-
-    if (!caFile.empty()) {
-        auto swCertificate = readCAPEMFile(caFile);
-        if (!swCertificate.isOK()) {
-            return swCertificate.getStatus();
-        }
-
-        BOOL ret = CertAddCertificateContextToStore(certStore, swCertificate.getValue().get(),
-            CERT_STORE_ADD_NEW, NULL);
-
-        if (!ret) {
-            DWORD gle = GetLastError();
-            return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertAddCertificateContextToStore Failed  " << errnoWithDescription(gle));
-        }
-    }
-
-    if (!crlFile.empty()) {
-        // TODO
-    }
-
-
-    return std::move(certStore);
-    //return{std::move(certStore)};
-}
-
-Status SSLManager::loadCertificates(const SSLParams& params) {
+Status SSLManagerSChannel::loadCertificates(const SSLParams& params) {
     _clientCertificates[0] = nullptr;
     _serverCertificates[0] = nullptr;
 
@@ -730,19 +634,10 @@ Status SSLManager::loadCertificates(const SSLParams& params) {
         _clientCertificates[0] = _clusterPEMCertificate.get();
     }
 
-    if (!params.sslCAFile.empty() || !params.sslCRLFile.empty()) {
-        auto swCertStore = readCertChains(params.sslCAFile, params.sslCRLFile);
-        if (!swCertStore.isOK()) {
-            return swCertStore.getStatus();
-        }
-
-        _certstore = std::move(swCertStore.getValue());
-    }
-
     return Status::OK();
 }
 
-Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
+Status SSLManagerSChannel::initSSLContext(SCHANNEL_CRED* cred,
     const SSLParams& params,
     ConnectionDirection direction) {
 
@@ -752,6 +647,7 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
 
     uint32_t supportedProtocols = SCH_USE_STRONG_CRYPTO;
 
+    // TODO: revisit this
     if (direction == ConnectionDirection::kIncoming) {
         cred->dwFlags |= SCH_CRED_NO_SYSTEM_MAPPER // Do not map certificate to user account
             | SCH_CRED_DISABLE_RECONNECTS;
@@ -796,60 +692,25 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
     return Status::OK();
 }
 
-unsigned long long FiletimeToULL(FILETIME ft) {
-    return *reinterpret_cast<unsigned long long*>(&ft);
-}
-
-unsigned long long FiletimeToEpocMillis(FILETIME ft) {
-    uint64_t ns100 = (((int64_t)ft.dwHighDateTime << 32) + ft.dwLowDateTime)
-        - 116444736000000000LL;
-    return ns100 / 1000;
-}
-
-Status SSLManager::_validateCertificate(
-    PCCERT_CONTEXT cert,
-    std::string* subjectName,
-    Date_t* serverCertificateExpirationDate) {
-    *subjectName = getCertificateSubjectName(cert);
-
-    if (serverCertificateExpirationDate != nullptr) {
-        FILETIME currentTime;
-        GetSystemTimeAsFileTime(&currentTime);
-        unsigned long long currentTimeLong = FiletimeToULL(currentTime);
-
-        if ((FiletimeToULL(cert->pCertInfo->NotBefore) > currentTimeLong) ||
-            (currentTimeLong > FiletimeToULL(cert->pCertInfo->NotAfter))) {
-            severe() << "The provided SSL certificate is expired or not yet valid.";
-            fassertFailedNoTrace(50662);
-        }
-
-        // TODO: fix me and call __wt_epoch_raw
-        *serverCertificateExpirationDate = Date_t::fromMillisSinceEpoch(FiletimeToEpocMillis(cert->pCertInfo->NotAfter));
-    }
-
-    return Status::OK();
-}
-
-
-SSLConnectionInterface* SSLManager::connect(Socket* socket) {
-    std::unique_ptr<SSLConnection> sslConn =
-        stdx::make_unique<SSLConnection>(&_clientCred, socket, (const char*)NULL, 0);
+SSLConnectionInterface* SSLManagerSChannel::connect(Socket* socket) {
+    std::unique_ptr<SSLConnectionSChannel> sslConn =
+        stdx::make_unique<SSLConnectionSChannel>(&_clientCred, socket, (const char*)NULL, 0);
 
     handshake(sslConn.get(), true);
     return sslConn.release();
 }
 
-SSLConnectionInterface* SSLManager::accept(Socket* socket, const char* initialBytes, int len) {
-    std::unique_ptr<SSLConnection> sslConn =
-        stdx::make_unique<SSLConnection>(&_serverCred, socket, initialBytes, len);
+SSLConnectionInterface* SSLManagerSChannel::accept(Socket* socket, const char* initialBytes, int len) {
+    std::unique_ptr<SSLConnectionSChannel> sslConn =
+        stdx::make_unique<SSLConnectionSChannel>(&_serverCred, socket, initialBytes, len);
 
     handshake(sslConn.get(), false);
 
     return sslConn.release();
 }
 
-void SSLManager::handshake(SSLConnection* connInterface, bool client) {
-    SSLConnection* conn = static_cast<SSLConnection*>(connInterface);
+void SSLManagerSChannel::handshake(SSLConnectionSChannel* connInterface, bool client) {
+    SSLConnectionSChannel* conn = static_cast<SSLConnectionSChannel*>(connInterface);
 
     initSSLContext(conn->_cred, getSSLGlobalParams(), client ?
         SSLManagerInterface::ConnectionDirection::kOutgoing : SSLManagerInterface::ConnectionDirection::kIncoming);
@@ -883,7 +744,7 @@ void SSLManager::handshake(SSLConnection* connInterface, bool client) {
             // ASIO wants us to send data out
             // 1. get data from ASIO
             // 2. give it to the network
-            // 3. retry
+            // 3. retry if needed
             asio::mutable_buffer outBuf = conn->_engine.get_output(asio::mutable_buffer(conn->_tempBuffer.data(), conn->_tempBuffer.size()));
 
             int ret = send(conn->socket->rawFD(), reinterpret_cast<const char*>(outBuf.data()), outBuf.size(), portSendFlags);
@@ -909,37 +770,22 @@ void SSLManager::handshake(SSLConnection* connInterface, bool client) {
     }
 }
 
-SSLPeerInfo SSLManager::parseAndValidatePeerCertificateDeprecated(const SSLConnectionInterface* conn,
+SSLPeerInfo SSLManagerSChannel::parseAndValidatePeerCertificateDeprecated(const SSLConnectionInterface* conn,
                                                                   const std::string& remoteHost) {
-    auto swPeerSubjectName = parseAndValidatePeerCertificate(const_cast<SSLConnection*>(static_cast<const SSLConnection*>(conn))->_engine.native_handle(), remoteHost);
+    auto swPeerSubjectName = parseAndValidatePeerCertificate(const_cast<SSLConnectionSChannel*>(static_cast<const SSLConnectionSChannel*>(conn))->_engine.native_handle(), remoteHost);
     // We can't use uassertStatusOK here because we need to throw a SocketException.
     if (!swPeerSubjectName.isOK()) {
         throwSocketError(SocketErrorKind::CONNECT_ERROR,
             swPeerSubjectName.getStatus().reason());
     }
+
     return swPeerSubjectName.getValue().get_value_or(SSLPeerInfo());
 }
 
-StatusWith<boost::optional<SSLPeerInfo>> SSLManager::parseAndValidatePeerCertificate(
+StatusWith<boost::optional<SSLPeerInfo>> SSLManagerSChannel::parseAndValidatePeerCertificate(
     PCtxtHandle ssl, const std::string& remoteHost) {
     if (!_sslConfiguration.hasCA && isSSLServer)
         return{boost::none};
-
-    PCCERT_CONTEXT cert;
-
-    // returns SEC_E_NO_CREDENTIALS if no peer certificate
-    SECURITY_STATUS ss = QueryContextAttributes(
-        ssl,
-        SECPKG_ATTR_REMOTE_CERT_CONTEXT,
-        &cert);
-
-
-    if (ss != SEC_E_OK) {
-        return Status(ErrorCodes::SSLHandshakeFailed, str::stream() << "QueryContextAttributes failed with" << ss);
-    }
-
-    // Missing Cert???
-    // TODO: implement me
 
     return{boost::none};
 }
