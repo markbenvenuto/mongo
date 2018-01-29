@@ -362,6 +362,30 @@ private:
         }
     }
 
+    DWORD getServerFlags() {
+        return ASC_REQ_SEQUENCE_DETECT | ASC_REQ_REPLAY_DETECT | ASC_REQ_CONFIDENTIALITY |
+            ASC_REQ_EXTENDED_ERROR | ASC_REQ_STREAM;
+    }
+
+    DWORD getClientFlags() {
+        return ISC_REQ_SEQUENCE_DETECT | ISC_REQ_REPLAY_DETECT |
+            ISC_REQ_CONFIDENTIALITY | ISC_RET_EXTENDED_ERROR |
+            ISC_REQ_USE_SUPPLIED_CREDS | ISC_REQ_MANUAL_CRED_VALIDATION | ISC_REQ_STREAM;
+
+    }
+
+    class ContextBufferDeleter {
+    public:
+        ContextBufferDeleter(void** buf) : _buf(buf) {}
+        ~ContextBufferDeleter() {
+            if (*_buf != nullptr) {
+                FreeContextBuffer(*_buf);
+            }
+        }
+    private:
+        void** _buf;
+    };
+
     ssl_want startShutdown(asio::error_code& ec) {
         DWORD shutdownCode = SCHANNEL_SHUTDOWN;
 
@@ -395,6 +419,7 @@ private:
         outputBuffer.cbBuffer = 0;
         outputBuffer.BufferType = SECBUFFER_TOKEN;
         outputBuffer.pvBuffer = NULL;
+        ContextBufferDeleter deleter(&outputBuffer.pvBuffer);
 
         SecBufferDesc outputBufferDesc;
         outputBufferDesc.ulVersion = SECBUFFER_VERSION;
@@ -403,8 +428,7 @@ private:
 
 
         if (_mode == HandshakeMode::Server) {
-            ULONG attribs = ASC_REQ_SEQUENCE_DETECT | ASC_REQ_REPLAY_DETECT | ASC_REQ_CONFIDENTIALITY |
-                ASC_REQ_EXTENDED_ERROR | ASC_REQ_STREAM | ISC_REQ_ALLOCATE_MEMORY;
+            ULONG attribs = getServerFlags() | ASC_REQ_ALLOCATE_MEMORY;
 
             SECURITY_STATUS ss = AcceptSecurityContext(_phcred,
                 _phctxt,
@@ -423,17 +447,29 @@ private:
                 return ssl_want::want_nothing;
             }
 
-            ASIO_ASSERT(false);
+
+            _pOutBuffer->reset();
+            _pOutBuffer->append(outputBuffer.pvBuffer, outputBuffer.cbBuffer);
+
+            if (SEC_E_OK == ss && outputBuffer.cbBuffer != 0) {
+                ec = asio::error::eof;
+                return ssl_want::want_output;
+            } else {
+                // Does it ever return these states?
+                //if (SEC_I_CONTINUE_NEEDED == ss || SEC_I_COMPLETE_AND_CONTINUE == ss) {
+                //    ASIO_ASSERT(false);
+                //}
+                ASIO_ASSERT(false);
+                return ssl_want::want_nothing;
+            }
         } else {
             ULONG ContextAttributes;
             // TODO???
             // TODO: SCH_CRED_SNI_CREDENTIAL
             // TODO: set target name to SNI name
             const char* pszTarget = "localhost";
-            DWORD sspiFlags = ISC_REQ_SEQUENCE_DETECT | ISC_REQ_REPLAY_DETECT |
-                ISC_REQ_CONFIDENTIALITY | ISC_RET_EXTENDED_ERROR |
-                ISC_REQ_ALLOCATE_MEMORY |  // TODO : nuke this???
-                ISC_REQ_USE_SUPPLIED_CREDS | ISC_REQ_MANUAL_CRED_VALIDATION | ISC_REQ_STREAM;
+
+            DWORD sspiFlags = getClientFlags() | ISC_REQ_ALLOCATE_MEMORY;
 
             ss = InitializeSecurityContextA(_phcred,
                 _phctxt,
@@ -467,8 +503,8 @@ private:
                                asio::error_code& ec,
                                HandshakeState* pHandshakeState) {
         TimeStamp lifetime;
-
-        _pOutBuffer->resize(kDefaultBufferSize);
+        
+        _pOutBuffer->resize(16 * 1024);
 
         SecBuffer outputBuffer;
         outputBuffer.cbBuffer = _pOutBuffer->size();
@@ -494,8 +530,7 @@ private:
         inputBufferDesc.cBuffers = 2;
         inputBufferDesc.pBuffers = inputBuffers;
 
-        ULONG attribs = ASC_REQ_SEQUENCE_DETECT | ASC_REQ_REPLAY_DETECT | ASC_REQ_CONFIDENTIALITY |
-            ASC_REQ_EXTENDED_ERROR | ASC_REQ_STREAM;
+        ULONG attribs = getServerFlags();
 
         SECURITY_STATUS ss = AcceptSecurityContext(_phcred,
                                                    newConversation ? NULL : _phctxt,
@@ -545,21 +580,6 @@ private:
             needOutput = true;
         }
 
-        // If AcceptSecurityContext returns SEC_E_OK, then the handshake is done
-        if (SEC_E_OK == ss && outputBuffer.cbBuffer != 0) {
-            *pHandshakeState = HandshakeState::Done;
-        }
-
-        // TODO: dead code?
-        if ((SEC_I_COMPLETE_NEEDED == ss) || (SEC_I_COMPLETE_AND_CONTINUE == ss)) {
-            ASIO_ASSERT(false);
-
-            ss = CompleteAuthToken(_phctxt, &outputBufferDesc);
-            if (SEC_E_OK == ss) {
-                ASIO_ASSERT(false);
-            }
-        }
-
         // Tell the reusable buffer size of the data written.
         _pOutBuffer->resize(outputBuffer.cbBuffer);
 
@@ -567,8 +587,11 @@ private:
         _pInBuffer->reset();
 
         if (needOutput) {
-            if (*pHandshakeState == HandshakeState::Done) {
-                // We have output, but no need to retry
+            // If AcceptSecurityContext returns SEC_E_OK, then the handshake is done
+            if (SEC_E_OK == ss && outputBuffer.cbBuffer != 0) {
+                *pHandshakeState = HandshakeState::Done;
+
+                // We have output, but no need to retry anymore
                 return ssl_want::want_output;
             }
 
@@ -584,17 +607,14 @@ private:
         // TODO: set target name to SNI name
         const char* pszTarget = "localhost";
 
-        DWORD sspiFlags = ISC_REQ_SEQUENCE_DETECT | ISC_REQ_REPLAY_DETECT |
-            ISC_REQ_CONFIDENTIALITY | ISC_RET_EXTENDED_ERROR |
-            ISC_REQ_ALLOCATE_MEMORY |  // TODO : nuke this???
-            ISC_REQ_USE_SUPPLIED_CREDS | ISC_REQ_MANUAL_CRED_VALIDATION | ISC_REQ_STREAM;
+        DWORD sspiFlags = getClientFlags() | ISC_REQ_ALLOCATE_MEMORY;
 
-        _pOutBuffer->resize(16 * 1024);
         SecBuffer outputBuffers[3];
 
         outputBuffers[0].cbBuffer = 0;
         outputBuffers[0].BufferType = SECBUFFER_TOKEN;
         outputBuffers[0].pvBuffer = NULL;
+        ContextBufferDeleter deleter(&outputBuffers[0].pvBuffer);
 
         outputBuffers[1].cbBuffer = 0;
         outputBuffers[1].BufferType = SECBUFFER_ALERT;
@@ -699,22 +719,11 @@ private:
             needOutput = true;
         }
 
-        if ((SEC_I_COMPLETE_NEEDED == ss) || (SEC_I_COMPLETE_AND_CONTINUE == ss)) {
-            ASIO_ASSERT(false);
-            ss = CompleteAuthToken(_phctxt, &outputBufferDesc);
-            if (ss != SEC_E_OK) {
-                fprintf(stderr, "complete failed: 0x%08x\n", ss);
-                ASIO_ASSERT(false);
-            }
-        }
-
         _pOutBuffer->reset();
         _pOutBuffer->append(outputBuffers[0].pvBuffer, outputBuffers[0].cbBuffer);
 
+        // Reset the input buffer
         _pInBuffer->reset();
-
-        // TODO - make unique ptr
-        FreeContextBuffer(outputBuffers[0].pvBuffer);
 
         if (needOutput) {
             return ssl_want::want_output_and_retry;
