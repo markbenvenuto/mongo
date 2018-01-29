@@ -217,8 +217,8 @@ private:
     SCHANNEL_CRED _clientCred;
     SCHANNEL_CRED _serverCred;
 
-    UniqueCertificate _clientCertificate;
-    UniqueCertificate _serverCertificate;
+    UniqueCertificate _pemCertificate;
+    UniqueCertificate _clusterPEMCertificate;
     PCCERT_CONTEXT _clientCertificates[1];
     PCCERT_CONTEXT _serverCertificates[1];
     UniqueCertStore _certstore;
@@ -292,9 +292,9 @@ SSLManager::SSLManager(const SSLParams& params, bool isServer)
 
     uassertStatusOK(initSSLContext(&_clientCred, params, ConnectionDirection::kOutgoing));
 
-    if (_clientCertificate) {
+    if (_clientCertificates[0]) {
         uassertStatusOK(_validateCertificate(
-            _clientCertificate.get(), &_sslConfiguration.clientSubjectName, NULL));
+            _clientCertificates[0], &_sslConfiguration.clientSubjectName, NULL));
     }
 
     // SSL server specific initialization
@@ -302,7 +302,7 @@ SSLManager::SSLManager(const SSLParams& params, bool isServer)
         uassertStatusOK(initSSLContext(&_serverCred, params, ConnectionDirection::kIncoming));
 
         uassertStatusOK(
-            _validateCertificate(_serverCertificate.get(),
+            _validateCertificate(_serverCertificates[0],
                 &_sslConfiguration.serverSubjectName,
                 &_sslConfiguration.serverCertificateExpirationDate));
 
@@ -698,78 +698,36 @@ StatusWith<UniqueCertStore> readCertChains(StringData caFile, StringData crlFile
 }
 
 Status SSLManager::loadCertificates(const SSLParams& params) {
+    _clientCertificates[0] = nullptr;
+    _serverCertificates[0] = nullptr;
 
-    // Load a client certificate
+    // Load the normal PEM file
+    if (!params.sslPEMKeyFile.empty()) {
+        auto swCertificate = readPEMFile(params.sslPEMKeyFile, params.sslPEMKeyPassword, true);
+        if (!swCertificate.isOK()) {
+            return swCertificate.getStatus();
+        }
+
+        _pemCertificate = std::move(swCertificate.getValue());
+    }
+    
+    // Load the cluster PEM file, only applies to server side code
     if (!params.sslClusterFile.empty()) {
         auto swCertificate = readPEMFile(params.sslClusterFile, params.sslClusterPassword, true);
         if (!swCertificate.isOK()) {
             return swCertificate.getStatus();
         }
 
-        _clientCertificate = std::move(swCertificate.getValue());
-        _clientCertificates[0] = _clientCertificate.get();
-
-    } else if (!params.sslPEMKeyFile.empty()) {
-        auto swCertificate = readPEMFile(params.sslPEMKeyFile, params.sslPEMKeyPassword, true);
-        if (!swCertificate.isOK()) {
-            return swCertificate.getStatus();
-        }
-
-        _clientCertificate = std::move(swCertificate.getValue());
-        _clientCertificates[0] = _clientCertificate.get();
+        _clusterPEMCertificate = std::move(swCertificate.getValue());
+    } 
+    
+    if (_pemCertificate) {
+        _clientCertificates[0] = _pemCertificate.get();
+        _serverCertificates[0] = _pemCertificate.get();
     }
 
-    // Load a server certificate
-    if (isSSLServer && !params.sslPEMKeyFile.empty()) {
-        auto swCertificate = readPEMFile(params.sslPEMKeyFile, params.sslPEMKeyPassword, false);
-        if (!swCertificate.isOK()) {
-            return swCertificate.getStatus();
-        }
-
-        _serverCertificate = std::move(swCertificate.getValue());
-        _serverCertificates[0] = _serverCertificate.get();
-
-
-            //HCERTSTORE hMyCertStore = NULL;
-            //PCCERT_CONTEXT aCertContext = NULL;
-
-            ////-------------------------------------------------------
-            //// Open the My store, also called the personal store.
-            //// This call to CertOpenStore opens the Local_Machine My 
-            //// store as opposed to the Current_User's My store.
-
-            //hMyCertStore = CertOpenStore(CERT_STORE_PROV_SYSTEM,
-            //    X509_ASN_ENCODING,
-            //    0,
-            //    CERT_SYSTEM_STORE_CURRENT_USER,
-            //    L"MY");
-
-            //if (hMyCertStore == NULL) {
-            //    invariant(false);
-            //    printf("Error opening MY store for server.\n");
-            //}
-            ////-------------------------------------------------------
-            //// Search for a certificate with some specified
-            //// string in it. This example attempts to find
-            //// a certificate with the string "example server" in
-            //// its subject string. Substitute an appropriate string
-            //// to find a certificate for a specific user.
-
-            //aCertContext = CertFindCertificateInStore(hMyCertStore,
-            //    X509_ASN_ENCODING,
-            //    0,
-            //    CERT_FIND_SUBJECT_STR_A,
-            //    "MongoWinSSL2048", // use appropriate subject name
-            //    NULL
-            //);
-
-            //if (aCertContext == NULL) {
-            //    invariant(false);
-            //    printf("Error retrieving server certificate.");
-            //}
-
-            //_serverCertificate = UniqueCertificate(aCertContext);
-            //_serverCertificates[0] = _serverCertificate.get();
+    if (_clusterPEMCertificate) {
+        _clientCertificates[0] = _clusterPEMCertificate.get();
     }
 
     if (!params.sslCAFile.empty() || !params.sslCRLFile.empty()) {
@@ -830,7 +788,7 @@ Status SSLManager::initSSLContext(SCHANNEL_CRED* cred,
 
     cred->cCreds = 1;
     if (direction == ConnectionDirection::kOutgoing) {
-        if (_clientCertificate) {
+        if (_clientCertificates[0]) {
             cred->paCred = _clientCertificates;
         }
     } else {
