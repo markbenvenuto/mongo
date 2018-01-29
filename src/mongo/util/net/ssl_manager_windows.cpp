@@ -124,23 +124,6 @@ private:
     HandleT _handle;
 };
 
-///**
-//* Free a CERTSTORE Handle
-//*/
-//struct CertStoreFree {
-//    void operator()(HCERTSTORE const h) noexcept {
-//        if (h) {
-//            // For leak detection, add CERT_CLOSE_STORE_CHECK_FLAG
-//            // Currently, we open very few cert stores and let the certs live beyond the cert store
-//            // so the leak detection flag is not useful.
-//            ::CertCloseStore(h, 0);
-//        }
-//    }
-//};
-//
-//typedef AutoHandle<HCERTSTORE, CertStoreFree> UniqueCertStore;
-
-
 /**
 * Free a HCRYPTPROV  Handle
 */
