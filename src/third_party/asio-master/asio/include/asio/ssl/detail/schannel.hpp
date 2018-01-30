@@ -88,16 +88,9 @@ public:
     /**
      * Add data to empty buffer.
      */
-    void fill(const void* data, std::size_t length) {
+    void fill(const std::vector<unsigned char>& vec) {
         ASIO_ASSERT(_size == 0);
         ASIO_ASSERT(_bufPos == 0);
-        append(data, length);
-    }
-
-    /**
-     * Add data to empty buffer.
-     */
-    void fill(const std::vector<unsigned char>& vec) {
         append(vec.data(), vec.size());
     }
 
@@ -129,7 +122,7 @@ public:
         if (length >= (size() - _bufPos)) {
             // We have less then ASIO wants, give them everything we have
             outLength = size() - _bufPos;
-            memcpy(data, _buffer.get() + _bufPos, size() - _bufPos);
+            memcpy_s(data, length, _buffer.get() + _bufPos, size() - _bufPos);
 
             // We are empty so reset our state to need encrypted data for the next callwant_
             _bufPos = 0;
@@ -137,7 +130,7 @@ public:
         } else {
             // ASIO wants less then we have so give them just what they want
             outLength = length;
-            memcpy(data, _buffer.get() + _bufPos, length);
+            memcpy_s(data, length, _buffer.get() + _bufPos, length);
 
             _bufPos += length;
         }
@@ -171,7 +164,7 @@ private:
     std::size_t _capacity;
 };
 
-
+// Default buffer size. SSL has a max packet size of 16 kb.
 const std::size_t kDefaultBufferSize = 17 * 1024;
 
 // This enum mirrors the engine::want enum. The values must be kept in sync
@@ -197,19 +190,35 @@ enum class ssl_want {
     want_output = 1
 };
 
-// TODO
+/**
+ * Manages the SSL handshake and shutdown state machines.
+ * 
+ * Handshakes are always the first set of events during SSL connection initiation.
+ * Shutdown can occur anytime after the handshake has succesfully finished
+ * as a result of a read event or explicit shutdown request from the engine.
+ */
 class SSLHandshakeManager {
 public:
-    // TODO
+    /**
+     * Handshake Mode indicates whether this a for a client or server side.
+     * 
+     * Each given connection can only be a client or server, and it cannot change once set.
+     */
     enum class HandshakeMode {
+        // Initial state, illegal for clients to set
         Unknown,
+
+        // Client handshake, connect side
         Client,
+
+        // Server handshake, accept side
         Server,
     };
 
-    // TODO
+    /**
+     * Handshake state indicates to the caller if nextHandshake needs to be called next.
+     */
     enum class HandshakeState { Continue, Done };
-
 
     SSLHandshakeManager(PCtxtHandle hctxt,
                         PCredHandle phcred,
@@ -237,6 +246,14 @@ public:
         _mode = mode;
     }
 
+    /**
+     * Start or continue SSL handshake.
+     * 
+     * Must be called until HandshakeState::Done is returned.
+     * 
+     * Return status code to indicate whether it needs more data or if data needs to be sent to the
+     * other side.
+     */
     ssl_want nextHandshake(asio::error_code& ec, HandshakeState* pHandshakeState) {
         ASIO_ASSERT(_mode != HandshakeMode::Unknown);
         *pHandshakeState = HandshakeState::Continue;
@@ -284,6 +301,11 @@ public:
         }
     }
 
+    /**
+     * Begin graceful SSL shutdown. Either:
+     * - respond to already received alert signalling connection shutdown on remote side
+     * - start SSL shutdown by signalling remote side
+     */
     ssl_want beginShutdown(asio::error_code& ec) {
         ASIO_ASSERT(_mode != HandshakeMode::Unknown);
         _state = State::HandshakeStart;
@@ -295,8 +317,7 @@ public:
      * Injest data from ASIO that has been received.
      */
     void writeEncryptedData(const void* data, std::size_t length) {
-        // We have more data, it may not be enough to decode
-        // but we will figure that out later
+        // We have more data, it may not be enough to decode. We will decide if we have enough on the next nextHandshake call.
         if (_state != State::HandshakeStart) {
             setState(State::HaveEncryptedData);
         }
@@ -311,7 +332,7 @@ public:
     }
 
     /**
-     * Returns true if there is data to send over the wire
+     * Returns true if there is data to send over the wire.
      */
     bool hasOutputData() {
         return !_pOutBuffer->empty();
@@ -370,22 +391,24 @@ private:
 
     DWORD getClientFlags() {
         return ISC_REQ_SEQUENCE_DETECT | ISC_REQ_REPLAY_DETECT |
-            ISC_REQ_CONFIDENTIALITY | ISC_RET_EXTENDED_ERROR |
-            ISC_REQ_USE_SUPPLIED_CREDS | ISC_REQ_MANUAL_CRED_VALIDATION | ISC_REQ_STREAM;
-
+            ISC_REQ_CONFIDENTIALITY | ISC_RET_EXTENDED_ERROR |ISC_REQ_STREAM |
+            // TODO - check
+            ISC_REQ_USE_SUPPLIED_CREDS | ISC_REQ_MANUAL_CRED_VALIDATION;
     }
 
     /**
-     * Free a buffer allocated by SSPI.
+     * RAII class to free a buffer allocated by SSPI.
      */
     class ContextBufferDeleter {
     public:
         ContextBufferDeleter(void** buf) : _buf(buf) {}
+
         ~ContextBufferDeleter() {
             if (*_buf != nullptr) {
                 FreeContextBuffer(*_buf);
             }
         }
+
     private:
         void** _buf;
     };
@@ -412,11 +435,6 @@ private:
             return ssl_want::want_nothing;
         }
 
-        // TODO - when shutdown is complete do this:
-        //else if (::SSL_get_shutdown(ssl_) & SSL_RECEIVED_SHUTDOWN) {
-        //    ec = asio::error::eof;
-        //    return want_nothing;
-
         TimeStamp lifetime;
 
         SecBuffer outputBuffer;
@@ -429,7 +447,6 @@ private:
         outputBufferDesc.ulVersion = SECBUFFER_VERSION;
         outputBufferDesc.cBuffers = 1;
         outputBufferDesc.pBuffers = &outputBuffer;
-
 
         if (_mode == HandshakeMode::Server) {
             ULONG attribs = getServerFlags() | ASC_REQ_ALLOCATE_MEMORY;
@@ -468,8 +485,6 @@ private:
             }
         } else {
             ULONG ContextAttributes;
-            const char* pszTarget = "localhost";
-
             DWORD sspiFlags = getClientFlags() | ISC_REQ_ALLOCATE_MEMORY;
 
             ss = InitializeSecurityContextA(_phcred,
@@ -494,8 +509,6 @@ private:
 
             ASIO_ASSERT(false);
         }
-
-
 
         return ssl_want::want_nothing;
     }
@@ -603,11 +616,6 @@ private:
     }
 
     ssl_want doClientHandshake(asio::error_code& ec) {
-        // TODO???
-        // TODO: SCH_CRED_SNI_CREDENTIAL
-        // TODO: set target name to SNI name
-        const char* pszTarget = "localhost";
-
         DWORD sspiFlags = getClientFlags() | ISC_REQ_ALLOCATE_MEMORY;
 
         SecBuffer outputBuffers[3];
@@ -653,7 +661,7 @@ private:
 
             ss = InitializeSecurityContextA(_phcred,
                                             _phctxt,
-                                            (SEC_CHAR*)pszTarget,
+                                            const_cast<SEC_CHAR*>(_serverName.c_str()),
                                             sspiFlags,
                                             0,
                                             0,
@@ -666,7 +674,7 @@ private:
         } else {
             ss = InitializeSecurityContextA(_phcred,
                                             NULL,
-                                            (SEC_CHAR*)pszTarget,
+                const_cast<SEC_CHAR*>(_serverName.c_str()),
                                             sspiFlags,
                                             0,
                                             0,
@@ -713,7 +721,6 @@ private:
 
         // Did AcceptSecurityContext say we need to continue or is it done but left data in the
         // output buffer then we need to sent the data out.
-
         if (SEC_I_CONTINUE_NEEDED == ss || SEC_I_COMPLETE_AND_CONTINUE == ss ||
             (SEC_E_OK == ss && outputBuffers[0].cbBuffer != 0)) {
             needOutput = true;
@@ -736,6 +743,7 @@ private:
     // TODO: error state?
     // TODO: assert and document
     enum class State {
+        // Initial state
         HandshakeStart,
         NeedMoreHandshakeData,
         HaveEncryptedData,
@@ -744,22 +752,36 @@ private:
     };
 
     void setState(State s) {
+
         _state = s;
     }
 
 private:
+    // State machine stat
     State _state;
+
+    // Handhake mode - client or server
     HandshakeMode _mode;
 
+    // Server name for TLS SNI purposes
     std::string& _serverName;
 
+    // Buffer of data received from remote side
     ReusableBuffer* _pInBuffer;
+
+    // TODO - get rid of this?
     std::vector<unsigned char> _extraEncryptedBuffer;
 
+    // Buffer to data to send to remote side
     ReusableBuffer* _pOutBuffer;
 
+    // SChannel Credentials
     SCHANNEL_CRED* _cred;
+
+    // SChannel context question
     PCtxtHandle _phctxt;
+
+    // Credential handle
     PCredHandle _phcred;
 };
 
