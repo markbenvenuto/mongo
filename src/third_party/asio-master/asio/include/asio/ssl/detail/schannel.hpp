@@ -172,7 +172,7 @@ private:
 };
 
 
-const std::size_t kDefaultBufferSize = 16 * 1024;
+const std::size_t kDefaultBufferSize = 17 * 1024;
 
 // This enum mirrors the engine::want enum. The values must be kept in sync
 // to support a simple conversion from ssl_want to engine::want, see ssl_want_to_engine.
