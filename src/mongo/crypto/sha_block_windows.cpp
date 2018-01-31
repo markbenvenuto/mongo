@@ -43,17 +43,17 @@ namespace {
 class BCryptHashLoader {
 public:
     BCryptHashLoader() {
-        loadAlgo(&algoSHA1, BCRYPT_SHA1_ALGORITHM, false);
-        loadAlgo(&algoSHA256, BCRYPT_SHA256_ALGORITHM, false);
+        loadAlgo(&_algoSHA1, BCRYPT_SHA1_ALGORITHM, false);
+        loadAlgo(&_algoSHA256, BCRYPT_SHA256_ALGORITHM, false);
 
-        loadAlgo(&algoSHA1Hmac, BCRYPT_SHA1_ALGORITHM, true);
-        loadAlgo(&algoSHA256Hmac, BCRYPT_SHA256_ALGORITHM, true);
+        loadAlgo(&_algoSHA1Hmac, BCRYPT_SHA1_ALGORITHM, true);
+        loadAlgo(&_algoSHA256Hmac, BCRYPT_SHA256_ALGORITHM, true);
     }
 
-    BCRYPT_ALG_HANDLE algoSHA256;
-    BCRYPT_ALG_HANDLE algoSHA1;
-    BCRYPT_ALG_HANDLE algoSHA256Hmac;
-    BCRYPT_ALG_HANDLE algoSHA1Hmac;
+    BCRYPT_ALG_HANDLE getAlgoSHA256() {return _algoSHA256;}
+    BCRYPT_ALG_HANDLE getAlgoSHA1() {return _algoSHA1;}
+    BCRYPT_ALG_HANDLE getAlgoSHA256Hmac() {return _algoSHA256Hmac;};
+    BCRYPT_ALG_HANDLE getAlgoSHA1Hmac() {return _algoSHA1Hmac;};
 
 private:
     void loadAlgo(BCRYPT_ALG_HANDLE* algo, const wchar_t* name, bool isHmac) {
@@ -61,7 +61,18 @@ private:
                       algo, name, NULL, isHmac ? BCRYPT_ALG_HANDLE_HMAC_FLAG : 0) ==
                   STATUS_SUCCESS);
     }
-} hashLoader;
+
+    BCRYPT_ALG_HANDLE _algoSHA256;
+    BCRYPT_ALG_HANDLE _algoSHA1;
+    BCRYPT_ALG_HANDLE _algoSHA256Hmac;
+    BCRYPT_ALG_HANDLE _algoSHA1Hmac;
+
+};
+
+static BCryptHashLoader getBCryptHashLoader() {
+    static BCryptHashLoader* loader = new BCryptHashLoader();
+    return *loader;
+}
 
 /**
  * Computes a SHA hash of 'input'.
@@ -121,12 +132,12 @@ void computeHmacImpl(BCRYPT_ALG_HANDLE algo,
 
 SHA1BlockTraits::HashType SHA1BlockTraits::computeHash(
     std::initializer_list<ConstDataRange> input) {
-    return computeHashImpl<SHA1BlockTraits::HashType>(hashLoader.algoSHA1, input);
+    return computeHashImpl<SHA1BlockTraits::HashType>(getBCryptHashLoader().getAlgoSHA1(), input);
 }
 
 SHA256BlockTraits::HashType SHA256BlockTraits::computeHash(
     std::initializer_list<ConstDataRange> input) {
-    return computeHashImpl<SHA256BlockTraits::HashType>(hashLoader.algoSHA256, input);
+    return computeHashImpl<SHA256BlockTraits::HashType>(getBCryptHashLoader().getAlgoSHA256(), input);
 }
 
 void SHA1BlockTraits::computeHmac(const uint8_t* key,
@@ -134,7 +145,7 @@ void SHA1BlockTraits::computeHmac(const uint8_t* key,
                                   const uint8_t* input,
                                   size_t inputLen,
                                   HashType* const output) {
-    return computeHmacImpl<HashType>(hashLoader.algoSHA1Hmac, key, keyLen, input, inputLen, output);
+    return computeHmacImpl<HashType>(getBCryptHashLoader().getAlgoSHA1Hmac(), key, keyLen, input, inputLen, output);
 }
 
 void SHA256BlockTraits::computeHmac(const uint8_t* key,
@@ -143,7 +154,7 @@ void SHA256BlockTraits::computeHmac(const uint8_t* key,
                                     size_t inputLen,
                                     HashType* const output) {
     return computeHmacImpl<HashType>(
-        hashLoader.algoSHA256Hmac, key, keyLen, input, inputLen, output);
+        getBCryptHashLoader().getAlgoSHA256Hmac(), key, keyLen, input, inputLen, output);
 }
 
 }  // namespace mongo

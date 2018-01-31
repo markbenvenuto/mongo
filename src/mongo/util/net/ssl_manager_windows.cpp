@@ -407,17 +407,65 @@ int SSLManagerWindows::SSL_shutdown(SSLConnectionInterface* conn) {
     return 0;
 }
 
-StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData password, bool client) {
-
+StatusWith<std::string> readFile(StringData fileName) {
     std::ifstream pemFile(fileName.toString(), std::ios::binary);
     if (!pemFile.is_open()) {
         return Status(ErrorCodes::InvalidSSLConfiguration,
-                      str::stream() << "Failed to open PEM file: " << fileName);
+            str::stream() << "Failed to open PEM file: " << fileName);
     }
 
     std::string buf((std::istreambuf_iterator<char>(pemFile)), std::istreambuf_iterator<char>());
 
     pemFile.close();
+
+    return buf;
+}
+
+StatusWith<std::vector<BYTE>> decodePEMBlob(const char* data, size_t len) {
+    DWORD decodeLen{0};
+
+    BOOL ret = CryptStringToBinaryA(data,
+        0,  // null terminated string
+        CRYPT_STRING_BASE64HEADER,
+        NULL,
+        &decodeLen,
+        NULL,
+        NULL);
+    if (!ret) {
+        DWORD gle = GetLastError();
+        if (gle != ERROR_MORE_DATA) {
+            return Status(ErrorCodes::InvalidSSLConfiguration,
+                str::stream() << "CryptStringToBinary failed to get size of key: "
+                << errnoWithDescription(gle));
+        }
+    }
+
+    std::vector<BYTE> privateKeyBuf;
+    privateKeyBuf.resize(decodeLen);
+
+    ret = CryptStringToBinaryA(data,
+        0,  // null terminated string
+        CRYPT_STRING_BASE64HEADER,
+        privateKeyBuf.data(),
+        &decodeLen,
+        NULL,
+        NULL);
+    if (!ret) {
+        DWORD gle = GetLastError();
+        return Status(ErrorCodes::InvalidSSLConfiguration,
+            str::stream() << "CryptStringToBinary failed to read key: "
+            << errnoWithDescription(gle));
+    }
+    return privateKeyBuf;
+}
+
+StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData password, bool client) {
+    auto swBuf = readFile(fileName);
+    if (!swBuf.isOK()) {
+        return swBuf.getStatus();
+    }
+
+    std::string buf = std::move(swBuf.getValue());
 
     // Search the buffer for the various strings that make up a PEM file
     size_t publicKey = buf.find("-----BEGIN CERTIFICATE-----");
@@ -445,6 +493,15 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     certBlob.pbData = reinterpret_cast<BYTE*>(const_cast<char*>(buf.data() + publicKey));
 
     PCCERT_CONTEXT cert;
+
+    //PCCERT_CONTEXT WINAPI CertCreateCertificateContext(
+    //    _In_       DWORD X509_ASN_ENCODING,
+    //    _In_ const BYTE  *pbCertEncoded,
+    //    _In_       DWORD cbCertEncoded
+    //);
+
+
+
     BOOL ret = CryptQueryObject(CERT_QUERY_OBJECT_BLOB,
                                 &certBlob,
                                 CERT_QUERY_CONTENT_FLAG_ALL,
@@ -464,46 +521,21 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     }
 
     UniqueCertificate certHolder(cert);
-    DWORD privateKeyLen{0};
 
-    ret = CryptStringToBinaryA(buf.c_str() + privateKey,
-                               0,  // null terminated string
-                               CRYPT_STRING_BASE64HEADER,
-                               NULL,
-                               &privateKeyLen,
-                               NULL,
-                               NULL);
-    if (!ret) {
-        DWORD gle = GetLastError();
-        if (gle != ERROR_MORE_DATA) {
-            return Status(ErrorCodes::InvalidSSLConfiguration,
-                          str::stream() << "CryptStringToBinary failed to get size of key: "
-                                        << errnoWithDescription(gle));
-        }
+
+    auto swPrivateKeyBuf = decodePEMBlob(buf.c_str() + privateKey, 0);
+    if (!swPrivateKeyBuf.isOK()) {
+        return swPrivateKeyBuf.getStatus();
     }
 
-    std::unique_ptr<BYTE> privateKeyBuf(new BYTE[privateKeyLen]);
-    ret = CryptStringToBinaryA(buf.c_str() + privateKey,
-                               0,  // null terminated string
-                               CRYPT_STRING_BASE64HEADER,
-                               privateKeyBuf.get(),
-                               &privateKeyLen,
-                               NULL,
-                               NULL);
-    if (!ret) {
-        DWORD gle = GetLastError();
-        return Status(ErrorCodes::InvalidSSLConfiguration,
-                      str::stream() << "CryptStringToBinary failed to read key: "
-                                    << errnoWithDescription(gle));
-    }
-
+    auto privateKeyBuf = swPrivateKeyBuf.getValue();
 
     DWORD privateBlobLen{0};
 
     ret = CryptDecodeObjectEx(X509_ASN_ENCODING,
                               PKCS_RSA_PRIVATE_KEY,
-                              privateKeyBuf.get(),
-                              privateKeyLen,
+                              privateKeyBuf.data(),
+        privateKeyBuf.size(),
                               0,
                               NULL,
                               NULL,
@@ -521,8 +553,8 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
 
     ret = CryptDecodeObjectEx(X509_ASN_ENCODING,
                               PKCS_RSA_PRIVATE_KEY,
-                              privateKeyBuf.get(),
-                              privateKeyLen,
+        privateKeyBuf.data(),
+        privateKeyBuf.size(),
                               0,
                               NULL,
                               privateBlobBuf.get(),
@@ -592,48 +624,67 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     return std::move(certHolder);
 }
 
-StatusWith<UniqueCertificate> readCAPEMFile(StringData fileName) {
+Status readCAPEMFile(HCERTSTORE certStore, StringData fileName) {
 
-    std::ifstream pemFile(fileName.toString(), std::ios::binary);
-    if (!pemFile.is_open()) {
-        return Status(ErrorCodes::InvalidSSLConfiguration,
-                      str::stream() << "Failed to open PEM file: " << fileName);
+    auto swBuf = readFile(fileName);
+    if (!swBuf.isOK()) {
+        return swBuf.getStatus();
     }
 
-    std::string buf((std::istreambuf_iterator<char>(pemFile)), std::istreambuf_iterator<char>());
-
-    pemFile.close();
+    std::string buf = std::move(swBuf.getValue());
 
     // TODO: add support for multiple certificates in a file
     // Search the buffer for the various strings that make up a PEM file
+    size_t pos = 0;
 
-    size_t publicKey = buf.find("-----BEGIN CERTIFICATE-----");
-    if (publicKey == std::string::npos) {
-        return Status(ErrorCodes::InvalidSSLConfiguration,
-                      str::stream() << "Failed to find Certifiate in: " << fileName);
+    while (pos < buf.size()) {
+        size_t publicKey = buf.find("-----BEGIN CERTIFICATE-----", pos);
+        if (publicKey == std::string::npos) {
+            if (pos == 0) {
+                return Status(ErrorCodes::InvalidSSLConfiguration,
+                    str::stream() << "Failed to find Certifiate in: " << fileName);
+            } else {
+                return Status::OK();
+            }
+        }
+
+        std::string endCert = "-----END CERTIFICATE-----";
+        size_t publicKeyEnd = buf.find(endCert, publicKey);
+        publicKeyEnd += endCert.size();
+        pos = publicKeyEnd;
+
+        CERT_BLOB certBlob;
+        certBlob.cbData = buf.size() - publicKey;
+        certBlob.pbData = reinterpret_cast<BYTE*>(const_cast<char*>(buf.data() + publicKey));
+
+        BOOL ret;
+        PCCERT_CONTEXT cert;
+
+        ret = CryptQueryObject(CERT_QUERY_OBJECT_BLOB,
+            &certBlob,
+            CERT_QUERY_CONTENT_FLAG_ALL,
+            CERT_QUERY_FORMAT_FLAG_ALL,
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            reinterpret_cast<const void**>(&cert));
+
+        ret = CertAddCertificateContextToStore(
+            certStore, cert, CERT_STORE_ADD_NEW, NULL);
+
+        if (!ret) {
+            DWORD gle = GetLastError();
+            return Status(ErrorCodes::InvalidSSLConfiguration,
+                str::stream() << "CertAddCertificateContextToStore Failed  "
+                << errnoWithDescription(gle));
+        }
+
     }
 
-    CERT_BLOB certBlob;
-    certBlob.cbData = buf.size() - publicKey;
-    certBlob.pbData = reinterpret_cast<BYTE*>(const_cast<char*>(buf.data() + publicKey));
-
-    BOOL ret;
-
-    PCCERT_CONTEXT cert;
-    ret = CryptQueryObject(CERT_QUERY_OBJECT_BLOB,
-                           &certBlob,
-                           CERT_QUERY_CONTENT_FLAG_ALL,  // CERT_QUERY_CONTENT_FLAG_CERT, //
-                                                         // CERT_QUERY_CONTENT_FLAG_ALL??
-                           CERT_QUERY_FORMAT_FLAG_ALL,  // CERT_QUERY_FORMAT_FLAG_BASE64_ENCODED,
-                           NULL,
-                           NULL,
-                           NULL,
-                           NULL,
-                           NULL,
-                           NULL,
-                           reinterpret_cast<const void**>(&cert));
-
-    return UniqueCertificate(cert);
+    return Status::OK();
 }
 
 
@@ -649,26 +700,19 @@ StatusWith<UniqueCertStore> readCertChains(StringData caFile, StringData crlFile
                       str::stream() << "CertOpenStore Failed  " << errnoWithDescription(gle));
     }
 
-    if (!caFile.empty()) {
-        auto swCertificate = readCAPEMFile(caFile);
-        if (!swCertificate.isOK()) {
-            return swCertificate.getStatus();
-        }
+    //if (!caFile.empty()) {
+    //    auto status = readCAPEMFile(certStore, caFile);
+    //    if (!status.isOK()) {
+    //        return status;
+    //    }
+    //}
 
-        BOOL ret = CertAddCertificateContextToStore(
-            certStore, swCertificate.getValue().get(), CERT_STORE_ADD_NEW, NULL);
-
-        if (!ret) {
-            DWORD gle = GetLastError();
-            return Status(ErrorCodes::InvalidSSLConfiguration,
-                          str::stream() << "CertAddCertificateContextToStore Failed  "
-                                        << errnoWithDescription(gle));
-        }
-    }
-
-    if (!crlFile.empty()) {
-        // TODO
-    }
+    //if (!crlFile.empty()) {
+    //    auto status = readCRLPEMFile(certStore, caFile);
+    //    if (!status.isOK()) {
+    //        return status;
+    //    }
+    //}
 
 
     return std::move(certStore);
