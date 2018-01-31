@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2017 MongoDB Inc.
+ * Copyright (C) 2018 MongoDB Inc.
  *
  * This program is free software: you can redistribute it and/or  modify
  * it under the terms of the GNU Affero General Public License, version 3,
@@ -28,43 +28,62 @@
 
 #include "mongo/platform/basic.h"
 
+#include <initializer_list>
+
 #include "mongo/crypto/sha1_block.h"
 #include "mongo/crypto/sha256_block.h"
 
 #include "mongo/config.h"
 #include "mongo/util/assert_util.h"
 
-#ifdef MONGO_CONFIG_SSL
-#error This file should not be included if compiling with SSL support
-#endif
-
-#include "tomcrypt.h"
-
 namespace mongo {
 
 namespace {
 
+class BCryptHashLoader {
+public:
+    BCryptHashLoader() {
+        loadAlgo(&algoSHA1, BCRYPT_SHA1_ALGORITHM, false);
+        loadAlgo(&algoSHA256, BCRYPT_SHA256_ALGORITHM, false);
+
+        loadAlgo(&algoSHA1Hmac, BCRYPT_SHA1_ALGORITHM, true);
+        loadAlgo(&algoSHA256Hmac, BCRYPT_SHA256_ALGORITHM, true);
+    }
+
+    void loadAlgo(BCRYPT_ALG_HANDLE* algo, const wchar_t* name, bool isHmac) {
+        invariant(BCryptOpenAlgorithmProvider(algo, name, NULL, isHmac ? BCRYPT_ALG_HANDLE_HMAC_FLAG : 0) == STATUS_SUCCESS);
+    }    
+
+BCRYPT_ALG_HANDLE algoSHA256;
+BCRYPT_ALG_HANDLE algoSHA1;
+BCRYPT_ALG_HANDLE algoSHA256Hmac;
+BCRYPT_ALG_HANDLE algoSHA1Hmac;
+
+} hashLoader;
+
 /**
  * Computes a SHA hash of 'input'.
  */
-template <typename HashType,
-          int (*Init)(hash_state*),
-          int (*Process)(hash_state*, const unsigned char*, unsigned long),
-          int (*Done)(hash_state*, unsigned char*)>
-HashType computeHashImpl(std::initializer_list<ConstDataRange> input) {
+template <typename HashType>
+HashType computeHashImpl(BCRYPT_ALG_HANDLE algo, std::initializer_list<ConstDataRange> input) {
     HashType output;
 
-    hash_state hashState;
-    fassert(40381,
-            Init(&hashState) == CRYPT_OK &&
-                std::all_of(begin(input),
-                            end(input),
-                            [&](const auto& i) {
-                                return Process(&hashState,
-                                               reinterpret_cast<const unsigned char*>(i.data()),
-                                               i.length()) == CRYPT_OK;
-                            }) &&
-                Done(&hashState, output.data()) == CRYPT_OK);
+    BCRYPT_HASH_HANDLE hHash;
+
+    fassert(50664, BCryptCreateHash(algo, &hHash, NULL, 0, NULL, 0, 0) == STATUS_SUCCESS &&
+
+        std::all_of(begin(input),
+                    end(input),
+                    [&](const auto& i) {
+                        return BCryptHashData(hHash,
+                                        reinterpret_cast<PUCHAR>(const_cast<char*>(i.data())),
+                                        i.length(), 0) == STATUS_SUCCESS;
+                    }) &&
+
+    BCryptFinishHash(hHash, output.data(), output.size(), 0) == STATUS_SUCCESS &&
+
+    BCryptDestroyHash(hHash) == STATUS_SUCCESS);
+
     return output;
 }
 
@@ -72,7 +91,7 @@ HashType computeHashImpl(std::initializer_list<ConstDataRange> input) {
  * Computes a HMAC SHA'd keyed hash of 'input' using the key 'key', writes output into 'output'.
  */
 template <typename HashType>
-void computeHmacImpl(const ltc_hash_descriptor* desc,
+void computeHmacImpl(BCRYPT_ALG_HANDLE algo,
                      const uint8_t* key,
                      size_t keyLen,
                      const uint8_t* input,
@@ -80,32 +99,30 @@ void computeHmacImpl(const ltc_hash_descriptor* desc,
                      HashType* const output) {
     invariant(key && input);
 
-    static const struct Magic {
-        Magic(const ltc_hash_descriptor* desc) {
-            register_hash(desc);
-            hashId = find_hash(desc->name);
-        }
+    BCRYPT_HASH_HANDLE hHash;
 
-        int hashId;
-    } magic(desc);
+    fassert(50665, BCryptCreateHash(algo, &hHash, NULL, 0, const_cast<PUCHAR>(key), keyLen, 0) == STATUS_SUCCESS &&
 
-    unsigned long shaHashLen = sizeof(HashType);
-    fassert(40382,
-            hmac_memory(magic.hashId, key, keyLen, input, inputLen, output->data(), &shaHashLen) ==
-                CRYPT_OK);
+     BCryptHashData(hHash,
+                    const_cast<uint8_t*>(input),
+                    inputLen, 0) == STATUS_SUCCESS &&
+
+    BCryptFinishHash(hHash, output->data(), output->size(), 0) == STATUS_SUCCESS &&
+
+    BCryptDestroyHash(hHash) == STATUS_SUCCESS);
 }
 
 }  // namespace
 
 SHA1BlockTraits::HashType SHA1BlockTraits::computeHash(
     std::initializer_list<ConstDataRange> input) {
-    return computeHashImpl<SHA1BlockTraits::HashType, sha1_init, sha1_process, sha1_done>(input);
+    return computeHashImpl<SHA1BlockTraits::HashType>(hashLoader.algoSHA1, input);
 }
 
 SHA256BlockTraits::HashType SHA256BlockTraits::computeHash(
     std::initializer_list<ConstDataRange> input) {
-    return computeHashImpl<SHA256BlockTraits::HashType, sha256_init, sha256_process, sha256_done>(
-        input);
+    return computeHashImpl<SHA256BlockTraits::HashType>(
+        hashLoader.algoSHA256, input);
 }
 
 void SHA1BlockTraits::computeHmac(const uint8_t* key,
@@ -113,7 +130,7 @@ void SHA1BlockTraits::computeHmac(const uint8_t* key,
                                   const uint8_t* input,
                                   size_t inputLen,
                                   HashType* const output) {
-    return computeHmacImpl<HashType>(&sha1_desc, key, keyLen, input, inputLen, output);
+    return computeHmacImpl<HashType>(hashLoader.algoSHA1Hmac, key, keyLen, input, inputLen, output);
 }
 
 void SHA256BlockTraits::computeHmac(const uint8_t* key,
@@ -121,7 +138,7 @@ void SHA256BlockTraits::computeHmac(const uint8_t* key,
                                     const uint8_t* input,
                                     size_t inputLen,
                                     HashType* const output) {
-    return computeHmacImpl<HashType>(&sha256_desc, key, keyLen, input, inputLen, output);
+    return computeHmacImpl<HashType>(hashLoader.algoSHA256Hmac, key, keyLen, input, inputLen, output);
 }
 
 }  // namespace mongo

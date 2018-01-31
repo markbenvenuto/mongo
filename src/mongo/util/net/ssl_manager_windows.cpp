@@ -154,6 +154,33 @@ struct CryptKeyFree {
 
 typedef AutoHandle<HCRYPTKEY, CryptKeyFree> UniqueCryptKey;
 
+/**
+* Free a CERTSTORE Handle
+*/
+struct CertStoreFree {
+    void operator()(HCERTSTORE const p) noexcept {
+        if (p) {
+            // For leak detection, add CERT_CLOSE_STORE_CHECK_FLAG
+            // Currently, we open very few cert stores and let the certs live beyond the cert store
+            // so the leak detection flag is not useful.
+            ::CertCloseStore(p, 0);
+        }
+    }
+};
+
+typedef AutoHandle<HCERTSTORE, CertStoreFree> UniqueCertStore;
+
+std::string getCertificateSubjectName(PCCERT_CONTEXT cert) {
+    DWORD needed = CertGetNameStringA(cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, NULL, NULL, 0);
+    uassert(50662, str::stream() << "CertGetNameString size query failed with: " << needed, needed != 0);
+
+    std::unique_ptr<BYTE> nameBuf(new BYTE[needed]);
+    DWORD cbConverted = CertGetNameStringA(cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, NULL, (LPSTR)nameBuf.get(), needed);
+    uassert(50663, str::stream() << "CertGetNameString retrieval failed with: " << cbConverted, needed == cbConverted);
+
+    return std::string(reinterpret_cast<char*>(nameBuf.get()));
+}
+
 }  // namespace
 
 /**
@@ -224,6 +251,7 @@ private:
     UniqueCertificate _clusterPEMCertificate;
     PCCERT_CONTEXT _clientCertificates[1];
     PCCERT_CONTEXT _serverCertificates[1];
+    UniqueCertStore _certstore;
 
     Status loadCertificates(const SSLParams& params);
 
@@ -560,6 +588,86 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     return std::move(certHolder);
 }
 
+StatusWith<UniqueCertificate> readCAPEMFile(StringData fileName) {
+
+    std::ifstream pemFile(fileName.toString(), std::ios::binary);
+    if (!pemFile.is_open()) {
+        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "Failed to open PEM file: " << fileName);
+    }
+
+    std::string buf((std::istreambuf_iterator<char>(pemFile)),
+        std::istreambuf_iterator<char>());
+
+    pemFile.close();
+
+    // TODO: add support for multiple certificates in a file
+    // Search the buffer for the various strings that make up a PEM file
+
+    size_t publicKey = buf.find("-----BEGIN CERTIFICATE-----");
+    if (publicKey == std::string::npos) {
+        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "Failed to find Certifiate in: " << fileName);
+    }
+
+    CERT_BLOB certBlob;
+    certBlob.cbData = buf.size() - publicKey;
+    certBlob.pbData = reinterpret_cast<BYTE*>(const_cast<char*>(buf.data() + publicKey));
+
+    BOOL ret;
+
+    PCCERT_CONTEXT cert;
+    ret = CryptQueryObject(
+        CERT_QUERY_OBJECT_BLOB,
+        &certBlob,
+        CERT_QUERY_CONTENT_FLAG_ALL, //CERT_QUERY_CONTENT_FLAG_CERT, // CERT_QUERY_CONTENT_FLAG_ALL??
+        CERT_QUERY_FORMAT_FLAG_ALL, //CERT_QUERY_FORMAT_FLAG_BASE64_ENCODED,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        reinterpret_cast<const void       **>(&cert)
+    );
+
+    return UniqueCertificate(cert);
+}
+
+
+StatusWith<UniqueCertStore> readCertChains(StringData caFile, StringData crlFile) {
+    UniqueCertStore certStore = CertOpenStore(
+        CERT_STORE_PROV_MEMORY,
+        0, // Note needed
+        NULL,
+        0,
+        NULL);
+    if (certStore == nullptr) {
+        DWORD gle = GetLastError();
+        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertOpenStore Failed  " << errnoWithDescription(gle));
+    }
+
+    if (!caFile.empty()) {
+        auto swCertificate = readCAPEMFile(caFile);
+        if (!swCertificate.isOK()) {
+            return swCertificate.getStatus();
+        }
+
+        BOOL ret = CertAddCertificateContextToStore(certStore, swCertificate.getValue().get(),
+            CERT_STORE_ADD_NEW, NULL);
+
+        if (!ret) {
+            DWORD gle = GetLastError();
+            return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertAddCertificateContextToStore Failed  " << errnoWithDescription(gle));
+        }
+    }
+
+    if (!crlFile.empty()) {
+        // TODO
+    }
+
+
+    return std::move(certStore);
+}
+
 Status SSLManagerWindows::loadCertificates(const SSLParams& params) {
     _clientCertificates[0] = nullptr;
     _serverCertificates[0] = nullptr;
@@ -761,6 +869,24 @@ SSLPeerInfo SSLManagerWindows::parseAndValidatePeerCertificateDeprecated(
 
 StatusWith<boost::optional<SSLPeerInfo>> SSLManagerWindows::parseAndValidatePeerCertificate(
     PCtxtHandle ssl, const std::string& remoteHost) {
+
+    if (!_sslConfiguration.hasCA && isSSLServer)
+        return{boost::none};
+
+    PCCERT_CONTEXT cert;
+
+    // returns SEC_E_NO_CREDENTIALS if no peer certificate
+    SECURITY_STATUS ss = QueryContextAttributes(
+        ssl,
+        SECPKG_ATTR_REMOTE_CERT_CONTEXT,
+        &cert);
+
+
+    if (ss != SEC_E_OK) {
+        return Status(ErrorCodes::SSLHandshakeFailed, str::stream() << "QueryContextAttributes failed with" << ss);
+    }
+
+    // Missing Cert???
 
     return {boost::none};
 }
