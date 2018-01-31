@@ -50,15 +50,17 @@ public:
         loadAlgo(&algoSHA256Hmac, BCRYPT_SHA256_ALGORITHM, true);
     }
 
+    BCRYPT_ALG_HANDLE algoSHA256;
+    BCRYPT_ALG_HANDLE algoSHA1;
+    BCRYPT_ALG_HANDLE algoSHA256Hmac;
+    BCRYPT_ALG_HANDLE algoSHA1Hmac;
+
+private:
     void loadAlgo(BCRYPT_ALG_HANDLE* algo, const wchar_t* name, bool isHmac) {
-        invariant(BCryptOpenAlgorithmProvider(algo, name, NULL, isHmac ? BCRYPT_ALG_HANDLE_HMAC_FLAG : 0) == STATUS_SUCCESS);
-    }    
-
-BCRYPT_ALG_HANDLE algoSHA256;
-BCRYPT_ALG_HANDLE algoSHA1;
-BCRYPT_ALG_HANDLE algoSHA256Hmac;
-BCRYPT_ALG_HANDLE algoSHA1Hmac;
-
+        invariant(BCryptOpenAlgorithmProvider(
+                      algo, name, NULL, isHmac ? BCRYPT_ALG_HANDLE_HMAC_FLAG : 0) ==
+                  STATUS_SUCCESS);
+    }
 } hashLoader;
 
 /**
@@ -70,19 +72,22 @@ HashType computeHashImpl(BCRYPT_ALG_HANDLE algo, std::initializer_list<ConstData
 
     BCRYPT_HASH_HANDLE hHash;
 
-    fassert(50664, BCryptCreateHash(algo, &hHash, NULL, 0, NULL, 0, 0) == STATUS_SUCCESS &&
+    fassert(50664,
+            BCryptCreateHash(algo, &hHash, NULL, 0, NULL, 0, 0) == STATUS_SUCCESS &&
 
-        std::all_of(begin(input),
-                    end(input),
-                    [&](const auto& i) {
-                        return BCryptHashData(hHash,
-                                        reinterpret_cast<PUCHAR>(const_cast<char*>(i.data())),
-                                        i.length(), 0) == STATUS_SUCCESS;
-                    }) &&
+                std::all_of(begin(input),
+                            end(input),
+                            [&](const auto& i) {
+                                return BCryptHashData(
+                                           hHash,
+                                           reinterpret_cast<PUCHAR>(const_cast<char*>(i.data())),
+                                           i.length(),
+                                           0) == STATUS_SUCCESS;
+                            }) &&
 
-    BCryptFinishHash(hHash, output.data(), output.size(), 0) == STATUS_SUCCESS &&
+                BCryptFinishHash(hHash, output.data(), output.size(), 0) == STATUS_SUCCESS &&
 
-    BCryptDestroyHash(hHash) == STATUS_SUCCESS);
+                BCryptDestroyHash(hHash) == STATUS_SUCCESS);
 
     return output;
 }
@@ -101,15 +106,15 @@ void computeHmacImpl(BCRYPT_ALG_HANDLE algo,
 
     BCRYPT_HASH_HANDLE hHash;
 
-    fassert(50665, BCryptCreateHash(algo, &hHash, NULL, 0, const_cast<PUCHAR>(key), keyLen, 0) == STATUS_SUCCESS &&
+    fassert(50665,
+            BCryptCreateHash(algo, &hHash, NULL, 0, const_cast<PUCHAR>(key), keyLen, 0) ==
+                    STATUS_SUCCESS &&
 
-     BCryptHashData(hHash,
-                    const_cast<uint8_t*>(input),
-                    inputLen, 0) == STATUS_SUCCESS &&
+                BCryptHashData(hHash, const_cast<uint8_t*>(input), inputLen, 0) == STATUS_SUCCESS &&
 
-    BCryptFinishHash(hHash, output->data(), output->size(), 0) == STATUS_SUCCESS &&
+                BCryptFinishHash(hHash, output->data(), output->size(), 0) == STATUS_SUCCESS &&
 
-    BCryptDestroyHash(hHash) == STATUS_SUCCESS);
+                BCryptDestroyHash(hHash) == STATUS_SUCCESS);
 }
 
 }  // namespace
@@ -121,8 +126,7 @@ SHA1BlockTraits::HashType SHA1BlockTraits::computeHash(
 
 SHA256BlockTraits::HashType SHA256BlockTraits::computeHash(
     std::initializer_list<ConstDataRange> input) {
-    return computeHashImpl<SHA256BlockTraits::HashType>(
-        hashLoader.algoSHA256, input);
+    return computeHashImpl<SHA256BlockTraits::HashType>(hashLoader.algoSHA256, input);
 }
 
 void SHA1BlockTraits::computeHmac(const uint8_t* key,
@@ -138,7 +142,8 @@ void SHA256BlockTraits::computeHmac(const uint8_t* key,
                                     const uint8_t* input,
                                     size_t inputLen,
                                     HashType* const output) {
-    return computeHmacImpl<HashType>(hashLoader.algoSHA256Hmac, key, keyLen, input, inputLen, output);
+    return computeHmacImpl<HashType>(
+        hashLoader.algoSHA256Hmac, key, keyLen, input, inputLen, output);
 }
 
 }  // namespace mongo

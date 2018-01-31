@@ -172,11 +172,16 @@ typedef AutoHandle<HCERTSTORE, CertStoreFree> UniqueCertStore;
 
 std::string getCertificateSubjectName(PCCERT_CONTEXT cert) {
     DWORD needed = CertGetNameStringA(cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, NULL, NULL, 0);
-    uassert(50662, str::stream() << "CertGetNameString size query failed with: " << needed, needed != 0);
+    uassert(50662,
+            str::stream() << "CertGetNameString size query failed with: " << needed,
+            needed != 0);
 
     std::unique_ptr<BYTE> nameBuf(new BYTE[needed]);
-    DWORD cbConverted = CertGetNameStringA(cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, NULL, (LPSTR)nameBuf.get(), needed);
-    uassert(50663, str::stream() << "CertGetNameString retrieval failed with: " << cbConverted, needed == cbConverted);
+    DWORD cbConverted = CertGetNameStringA(
+        cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, NULL, (LPSTR)nameBuf.get(), needed);
+    uassert(50663,
+            str::stream() << "CertGetNameString retrieval failed with: " << cbConverted,
+            needed == cbConverted);
 
     return std::string(reinterpret_cast<char*>(nameBuf.get()));
 }
@@ -271,9 +276,9 @@ MONGO_INITIALIZER(SSLManager)(InitializerContext*) {
 }
 
 SSLConnectionWindows::SSLConnectionWindows(SCHANNEL_CRED* cred,
-                                             Socket* sock,
-                                             const char* initialBytes,
-                                             int len)
+                                           Socket* sock,
+                                           const char* initialBytes,
+                                           int len)
     : _cred(cred), socket(sock), _engine(_cred) {
 
     _tempBuffer.resize(17 * 1024);
@@ -440,18 +445,17 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     certBlob.pbData = reinterpret_cast<BYTE*>(const_cast<char*>(buf.data() + publicKey));
 
     PCCERT_CONTEXT cert;
-    BOOL ret =
-        CryptQueryObject(CERT_QUERY_OBJECT_BLOB,
-                         &certBlob,
-                         CERT_QUERY_CONTENT_FLAG_ALL,
-                         CERT_QUERY_FORMAT_FLAG_ALL,
-                         NULL,
-                         NULL,
-                         NULL,
-                         NULL,
-                         NULL,
-                         NULL,
-                         reinterpret_cast<const void**>(&cert));
+    BOOL ret = CryptQueryObject(CERT_QUERY_OBJECT_BLOB,
+                                &certBlob,
+                                CERT_QUERY_CONTENT_FLAG_ALL,
+                                CERT_QUERY_FORMAT_FLAG_ALL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                reinterpret_cast<const void**>(&cert));
     if (!ret) {
         DWORD gle = GetLastError();
         return Status(ErrorCodes::InvalidSSLConfiguration,
@@ -592,11 +596,11 @@ StatusWith<UniqueCertificate> readCAPEMFile(StringData fileName) {
 
     std::ifstream pemFile(fileName.toString(), std::ios::binary);
     if (!pemFile.is_open()) {
-        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "Failed to open PEM file: " << fileName);
+        return Status(ErrorCodes::InvalidSSLConfiguration,
+                      str::stream() << "Failed to open PEM file: " << fileName);
     }
 
-    std::string buf((std::istreambuf_iterator<char>(pemFile)),
-        std::istreambuf_iterator<char>());
+    std::string buf((std::istreambuf_iterator<char>(pemFile)), std::istreambuf_iterator<char>());
 
     pemFile.close();
 
@@ -605,7 +609,8 @@ StatusWith<UniqueCertificate> readCAPEMFile(StringData fileName) {
 
     size_t publicKey = buf.find("-----BEGIN CERTIFICATE-----");
     if (publicKey == std::string::npos) {
-        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "Failed to find Certifiate in: " << fileName);
+        return Status(ErrorCodes::InvalidSSLConfiguration,
+                      str::stream() << "Failed to find Certifiate in: " << fileName);
     }
 
     CERT_BLOB certBlob;
@@ -615,34 +620,33 @@ StatusWith<UniqueCertificate> readCAPEMFile(StringData fileName) {
     BOOL ret;
 
     PCCERT_CONTEXT cert;
-    ret = CryptQueryObject(
-        CERT_QUERY_OBJECT_BLOB,
-        &certBlob,
-        CERT_QUERY_CONTENT_FLAG_ALL, //CERT_QUERY_CONTENT_FLAG_CERT, // CERT_QUERY_CONTENT_FLAG_ALL??
-        CERT_QUERY_FORMAT_FLAG_ALL, //CERT_QUERY_FORMAT_FLAG_BASE64_ENCODED,
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        reinterpret_cast<const void       **>(&cert)
-    );
+    ret = CryptQueryObject(CERT_QUERY_OBJECT_BLOB,
+                           &certBlob,
+                           CERT_QUERY_CONTENT_FLAG_ALL,  // CERT_QUERY_CONTENT_FLAG_CERT, //
+                                                         // CERT_QUERY_CONTENT_FLAG_ALL??
+                           CERT_QUERY_FORMAT_FLAG_ALL,  // CERT_QUERY_FORMAT_FLAG_BASE64_ENCODED,
+                           NULL,
+                           NULL,
+                           NULL,
+                           NULL,
+                           NULL,
+                           NULL,
+                           reinterpret_cast<const void**>(&cert));
 
     return UniqueCertificate(cert);
 }
 
 
 StatusWith<UniqueCertStore> readCertChains(StringData caFile, StringData crlFile) {
-    UniqueCertStore certStore = CertOpenStore(
-        CERT_STORE_PROV_MEMORY,
-        0, // Note needed
-        NULL,
-        0,
-        NULL);
+    UniqueCertStore certStore = CertOpenStore(CERT_STORE_PROV_MEMORY,
+                                              0,  // Note needed
+                                              NULL,
+                                              0,
+                                              NULL);
     if (certStore == nullptr) {
         DWORD gle = GetLastError();
-        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertOpenStore Failed  " << errnoWithDescription(gle));
+        return Status(ErrorCodes::InvalidSSLConfiguration,
+                      str::stream() << "CertOpenStore Failed  " << errnoWithDescription(gle));
     }
 
     if (!caFile.empty()) {
@@ -651,12 +655,14 @@ StatusWith<UniqueCertStore> readCertChains(StringData caFile, StringData crlFile
             return swCertificate.getStatus();
         }
 
-        BOOL ret = CertAddCertificateContextToStore(certStore, swCertificate.getValue().get(),
-            CERT_STORE_ADD_NEW, NULL);
+        BOOL ret = CertAddCertificateContextToStore(
+            certStore, swCertificate.getValue().get(), CERT_STORE_ADD_NEW, NULL);
 
         if (!ret) {
             DWORD gle = GetLastError();
-            return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "CertAddCertificateContextToStore Failed  " << errnoWithDescription(gle));
+            return Status(ErrorCodes::InvalidSSLConfiguration,
+                          str::stream() << "CertAddCertificateContextToStore Failed  "
+                                        << errnoWithDescription(gle));
         }
     }
 
@@ -705,8 +711,8 @@ Status SSLManagerWindows::loadCertificates(const SSLParams& params) {
 }
 
 Status SSLManagerWindows::initSSLContext(SCHANNEL_CRED* cred,
-                                          const SSLParams& params,
-                                          ConnectionDirection direction) {
+                                         const SSLParams& params,
+                                         ConnectionDirection direction) {
 
     ZeroMemory(cred, sizeof(*cred));
     cred->dwVersion = SCHANNEL_CRED_VERSION;
@@ -773,8 +779,8 @@ SSLConnectionInterface* SSLManagerWindows::connect(Socket* socket) {
 }
 
 SSLConnectionInterface* SSLManagerWindows::accept(Socket* socket,
-                                                   const char* initialBytes,
-                                                   int len) {
+                                                  const char* initialBytes,
+                                                  int len) {
     std::unique_ptr<SSLConnectionWindows> sslConn =
         stdx::make_unique<SSLConnectionWindows>(&_serverCred, socket, initialBytes, len);
 
@@ -871,19 +877,17 @@ StatusWith<boost::optional<SSLPeerInfo>> SSLManagerWindows::parseAndValidatePeer
     PCtxtHandle ssl, const std::string& remoteHost) {
 
     if (!_sslConfiguration.hasCA && isSSLServer)
-        return{boost::none};
+        return {boost::none};
 
     PCCERT_CONTEXT cert;
 
     // returns SEC_E_NO_CREDENTIALS if no peer certificate
-    SECURITY_STATUS ss = QueryContextAttributes(
-        ssl,
-        SECPKG_ATTR_REMOTE_CERT_CONTEXT,
-        &cert);
+    SECURITY_STATUS ss = QueryContextAttributes(ssl, SECPKG_ATTR_REMOTE_CERT_CONTEXT, &cert);
 
 
     if (ss != SEC_E_OK) {
-        return Status(ErrorCodes::SSLHandshakeFailed, str::stream() << "QueryContextAttributes failed with" << ss);
+        return Status(ErrorCodes::SSLHandshakeFailed,
+                      str::stream() << "QueryContextAttributes failed with" << ss);
     }
 
     // Missing Cert???

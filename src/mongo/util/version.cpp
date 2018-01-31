@@ -153,7 +153,7 @@ void VersionInfoInterface::appendBuildInfo(BSONObjBuilder* result) const {
     opensslInfo << "Windows SChannel";
 #else
 #error "Unknown SSL Provider"
-#endif // MONGO_CONFIG_SSL_PROVIDER
+#endif  // MONGO_CONFIG_SSL_PROVIDER
 #else
     opensslInfo << "running"
                 << "disabled"
@@ -176,7 +176,7 @@ void VersionInfoInterface::appendBuildInfo(BSONObjBuilder* result) const {
 }
 
 std::string VersionInfoInterface::openSSLVersion(StringData prefix, StringData suffix) const {
-#if !defined(MONGO_CONFIG_SSL) ||  MONGO_CONFIG_SSL_PROVIDER != SSL_PROVIDER_OPENSSL
+#if !defined(MONGO_CONFIG_SSL) || MONGO_CONFIG_SSL_PROVIDER != SSL_PROVIDER_OPENSSL
     return "";
 #elif MONGO_CONFIG_SSL_PROVIDER == SSL_PROVIDER_OPENSSL
     return prefix.toString() + SSLeay_version(SSLEAY_VERSION) + suffix;
