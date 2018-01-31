@@ -425,7 +425,7 @@ StatusWith<std::vector<BYTE>> decodePEMBlob(const char* data, size_t len) {
     DWORD decodeLen{0};
 
     BOOL ret = CryptStringToBinaryA(data,
-        0,  // null terminated string
+        len,  // null terminated string
         CRYPT_STRING_BASE64HEADER,
         NULL,
         &decodeLen,
@@ -444,7 +444,7 @@ StatusWith<std::vector<BYTE>> decodePEMBlob(const char* data, size_t len) {
     privateKeyBuf.resize(decodeLen);
 
     ret = CryptStringToBinaryA(data,
-        0,  // null terminated string
+        len,
         CRYPT_STRING_BASE64HEADER,
         privateKeyBuf.data(),
         &decodeLen,
@@ -488,36 +488,24 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
                       str::stream() << "Failed to find privateKey in: " << fileName);
     }
 
-    CERT_BLOB certBlob;
-    certBlob.cbData = buf.size() - publicKey;
-    certBlob.pbData = reinterpret_cast<BYTE*>(const_cast<char*>(buf.data() + publicKey));
+    auto swCert = decodePEMBlob(buf.c_str() + publicKey, 0);
+    if (!swCert.isOK()) {
+        return swCert.getStatus();
+    }
 
-    PCCERT_CONTEXT cert;
-
-    //PCCERT_CONTEXT WINAPI CertCreateCertificateContext(
-    //    _In_       DWORD X509_ASN_ENCODING,
-    //    _In_ const BYTE  *pbCertEncoded,
-    //    _In_       DWORD cbCertEncoded
-    //);
+    auto certBuf = swCert.getValue();
 
 
-
-    BOOL ret = CryptQueryObject(CERT_QUERY_OBJECT_BLOB,
-                                &certBlob,
-                                CERT_QUERY_CONTENT_FLAG_ALL,
-                                CERT_QUERY_FORMAT_FLAG_ALL,
-                                NULL,
-                                NULL,
-                                NULL,
-                                NULL,
-                                NULL,
-                                NULL,
-                                reinterpret_cast<const void**>(&cert));
-    if (!ret) {
+    PCCERT_CONTEXT cert = CertCreateCertificateContext(
+        X509_ASN_ENCODING,
+        certBuf.data(), certBuf.size()
+        
+    );
+    if (cert == NULL) {
         DWORD gle = GetLastError();
         return Status(ErrorCodes::InvalidSSLConfiguration,
-                      str::stream() << "CryptQueryObject failed to get cert: "
-                                    << errnoWithDescription(gle));
+            str::stream() << "CertCreateCertificateContext failed to decode cert: "
+            << errnoWithDescription(gle));
     }
 
     UniqueCertificate certHolder(cert);
@@ -532,7 +520,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
 
     DWORD privateBlobLen{0};
 
-    ret = CryptDecodeObjectEx(X509_ASN_ENCODING,
+    BOOL ret = CryptDecodeObjectEx(X509_ASN_ENCODING,
                               PKCS_RSA_PRIVATE_KEY,
                               privateKeyBuf.data(),
         privateKeyBuf.size(),
@@ -653,26 +641,29 @@ Status readCAPEMFile(HCERTSTORE certStore, StringData fileName) {
         publicKeyEnd += endCert.size();
         pos = publicKeyEnd;
 
-        CERT_BLOB certBlob;
-        certBlob.cbData = buf.size() - publicKey;
-        certBlob.pbData = reinterpret_cast<BYTE*>(const_cast<char*>(buf.data() + publicKey));
 
-        BOOL ret;
-        PCCERT_CONTEXT cert;
+        auto swCert = decodePEMBlob(buf.c_str() + publicKey, publicKeyEnd - publicKey);
+        if (!swCert.isOK()) {
+            return swCert.getStatus();
+        }
 
-        ret = CryptQueryObject(CERT_QUERY_OBJECT_BLOB,
-            &certBlob,
-            CERT_QUERY_CONTENT_FLAG_ALL,
-            CERT_QUERY_FORMAT_FLAG_ALL,
-            NULL,
-            NULL,
-            NULL,
-            NULL,
-            NULL,
-            NULL,
-            reinterpret_cast<const void**>(&cert));
+        auto certBuf = swCert.getValue();
 
-        ret = CertAddCertificateContextToStore(
+
+        PCCERT_CONTEXT cert = CertCreateCertificateContext(
+            X509_ASN_ENCODING,
+            certBuf.data(), certBuf.size()
+
+        );
+        if (cert == NULL) {
+            DWORD gle = GetLastError();
+            return Status(ErrorCodes::InvalidSSLConfiguration,
+                str::stream() << "CertCreateCertificateContext failed to decode cert: "
+                << errnoWithDescription(gle));
+        }
+
+        // TODO: fix cert leak if this fails
+        BOOL ret = CertAddCertificateContextToStore(
             certStore, cert, CERT_STORE_ADD_NEW, NULL);
 
         if (!ret) {
@@ -688,9 +679,54 @@ Status readCAPEMFile(HCERTSTORE certStore, StringData fileName) {
 }
 
 
+Status readCRLPEMFile(HCERTSTORE certStore, StringData fileName) {
+
+    auto swBuf = readFile(fileName);
+    if (!swBuf.isOK()) {
+        return swBuf.getStatus();
+    }
+
+    std::string buf = std::move(swBuf.getValue());
+
+    auto swCert = decodePEMBlob(buf.c_str(), 0);
+    if (!swCert.isOK()) {
+        return swCert.getStatus();
+    }
+
+    auto certBuf = swCert.getValue();
+
+    PCCRL_CONTEXT crl = CertCreateCRLContext(
+        X509_ASN_ENCODING,
+        certBuf.data(), certBuf.size()
+
+    );
+    if (crl == NULL) {
+        DWORD gle = GetLastError();
+        return Status(ErrorCodes::InvalidSSLConfiguration,
+            str::stream() << "CertCreateCRLContext failed to decode crl: "
+            << errnoWithDescription(gle));
+    }
+
+    // TODO: fix CRL leak if this fails
+    BOOL ret = CertAddCRLContextToStore(
+        certStore, crl, CERT_STORE_ADD_NEW, NULL);
+
+    if (!ret) {
+        DWORD gle = GetLastError();
+        return Status(ErrorCodes::InvalidSSLConfiguration,
+            str::stream() << "CertAddCRLContextToStore Failed  "
+            << errnoWithDescription(gle));
+    }
+
+
+    return Status::OK();
+}
+
+
+
 StatusWith<UniqueCertStore> readCertChains(StringData caFile, StringData crlFile) {
     UniqueCertStore certStore = CertOpenStore(CERT_STORE_PROV_MEMORY,
-                                              0,  // Note needed
+                                              0,
                                               NULL,
                                               0,
                                               NULL);
@@ -700,19 +736,19 @@ StatusWith<UniqueCertStore> readCertChains(StringData caFile, StringData crlFile
                       str::stream() << "CertOpenStore Failed  " << errnoWithDescription(gle));
     }
 
-    //if (!caFile.empty()) {
-    //    auto status = readCAPEMFile(certStore, caFile);
-    //    if (!status.isOK()) {
-    //        return status;
-    //    }
-    //}
+    if (!caFile.empty()) {
+        auto status = readCAPEMFile(certStore, caFile);
+        if (!status.isOK()) {
+            return status;
+        }
+    }
 
-    //if (!crlFile.empty()) {
-    //    auto status = readCRLPEMFile(certStore, caFile);
-    //    if (!status.isOK()) {
-    //        return status;
-    //    }
-    //}
+    if (!crlFile.empty()) {
+        auto status = readCRLPEMFile(certStore, crlFile);
+        if (!status.isOK()) {
+            return status;
+        }
+    }
 
 
     return std::move(certStore);
@@ -751,6 +787,12 @@ Status SSLManagerWindows::loadCertificates(const SSLParams& params) {
         _clientCertificates[0] = _clusterPEMCertificate.get();
     }
 
+    auto swChain = readCertChains(params.sslCAFile, params.sslCRLFile);
+    if (!swChain.isOK()) {
+        return swChain.getStatus();
+    }
+    _certstore =  std::move(swChain.getValue());
+
     return Status::OK();
 }
 
@@ -761,6 +803,8 @@ Status SSLManagerWindows::initSSLContext(SCHANNEL_CRED* cred,
     ZeroMemory(cred, sizeof(*cred));
     cred->dwVersion = SCHANNEL_CRED_VERSION;
     cred->dwFlags = SCH_USE_STRONG_CRYPTO;  // Use strong crypto;
+
+    cred->hRootStore = _certstore;
 
     uint32_t supportedProtocols = 0;
 
