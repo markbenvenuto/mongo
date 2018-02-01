@@ -474,8 +474,51 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
                       str::stream() << "Failed to find Certifiate in: " << fileName);
     }
 
-    // TODO: decode encrypted pem
-    // StringData encryptedPrivateKey = buf.find("-----BEGIN ENCRYPTED PRIVATE KEY-----");
+     size_t encryptedPrivateKey = buf.find("-----BEGIN ENCRYPTED PRIVATE KEY-----");
+     if (encryptedPrivateKey != std::string::npos) {
+             NCRYPT_PROV_HANDLE nprov;
+
+         SECURITY_STATUS s1 = NCryptOpenStorageProvider(
+             &nprov,
+         MS_KEY_STORAGE_PROVIDER,
+             0);
+         invariant(s1 == ERROR_SUCCESS);
+
+             NCRYPT_KEY_HANDLE hkey;
+
+            auto swKeyBlob = decodePEMBlob(buf.c_str() + publicKey, 0);
+             if (!swKeyBlob.isOK()) {
+                 return swKeyBlob.getStatus();
+             }
+
+             auto keyBuf = swKeyBlob.getValue();
+
+             std::wstring pStr = toWideString(password.toString().c_str());
+
+             NCryptBuffer buffers[1];
+             buffers[0].BufferType = NCRYPTBUFFER_PKCS_KEY_NAME;
+             buffers[0].cbBuffer = pStr.size();
+             buffers[0].pvBuffer = const_cast<wchar_t*>(pStr.c_str());
+
+
+             NCryptBufferDesc desc;
+             desc.ulVersion = NCRYPTBUFFER_VERSION;
+             desc.cBuffers = 1;
+             desc.pBuffers = buffers;
+
+             SECURITY_STATUS status = NCryptImportKey(
+                 nprov,
+                 NULL,
+                 NCRYPT_PKCS8_PRIVATE_KEY_BLOB,
+                 NULL,
+                 &hkey,
+                 keyBuf.data(),
+                 keyBuf.size(),
+                 NCRYPT_SILENT_FLAG
+             );
+             invariant(status == ERROR_SUCCESS);
+
+     }
 
     // TODO: check if we need both
     size_t privateKey = buf.find("-----BEGIN RSA PRIVATE KEY-----");
