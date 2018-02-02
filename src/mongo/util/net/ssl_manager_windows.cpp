@@ -480,13 +480,13 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
 
          SECURITY_STATUS s1 = NCryptOpenStorageProvider(
              &nprov,
-         MS_KEY_STORAGE_PROVIDER,
+         NULL, //MS_KEY_STORAGE_PROVIDER,
              0);
          invariant(s1 == ERROR_SUCCESS);
 
              NCRYPT_KEY_HANDLE hkey;
 
-            auto swKeyBlob = decodePEMBlob(buf.c_str() + publicKey, 0);
+            auto swKeyBlob = decodePEMBlob(buf.c_str() + encryptedPrivateKey, 0);
              if (!swKeyBlob.isOK()) {
                  return swKeyBlob.getStatus();
              }
@@ -496,8 +496,8 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
              std::wstring pStr = toWideString(password.toString().c_str());
 
              NCryptBuffer buffers[1];
-             buffers[0].BufferType = NCRYPTBUFFER_PKCS_KEY_NAME;
-             buffers[0].cbBuffer = pStr.size();
+             buffers[0].BufferType = NCRYPTBUFFER_PKCS_SECRET;
+             buffers[0].cbBuffer = 2 * pStr.size(); //2 * pStr.size() + 1;
              buffers[0].pvBuffer = const_cast<wchar_t*>(pStr.c_str());
 
 
@@ -514,7 +514,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
                  &hkey,
                  keyBuf.data(),
                  keyBuf.size(),
-                 NCRYPT_SILENT_FLAG
+                 0
              );
              invariant(status == ERROR_SUCCESS);
 
