@@ -476,48 +476,8 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
 
      size_t encryptedPrivateKey = buf.find("-----BEGIN ENCRYPTED PRIVATE KEY-----");
      if (encryptedPrivateKey != std::string::npos) {
-             NCRYPT_PROV_HANDLE nprov;
-
-         SECURITY_STATUS s1 = NCryptOpenStorageProvider(
-             &nprov,
-         NULL, //MS_KEY_STORAGE_PROVIDER,
-             0);
-         invariant(s1 == ERROR_SUCCESS);
-
-             NCRYPT_KEY_HANDLE hkey;
-
-            auto swKeyBlob = decodePEMBlob(buf.c_str() + encryptedPrivateKey, 0);
-             if (!swKeyBlob.isOK()) {
-                 return swKeyBlob.getStatus();
-             }
-
-             auto keyBuf = swKeyBlob.getValue();
-
-             std::wstring pStr = toWideString(password.toString().c_str());
-
-             NCryptBuffer buffers[1];
-             buffers[0].BufferType = NCRYPTBUFFER_PKCS_SECRET;
-             buffers[0].cbBuffer = 2 * pStr.size(); //2 * pStr.size() + 1;
-             buffers[0].pvBuffer = const_cast<wchar_t*>(pStr.c_str());
-
-
-             NCryptBufferDesc desc;
-             desc.ulVersion = NCRYPTBUFFER_VERSION;
-             desc.cBuffers = 1;
-             desc.pBuffers = buffers;
-
-             SECURITY_STATUS status = NCryptImportKey(
-                 nprov,
-                 NULL,
-                 NCRYPT_PKCS8_PRIVATE_KEY_BLOB,
-                 NULL,
-                 &hkey,
-                 keyBuf.data(),
-                 keyBuf.size(),
-                 0
-             );
-             invariant(status == ERROR_SUCCESS);
-
+         return Status(ErrorCodes::InvalidSSLConfiguration,
+             str::stream() << "Encrypted private keys are not supported, use the Windows certificate store instead: " << fileName);
      }
 
     // TODO: check if we need both
