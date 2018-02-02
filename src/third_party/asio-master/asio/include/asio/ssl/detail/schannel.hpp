@@ -297,7 +297,7 @@ private:
 
     DWORD getServerFlags() {
         return ASC_REQ_SEQUENCE_DETECT | ASC_REQ_REPLAY_DETECT | ASC_REQ_CONFIDENTIALITY |
-            ASC_REQ_EXTENDED_ERROR | ASC_REQ_STREAM;
+            ASC_REQ_EXTENDED_ERROR | ASC_REQ_STREAM | ASC_REQ_MUTUAL_AUTH;
     }
 
     DWORD getClientFlags() {
