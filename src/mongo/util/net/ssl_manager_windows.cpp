@@ -346,18 +346,18 @@ SSLManagerWindows::SSLManagerWindows(const SSLParams& params, bool isServer)
 
     uassertStatusOK(initSSLContext(&_clientCred, params, ConnectionDirection::kOutgoing));
 
-    uassertStatusOK(
-        _validateCertificate(_clientCertificates[0],
-            &_sslConfiguration.clientSubjectName, NULL            ));
+    //uassertStatusOK(
+    //    _validateCertificate(_clientCertificates[0],
+    //        &_sslConfiguration.clientSubjectName, NULL            ));
 
     // SSL server specific initialization
     if (isServer) {
         uassertStatusOK(initSSLContext(&_serverCred, params, ConnectionDirection::kIncoming));
 
-        uassertStatusOK(
-            _validateCertificate(_serverCertificates[0],
-                &_sslConfiguration.serverSubjectName,
-                &_sslConfiguration.serverCertificateExpirationDate));
+        //uassertStatusOK(
+        //    _validateCertificate(_serverCertificates[0],
+        //        &_sslConfiguration.serverSubjectName,
+        //        &_sslConfiguration.serverCertificateExpirationDate));
 
         // Monitor the server certificate's expiration
         static CertificateExpirationMonitor task =
@@ -469,7 +469,7 @@ StatusWith<std::vector<BYTE>> decodePEMBlob(const char* data, size_t len) {
     DWORD decodeLen{0};
 
     BOOL ret = CryptStringToBinaryA(data,
-        len,  // null terminated string
+        len,
         CRYPT_STRING_BASE64HEADER,
         NULL,
         &decodeLen,
@@ -544,12 +544,30 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     auto certBuf = swCert.getValue();
 
 
-    PCCERT_CONTEXT cert = CertCreateCertificateContext(
-        X509_ASN_ENCODING,
-        certBuf.data(), certBuf.size()
-        
-    );
-    if (cert == NULL) {
+    CERT_BLOB certBlob;
+    certBlob.cbData = certBuf.size();;
+    certBlob.pbData = reinterpret_cast<BYTE*>(certBuf.data());
+
+    PCCERT_CONTEXT cert;
+    BOOL ret = CryptQueryObject(CERT_QUERY_OBJECT_BLOB,
+        &certBlob,
+        CERT_QUERY_CONTENT_FLAG_ALL,
+        CERT_QUERY_FORMAT_FLAG_ALL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        reinterpret_cast<const void**>(&cert));
+    if (!ret) {
+
+    //PCCERT_CONTEXT cert = CertCreateCertificateContext(
+    //    X509_ASN_ENCODING,
+    //    certBuf.data(), certBuf.size()
+    //    
+    //);
+    //if (cert == NULL) {
         DWORD gle = GetLastError();
         return Status(ErrorCodes::InvalidSSLConfiguration,
             str::stream() << "CertCreateCertificateContext failed to decode cert: "
@@ -568,7 +586,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
 
     DWORD privateBlobLen{0};
 
-    BOOL ret = CryptDecodeObjectEx(X509_ASN_ENCODING,
+    ret = CryptDecodeObjectEx(X509_ASN_ENCODING,
                               PKCS_RSA_PRIVATE_KEY,
                               privateKeyBuf.data(),
         privateKeyBuf.size(),
@@ -663,7 +681,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
         return Status(ErrorCodes::InvalidSSLConfiguration,
             str::stream() << "CryptImportKey failed  " << errnoWithDescription(gle));
     }
-    UniqueCryptKey(hKey);
+    UniqueCryptKey keyHolder(hkey);
 
     if (isSSLServer) {
         // Server-side SChannel requires a different way of attaching the private key to the
@@ -872,11 +890,11 @@ Status SSLManagerWindows::loadCertificates(const SSLParams& params) {
         _clientCertificates[0] = _clusterPEMCertificate.get();
     }
 
-    auto swChain = readCertChains(params.sslCAFile, params.sslCRLFile);
-    if (!swChain.isOK()) {
-        return swChain.getStatus();
-    }
-    _certstore =  std::move(swChain.getValue());
+    //auto swChain = readCertChains(params.sslCAFile, params.sslCRLFile);
+    //if (!swChain.isOK()) {
+    //    return swChain.getStatus();
+    //}
+    //_certstore =  std::move(swChain.getValue());
 
     return Status::OK();
 }
@@ -889,7 +907,7 @@ Status SSLManagerWindows::initSSLContext(SCHANNEL_CRED* cred,
     cred->dwVersion = SCHANNEL_CRED_VERSION;
     cred->dwFlags = SCH_USE_STRONG_CRYPTO;  // Use strong crypto;
 
-    cred->hRootStore = _certstore;
+    //cred->hRootStore = _certstore;
 
     uint32_t supportedProtocols = 0;
 
