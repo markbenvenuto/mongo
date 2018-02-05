@@ -64,6 +64,7 @@
 #include "mongo/util/scopeguard.h"
 #include "mongo/util/text.h"
 #include "mongo/util/uuid.h"
+#include "mongo/db/server_options.h"
 
 namespace mongo {
 
@@ -601,24 +602,58 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
                                     << errnoWithDescription(gle));
     }
 
-    // Generate a unique name for our key container
-    auto us = UUID::gen().toString();
-    std::wstring wstr = toNativeString(us.c_str());
-
-    // Use a new key container for the key. We cannot use the default container since the default
-    // container is shared across processes owned by the same user.
-    // Note: Server side Schannel requires CRYPT_VERIFYCONTEXT off
-    // See https://msdn.microsoft.com/en-us/library/windows/desktop/aa375195(v=vs.85).aspx
     HCRYPTPROV hProv;
-    ret = CryptAcquireContextW(
-        &hProv, wstr.c_str(), MS_ENHANCED_PROV, PROV_RSA_FULL, CRYPT_NEWKEYSET);
-    if (!ret) {
-        DWORD gle = GetLastError();
-        return Status(ErrorCodes::InvalidSSLConfiguration,
-                      str::stream() << "CryptAcquireContextA failed  "
-                                    << errnoWithDescription(gle));
-    }
+    std::wstring wstr;
 
+    // Create the right Crypto context depending on whether we running in a server or outside.
+    // See https://msdn.microsoft.com/en-us/library/windows/desktop/aa375195(v=vs.85).aspx
+    if (isSSLServer) {
+        // Generate a unique name for our key container
+        // Use the the log file if possible
+        if (!serverGlobalParams.logpath.empty()) {
+            wstr = toNativeString(serverGlobalParams.logpath.c_str());
+        } else {
+            auto us = UUID::gen().toString();
+            wstr = toNativeString(us.c_str());
+        }
+
+        // Use a new key container for the key. We cannot use the default container since the
+        // default
+        // container is shared across processes owned by the same user.
+        // Note: Server side Schannel requires CRYPT_VERIFYCONTEXT off
+        ret = CryptAcquireContextW(
+            &hProv, wstr.c_str(), MS_ENHANCED_PROV, PROV_RSA_FULL, CRYPT_NEWKEYSET | CRYPT_SILENT);
+        if (!ret) {
+            DWORD gle = GetLastError();
+
+            if (gle == NTE_EXISTS) {
+
+                ret = CryptAcquireContextW(
+                    &hProv, wstr.c_str(), MS_ENHANCED_PROV, PROV_RSA_FULL, CRYPT_SILENT);
+                if (!ret) {
+                    DWORD gle = GetLastError();
+                    return Status(ErrorCodes::InvalidSSLConfiguration,
+                        str::stream() << "CryptAcquireContextW failed "
+                        << errnoWithDescription(gle));
+                }
+
+            } else {
+                return Status(ErrorCodes::InvalidSSLConfiguration,
+                    str::stream() << "CryptAcquireContextW failed "
+                    << errnoWithDescription(gle));
+            }
+        }
+    } else {
+        // Use a transient key container for the key
+        ret = CryptAcquireContextW(
+            &hProv, NULL, MS_ENHANCED_PROV, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT | CRYPT_SILENT);
+        if (!ret) {
+            DWORD gle = GetLastError();
+            return Status(ErrorCodes::InvalidSSLConfiguration,
+                str::stream() << "CryptAcquireContextW failed  "
+                << errnoWithDescription(gle));
+        }
+    }
     UniqueCryptProvider cryptProvider(hProv);
 
     HCRYPTKEY hkey;
@@ -626,24 +661,28 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     if (!ret) {
         DWORD gle = GetLastError();
         return Status(ErrorCodes::InvalidSSLConfiguration,
-                      str::stream() << "CryptImportKey failed  " << errnoWithDescription(gle));
+            str::stream() << "CryptImportKey failed  " << errnoWithDescription(gle));
     }
     UniqueCryptKey(hKey);
 
-    // Server-side SChannel requires a different way of attaching the private key to the certificate
-    CRYPT_KEY_PROV_INFO keyProvInfo;
-    memset(&keyProvInfo, 0, sizeof(keyProvInfo));
-    keyProvInfo.pwszContainerName = const_cast<wchar_t*>(wstr.c_str());
-    keyProvInfo.pwszProvName = const_cast<wchar_t*>(MS_ENHANCED_PROV);
-    keyProvInfo.dwFlags = CERT_SET_KEY_PROV_HANDLE_PROP_ID | CERT_SET_KEY_CONTEXT_PROP_ID;
-    keyProvInfo.dwProvType = PROV_RSA_FULL;
-    keyProvInfo.dwKeySpec = AT_KEYEXCHANGE;
+    if (isSSLServer) {
+        // Server-side SChannel requires a different way of attaching the private key to the
+        // certificate
+        CRYPT_KEY_PROV_INFO keyProvInfo;
+        memset(&keyProvInfo, 0, sizeof(keyProvInfo));
+        keyProvInfo.pwszContainerName = const_cast<wchar_t*>(wstr.c_str());
+        keyProvInfo.pwszProvName = const_cast<wchar_t*>(MS_ENHANCED_PROV);
+        keyProvInfo.dwFlags = CERT_SET_KEY_PROV_HANDLE_PROP_ID | CERT_SET_KEY_CONTEXT_PROP_ID;
+        keyProvInfo.dwProvType = PROV_RSA_FULL;
+        keyProvInfo.dwKeySpec = AT_KEYEXCHANGE;
 
-    if (!CertSetCertificateContextProperty(cert, CERT_KEY_PROV_INFO_PROP_ID, 0, &keyProvInfo)) {
-        DWORD gle = GetLastError();
-        return Status(ErrorCodes::InvalidSSLConfiguration,
-                      str::stream() << "CertSetCertificateContextProperty Failed  "
-                                    << errnoWithDescription(gle));
+        if (!CertSetCertificateContextProperty(
+            certHolder.get(), CERT_KEY_PROV_INFO_PROP_ID, 0, &keyProvInfo)) {
+            DWORD gle = GetLastError();
+            return Status(ErrorCodes::InvalidSSLConfiguration,
+                str::stream() << "CertSetCertificateContextProperty Failed  "
+                << errnoWithDescription(gle));
+        }
     }
 
     // NOTE: This is used to set the certificate for client side SChannel
@@ -652,8 +691,8 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     if (!ret) {
         DWORD gle = GetLastError();
         return Status(ErrorCodes::InvalidSSLConfiguration,
-                      str::stream() << "CertSetCertificateContextProperty failed  "
-                                    << errnoWithDescription(gle));
+            str::stream() << "CertSetCertificateContextProperty failed  "
+            << errnoWithDescription(gle));
     }
 
     return std::move(certHolder);
@@ -1069,65 +1108,65 @@ StatusWith<boost::optional<SSLPeerInfo>> SSLManagerWindows::parseAndValidatePeer
                       str::stream() << "QueryContextAttributes failed with" << ss);
     }
 
-    UniqueCertificate certHolder(cert);
-    
-    CERT_CHAIN_PARA chain_para = {0};
+    //UniqueCertificate certHolder(cert);
+    //
+    //CERT_CHAIN_PARA chain_para = {0};
 
-    chain_para.cbSize = sizeof(CERT_CHAIN_PARA);
+    //chain_para.cbSize = sizeof(CERT_CHAIN_PARA);
 
-    //chain_para.RequestedUsage.Usage.
+    ////chain_para.RequestedUsage.Usage.
 
-    PCCERT_CHAIN_CONTEXT chainContext;
-    BOOL ret = CertGetCertificateChain(
-        NULL,
-        certHolder.get(),
-        NULL,
-        _certstore,
-        &chain_para,
-        CERT_CHAIN_REVOCATION_CHECK_CHAIN,
-        NULL,
-        &chainContext
-    );
-    if (!ret) {
-        DWORD gle = GetLastError();
-        return Status(ErrorCodes::InvalidSSLConfiguration,
-            str::stream() << "CertGetCertificateChain failed: "
-            << errnoWithDescription(gle));
-    }
+    //PCCERT_CHAIN_CONTEXT chainContext;
+    //BOOL ret = CertGetCertificateChain(
+    //    NULL,
+    //    certHolder.get(),
+    //    NULL,
+    //    _certstore,
+    //    &chain_para,
+    //    CERT_CHAIN_REVOCATION_CHECK_CHAIN,
+    //    NULL,
+    //    &chainContext
+    //);
+    //if (!ret) {
+    //    DWORD gle = GetLastError();
+    //    return Status(ErrorCodes::InvalidSSLConfiguration,
+    //        str::stream() << "CertGetCertificateChain failed: "
+    //        << errnoWithDescription(gle));
+    //}
 
 
-        UniqueCertChain certChainHolder(chainContext);
-    // Missing Cert???
+    //    UniqueCertChain certChainHolder(chainContext);
+    //// Missing Cert???
 
-    CERT_CHAIN_POLICY_PARA chain_policy_para;
-    chain_policy_para.cbSize = sizeof(chain_policy_para);
+    //CERT_CHAIN_POLICY_PARA chain_policy_para;
+    //chain_policy_para.cbSize = sizeof(chain_policy_para);
 
-    CERT_CHAIN_POLICY_STATUS chain_policy_status;
-    chain_policy_status.cbSize = sizeof(chain_policy_status);
+    //CERT_CHAIN_POLICY_STATUS chain_policy_status;
+    //chain_policy_status.cbSize = sizeof(chain_policy_status);
 
-    ret = CertVerifyCertificateChainPolicy(
+    //ret = CertVerifyCertificateChainPolicy(
 
-        CERT_CHAIN_POLICY_SSL,
-        certChainHolder.get(),
-        &chain_policy_para,
-        &chain_policy_status
-    );
+    //    CERT_CHAIN_POLICY_SSL,
+    //    certChainHolder.get(),
+    //    &chain_policy_para,
+    //    &chain_policy_status
+    //);
 
-    // This means some really went wrong.
-    if (!ret) {
-        DWORD gle = GetLastError();
-        return Status(ErrorCodes::InvalidSSLConfiguration,
-            str::stream() << "CertVerifyCertificateChainPolicy failed: "
-            << errnoWithDescription(gle));
-    }
+    //// This means some really went wrong.
+    //if (!ret) {
+    //    DWORD gle = GetLastError();
+    //    return Status(ErrorCodes::InvalidSSLConfiguration,
+    //        str::stream() << "CertVerifyCertificateChainPolicy failed: "
+    //        << errnoWithDescription(gle));
+    //}
 
-    // This means the chain is wrong.
-    if(chain_policy_status.dwError != S_OK) {
-        return Status(ErrorCodes::InvalidSSLConfiguration,
-            str::stream() << "Certificate chain validation failed: "
-            << errnoWithDescription(chain_policy_status.dwError));
-    }
-        
+    //// This means the chain is wrong.
+    //if(chain_policy_status.dwError != S_OK) {
+    //    return Status(ErrorCodes::InvalidSSLConfiguration,
+    //        str::stream() << "Certificate chain validation failed: "
+    //        << errnoWithDescription(chain_policy_status.dwError));
+    //}
+    //    
 
     return {boost::none};
 }

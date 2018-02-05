@@ -465,7 +465,7 @@ ssl_want SSLHandshakeManager::doClientHandshake(asio::error_code& ec) {
         needOutput = true;
     }
 
-    _pOutBuffer->reset();
+    //_pOutBuffer->reset();
     _pOutBuffer->append(outputBuffers[0].pvBuffer, outputBuffers[0].cbBuffer);
 
     // Reset the input buffer

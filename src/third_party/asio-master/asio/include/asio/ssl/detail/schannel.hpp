@@ -149,6 +149,7 @@ public:
             _buffer.swap(temp);
             _capacity = size;
         }
+        
         _size = size;
     }
 
@@ -301,9 +302,11 @@ private:
     }
 
     DWORD getClientFlags() {
+        // return ISC_REQ_SEQUENCE_DETECT | ISC_REQ_REPLAY_DETECT | ISC_REQ_CONFIDENTIALITY |
+        //     ISC_RET_EXTENDED_ERROR | ISC_REQ_STREAM | ISC_REQ_USE_SUPPLIED_CREDS |
+        //     ISC_REQ_MANUAL_CRED_VALIDATION;
         return ISC_REQ_SEQUENCE_DETECT | ISC_REQ_REPLAY_DETECT | ISC_REQ_CONFIDENTIALITY |
-            ISC_RET_EXTENDED_ERROR | ISC_REQ_STREAM | ISC_REQ_USE_SUPPLIED_CREDS |
-            ISC_REQ_MANUAL_CRED_VALIDATION;
+             ISC_REQ_STREAM ;
     }
 
     /**
