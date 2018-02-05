@@ -1017,7 +1017,7 @@ Status SSLManagerWindows::_validateCertificate(PCCERT_CONTEXT cert,
         if ((FiletimeToULL(cert->pCertInfo->NotBefore) > currentTimeLong) ||
             (currentTimeLong > FiletimeToULL(cert->pCertInfo->NotAfter))) {
             severe() << "The provided SSL certificate is expired or not yet valid.";
-            fassertFailedNoTrace(50662);
+            fassertFailedNoTrace(50666);
         }
 
         *serverCertificateExpirationDate = Date_t::fromMillisSinceEpoch(FiletimeToEpocMillis(cert->pCertInfo->NotAfter));
