@@ -346,18 +346,18 @@ SSLManagerWindows::SSLManagerWindows(const SSLParams& params, bool isServer)
 
     uassertStatusOK(initSSLContext(&_clientCred, params, ConnectionDirection::kOutgoing));
 
-    //uassertStatusOK(
-    //    _validateCertificate(_clientCertificates[0],
-    //        &_sslConfiguration.clientSubjectName, NULL            ));
+    uassertStatusOK(
+        _validateCertificate(_clientCertificates[0],
+            &_sslConfiguration.clientSubjectName, NULL            ));
 
     // SSL server specific initialization
     if (isServer) {
         uassertStatusOK(initSSLContext(&_serverCred, params, ConnectionDirection::kIncoming));
 
-        //uassertStatusOK(
-        //    _validateCertificate(_serverCertificates[0],
-        //        &_sslConfiguration.serverSubjectName,
-        //        &_sslConfiguration.serverCertificateExpirationDate));
+        uassertStatusOK(
+            _validateCertificate(_serverCertificates[0],
+                &_sslConfiguration.serverSubjectName,
+                &_sslConfiguration.serverCertificateExpirationDate));
 
         // Monitor the server certificate's expiration
         static CertificateExpirationMonitor task =
@@ -465,11 +465,34 @@ StatusWith<std::string> readFile(StringData fileName) {
     return buf;
 }
 
-StatusWith<std::vector<BYTE>> decodePEMBlob(const char* data, size_t len) {
+// Find a specific kind of PEM blob marked by BEGIN and END in a string
+StatusWith<StringData> findPEMBlob(StringData blob, StringData type, size_t position) {
+    std::string header = str::stream() << "-----BEGIN " << type << "-----";
+    std::string trailer = str::stream() << "-----END " << type << "-----";
+
+    size_t headerPosition = blob.find(header, position);
+    if (headerPosition == std::string::npos) {
+        return Status(ErrorCodes::InvalidSSLConfiguration,
+            str::stream() << "Failed to find PEM blobl header: " << header);
+    }
+
+    size_t trailerPosition = blob.find(trailer, headerPosition);
+    if (trailerPosition == std::string::npos) {
+        return Status(ErrorCodes::InvalidSSLConfiguration,
+            str::stream() << "Failed to find PEM blob trailer: " << trailer);
+    }
+
+    trailerPosition += trailer.size();
+    
+    return StringData(blob.rawData() + headerPosition, trailerPosition - headerPosition);
+}
+
+// Decode a base-64 PEM blob with headers in a binary blob
+StatusWith<std::vector<BYTE>> decodePEMBlob(StringData blob) {
     DWORD decodeLen{0};
 
-    BOOL ret = CryptStringToBinaryA(data,
-        len,
+    BOOL ret = CryptStringToBinaryA(blob.rawData(),
+        blob.size(),
         CRYPT_STRING_BASE64HEADER,
         NULL,
         &decodeLen,
@@ -487,8 +510,8 @@ StatusWith<std::vector<BYTE>> decodePEMBlob(const char* data, size_t len) {
     std::vector<BYTE> privateKeyBuf;
     privateKeyBuf.resize(decodeLen);
 
-    ret = CryptStringToBinaryA(data,
-        len,
+    ret = CryptStringToBinaryA(blob.rawData(),
+        blob.size(),
         CRYPT_STRING_BASE64HEADER,
         privateKeyBuf.data(),
         &decodeLen,
@@ -503,7 +526,8 @@ StatusWith<std::vector<BYTE>> decodePEMBlob(const char* data, size_t len) {
     return privateKeyBuf;
 }
 
-StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData password, bool client) {
+// Read a Certificate PEM file with a private key from disk
+StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData password) {
     auto swBuf = readFile(fileName);
     if (!swBuf.isOK()) {
         return swBuf.getStatus();
@@ -511,63 +535,53 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
 
     std::string buf = std::move(swBuf.getValue());
 
+    size_t encryptedPrivateKey = buf.find("-----BEGIN ENCRYPTED PRIVATE KEY-----");
+    if (encryptedPrivateKey != std::string::npos) {
+        return Status(ErrorCodes::InvalidSSLConfiguration,
+            str::stream() << "Encrypted private keys are not supported, use the Windows certificate store instead: " << fileName);
+    }
+
     // Search the buffer for the various strings that make up a PEM file
-    // TODO: handle multiple certificates
-    size_t publicKey = buf.find("-----BEGIN CERTIFICATE-----");
-    if (publicKey == std::string::npos) {
+    auto swPublicKeyBlob = findPEMBlob(buf, "CERTIFICATE"_sd, 0);
+    if (!swPublicKeyBlob.isOK()) {
+            return swPublicKeyBlob.getStatus();
+    }
+
+    auto publicKeyBlob = swPublicKeyBlob.getValue();
+
+    // Multiple certificates in a PEM file are not supported since these certs need to be in the ca file.
+    auto secondPublicKeyBlobPosition = buf.find("CERTIFICATE", (publicKeyBlob.rawData() + publicKeyBlob.size()) - buf.data());
+    if (secondPublicKeyBlobPosition != std::string::npos) {
         return Status(ErrorCodes::InvalidSSLConfiguration,
-                      str::stream() << "Failed to find Certifiate in: " << fileName);
+            str::stream() << "Certificate PEM files should only have one certificate, intermediate CA certificates belong in the CA file.");
     }
 
-     size_t encryptedPrivateKey = buf.find("-----BEGIN ENCRYPTED PRIVATE KEY-----");
-     if (encryptedPrivateKey != std::string::npos) {
-         return Status(ErrorCodes::InvalidSSLConfiguration,
-             str::stream() << "Encrypted private keys are not supported, use the Windows certificate store instead: " << fileName);
-     }
-
-    // TODO: check if we need both
-    size_t privateKey = buf.find("-----BEGIN RSA PRIVATE KEY-----");
-    if (privateKey == std::string::npos) {
-        privateKey = buf.find("-----BEGIN PRIVATE KEY-----");
+    // PEM files can have either private key format
+    // Also the private key can either come before or after the certificate
+    auto swPrivateKeyBlob = findPEMBlob(buf, "RSA PRIVATE KEY"_sd, 0);
+    // We expect to find at least one certificate
+    if (!swPublicKeyBlob.isOK()) {
+        auto swPrivateKeyBlob = findPEMBlob(buf, "PRIVATE KEY"_sd, 0);
+        if (!swPublicKeyBlob.isOK()) {
+            return swPublicKeyBlob.getStatus();
+        }
     }
 
-    if (privateKey == std::string::npos) {
-        return Status(ErrorCodes::InvalidSSLConfiguration,
-                      str::stream() << "Failed to find privateKey in: " << fileName);
-    }
+    auto privateKeyBlob = swPrivateKeyBlob.getValue();
 
-    auto swCert = decodePEMBlob(buf.c_str() + publicKey, 0);
+    auto swCert = decodePEMBlob(publicKeyBlob);
     if (!swCert.isOK()) {
         return swCert.getStatus();
     }
 
     auto certBuf = swCert.getValue();
 
+    PCCERT_CONTEXT cert = CertCreateCertificateContext(
+        X509_ASN_ENCODING,
+        certBuf.data(), certBuf.size()
+    );
 
-    CERT_BLOB certBlob;
-    certBlob.cbData = certBuf.size();;
-    certBlob.pbData = reinterpret_cast<BYTE*>(certBuf.data());
-
-    PCCERT_CONTEXT cert;
-    BOOL ret = CryptQueryObject(CERT_QUERY_OBJECT_BLOB,
-        &certBlob,
-        CERT_QUERY_CONTENT_FLAG_ALL,
-        CERT_QUERY_FORMAT_FLAG_ALL,
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        reinterpret_cast<const void**>(&cert));
-    if (!ret) {
-
-    //PCCERT_CONTEXT cert = CertCreateCertificateContext(
-    //    X509_ASN_ENCODING,
-    //    certBuf.data(), certBuf.size()
-    //    
-    //);
-    //if (cert == NULL) {
+    if (cert == NULL) {
         DWORD gle = GetLastError();
         return Status(ErrorCodes::InvalidSSLConfiguration,
             str::stream() << "CertCreateCertificateContext failed to decode cert: "
@@ -576,8 +590,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
 
     UniqueCertificate certHolder(cert);
 
-
-    auto swPrivateKeyBuf = decodePEMBlob(buf.c_str() + privateKey, 0);
+    auto swPrivateKeyBuf = decodePEMBlob(privateKeyBlob);
     if (!swPrivateKeyBuf.isOK()) {
         return swPrivateKeyBuf.getStatus();
     }
@@ -586,7 +599,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
 
     DWORD privateBlobLen{0};
 
-    ret = CryptDecodeObjectEx(X509_ASN_ENCODING,
+    BOOL ret = CryptDecodeObjectEx(X509_ASN_ENCODING,
                               PKCS_RSA_PRIVATE_KEY,
                               privateKeyBuf.data(),
         privateKeyBuf.size(),
@@ -725,27 +738,26 @@ Status readCAPEMFile(HCERTSTORE certStore, StringData fileName) {
 
     std::string buf = std::move(swBuf.getValue());
 
-    // TODO: add support for multiple certificates in a file
     // Search the buffer for the various strings that make up a PEM file
     size_t pos = 0;
 
     while (pos < buf.size()) {
-        size_t publicKey = buf.find("-----BEGIN CERTIFICATE-----", pos);
-        if (publicKey == std::string::npos) {
+        auto swBlob = findPEMBlob(buf, "CERTIFICATE"_sd, pos);
+        
+        // We expect to find at least one certificate
+        if (!swBlob.isOK()) {
             if (pos == 0) {
-                return Status(ErrorCodes::InvalidSSLConfiguration,
-                    str::stream() << "Failed to find Certifiate in: " << fileName);
+                return swBlob.getStatus();
             } else {
                 return Status::OK();
             }
         }
 
-        std::string endCert = "-----END CERTIFICATE-----";
-        size_t publicKeyEnd = buf.find(endCert, publicKey);
-        publicKeyEnd += endCert.size();
-        pos = publicKeyEnd;
+        auto blobBuf = swBlob.getValue();
 
-        auto swCert = decodePEMBlob(buf.c_str() + publicKey, publicKeyEnd - publicKey);
+        pos = (blobBuf.rawData() + blobBuf.size()) - buf.data();
+
+        auto swCert = decodePEMBlob(blobBuf);
         if (!swCert.isOK()) {
             return swCert.getStatus();
         }
@@ -790,7 +802,7 @@ Status readCRLPEMFile(HCERTSTORE certStore, StringData fileName) {
 
     std::string buf = std::move(swBuf.getValue());
 
-    auto swCert = decodePEMBlob(buf.c_str(), 0);
+    auto swCert = decodePEMBlob(buf);
     if (!swCert.isOK()) {
         return swCert.getStatus();
     }
@@ -863,7 +875,7 @@ Status SSLManagerWindows::loadCertificates(const SSLParams& params) {
 
     // Load the normal PEM file
     if (!params.sslPEMKeyFile.empty()) {
-        auto swCertificate = readPEMFile(params.sslPEMKeyFile, params.sslPEMKeyPassword, true);
+        auto swCertificate = readPEMFile(params.sslPEMKeyFile, params.sslPEMKeyPassword);
         if (!swCertificate.isOK()) {
             return swCertificate.getStatus();
         }
@@ -873,7 +885,7 @@ Status SSLManagerWindows::loadCertificates(const SSLParams& params) {
 
     // Load the cluster PEM file, only applies to server side code
     if (!params.sslClusterFile.empty()) {
-        auto swCertificate = readPEMFile(params.sslClusterFile, params.sslClusterPassword, true);
+        auto swCertificate = readPEMFile(params.sslClusterFile, params.sslClusterPassword);
         if (!swCertificate.isOK()) {
             return swCertificate.getStatus();
         }
@@ -890,11 +902,12 @@ Status SSLManagerWindows::loadCertificates(const SSLParams& params) {
         _clientCertificates[0] = _clusterPEMCertificate.get();
     }
 
-    //auto swChain = readCertChains(params.sslCAFile, params.sslCRLFile);
-    //if (!swChain.isOK()) {
-    //    return swChain.getStatus();
-    //}
-    //_certstore =  std::move(swChain.getValue());
+    auto swChain = readCertChains(params.sslCAFile, params.sslCRLFile);
+    if (!swChain.isOK()) {
+        return swChain.getStatus();
+    }
+
+    _certstore =  std::move(swChain.getValue());
 
     return Status::OK();
 }
@@ -902,12 +915,11 @@ Status SSLManagerWindows::loadCertificates(const SSLParams& params) {
 Status SSLManagerWindows::initSSLContext(SCHANNEL_CRED* cred,
                                          const SSLParams& params,
                                          ConnectionDirection direction) {
-
     ZeroMemory(cred, sizeof(*cred));
     cred->dwVersion = SCHANNEL_CRED_VERSION;
     cred->dwFlags = SCH_USE_STRONG_CRYPTO;  // Use strong crypto;
 
-    //cred->hRootStore = _certstore;
+    cred->hRootStore = _certstore;
 
     uint32_t supportedProtocols = 0;
 
@@ -915,16 +927,17 @@ Status SSLManagerWindows::initSSLContext(SCHANNEL_CRED* cred,
         supportedProtocols = SP_PROT_TLS1_SERVER | SP_PROT_TLS1_0_SERVER | SP_PROT_TLS1_1_SERVER |
             SP_PROT_TLS1_2_SERVER;
 
-        cred->dwFlags = cred->dwFlags | SCH_CRED_SNI_CREDENTIAL  // Pass along SNI creds
-            //| SCH_CRED_SNI_ENABLE_OCSP                           // Enable OCSP
+        cred->dwFlags = cred->dwFlags  // flags
+            | SCH_CRED_SNI_CREDENTIAL  // Pass along SNI creds
+            | SCH_CRED_SNI_ENABLE_OCSP                           // Enable OCSP
             | SCH_CRED_NO_SYSTEM_MAPPER     // Do not map certificate to user account
             | SCH_CRED_DISABLE_RECONNECTS;  // Do not support reconnects
     } else {
         supportedProtocols = SP_PROT_TLS1_CLIENT | SP_PROT_TLS1_0_CLIENT | SP_PROT_TLS1_1_CLIENT |
             SP_PROT_TLS1_2_CLIENT;
 
-        cred->dwFlags = cred->dwFlags
-            // | SCH_CRED_REVOCATION_CHECK_CHAIN     // Check certificate revocation
+        cred->dwFlags = cred->dwFlags // flags
+            | SCH_CRED_REVOCATION_CHECK_CHAIN     // Check certificate revocation
             | SCH_CRED_NO_SERVERNAME_CHECK      // Do not validate server name against cert
             | SCH_CRED_NO_DEFAULT_CREDS         // No Default Certificate
             | SCH_CRED_MANUAL_CRED_VALIDATION;  // Validate Certificate Manually
