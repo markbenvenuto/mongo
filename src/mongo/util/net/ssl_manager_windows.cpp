@@ -672,7 +672,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
                 << errnoWithDescription(gle));
         }
     }
-    UniqueCryptProvider cryptProvider(hProv);
+    //UniqueCryptProvider cryptProvider(hProv);
 
     HCRYPTKEY hkey;
     ret = CryptImportKey(hProv, privateBlobBuf.get(), privateBlobLen, 0, 0, &hkey);
