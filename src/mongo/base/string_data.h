@@ -287,7 +287,7 @@ inline size_t StringData::find(StringData needle, size_t fromPos) const {
     else if (needleSize > mx)
         return std::string::npos;
 
-    if(fromPos > size())
+    if (fromPos > size())
         return std::string::npos;
 
     mx -= needleSize;

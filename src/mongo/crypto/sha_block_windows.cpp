@@ -50,10 +50,18 @@ public:
         loadAlgo(&_algoSHA256Hmac, BCRYPT_SHA256_ALGORITHM, true);
     }
 
-    BCRYPT_ALG_HANDLE getAlgoSHA256() {return _algoSHA256;}
-    BCRYPT_ALG_HANDLE getAlgoSHA1() {return _algoSHA1;}
-    BCRYPT_ALG_HANDLE getAlgoSHA256Hmac() {return _algoSHA256Hmac;};
-    BCRYPT_ALG_HANDLE getAlgoSHA1Hmac() {return _algoSHA1Hmac;};
+    BCRYPT_ALG_HANDLE getAlgoSHA256() {
+        return _algoSHA256;
+    }
+    BCRYPT_ALG_HANDLE getAlgoSHA1() {
+        return _algoSHA1;
+    }
+    BCRYPT_ALG_HANDLE getAlgoSHA256Hmac() {
+        return _algoSHA256Hmac;
+    };
+    BCRYPT_ALG_HANDLE getAlgoSHA1Hmac() {
+        return _algoSHA1Hmac;
+    };
 
 private:
     void loadAlgo(BCRYPT_ALG_HANDLE* algo, const wchar_t* name, bool isHmac) {
@@ -66,7 +74,6 @@ private:
     BCRYPT_ALG_HANDLE _algoSHA1;
     BCRYPT_ALG_HANDLE _algoSHA256Hmac;
     BCRYPT_ALG_HANDLE _algoSHA1Hmac;
-
 };
 
 static BCryptHashLoader getBCryptHashLoader() {
@@ -137,7 +144,8 @@ SHA1BlockTraits::HashType SHA1BlockTraits::computeHash(
 
 SHA256BlockTraits::HashType SHA256BlockTraits::computeHash(
     std::initializer_list<ConstDataRange> input) {
-    return computeHashImpl<SHA256BlockTraits::HashType>(getBCryptHashLoader().getAlgoSHA256(), input);
+    return computeHashImpl<SHA256BlockTraits::HashType>(getBCryptHashLoader().getAlgoSHA256(),
+                                                        input);
 }
 
 void SHA1BlockTraits::computeHmac(const uint8_t* key,
@@ -145,7 +153,8 @@ void SHA1BlockTraits::computeHmac(const uint8_t* key,
                                   const uint8_t* input,
                                   size_t inputLen,
                                   HashType* const output) {
-    return computeHmacImpl<HashType>(getBCryptHashLoader().getAlgoSHA1Hmac(), key, keyLen, input, inputLen, output);
+    return computeHmacImpl<HashType>(
+        getBCryptHashLoader().getAlgoSHA1Hmac(), key, keyLen, input, inputLen, output);
 }
 
 void SHA256BlockTraits::computeHmac(const uint8_t* key,
