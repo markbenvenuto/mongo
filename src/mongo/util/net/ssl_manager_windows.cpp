@@ -289,8 +289,8 @@ private:
 
     UniqueCertificate _pemCertificate;
     UniqueCertificate _clusterPEMCertificate;
-    PCCERT_CONTEXT _clientCertificates[1];
-    PCCERT_CONTEXT _serverCertificates[1];
+    PCCERT_CONTEXT _clientCertificates[1] = {0};
+    PCCERT_CONTEXT _serverCertificates[1] = {0};
     UniqueCertStore _certstore;
 
     Status loadCertificates(const SSLParams& params);
@@ -342,20 +342,25 @@ SSLManagerWindows::SSLManagerWindows(const SSLParams& params, bool isServer)
       _allowInvalidCertificates(params.sslAllowInvalidCertificates),
       _allowInvalidHostnames(params.sslAllowInvalidHostnames) {
 
+    // Certificates may not be loaded. This typically occurs in unit tests.
     uassertStatusOK(loadCertificates(params));
 
     uassertStatusOK(initSSLContext(&_clientCred, params, ConnectionDirection::kOutgoing));
 
-    uassertStatusOK(
-        _validateCertificate(_clientCertificates[0], &_sslConfiguration.clientSubjectName, NULL));
+    if (_clientCertificates[0] != nullptr) {
+        uassertStatusOK(
+            _validateCertificate(_clientCertificates[0], &_sslConfiguration.clientSubjectName, NULL));
+    }
 
     // SSL server specific initialization
     if (isServer) {
         uassertStatusOK(initSSLContext(&_serverCred, params, ConnectionDirection::kIncoming));
 
-        uassertStatusOK(_validateCertificate(_serverCertificates[0],
-                                             &_sslConfiguration.serverSubjectName,
-                                             &_sslConfiguration.serverCertificateExpirationDate));
+        if (_serverCertificates[0] != nullptr) {
+            uassertStatusOK(_validateCertificate(_serverCertificates[0],
+                &_sslConfiguration.serverSubjectName,
+                &_sslConfiguration.serverCertificateExpirationDate));
+        }
 
         // Monitor the server certificate's expiration
         static CertificateExpirationMonitor task =
