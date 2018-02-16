@@ -200,6 +200,23 @@ struct CertStoreFree {
 
 typedef AutoHandle<HCERTSTORE, CertStoreFree> UniqueCertStore;
 
+/**
+* Free a HCERTCHAINENGINE Handle
+*/
+struct CertChainEngineFree {
+    void operator()(HCERTCHAINENGINE           const p) noexcept {
+        if (p) {
+            // For leak detection, add CERT_CLOSE_STORE_CHECK_FLAG
+            // Currently, we open very few cert stores and let the certs live beyond the cert store
+            // so the leak detection flag is not useful.
+            ::CertFreeCertificateChainEngine(p);
+        }
+    }
+};
+
+typedef AutoHandle<HCERTCHAINENGINE, CertChainEngineFree> UniqueCertChainEngine;
+
+
 std::string getCertificateSubjectName(PCCERT_CONTEXT cert) {
     DWORD needed = CertGetNameStringA(cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, NULL, NULL, 0);
     uassert(50662,
@@ -278,6 +295,11 @@ private:
                                 std::string* subjectName,
                                 Date_t* serverCertificateExpirationDate);
 
+    Status _initChainEngine();
+    Status _loadCertificates(const SSLParams& params);
+
+    void handshake(SSLConnectionWindows* conn, bool client);
+
 private:
     bool _weakValidation;
     bool _allowInvalidCertificates;
@@ -289,13 +311,14 @@ private:
 
     UniqueCertificate _pemCertificate;
     UniqueCertificate _clusterPEMCertificate;
-    PCCERT_CONTEXT _clientCertificates[1] = {0};
-    PCCERT_CONTEXT _serverCertificates[1] = {0};
-    UniqueCertStore _certstore;
+    std::array<PCCERT_CONTEXT, 1> _clientCertificates;
+    std::array<PCCERT_CONTEXT,1 > _serverCertificates;
 
-    Status loadCertificates(const SSLParams& params);
+    UniqueCertStore _certStore;
 
-    void handshake(SSLConnectionWindows* conn, bool client);
+    CERT_CHAIN_ENGINE_CONFIG _chainEngineConfig;
+    std::array<HCERTSTORE, 1 > _additionalCertStores;
+    UniqueCertChainEngine _chainEngine;
 };
 
 // Global variable indicating if this is a server or a client instance
@@ -343,7 +366,7 @@ SSLManagerWindows::SSLManagerWindows(const SSLParams& params, bool isServer)
       _allowInvalidHostnames(params.sslAllowInvalidHostnames) {
 
     // Certificates may not be loaded. This typically occurs in unit tests.
-    uassertStatusOK(loadCertificates(params));
+    uassertStatusOK(_loadCertificates(params));
 
     uassertStatusOK(initSSLContext(&_clientCred, params, ConnectionDirection::kOutgoing));
 
@@ -366,6 +389,32 @@ SSLManagerWindows::SSLManagerWindows(const SSLParams& params, bool isServer)
         static CertificateExpirationMonitor task =
             CertificateExpirationMonitor(_sslConfiguration.serverCertificateExpirationDate);
     }
+
+    uassertStatusOK(_initChainEngine());
+}
+
+Status SSLManagerWindows::_initChainEngine() {
+    memset(&_chainEngineConfig, 0, sizeof(_chainEngineConfig));
+    _chainEngineConfig.cbSize = sizeof(_chainEngineConfig);
+
+    /*_additionalCertStores[0] = _certStore;
+    _chainEngineConfig.cAdditionalStore = _additionalCertStores.size();
+    _chainEngineConfig.rghAdditionalStore = _additionalCertStores.data();
+*/
+    _chainEngineConfig.hExclusiveRoot = _certStore;
+
+    HCERTCHAINENGINE chainEngine;
+    BOOL ret = CertCreateCertificateChainEngine(&_chainEngineConfig, &chainEngine);
+    if (!ret) {
+        DWORD gle = GetLastError();
+        return Status(ErrorCodes::InvalidSSLConfiguration,
+            str::stream() << "CertCreateCertificateChainEngine failed: "
+            << errnoWithDescription(gle));
+    }
+
+    _chainEngine = chainEngine;
+
+    return Status::OK();
 }
 
 int SSLManagerWindows::SSL_read(SSLConnectionInterface* connInterface, void* buf, int num) {
@@ -859,7 +908,7 @@ StatusWith<UniqueCertStore> readCertChains(StringData caFile, StringData crlFile
     return std::move(certStore);
 }
 
-Status SSLManagerWindows::loadCertificates(const SSLParams& params) {
+Status SSLManagerWindows::_loadCertificates(const SSLParams& params) {
     _clientCertificates[0] = nullptr;
     _serverCertificates[0] = nullptr;
 
@@ -897,7 +946,7 @@ Status SSLManagerWindows::loadCertificates(const SSLParams& params) {
         return swChain.getStatus();
     }
 
-    _certstore = std::move(swChain.getValue());
+    _certStore = std::move(swChain.getValue());
 
     return Status::OK();
 }
@@ -909,7 +958,7 @@ Status SSLManagerWindows::initSSLContext(SCHANNEL_CRED* cred,
     cred->dwVersion = SCHANNEL_CRED_VERSION;
     cred->dwFlags = SCH_USE_STRONG_CRYPTO;  // Use strong crypto;
 
-    cred->hRootStore = _certstore;
+    cred->hRootStore = _certStore;
 
     uint32_t supportedProtocols = 0;
 
@@ -954,11 +1003,11 @@ Status SSLManagerWindows::initSSLContext(SCHANNEL_CRED* cred,
     if (direction == ConnectionDirection::kOutgoing) {
         if (_clientCertificates[0]) {
             cred->cCreds = 1;
-            cred->paCred = _clientCertificates;
+            cred->paCred = _clientCertificates.data();
         }
     } else {
         cred->cCreds = 1;
-        cred->paCred = _serverCertificates;
+        cred->paCred = _serverCertificates.data();
     }
 
     return Status::OK();
@@ -1129,65 +1178,106 @@ StatusWith<boost::optional<SSLPeerInfo>> SSLManagerWindows::parseAndValidatePeer
                       str::stream() << "QueryContextAttributes failed with" << ss);
     }
 
-    // UniqueCertificate certHolder(cert);
-    //
-    // CERT_CHAIN_PARA chain_para = {0};
+     UniqueCertificate certHolder(cert);
+    
+     CERT_CHAIN_PARA chain_para;
+     memset(&chain_para, 0, sizeof(chain_para));
+     chain_para.cbSize = sizeof(CERT_CHAIN_PARA);
 
-    // chain_para.cbSize = sizeof(CERT_CHAIN_PARA);
+     LPSTR usage[] = {
+         const_cast<LPSTR>(szOID_PKIX_KP_SERVER_AUTH),
+     };
 
-    ////chain_para.RequestedUsage.Usage.
-
-    // PCCERT_CHAIN_CONTEXT chainContext;
-    // BOOL ret = CertGetCertificateChain(
-    //    NULL,
-    //    certHolder.get(),
-    //    NULL,
-    //    _certstore,
-    //    &chain_para,
-    //    CERT_CHAIN_REVOCATION_CHECK_CHAIN,
-    //    NULL,
-    //    &chainContext
-    //);
-    // if (!ret) {
-    //    DWORD gle = GetLastError();
-    //    return Status(ErrorCodes::InvalidSSLConfiguration,
-    //        str::stream() << "CertGetCertificateChain failed: "
-    //        << errnoWithDescription(gle));
-    //}
+     chain_para.RequestedUsage.dwType = USAGE_MATCH_TYPE_AND;
+     chain_para.RequestedUsage.Usage.cUsageIdentifier = _countof(usage);
+     chain_para.RequestedUsage.Usage.rgpszUsageIdentifier = usage;
 
 
-    //    UniqueCertChain certChainHolder(chainContext);
-    //// Missing Cert???
+     PCCERT_CHAIN_CONTEXT chainContext;
+     BOOL ret = CertGetCertificateChain(
+        _chainEngine,
+        certHolder.get(),
+        NULL,
+        NULL,
+        &chain_para,
+         CERT_CHAIN_REVOCATION_CHECK_CHAIN_EXCLUDE_ROOT, // CERT_CHAIN_CACHE_END_CERT?
+        NULL,
+        &chainContext
+    );
+     //BOOL ret = CertGetCertificateChain(
+     //    NULL,
+     //    certHolder.get(),
+     //    NULL,
+     //    _certStore,
+     //    &chain_para,
+     //    CERT_CHAIN_REVOCATION_CHECK_CHAIN_EXCLUDE_ROOT, // CERT_CHAIN_CACHE_END_CERT?
+     //    NULL,
+     //    &chainContext
+     //);
+     if (!ret) {
+        DWORD gle = GetLastError();
+        return Status(ErrorCodes::InvalidSSLConfiguration,
+            str::stream() << "CertGetCertificateChain failed: "
+            << errnoWithDescription(gle));
+    }
 
-    // CERT_CHAIN_POLICY_PARA chain_policy_para;
-    // chain_policy_para.cbSize = sizeof(chain_policy_para);
 
-    // CERT_CHAIN_POLICY_STATUS chain_policy_status;
-    // chain_policy_status.cbSize = sizeof(chain_policy_status);
+     auto pCert = CertFindCertificateInStore(
+         _certStore,
+         X509_ASN_ENCODING,
+         0,
+         CERT_FIND_ANY,
+         NULL,
+         NULL
+     );
 
-    // ret = CertVerifyCertificateChainPolicy(
+        UniqueCertChain certChainHolder(chainContext);
+    // Missing Cert???
 
-    //    CERT_CHAIN_POLICY_SSL,
-    //    certChainHolder.get(),
-    //    &chain_policy_para,
-    //    &chain_policy_status
-    //);
+        SSL_EXTRA_CERT_CHAIN_POLICY_PARA ssl_chain_policy;
+        memset(&ssl_chain_policy, 0, sizeof(ssl_chain_policy));
+        ssl_chain_policy.cbSize = sizeof(ssl_chain_policy);
 
-    //// This means some really went wrong.
-    // if (!ret) {
-    //    DWORD gle = GetLastError();
-    //    return Status(ErrorCodes::InvalidSSLConfiguration,
-    //        str::stream() << "CertVerifyCertificateChainPolicy failed: "
-    //        << errnoWithDescription(gle));
-    //}
+        // TODO
+        ssl_chain_policy.dwAuthType = AUTHTYPE_CLIENT;
 
-    //// This means the chain is wrong.
-    // if(chain_policy_status.dwError != S_OK) {
-    //    return Status(ErrorCodes::InvalidSSLConfiguration,
-    //        str::stream() << "Certificate chain validation failed: "
-    //        << errnoWithDescription(chain_policy_status.dwError));
-    //}
-    //
+
+        // TODO: is remote
+        std::wstring wstr = toNativeString(remoteHost.c_str());
+        ssl_chain_policy.pwszServerName = const_cast<wchar_t*>(wstr.c_str());
+
+     CERT_CHAIN_POLICY_PARA chain_policy_para;
+     memset(&chain_policy_para, 0, sizeof(chain_policy_para));
+     chain_policy_para.cbSize = sizeof(chain_policy_para);
+     chain_policy_para.pvExtraPolicyPara = &ssl_chain_policy;
+
+     CERT_CHAIN_POLICY_STATUS chain_policy_status;
+     memset(&chain_policy_status, 0, sizeof(chain_policy_status));
+     chain_policy_status.cbSize = sizeof(chain_policy_status);
+
+     ret = CertVerifyCertificateChainPolicy(
+
+        CERT_CHAIN_POLICY_SSL,
+        certChainHolder.get(),
+        &chain_policy_para,
+        &chain_policy_status
+    );
+
+    // This means some really went wrong.
+     if (!ret) {
+        DWORD gle = GetLastError();
+        return Status(ErrorCodes::InvalidSSLConfiguration,
+            str::stream() << "CertVerifyCertificateChainPolicy failed: "
+            << errnoWithDescription(gle));
+    }
+
+    // This means the chain is wrong.
+     if(chain_policy_status.dwError != S_OK) {
+        return Status(ErrorCodes::InvalidSSLConfiguration,
+            str::stream() << "Certificate chain validation failed: "
+            << errnoWithDescription(chain_policy_status.dwError));
+    }
+    
 
     return {boost::none};
 }
