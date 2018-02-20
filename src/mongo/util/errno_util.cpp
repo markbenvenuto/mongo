@@ -37,7 +37,9 @@
 #endif
 
 #include "mongo/util/scopeguard.h"
+#include "mongo/util/mongoutils/str.h"
 #include "mongo/util/text.h"
+#include "mongo/platform/shared_library.h"
 
 namespace mongo {
 
@@ -46,10 +48,31 @@ const char kUnknownMsg[] = "Unknown error";
 const int kBuflen = 256;  // strerror strings in non-English locales can be large.
 }  // namespace
 
+#ifdef _WIN32
+typedef ULONG(WINAPI* pRtlNtStatusToDosError)(NTSTATUS Status);
+
+std::string statusWithDescription(NTSTATUS status) {
+    auto swLib = SharedLibrary::create("ntdll.dll");
+    if (swLib.getStatus().isOK()) {
+        auto lib = std::move(swLib.getValue());
+        auto swFunc = lib->getFunctionAs<pRtlNtStatusToDosError>("RtlNtStatusToDosError");
+        if (swFunc.isOK()) {
+            pRtlNtStatusToDosError RtlNtStatusToDosErrorFunc = swFunc.getValue();
+            return errnoWithDescription(RtlNtStatusToDosErrorFunc(status));
+        }
+    }
+
+    return str::stream() << "Failed to get error message for NTSTATUS: " << status;
+}
+#endif
+
 std::string errnoWithDescription(int errNumber) {
 #if defined(_WIN32)
-    if (errNumber < 0)
+    if (errNumber == -1) {
         errNumber = GetLastError();
+    } else if (errNumber < 0) {
+        return statusWithDescription(errNumber);
+    }
 #else
     if (errNumber < 0)
         errNumber = errno;

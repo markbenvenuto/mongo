@@ -220,20 +220,256 @@ typedef AutoHandle<HCERTCHAINENGINE, CertChainEngineFree> UniqueCertChainEngine;
 std::string getCertificateSubjectName(PCCERT_CONTEXT cert) {
     DWORD needed = CertGetNameStringA(cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, NULL, NULL, 0);
     uassert(50662,
-            str::stream() << "CertGetNameString size query failed with: " << needed,
-            needed != 0);
+        str::stream() << "CertGetNameString size query failed with: " << needed,
+        needed != 0);
 
     std::unique_ptr<BYTE> nameBuf(new BYTE[needed]);
     DWORD cbConverted = CertGetNameStringA(
         cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, NULL, (LPSTR)nameBuf.get(), needed);
     uassert(50663,
-            str::stream() << "CertGetNameString retrieval failed with: " << cbConverted,
-            needed == cbConverted);
+        str::stream() << "CertGetNameString retrieval failed with: " << cbConverted,
+        needed == cbConverted);
 
     return std::string(reinterpret_cast<char*>(nameBuf.get()));
 }
 
 }  // namespace
+
+
+
+   // Subset of DER Types
+enum class DERType : char {
+    EndOfContent = 0,
+    UTF8String = 12,
+    SEQUENCE = 16,
+    SET = 17,
+};
+
+class TLPair {
+public:
+    TLPair() {}
+    TLPair(DERType type, size_t length, const char* const data) : _type(type), _length(length), _data(data) {}
+
+    DERType getType() const { return _type; }
+    
+    ConstDataRange getSetRange() {
+        invariant(_type == DERType::SET);
+        return ConstDataRange(_data, _data + _length);
+    }
+
+    ConstDataRange getSequenceRange() {
+        invariant(_type == DERType::SEQUENCE);
+        return ConstDataRange(_data, _data + _length);
+    }
+
+    std::string readUtf8String() {
+        return std::string(_data, _length);
+    }
+
+    static StatusWith<TLPair> parse(const char* ptr, size_t len, size_t *outLength) {
+        const size_t kTagLength = 1;
+        const size_t  kTagLengthAndInitialLengthByteLength = 2;
+        const char* start = ptr;
+        dassert(len >= kTagLength);
+
+        char tagByte = *ptr++;
+        // Get the tag number
+        char tag = tagByte & 0x1f;
+        bool constructed = tagByte & 0x20;
+        bool primitive = !constructed;
+
+        switch (tag) {
+        case DERType::UTF8String:
+            if (!primitive) {
+                return Status(ErrorCodes::InvalidSSLConfiguration, "Unknown DER tag");
+
+            }
+            break;
+        case DERType::SEQUENCE:
+        case DERType::SET:
+            if (!constructed) {
+                return Status(ErrorCodes::InvalidSSLConfiguration, "Unknown DER tag");
+
+            }
+            break;
+        default:
+            return Status(ErrorCodes::InvalidSSLConfiguration, "Unknown DER tag");
+        }
+
+        if (len < kTagLengthAndInitialLengthByteLength) {
+            return Status(ErrorCodes::InvalidSSLConfiguration, "Invalid DER length");
+        }
+
+        // Read length
+        // Depending on the high bit, either read 1 byte or N bytes
+        char initialLengthByte = *ptr;
+        size_t derLength = 0;
+
+        // How many bytes does it take to encode the length?
+        size_t encodedLengthBytesCount = 1;
+
+        if (initialLengthByte > 0x80) {
+            // Length is > 127 bytes, i.e. Long form
+            size_t lengthBytesCount = 0x7f & initialLengthByte;
+            encodedLengthBytesCount = 1 + lengthBytesCount;
+
+            // If length is encoded in more then 8 bytes, we cannot handle it
+            if (lengthBytesCount > 8
+                || len < kTagLengthAndInitialLengthByteLength + lengthBytesCount) {
+                return Status(ErrorCodes::InvalidSSLConfiguration, "Invalid DER length");
+            }
+
+            std::array<char, 8> lengthBuffer;
+            memcpy_s(lengthBuffer.data(), lengthBytesCount, ptr, lengthBytesCount);
+
+            derLength = ConstDataView(lengthBuffer.data()).read<BigEndian<uint64_t>>();
+        } else {
+            // Length is <= 127 bytes, i.e. short form
+            derLength = initialLengthByte;
+        }
+
+        // This is the total length of the TLV and all data
+        *outLength = kTagLength + encodedLengthBytesCount + derLength;
+
+        return TLPair(static_cast<DERType>(tag), derLength, start + kTagLength + encodedLengthBytesCount);
+    }
+private:
+    DERType _type{DERType::EndOfContent};
+    size_t _length{0};
+    const char* _data{nullptr};
+};
+
+
+template <>
+struct DataType::Handler<TLPair> {
+    /**
+    * Compress a 64-bit integer and return the new buffer position.
+    *
+    * end should be the byte after the end of the buffer.
+    *
+    * Return nullptr for bad encoded data.
+    */
+    static Status load(TLPair* t,
+        const char* ptr,
+        size_t length,
+        size_t* advanced,
+        std::ptrdiff_t debug_offset) {
+        size_t outLength;
+
+        auto swPair = TLPair::parse(ptr, length, &outLength);
+
+        if (!swPair.isOK()) {
+            return swPair.getStatus();
+        }
+
+        if (t) {
+            *t = std::move(swPair.getValue());
+        }
+
+        if (advanced) {
+            *advanced = outLength;
+        }
+
+        return Status::OK();
+    }
+
+    static TLPair defaultConstruct() {
+        return TLPair();
+    }
+};
+
+StatusWith<std::string> readString(ConstDataRangeCursor& cdc) {
+    auto swString = cdc.readAndAdvance<TLPair>();
+    if (!swString.isOK()) {
+        return swString.getStatus();
+    }
+
+    auto derString = swString.getValue();
+
+    if (derString.getType() != DERType::UTF8String) {
+        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "Unexpected DER Tag, Got " << static_cast<char>(derString.getType()) << ", Expected UTF8String");
+    }
+
+    return derString.readUtf8String();
+}
+
+
+
+StatusWith<stdx::unordered_set<RoleName>> parsePeerRoles(ConstDataRange cdrExtension) {
+    stdx::unordered_set<RoleName> roles;
+
+    ConstDataRangeCursor cdcExtension(cdrExtension);
+
+    /*
+    * MongoDBAuthorizationGrants ::= SET OF MongoDBAuthorizationGrant
+    *
+    * MongoDBAuthorizationGrant ::= CHOICE {
+    *  MongoDBRole,
+    *  ...!UTF8String:"Unrecognized entity in MongoDBAuthorizationGrant"
+    * }
+    */
+    auto swSet = cdcExtension.readAndAdvance<TLPair>();
+    if (!swSet.isOK()) {
+        return swSet.getStatus();
+    }
+
+    if (swSet.getValue().getType() != DERType::SET) {
+        return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "Unexpected DER Tag, Got " << static_cast<char>(swSet.getValue().getType()) << ", Expected SET");
+    }
+
+    ConstDataRangeCursor cdcSet(swSet.getValue().getSetRange());
+
+    while (!cdcSet.empty()) {
+        /*
+        * MongoDBRole ::= SEQUENCE {
+        *  role     UTF8String,
+        *  database UTF8String
+        * }
+        */
+        auto swSequence = cdcSet.readAndAdvance<TLPair>();
+        if (!swSequence.isOK()) {
+            return swSequence.getStatus();
+        }
+
+        auto sequenceStart = swSequence.getValue();
+
+        if (sequenceStart.getType() != DERType::SEQUENCE) {
+            return Status(ErrorCodes::InvalidSSLConfiguration, str::stream() << "Unexpected DER Tag, Got " << static_cast<char>(sequenceStart.getType()) << ", Expected SEQUENCE");
+        }
+
+        ConstDataRangeCursor cdcSequence(sequenceStart.getSequenceRange());
+
+        auto swRole = readString(cdcSequence);
+        if (!swRole.isOK()) {
+            return swRole.getStatus();
+        }
+        
+        auto swDatabase = readString(cdcSequence);
+        if (!swDatabase.isOK()) {
+            return swDatabase.getStatus();
+        }
+
+        roles.emplace(RoleName(swRole.getValue(), swDatabase.getValue()));
+    }
+
+    return roles;
+}
+StatusWith<stdx::unordered_set<RoleName>> parsePeerRoles(PCCERT_CONTEXT cert) {
+    PCERT_EXTENSION extension = CertFindExtension(
+        mongodbRolesOID.identifier.c_str(),
+        cert->pCertInfo->cExtension,
+        cert->pCertInfo->rgExtension
+    );
+
+    stdx::unordered_set<RoleName> roles;
+
+    if (!extension) {
+        return roles;
+    }
+
+    return parsePeerRoles(ConstDataRange(reinterpret_cast<char*>(extension->Value.pbData), reinterpret_cast<char*>(extension->Value.pbData) + extension->Value.cbData));
+}
+
 
 /**
  * Manage state for a SSL Connection. Used by the Socket class.
@@ -1153,7 +1389,7 @@ StatusWith<boost::optional<SSLPeerInfo>> SSLManagerWindows::parseAndValidatePeer
     PCtxtHandle ssl, const std::string& remoteHost) {
 
     if (!isSSLServer)
-        return {boost::none};
+        return{boost::none};
 
     PCCERT_CONTEXT cert;
 
@@ -1169,52 +1405,45 @@ StatusWith<boost::optional<SSLPeerInfo>> SSLManagerWindows::parseAndValidatePeer
             return Status(ErrorCodes::SSLHandshakeFailed, msg);
         }
 
-        return {boost::none};
+        return{boost::none};
     }
 
     // Check for unexpected errors
     if (ss != SEC_E_OK) {
         return Status(ErrorCodes::SSLHandshakeFailed,
-                      str::stream() << "QueryContextAttributes failed with" << ss);
+            str::stream() << "QueryContextAttributes failed with" << ss);
     }
 
-     UniqueCertificate certHolder(cert);
-    
-     CERT_CHAIN_PARA chain_para;
-     memset(&chain_para, 0, sizeof(chain_para));
-     chain_para.cbSize = sizeof(CERT_CHAIN_PARA);
+    UniqueCertificate certHolder(cert);
 
-     LPSTR usage[] = {
-         const_cast<LPSTR>(szOID_PKIX_KP_SERVER_AUTH),
-     };
+    CERT_CHAIN_PARA chain_para;
+    memset(&chain_para, 0, sizeof(chain_para));
+    chain_para.cbSize = sizeof(CERT_CHAIN_PARA);
 
-     chain_para.RequestedUsage.dwType = USAGE_MATCH_TYPE_AND;
-     chain_para.RequestedUsage.Usage.cUsageIdentifier = _countof(usage);
-     chain_para.RequestedUsage.Usage.rgpszUsageIdentifier = usage;
+    // If remoteHost is empty, then this is running on the server side, and we want to verify the client cert
+    if (remoteHost.empty()) {
 
+        LPSTR usage[] = {
+            const_cast<LPSTR>(szOID_PKIX_KP_SERVER_AUTH),
+        };
 
-     PCCERT_CHAIN_CONTEXT chainContext;
-     BOOL ret = CertGetCertificateChain(
+        chain_para.RequestedUsage.dwType = USAGE_MATCH_TYPE_AND;
+        chain_para.RequestedUsage.Usage.cUsageIdentifier = _countof(usage);
+        chain_para.RequestedUsage.Usage.rgpszUsageIdentifier = usage;
+    }
+
+    PCCERT_CHAIN_CONTEXT chainContext;
+    BOOL ret = CertGetCertificateChain(
         _chainEngine,
         certHolder.get(),
         NULL,
         NULL,
         &chain_para,
-         CERT_CHAIN_REVOCATION_CHECK_CHAIN_EXCLUDE_ROOT, // CERT_CHAIN_CACHE_END_CERT?
+        CERT_CHAIN_REVOCATION_CHECK_CHAIN_EXCLUDE_ROOT, // CERT_CHAIN_CACHE_END_CERT?
         NULL,
         &chainContext
     );
-     //BOOL ret = CertGetCertificateChain(
-     //    NULL,
-     //    certHolder.get(),
-     //    NULL,
-     //    _certStore,
-     //    &chain_para,
-     //    CERT_CHAIN_REVOCATION_CHECK_CHAIN_EXCLUDE_ROOT, // CERT_CHAIN_CACHE_END_CERT?
-     //    NULL,
-     //    &chainContext
-     //);
-     if (!ret) {
+    if (!ret) {
         DWORD gle = GetLastError();
         return Status(ErrorCodes::InvalidSSLConfiguration,
             str::stream() << "CertGetCertificateChain failed: "
@@ -1222,40 +1451,45 @@ StatusWith<boost::optional<SSLPeerInfo>> SSLManagerWindows::parseAndValidatePeer
     }
 
 
-     auto pCert = CertFindCertificateInStore(
-         _certStore,
-         X509_ASN_ENCODING,
-         0,
-         CERT_FIND_ANY,
-         NULL,
-         NULL
-     );
+    auto pCert = CertFindCertificateInStore(
+        _certStore,
+        X509_ASN_ENCODING,
+        0,
+        CERT_FIND_ANY,
+        NULL,
+        NULL
+    );
 
-        UniqueCertChain certChainHolder(chainContext);
-    // Missing Cert???
+    UniqueCertChain certChainHolder(chainContext);
 
-        SSL_EXTRA_CERT_CHAIN_POLICY_PARA ssl_chain_policy;
-        memset(&ssl_chain_policy, 0, sizeof(ssl_chain_policy));
-        ssl_chain_policy.cbSize = sizeof(ssl_chain_policy);
+    SSL_EXTRA_CERT_CHAIN_POLICY_PARA ssl_chain_policy;
+    memset(&ssl_chain_policy, 0, sizeof(ssl_chain_policy));
+    ssl_chain_policy.cbSize = sizeof(ssl_chain_policy);
 
-        // TODO
+    std::wstring wstr;
+
+    // If remoteHost is empty, then this is running on the server side, and we want to verify the client cert
+    if (remoteHost.empty()) {
         ssl_chain_policy.dwAuthType = AUTHTYPE_CLIENT;
-
-
-        // TODO: is remote
-        std::wstring wstr = toNativeString(remoteHost.c_str());
+    } else {
+        wstr = toNativeString(remoteHost.c_str());
         ssl_chain_policy.pwszServerName = const_cast<wchar_t*>(wstr.c_str());
+        ssl_chain_policy.dwAuthType = AUTHTYPE_SERVER;
+    }
 
-     CERT_CHAIN_POLICY_PARA chain_policy_para;
-     memset(&chain_policy_para, 0, sizeof(chain_policy_para));
-     chain_policy_para.cbSize = sizeof(chain_policy_para);
-     chain_policy_para.pvExtraPolicyPara = &ssl_chain_policy;
+    CERT_CHAIN_POLICY_PARA chain_policy_para;
+    memset(&chain_policy_para, 0, sizeof(chain_policy_para));
+    chain_policy_para.cbSize = sizeof(chain_policy_para);
+    chain_policy_para.pvExtraPolicyPara = &ssl_chain_policy;
 
-     CERT_CHAIN_POLICY_STATUS chain_policy_status;
-     memset(&chain_policy_status, 0, sizeof(chain_policy_status));
-     chain_policy_status.cbSize = sizeof(chain_policy_status);
+    // Ignore errors about unable to contact revocation servers since PEM files.
+    chain_policy_para.dwFlags = CERT_CHAIN_POLICY_IGNORE_ALL_REV_UNKNOWN_FLAGS;
 
-     ret = CertVerifyCertificateChainPolicy(
+    CERT_CHAIN_POLICY_STATUS chain_policy_status;
+    memset(&chain_policy_status, 0, sizeof(chain_policy_status));
+    chain_policy_status.cbSize = sizeof(chain_policy_status);
+
+    ret = CertVerifyCertificateChainPolicy(
 
         CERT_CHAIN_POLICY_SSL,
         certChainHolder.get(),
@@ -1264,7 +1498,7 @@ StatusWith<boost::optional<SSLPeerInfo>> SSLManagerWindows::parseAndValidatePeer
     );
 
     // This means some really went wrong.
-     if (!ret) {
+    if (!ret) {
         DWORD gle = GetLastError();
         return Status(ErrorCodes::InvalidSSLConfiguration,
             str::stream() << "CertVerifyCertificateChainPolicy failed: "
@@ -1272,14 +1506,36 @@ StatusWith<boost::optional<SSLPeerInfo>> SSLManagerWindows::parseAndValidatePeer
     }
 
     // This means the chain is wrong.
-     if(chain_policy_status.dwError != S_OK) {
-        return Status(ErrorCodes::InvalidSSLConfiguration,
-            str::stream() << "Certificate chain validation failed: "
-            << errnoWithDescription(chain_policy_status.dwError));
+    if (chain_policy_status.dwError != S_OK) {
+        if (_allowInvalidCertificates) {
+            warning() << "SSL peer certificate validation failed: "
+                << errnoWithDescription(chain_policy_status.dwError);
+        } else {
+            str::stream msg;
+            msg << "SSL peer certificate validation failed: "
+                << errnoWithDescription(chain_policy_status.dwError);
+            error() << msg.ss.str();
+            return Status(ErrorCodes::SSLHandshakeFailed, msg);
+        }
     }
-    
 
-    return {boost::none};
+    std::string peerSubjectName = getCertificateSubjectName(cert);
+    LOG(2) << "Accepted TLS connection from peer: " << peerSubjectName;
+
+    StatusWith<stdx::unordered_set<RoleName>> swPeerCertificateRoles = parsePeerRoles(cert);
+    if (!swPeerCertificateRoles.isOK()) {
+        return swPeerCertificateRoles.getStatus();
+    }
+
+    // If this is an SSL client context (on a MongoDB server or client)
+    // perform hostname validation of the remote server
+    if (remoteHost.empty()) {
+        return boost::make_optional(
+            SSLPeerInfo(peerSubjectName, std::move(swPeerCertificateRoles.getValue())));
+    }
+
+
+    return{boost::none};
 }
 
 }  // namespace mongo
