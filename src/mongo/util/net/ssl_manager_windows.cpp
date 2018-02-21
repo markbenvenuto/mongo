@@ -50,6 +50,7 @@
 #include "mongo/db/server_options.h"
 #include "mongo/db/server_parameters.h"
 #include "mongo/platform/atomic_word.h"
+#include "mongo/platform/overflow_arithmetic.h"
 #include "mongo/stdx/memory.h"
 #include "mongo/transport/session.h"
 #include "mongo/util/concurrency/mutex.h"
@@ -218,14 +219,14 @@ typedef AutoHandle<HCERTCHAINENGINE, CertChainEngineFree> UniqueCertChainEngine;
 
 
 std::string getCertificateSubjectName(PCCERT_CONTEXT cert) {
-    DWORD needed = CertGetNameStringA(cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, NULL, NULL, 0);
+    DWORD needed = CertGetNameStringA(cert, CERT_NAME_RDN_TYPE, 0, NULL, NULL, 0);
     uassert(50662,
         str::stream() << "CertGetNameString size query failed with: " << needed,
         needed != 0);
 
     std::unique_ptr<BYTE> nameBuf(new BYTE[needed]);
     DWORD cbConverted = CertGetNameStringA(
-        cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, NULL, (LPSTR)nameBuf.get(), needed);
+        cert, CERT_NAME_RDN_TYPE, 0, NULL, (LPSTR)nameBuf.get(), needed);
     uassert(50663,
         str::stream() << "CertGetNameString retrieval failed with: " << cbConverted,
         needed == cbConverted);
@@ -237,18 +238,31 @@ std::string getCertificateSubjectName(PCCERT_CONTEXT cert) {
 
 
 
-   // Subset of DER Types
+// Subset of DER Types
 enum class DERType : char {
+    // Primitive, not supported by the parser
     EndOfContent = 0,
+
+    // Primitive
     UTF8String = 12,
+
+    // Sequence or Sequence Of, Constructed
     SEQUENCE = 16,
+
+    // Set or Set Of, Constructed
     SET = 17,
 };
 
-class TLPair {
+/**
+ * Distinguished Encoding Rules (DER) is a strict subset of Basic Encoding Rules (BER).
+ *
+ * It is a Tag + Length + Value format. The tag is generally 1 byte, the length is 1 or more
+ * and then followed by the value.
+ */
+class DERToken {
 public:
-    TLPair() {}
-    TLPair(DERType type, size_t length, const char* const data) : _type(type), _length(length), _data(data) {}
+    DERToken() {}
+    DERToken(DERType type, size_t length, const char* const data) : _type(type), _length(length), _data(data) {}
 
     DERType getType() const { return _type; }
     
@@ -266,18 +280,28 @@ public:
         return std::string(_data, _length);
     }
 
-    static StatusWith<TLPair> parse(const char* ptr, size_t len, size_t *outLength) {
+    static StatusWith<DERToken> parse(const char* ptr, size_t len, size_t *outLength) {
         const size_t kTagLength = 1;
-        const size_t  kTagLengthAndInitialLengthByteLength = 2;
+        const size_t  kTagLengthAndInitialLengthByteLength = kTagLength + 1;
         const char* start = ptr;
         dassert(len >= kTagLength);
 
         char tagByte = *ptr++;
-        // Get the tag number
+        
+        // Get the tag number from the first 5 bits
         char tag = tagByte & 0x1f;
+
+        // Check the 6th bit
         bool constructed = tagByte & 0x20;
         bool primitive = !constructed;
 
+        // Check bits 7 and 8 for the tag class, we only want Universal (i.e. 0)
+        char tagClass = tagByte & 0xC0;
+        if (tagClass != 0) {
+            return Status(ErrorCodes::InvalidSSLConfiguration, "Unsupported tag class");
+        }
+
+        // Validate the 6th bit is correct, and it is a known type
         switch (tag) {
         case DERType::UTF8String:
             if (!primitive) {
@@ -296,6 +320,7 @@ public:
             return Status(ErrorCodes::InvalidSSLConfiguration, "Unknown DER tag");
         }
 
+        // Do we have at least 1 byte for the length
         if (len < kTagLengthAndInitialLengthByteLength) {
             return Status(ErrorCodes::InvalidSSLConfiguration, "Invalid DER length");
         }
@@ -303,15 +328,14 @@ public:
         // Read length
         // Depending on the high bit, either read 1 byte or N bytes
         char initialLengthByte = *ptr;
-        size_t derLength = 0;
+        uint64_t derLength = 0;
 
         // How many bytes does it take to encode the length?
         size_t encodedLengthBytesCount = 1;
 
-        if (initialLengthByte > 0x80) {
+        if (initialLengthByte & 0x80) {
             // Length is > 127 bytes, i.e. Long form
             size_t lengthBytesCount = 0x7f & initialLengthByte;
-            encodedLengthBytesCount = 1 + lengthBytesCount;
 
             // If length is encoded in more then 8 bytes, we cannot handle it
             if (lengthBytesCount > 8
@@ -319,9 +343,15 @@ public:
                 return Status(ErrorCodes::InvalidSSLConfiguration, "Invalid DER length");
             }
 
-            std::array<char, 8> lengthBuffer;
-            memcpy_s(lengthBuffer.data(), lengthBytesCount, ptr, lengthBytesCount);
+            encodedLengthBytesCount = 1 + lengthBytesCount;
 
+            std::array<char, 8> lengthBuffer;
+            memset(lengthBuffer.data(), 0, lengthBuffer.size());
+
+            // Copy the length into the end of the buffer
+            memcpy_s(lengthBuffer.data() + (8 - lengthBytesCount), lengthBytesCount, ptr + 1, lengthBytesCount);
+
+            // We now have 0x00..NN and can be properly decoded as BigEndian
             derLength = ConstDataView(lengthBuffer.data()).read<BigEndian<uint64_t>>();
         } else {
             // Length is <= 127 bytes, i.e. short form
@@ -329,9 +359,16 @@ public:
         }
 
         // This is the total length of the TLV and all data
-        *outLength = kTagLength + encodedLengthBytesCount + derLength;
+        // This will not overflow since encodedLengthBytesCount <=9
+        const uint64_t tagAndLengthByteCount = kTagLength + encodedLengthBytesCount;
 
-        return TLPair(static_cast<DERType>(tag), derLength, start + kTagLength + encodedLengthBytesCount);
+        // This may overflow since derLength is from user data so check our arithmetic carefully.
+        if (mongoUnsignedAddOverflow64(tagAndLengthByteCount, derLength, outLength)
+            || *outLength > len) {
+            return Status(ErrorCodes::InvalidSSLConfiguration, "Invalid DER length");
+        }
+
+        return DERToken(static_cast<DERType>(tag), derLength, start + kTagLength + encodedLengthBytesCount);
     }
 private:
     DERType _type{DERType::EndOfContent};
@@ -341,7 +378,7 @@ private:
 
 
 template <>
-struct DataType::Handler<TLPair> {
+struct DataType::Handler<DERToken> {
     /**
     * Compress a 64-bit integer and return the new buffer position.
     *
@@ -349,14 +386,14 @@ struct DataType::Handler<TLPair> {
     *
     * Return nullptr for bad encoded data.
     */
-    static Status load(TLPair* t,
+    static Status load(DERToken* t,
         const char* ptr,
         size_t length,
         size_t* advanced,
         std::ptrdiff_t debug_offset) {
         size_t outLength;
 
-        auto swPair = TLPair::parse(ptr, length, &outLength);
+        auto swPair = DERToken::parse(ptr, length, &outLength);
 
         if (!swPair.isOK()) {
             return swPair.getStatus();
@@ -373,13 +410,13 @@ struct DataType::Handler<TLPair> {
         return Status::OK();
     }
 
-    static TLPair defaultConstruct() {
-        return TLPair();
+    static DERToken defaultConstruct() {
+        return DERToken();
     }
 };
 
 StatusWith<std::string> readString(ConstDataRangeCursor& cdc) {
-    auto swString = cdc.readAndAdvance<TLPair>();
+    auto swString = cdc.readAndAdvance<DERToken>();
     if (!swString.isOK()) {
         return swString.getStatus();
     }
@@ -408,7 +445,7 @@ StatusWith<stdx::unordered_set<RoleName>> parsePeerRoles(ConstDataRange cdrExten
     *  ...!UTF8String:"Unrecognized entity in MongoDBAuthorizationGrant"
     * }
     */
-    auto swSet = cdcExtension.readAndAdvance<TLPair>();
+    auto swSet = cdcExtension.readAndAdvance<DERToken>();
     if (!swSet.isOK()) {
         return swSet.getStatus();
     }
@@ -426,7 +463,7 @@ StatusWith<stdx::unordered_set<RoleName>> parsePeerRoles(ConstDataRange cdrExten
         *  database UTF8String
         * }
         */
-        auto swSequence = cdcSet.readAndAdvance<TLPair>();
+        auto swSequence = cdcSet.readAndAdvance<DERToken>();
         if (!swSequence.isOK()) {
             return swSequence.getStatus();
         }
@@ -848,10 +885,12 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     // Also the private key can either come before or after the certificate
     auto swPrivateKeyBlob = findPEMBlob(buf, "RSA PRIVATE KEY"_sd, 0);
     // We expect to find at least one certificate
-    if (!swPublicKeyBlob.isOK()) {
-        auto swPrivateKeyBlob = findPEMBlob(buf, "PRIVATE KEY"_sd, 0);
-        if (!swPublicKeyBlob.isOK()) {
-            return swPublicKeyBlob.getStatus();
+    if (!swPrivateKeyBlob.isOK()) {
+        // A "PRIVATE KEY" is actually a PKCS #8 PrivateKeyInfo ASN.1 type. We do not support it for now so tell the user how to fix it.
+        // Warn user rsa -in roles.key -out roles2.key
+        swPrivateKeyBlob = findPEMBlob(buf, "PRIVATE KEY"_sd, 0);
+        if (!swPrivateKeyBlob.isOK()) {
+            return swPrivateKeyBlob.getStatus();
         }
     }
 
@@ -886,7 +925,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     DWORD privateBlobLen{0};
 
     BOOL ret = CryptDecodeObjectEx(X509_ASN_ENCODING,
-                                   PKCS_RSA_PRIVATE_KEY,
+        PKCS_RSA_PRIVATE_KEY,
                                    privateKeyBuf.data(),
                                    privateKeyBuf.size(),
                                    0,
@@ -905,7 +944,7 @@ StatusWith<UniqueCertificate> readPEMFile(StringData fileName, StringData passwo
     std::unique_ptr<BYTE> privateBlobBuf(new BYTE[privateBlobLen]);
 
     ret = CryptDecodeObjectEx(X509_ASN_ENCODING,
-                              PKCS_RSA_PRIVATE_KEY,
+        PKCS_RSA_PRIVATE_KEY,
                               privateKeyBuf.data(),
                               privateKeyBuf.size(),
                               0,
@@ -1534,8 +1573,8 @@ StatusWith<boost::optional<SSLPeerInfo>> SSLManagerWindows::parseAndValidatePeer
             SSLPeerInfo(peerSubjectName, std::move(swPeerCertificateRoles.getValue())));
     }
 
-
-    return{boost::none};
+    return boost::make_optional(
+        SSLPeerInfo(peerSubjectName, std::move(swPeerCertificateRoles.getValue())));
 }
 
 }  // namespace mongo
