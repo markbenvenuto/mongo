@@ -36,6 +36,7 @@
 #include <asio/ssl.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/algorithm/string/replace.hpp>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -217,28 +218,37 @@ struct CertChainEngineFree {
 
 typedef AutoHandle<HCERTCHAINENGINE, CertChainEngineFree> UniqueCertChainEngine;
 
-
+// MongoDB wants RFC 2253 (LDAP) formatted DN names for auth purposes
 std::string getCertificateSubjectName(PCCERT_CONTEXT cert) {
-    DWORD needed = CertGetNameStringA(cert, CERT_NAME_RDN_TYPE, 0, NULL, NULL, 0);
+    DWORD needed = CertNameToStrW(cert->dwCertEncodingType, &(cert->pCertInfo->Subject), CERT_X500_NAME_STR | CERT_NAME_STR_CRLF_FLAG| CERT_NAME_STR_REVERSE_FLAG, NULL, 0);
     uassert(50662,
-        str::stream() << "CertGetNameString size query failed with: " << needed,
+        str::stream() << "CertNameToStr size query failed with: " << needed,
         needed != 0);
 
-    std::unique_ptr<BYTE> nameBuf(new BYTE[needed]);
-    DWORD cbConverted = CertGetNameStringA(
-        cert, CERT_NAME_RDN_TYPE, 0, NULL, (LPSTR)nameBuf.get(), needed);
+    std::unique_ptr<wchar_t> nameBuf(new wchar_t[needed]);
+    DWORD cbConverted = CertNameToStrW(cert->dwCertEncodingType, &(cert->pCertInfo->Subject), CERT_X500_NAME_STR | CERT_NAME_STR_CRLF_FLAG | CERT_NAME_STR_REVERSE_FLAG, nameBuf.get(), needed);
     uassert(50663,
-        str::stream() << "CertGetNameString retrieval failed with: " << cbConverted,
+        str::stream() << "CertNameToStr retrieval failed with: " << cbConverted,
         needed == cbConverted);
 
-    return std::string(reinterpret_cast<char*>(nameBuf.get()));
+    // Windows converts the names as RFC 1799 (x.509) instead of RFC 2253 (LDAP)
+    std::wstring str(nameBuf.get());
+
+    // Windows uses "S" instead of "ST" for  stateOrProvinceName (2.5.4.8) OID so we massage the string here.
+    boost::replace_all(str, L"\r\nS=", L",ST=");
+    boost::replace_all(str, L"\r\n", L",");
+
+    return toUtf8String(str.c_str());
 }
 
 }  // namespace
 
 
-
-// Subset of DER Types
+/**
+ * Enum of supported ASN.1 DER types.
+ *
+ * This is a subset of all DER types.
+ */
 enum class DERType : char {
     // Primitive, not supported by the parser
     EndOfContent = 0,
@@ -264,22 +274,40 @@ public:
     DERToken() {}
     DERToken(DERType type, size_t length, const char* const data) : _type(type), _length(length), _data(data) {}
 
+    /**
+     * Get the ASN.1 type of the current token.
+     */
     DERType getType() const { return _type; }
-    
+
+    /**
+     * Get a ConstDataRange for the value of this SET or SET OF.
+     */    
     ConstDataRange getSetRange() {
         invariant(_type == DERType::SET);
         return ConstDataRange(_data, _data + _length);
     }
 
+    /**
+     * Get a ConstDataRange for the value of this SEQUENCE or SEQUENCE OF.
+     */    
     ConstDataRange getSequenceRange() {
         invariant(_type == DERType::SEQUENCE);
         return ConstDataRange(_data, _data + _length);
     }
 
+    /**
+     * Get a std::string for the value of this Utf8String.
+     */    
     std::string readUtf8String() {
+        invariant(_type == DERType::UTF8String);
         return std::string(_data, _length);
     }
 
+    /**
+     * Parse a buffer of bytes and return the number of bytes we read for this token.
+     * 
+     * Returns a DERToken which consists of the (tag, length, value) tuple.
+     */
     static StatusWith<DERToken> parse(const char* ptr, size_t len, size_t *outLength) {
         const size_t kTagLength = 1;
         const size_t  kTagLengthAndInitialLengthByteLength = kTagLength + 1;
@@ -359,7 +387,7 @@ public:
         }
 
         // This is the total length of the TLV and all data
-        // This will not overflow since encodedLengthBytesCount <=9
+        // This will not overflow since encodedLengthBytesCount <= 9
         const uint64_t tagAndLengthByteCount = kTagLength + encodedLengthBytesCount;
 
         // This may overflow since derLength is from user data so check our arithmetic carefully.
@@ -379,13 +407,6 @@ private:
 
 template <>
 struct DataType::Handler<DERToken> {
-    /**
-    * Compress a 64-bit integer and return the new buffer position.
-    *
-    * end should be the byte after the end of the buffer.
-    *
-    * Return nullptr for bad encoded data.
-    */
     static Status load(DERToken* t,
         const char* ptr,
         size_t length,
@@ -491,6 +512,7 @@ StatusWith<stdx::unordered_set<RoleName>> parsePeerRoles(ConstDataRange cdrExten
 
     return roles;
 }
+
 StatusWith<stdx::unordered_set<RoleName>> parsePeerRoles(PCCERT_CONTEXT cert) {
     PCERT_EXTENSION extension = CertFindExtension(
         mongodbRolesOID.identifier.c_str(),
@@ -506,7 +528,6 @@ StatusWith<stdx::unordered_set<RoleName>> parsePeerRoles(PCCERT_CONTEXT cert) {
 
     return parsePeerRoles(ConstDataRange(reinterpret_cast<char*>(extension->Value.pbData), reinterpret_cast<char*>(extension->Value.pbData) + extension->Value.cbData));
 }
-
 
 /**
  * Manage state for a SSL Connection. Used by the Socket class.
@@ -669,11 +690,6 @@ SSLManagerWindows::SSLManagerWindows(const SSLParams& params, bool isServer)
 Status SSLManagerWindows::_initChainEngine() {
     memset(&_chainEngineConfig, 0, sizeof(_chainEngineConfig));
     _chainEngineConfig.cbSize = sizeof(_chainEngineConfig);
-
-    /*_additionalCertStores[0] = _certStore;
-    _chainEngineConfig.cAdditionalStore = _additionalCertStores.size();
-    _chainEngineConfig.rghAdditionalStore = _additionalCertStores.data();
-*/
     _chainEngineConfig.hExclusiveRoot = _certStore;
 
     HCERTCHAINENGINE chainEngine;
@@ -1219,6 +1235,10 @@ Status SSLManagerWindows::_loadCertificates(const SSLParams& params) {
     auto swChain = readCertChains(params.sslCAFile, params.sslCRLFile);
     if (!swChain.isOK()) {
         return swChain.getStatus();
+    }
+
+    if (!params.sslCAFile.empty()) {
+        _sslConfiguration.hasCA = true;
     }
 
     _certStore = std::move(swChain.getValue());
