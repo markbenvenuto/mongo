@@ -40,7 +40,6 @@ public:
   std::string message(int value) const
   {
       // TODO: call FormatMessage
-      ASIO_ASSERT(false);
       return "asio.ssl error";
   }
 #elif MONGO_CONFIG_SSL_PROVIDER == SSL_PROVIDER_OPENSSL

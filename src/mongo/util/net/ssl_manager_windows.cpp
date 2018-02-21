@@ -1237,9 +1237,8 @@ Status SSLManagerWindows::_loadCertificates(const SSLParams& params) {
         return swChain.getStatus();
     }
 
-    if (!params.sslCAFile.empty()) {
-        _sslConfiguration.hasCA = true;
-    }
+    // SChannel always has a CA even when the user does not specify one
+    _sslConfiguration.hasCA = true;
 
     _certStore = std::move(swChain.getValue());
 

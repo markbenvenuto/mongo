@@ -70,9 +70,9 @@ std::string errnoWithDescription(int errNumber) {
 #if defined(_WIN32)
     if (errNumber == -1) {
         errNumber = GetLastError();
-    } else if (errNumber < 0) {
+    } /*else if (errNumber < 0) {
         return statusWithDescription(errNumber);
-    }
+    }*/
 #else
     if (errNumber < 0)
         errNumber = errno;
