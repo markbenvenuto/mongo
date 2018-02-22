@@ -691,6 +691,7 @@ Status SSLManagerWindows::_initChainEngine() {
     memset(&_chainEngineConfig, 0, sizeof(_chainEngineConfig));
     _chainEngineConfig.cbSize = sizeof(_chainEngineConfig);
     _chainEngineConfig.hExclusiveRoot = _certStore;
+    _chainEngineConfig.dwFlags = CERT_CHAIN_USE_LOCAL_MACHINE_STORE;
 
     HCERTCHAINENGINE chainEngine;
     BOOL ret = CertCreateCertificateChainEngine(&_chainEngineConfig, &chainEngine);
@@ -1232,15 +1233,18 @@ Status SSLManagerWindows::_loadCertificates(const SSLParams& params) {
         _clientCertificates[0] = _clusterPEMCertificate.get();
     }
 
-    auto swChain = readCertChains(params.sslCAFile, params.sslCRLFile);
-    if (!swChain.isOK()) {
-        return swChain.getStatus();
+    if (!params.sslCAFile.empty() || !params.sslCRLFile.empty()) {
+        auto swChain = readCertChains(params.sslCAFile, params.sslCRLFile);
+        if (!swChain.isOK()) {
+            return swChain.getStatus();
+        }
+
+        _certStore = std::move(swChain.getValue());
     }
 
     // SChannel always has a CA even when the user does not specify one
     _sslConfiguration.hasCA = true;
 
-    _certStore = std::move(swChain.getValue());
 
     return Status::OK();
 }
@@ -1443,12 +1447,182 @@ SSLPeerInfo SSLManagerWindows::parseAndValidatePeerCertificateDeprecated(
     return swPeerSubjectName.getValue().get_value_or(SSLPeerInfo());
 }
 
+StatusWith<std::vector<std::string>> getSubjectAlternateNames(PCCERT_CONTEXT cert) {
+
+    std::vector<std::string > names;
+    PCERT_EXTENSION extension = CertFindExtension(
+        szOID_SUBJECT_ALT_NAME2,
+        cert->pCertInfo->cExtension,
+        cert->pCertInfo->rgExtension
+    );
+
+    if (extension == nullptr) {
+        return names;
+    }
+
+    DWORD privateBlobLen{0};
+
+    BOOL ret = CryptDecodeObjectEx(X509_ASN_ENCODING,
+        szOID_SUBJECT_ALT_NAME2,
+        extension->Value.pbData,
+        extension->Value.cbData,
+        0,
+        NULL,
+        NULL,
+        &privateBlobLen);
+    if (!ret) {
+        DWORD gle = GetLastError();
+        if (gle != ERROR_MORE_DATA) {
+            return Status(ErrorCodes::InvalidSSLConfiguration,
+                str::stream() << "CryptDecodeObjectEx failed to get size of key: "
+                << errnoWithDescription(gle));
+        }
+    }
+
+    std::unique_ptr<BYTE> privateBlobBuf(new BYTE[privateBlobLen]);
+
+    ret = CryptDecodeObjectEx(X509_ASN_ENCODING,
+        szOID_SUBJECT_ALT_NAME2,
+        extension->Value.pbData,
+        extension->Value.cbData,
+        0,
+        NULL,
+        privateBlobBuf.get(),
+        &privateBlobLen);
+    if (!ret) {
+        DWORD gle = GetLastError();
+        return Status(ErrorCodes::InvalidSSLConfiguration,
+            str::stream() << "CryptDecodeObjectEx failed to read key: "
+            << errnoWithDescription(gle));
+    }
+
+    CERT_ALT_NAME_INFO *altNames = reinterpret_cast<CERT_ALT_NAME_INFO*>(privateBlobBuf.get());
+    for (size_t i = 0; i < altNames->cAltEntry; i++) {
+        if (altNames->rgAltEntry[i].dwAltNameChoice == CERT_ALT_NAME_DNS_NAME) {
+            names.push_back(toUtf8String(altNames->rgAltEntry[i].pwszDNSName));
+        }
+    }
+
+    return names;
+}
+
+Status validatePeerCertificate(
+    const std::string& remoteHost,
+    PCCERT_CONTEXT cert,
+    HCERTCHAINENGINE certChainEngine,bool allowInvalidCertificates, bool allowInvalidHostnames) {
+    CERT_CHAIN_PARA chain_para;
+    memset(&chain_para, 0, sizeof(chain_para));
+    chain_para.cbSize = sizeof(CERT_CHAIN_PARA);
+
+    // If remoteHost is empty, then this is running on the server side, and we want to verify the client cert
+    if (remoteHost.empty()) {
+
+        LPSTR usage[] = {
+            const_cast<LPSTR>(szOID_PKIX_KP_SERVER_AUTH),
+        };
+
+        chain_para.RequestedUsage.dwType = USAGE_MATCH_TYPE_AND;
+        chain_para.RequestedUsage.Usage.cUsageIdentifier = _countof(usage);
+        chain_para.RequestedUsage.Usage.rgpszUsageIdentifier = usage;
+    }
+
+    PCCERT_CHAIN_CONTEXT chainContext;
+    BOOL ret = CertGetCertificateChain(
+        certChainEngine,
+        cert,
+        NULL,
+        NULL,
+        &chain_para,
+        CERT_CHAIN_REVOCATION_CHECK_CHAIN_EXCLUDE_ROOT, // CERT_CHAIN_CACHE_END_CERT?
+        NULL,
+        &chainContext
+    );
+    if (!ret) {
+        DWORD gle = GetLastError();
+        return Status(ErrorCodes::InvalidSSLConfiguration,
+            str::stream() << "CertGetCertificateChain failed: "
+            << errnoWithDescription(gle));
+    }
+
+    UniqueCertChain certChainHolder(chainContext);
+
+    SSL_EXTRA_CERT_CHAIN_POLICY_PARA ssl_chain_policy;
+    memset(&ssl_chain_policy, 0, sizeof(ssl_chain_policy));
+    ssl_chain_policy.cbSize = sizeof(ssl_chain_policy);
+
+    std::wstring wstr;
+
+    // If remoteHost is empty, then this is running on the server side, and we want to verify the client cert
+    if (remoteHost.empty()) {
+        ssl_chain_policy.dwAuthType = AUTHTYPE_CLIENT;
+    } else {
+        wstr = toNativeString(remoteHost.c_str());
+        ssl_chain_policy.pwszServerName = const_cast<wchar_t*>(wstr.c_str());
+        ssl_chain_policy.dwAuthType = AUTHTYPE_SERVER;
+    }
+
+    CERT_CHAIN_POLICY_PARA chain_policy_para;
+    memset(&chain_policy_para, 0, sizeof(chain_policy_para));
+    chain_policy_para.cbSize = sizeof(chain_policy_para);
+    chain_policy_para.pvExtraPolicyPara = &ssl_chain_policy;
+
+    // Ignore errors about unable to contact revocation servers since PEM files.
+    chain_policy_para.dwFlags = CERT_CHAIN_POLICY_IGNORE_ALL_REV_UNKNOWN_FLAGS | CERT_CHAIN_POLICY_IGNORE_INVALID_NAME_FLAG;
+
+    CERT_CHAIN_POLICY_STATUS chain_policy_status;
+    memset(&chain_policy_status, 0, sizeof(chain_policy_status));
+    chain_policy_status.cbSize = sizeof(chain_policy_status);
+
+    ret = CertVerifyCertificateChainPolicy(
+        CERT_CHAIN_POLICY_SSL,
+        certChainHolder.get(),
+        &chain_policy_para,
+        &chain_policy_status
+    );
+
+    // This means some really went wrong, this should not happen.
+    if (!ret) {
+        DWORD gle = GetLastError();
+        return Status(ErrorCodes::InvalidSSLConfiguration,
+            str::stream() << "CertVerifyCertificateChainPolicy failed: "
+            << errnoWithDescription(gle));
+    }
+
+
+    // This means the certificate chain is not valid.
+    if (chain_policy_status.dwError != S_OK) {
+        if (chain_policy_status.dwError == CERT_E_CN_NO_MATCH && allowInvalidHostnames) {
+
+            // Give the user a hint why the certificate validation failed.
+            StringBuilder certificateNames;
+            auto swAltNames = getSubjectAlternateNames(cert);
+            if (swAltNames.isOK() && !swAltNames.getValue().empty()) {
+                for (auto& name : swAltNames.getValue()) {
+                    certificateNames << name << " ";
+                }
+            } else {
+                certificateNames << getCertificateSubjectName(cert);
+            }
+
+            warning() << "The server certificate does not match the host name. Hostname: "
+                << remoteHost << " does not match " << certificateNames.str();
+        } else if (allowInvalidCertificates) {
+            warning() << "SSL peer certificate validation failed: "
+                << errnoWithDescription(chain_policy_status.dwError);
+        } else {
+            str::stream msg;
+            msg << "SSL peer certificate validation failed: "
+                << errnoWithDescription(chain_policy_status.dwError);
+            error() << msg.ss.str();
+            return Status(ErrorCodes::SSLHandshakeFailed, msg);
+        }
+    }
+
+    return Status::OK();
+}
+
 StatusWith<boost::optional<SSLPeerInfo>> SSLManagerWindows::parseAndValidatePeerCertificate(
     PCtxtHandle ssl, const std::string& remoteHost) {
-
-    if (!isSSLServer)
-        return{boost::none};
-
     PCCERT_CONTEXT cert;
 
     // returns SEC_E_NO_CREDENTIALS if no peer certificate
@@ -1474,107 +1648,9 @@ StatusWith<boost::optional<SSLPeerInfo>> SSLManagerWindows::parseAndValidatePeer
 
     UniqueCertificate certHolder(cert);
 
-    CERT_CHAIN_PARA chain_para;
-    memset(&chain_para, 0, sizeof(chain_para));
-    chain_para.cbSize = sizeof(CERT_CHAIN_PARA);
-
-    // If remoteHost is empty, then this is running on the server side, and we want to verify the client cert
-    if (remoteHost.empty()) {
-
-        LPSTR usage[] = {
-            const_cast<LPSTR>(szOID_PKIX_KP_SERVER_AUTH),
-        };
-
-        chain_para.RequestedUsage.dwType = USAGE_MATCH_TYPE_AND;
-        chain_para.RequestedUsage.Usage.cUsageIdentifier = _countof(usage);
-        chain_para.RequestedUsage.Usage.rgpszUsageIdentifier = usage;
-    }
-
-    PCCERT_CHAIN_CONTEXT chainContext;
-    BOOL ret = CertGetCertificateChain(
-        _chainEngine,
-        certHolder.get(),
-        NULL,
-        NULL,
-        &chain_para,
-        CERT_CHAIN_REVOCATION_CHECK_CHAIN_EXCLUDE_ROOT, // CERT_CHAIN_CACHE_END_CERT?
-        NULL,
-        &chainContext
-    );
-    if (!ret) {
-        DWORD gle = GetLastError();
-        return Status(ErrorCodes::InvalidSSLConfiguration,
-            str::stream() << "CertGetCertificateChain failed: "
-            << errnoWithDescription(gle));
-    }
-
-
-    auto pCert = CertFindCertificateInStore(
-        _certStore,
-        X509_ASN_ENCODING,
-        0,
-        CERT_FIND_ANY,
-        NULL,
-        NULL
-    );
-
-    UniqueCertChain certChainHolder(chainContext);
-
-    SSL_EXTRA_CERT_CHAIN_POLICY_PARA ssl_chain_policy;
-    memset(&ssl_chain_policy, 0, sizeof(ssl_chain_policy));
-    ssl_chain_policy.cbSize = sizeof(ssl_chain_policy);
-
-    std::wstring wstr;
-
-    // If remoteHost is empty, then this is running on the server side, and we want to verify the client cert
-    if (remoteHost.empty()) {
-        ssl_chain_policy.dwAuthType = AUTHTYPE_CLIENT;
-    } else {
-        wstr = toNativeString(remoteHost.c_str());
-        ssl_chain_policy.pwszServerName = const_cast<wchar_t*>(wstr.c_str());
-        ssl_chain_policy.dwAuthType = AUTHTYPE_SERVER;
-    }
-
-    CERT_CHAIN_POLICY_PARA chain_policy_para;
-    memset(&chain_policy_para, 0, sizeof(chain_policy_para));
-    chain_policy_para.cbSize = sizeof(chain_policy_para);
-    chain_policy_para.pvExtraPolicyPara = &ssl_chain_policy;
-
-    // Ignore errors about unable to contact revocation servers since PEM files.
-    chain_policy_para.dwFlags = CERT_CHAIN_POLICY_IGNORE_ALL_REV_UNKNOWN_FLAGS;
-
-    CERT_CHAIN_POLICY_STATUS chain_policy_status;
-    memset(&chain_policy_status, 0, sizeof(chain_policy_status));
-    chain_policy_status.cbSize = sizeof(chain_policy_status);
-
-    ret = CertVerifyCertificateChainPolicy(
-
-        CERT_CHAIN_POLICY_SSL,
-        certChainHolder.get(),
-        &chain_policy_para,
-        &chain_policy_status
-    );
-
-    // This means some really went wrong.
-    if (!ret) {
-        DWORD gle = GetLastError();
-        return Status(ErrorCodes::InvalidSSLConfiguration,
-            str::stream() << "CertVerifyCertificateChainPolicy failed: "
-            << errnoWithDescription(gle));
-    }
-
-    // This means the chain is wrong.
-    if (chain_policy_status.dwError != S_OK) {
-        if (_allowInvalidCertificates) {
-            warning() << "SSL peer certificate validation failed: "
-                << errnoWithDescription(chain_policy_status.dwError);
-        } else {
-            str::stream msg;
-            msg << "SSL peer certificate validation failed: "
-                << errnoWithDescription(chain_policy_status.dwError);
-            error() << msg.ss.str();
-            return Status(ErrorCodes::SSLHandshakeFailed, msg);
-        }
+    Status validateCert = validatePeerCertificate(remoteHost, certHolder.get(), _chainEngine, _allowInvalidCertificates, _allowInvalidHostnames);
+    if(!validateCert.isOK()){
+        return validateCert;
     }
 
     std::string peerSubjectName = getCertificateSubjectName(cert);

@@ -1,3 +1,4 @@
+// TODO - filter for schannel
 var baseName = "jstests_ssl_ssl_options";
 
 jsTest.log("Testing censorship of ssl options");

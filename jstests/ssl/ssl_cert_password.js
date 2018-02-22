@@ -1,3 +1,5 @@
+//TODO - filter for schannel
+
 // Test passwords on private keys for SSL
 // This tests that providing a proper password works and that providing no password or incorrect
 // password fails.  It uses both mongod and mongo to run the tests, since the mongod binary
