@@ -150,7 +150,8 @@ void VersionInfoInterface::appendBuildInfo(BSONObjBuilder* result) const {
 #if MONGO_CONFIG_SSL_PROVIDER == SSL_PROVIDER_OPENSSL
     opensslInfo << "running" << openSSLVersion() << "compiled" << OPENSSL_VERSION_TEXT;
 #elif MONGO_CONFIG_SSL_PROVIDER == SSL_PROVIDER_WINDOWS
-    opensslInfo << "Windows SChannel";
+    opensslInfo << "running"
+                << "Windows SChannel";
 #else
 #error "Unknown SSL Provider"
 #endif  // MONGO_CONFIG_SSL_PROVIDER

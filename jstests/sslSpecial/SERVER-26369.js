@@ -1,20 +1,23 @@
-// Checking UUID consistency involves talking to a shard node, which in this test is shutdown
-TestData.skipCheckingUUIDsConsistentAcrossCluster = true;
+// Validate the shardsrvr does not crash when enabling SSL with encrypted PEM for a cluster
+if (/OpenSSL/.test(getBuildInfo().openssl.running)) {
+    // Checking UUID consistency involves talking to a shard node, which in this test is shutdown
+    TestData.skipCheckingUUIDsConsistentAcrossCluster = true;
 
-(function() {
-    'use strict';
+    (function() {
+        'use strict';
 
-    load("jstests/ssl/libs/ssl_helpers.js");
+        load("jstests/ssl/libs/ssl_helpers.js");
 
-    var st = new ShardingTest({shards: {rs0: {nodes: 1}}});
+        var st = new ShardingTest({shards: {rs0: {nodes: 1}}});
 
-    st.rs0.restart(0, {
-        sslMode: "allowSSL",
-        sslPEMKeyFile: "jstests/libs/password_protected.pem",
-        sslPEMKeyPassword: "qwerty",
-        sslCAFile: "jstests/libs/ca.pem",
-        shardsvr: ''
-    });
+        st.rs0.restart(0, {
+            sslMode: "allowSSL",
+            sslPEMKeyFile: "jstests/libs/password_protected.pem",
+            sslPEMKeyPassword: "qwerty",
+            sslCAFile: "jstests/libs/ca.pem",
+            shardsvr: ''
+        });
 
-    st.stop();
-})();
+        st.stop();
+    })();
+}

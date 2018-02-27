@@ -12,8 +12,10 @@ var testUnrevoked = new SSLTest(
 
 assert(testUnrevoked.connectWorked());
 
-var testRevoked = new SSLTest(
-    // Server option overrides
-    {sslMode: "requireSSL", sslCRLFile: "jstests/libs/crl_expired.pem"});
+if (/OpenSSL/.test(getBuildInfo().openssl.running)) {
+    var testRevoked = new SSLTest(
+        // Server option overrides
+        {sslMode: "requireSSL", sslCRLFile: "jstests/libs/crl_expired.pem"});
 
-assert(!testRevoked.connectWorked());
+    assert(!testRevoked.connectWorked());
+}

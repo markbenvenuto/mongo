@@ -1,8 +1,12 @@
 (function() {
     'use strict';
     if (_isWindows()) {
+        // OpenSSL backed imports Root CA and intermediate CA
         runProgram(
             "certutil.exe", "-addstore", "-user", "-f", "CA", "jstests\\libs\\trusted-ca.pem");
+
+        // SChannel backed follows Windows rules and only trusts Root in LocalMachine
+        runProgram("certutil.exe", "-addstore", "-f", "Root", "jstests\\libs\\trusted-ca.pem");
     }
 
     var replTest = new ReplSetTest({
