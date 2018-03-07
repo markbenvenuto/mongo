@@ -397,7 +397,7 @@ StatusWith<std::string> readFile(StringData fileName) {
 }
 
 // Find a specific kind of PEM blob marked by BEGIN and END in a string
-StatusWith<StringData> findPEMBlob(StringData blob, StringData type, size_t position) {
+StatusWith<StringData> findPEMBlob(StringData blob, StringData type, size_t position = 0) {
     std::string header = str::stream() << "-----BEGIN " << type << "-----";
     std::string trailer = str::stream() << "-----END " << type << "-----";
 
@@ -503,7 +503,7 @@ StatusWith<UniqueCertificateWithPrivateKey> readCertPEMFile(StringData fileName,
     }
 
     // Search the buffer for the various strings that make up a PEM file
-    auto swPublicKeyBlob = findPEMBlob(buf, "CERTIFICATE"_sd, 0);
+    auto swPublicKeyBlob = findPEMBlob(buf, "CERTIFICATE"_sd);
     if (!swPublicKeyBlob.isOK()) {
         return swPublicKeyBlob.getStatus();
     }
@@ -522,13 +522,13 @@ StatusWith<UniqueCertificateWithPrivateKey> readCertPEMFile(StringData fileName,
 
     // PEM files can have either private key format
     // Also the private key can either come before or after the certificate
-    auto swPrivateKeyBlob = findPEMBlob(buf, "RSA PRIVATE KEY"_sd, 0);
+    auto swPrivateKeyBlob = findPEMBlob(buf, "RSA PRIVATE KEY"_sd);
     // We expect to find at least one certificate
     if (!swPrivateKeyBlob.isOK()) {
         // A "PRIVATE KEY" is actually a PKCS #8 PrivateKeyInfo ASN.1 type. We do not support it for
         // now so tell the user how to fix it.
         // Warn user rsa -in roles.key -out roles2.key
-        swPrivateKeyBlob = findPEMBlob(buf, "PRIVATE KEY"_sd, 0);
+        swPrivateKeyBlob = findPEMBlob(buf, "PRIVATE KEY"_sd);
         if (!swPrivateKeyBlob.isOK()) {
             return swPrivateKeyBlob.getStatus();
         } else {
