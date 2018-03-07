@@ -142,7 +142,7 @@ public:
 #endif  // defined(SSL_OP_NO_TLSv1_2)
 #if defined(SSL_OP_NO_COMPRESSION)
     ASIO_STATIC_CONSTANT(long, no_compression = SSL_OP_NO_COMPRESSION);
-#else   // defined(SSL_OP_NO_COMPRESSION)
+#else  // defined(SSL_OP_NO_COMPRESSION)
     ASIO_STATIC_CONSTANT(long, no_compression = 0x20000L);
 #endif  // defined(SSL_OP_NO_COMPRESSION)
 #endif
