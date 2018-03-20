@@ -2740,6 +2740,22 @@ def doConfigure(myenv):
         'CheckBoostMinVersion': CheckBoostMinVersion,
     })
 
+    if env.TargetOSIs("windows") and not conf.CheckLibWithHeader(
+        "libcurld",
+        ["curl/curl.h"], "C",
+        "curl_global_init(0);",
+        autoadd=False):
+        env.ConfError("Could not find <curl/curl.h> and curl lib, required for "
+            "enterprise build")
+    
+    if not env.TargetOSIs("windows") and not conf.CheckLibWithHeader(
+        "curl",
+        ["curl/curl.h"], "C",
+        "curl_global_init(0);",
+        autoadd=False):
+        env.ConfError("Could not find <curl/curl.h> and curl lib, required for "
+            "enterprise build")
+
     libdeps.setup_conftests(conf)
 
     ### --ssl and --ssl-provider checks

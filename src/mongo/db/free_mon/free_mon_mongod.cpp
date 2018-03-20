@@ -1,0 +1,348 @@
+
+#define MONGO_LOG_DEFAULT_COMPONENT ::mongo::logger::LogComponent::kFTDC
+
+
+#include "mongo/platform/basic.h"
+
+#include "mongo/db/free_mon/free_mon_mongod.h"
+
+#include "mongo/db/free_mon/free_monitoring_controller.h"
+#include "mongo/db/free_mon/free_monitoring_http.h"
+#include "mongo/db/ftdc/ftdc_server.h"
+#include "mongo/db/ftdc/constants.h"
+#include "mongo/db/server_parameters.h"
+#include "mongo/db/service_context.h"
+#include "mongo/util/log.h"
+#include "mongo/util/options_parser/startup_option_init.h"
+#include "mongo/util/options_parser/startup_options.h"
+#include "mongo/base/data_type_validated.h"
+#include "mongo/rpc/object_check.h"
+#include "mongo/db/jsobj.h"
+
+
+namespace mongo {
+
+namespace {
+
+const auto getFreeMonController = ServiceContext::declareDecoration<std::unique_ptr<FreeMonController>>();
+
+FreeMonController* getGlobalFreeMonController() {
+    if (!hasGlobalServiceContext()) {
+        return nullptr;
+    }
+
+    return getFreeMonController(getGlobalServiceContext()).get();
+}
+
+
+/**
+* Expose cloudFreeMonitoringEndpointURL set parameter to URL for free monitoring.
+*/
+class ExportedFreeMonEndpointURL : public ServerParameter {
+public:
+    ExportedFreeMonEndpointURL()
+        : ServerParameter(ServerParameterSet::getGlobal(),
+            "cloudFreeMonitoringEndpointURL",
+            true,
+            false) {}
+
+
+    void append(OperationContext* opCtx, BSONObjBuilder& b, const std::string& name) final {
+        stdx::lock_guard<stdx::mutex> guard(_lock);
+        b.append(name, _path);
+    }
+
+    Status set(const BSONElement& newValueElement) {
+        if (newValueElement.type() != String) {
+            return Status(ErrorCodes::BadValue,
+                "ExportedFreeMonEndpointURL only supports type string");
+        }
+
+        std::string str = newValueElement.str();
+        return setFromString(str);
+    }
+
+    Status setFromString(const std::string& str) final {
+        stdx::lock_guard<stdx::mutex> guard(_lock);
+        _path = str;
+        return Status::OK();
+    }
+
+    std::string getURL() {
+        stdx::lock_guard<stdx::mutex> guard(_lock);
+        return _path;
+    }
+
+
+private:
+    // Lock to guard _path
+    stdx::mutex _lock;
+
+    std::string _path;
+} exportedExportedFreeMonEndpointURL;
+
+
+class FreeMonStorageInterfaceMock : public FreeMonStorageInterface {
+public:
+    ~FreeMonStorageInterfaceMock() {}
+
+    boost::optional<FreeMonStorageState> read()override {
+        auto state = FreeMonStorageState();
+        state.setVersion(1);
+
+        return state;
+    }
+
+    bool replace(const FreeMonStorageState& doc) override {
+        return true;
+    }
+    bool deleteState() override {
+        return true;
+    }
+
+    BSONObj readClusterManagerState() override {
+        return BSONObj();
+    }
+};
+
+
+//class FreeMonitoringHttpClientInterface {
+//    ~FreeMonitoringHttpClientInterface();
+//
+//    void post(StringData url, ConstDataRange data) = 0;
+//};
+
+class FreeMonNetworkHttp : public FreeMonNetworkInterface {
+public:
+    FreeMonNetworkHttp(std::unique_ptr<FreeMonitoringHttpClientInterface> client) :
+        _client(std::move(client)) {}
+    ~FreeMonNetworkHttp() {}
+
+    FreeMonRegistrationResponse sendRegistration(const FreeMonRegistrationRequest& req) override {
+        log() << "Sending Registration ...";
+
+        BSONObj reqObj = req.toBSON();
+
+        log() << "Sending data: " << reqObj.toString();
+
+        auto swPost = _client->post(exportedExportedFreeMonEndpointURL.getURL() + "/register",
+            ConstDataRange(reqObj.objdata(), reqObj.objdata() + reqObj.objsize()));
+
+        uassertStatusOK(swPost.getStatus());
+
+        auto blob = swPost.getValue();
+
+        if (blob.size() == 0) {
+            uassertStatusOK(Status(ErrorCodes::BadPerfCounterPath, "Short runt"));
+        }
+
+        ConstDataRange cdr(reinterpret_cast<char*>(blob.data()), blob.size());
+
+        auto swDoc = cdr.read<Validated<BSONObj>>();
+        uassertStatusOK(swDoc.getStatus());
+
+        BSONObj respObj(swDoc.getValue());
+
+        log() << "Received data: " << respObj.toString();
+
+        auto resp = FreeMonRegistrationResponse::parse(IDLParserErrorContext("reponse"), respObj);
+
+
+        return resp;
+    }
+
+    FreeMonMetricsResponse sendMetrics(const FreeMonMetricsRequest& req) override {
+        log() << "Sending Metrics ...";
+
+        BSONObj reqObj = req.toBSON();
+
+        log() << "Sending data: " << reqObj.toString();
+
+        auto swPost = _client->post(exportedExportedFreeMonEndpointURL.getURL() + "/metrics",
+            ConstDataRange(reqObj.objdata(), reqObj.objdata() + reqObj.objsize()));
+
+        uassertStatusOK(swPost.getStatus());
+
+        auto blob = swPost.getValue();
+
+        if (blob.size() == 0) {
+            uassertStatusOK(Status(ErrorCodes::BadPerfCounterPath, "Short runt"));
+        }
+
+        // TODO: validate BSON
+
+        ConstDataRange cdr(reinterpret_cast<char*>(blob.data()), blob.size());
+
+        auto swDoc = cdr.read<Validated<BSONObj>>();
+        uassertStatusOK(swDoc.getStatus());
+
+        BSONObj respObj(swDoc.getValue());
+
+        log() << "Received data: " << respObj.toString();
+
+        auto resp = FreeMonMetricsResponse::parse(IDLParserErrorContext("reponse"), respObj);
+
+        return resp;
+    }
+private:
+    std::unique_ptr<FreeMonitoringHttpClientInterface> _client;
+};
+
+} // namespace
+
+namespace optionenvironment {
+class OptionSection;
+class Environment;
+}  // namespace optionenvironment
+
+namespace moe = mongo::optionenvironment;
+
+
+namespace {
+
+
+/**
+* Command line states
+*/
+enum class EnableCloudStateEnum : std::int32_t {
+    on,
+    off,
+    runtime,
+};
+
+constexpr StringData kEnableCloudState_on = "on"_sd;
+constexpr StringData kEnableCloudState_off = "off"_sd;
+constexpr StringData kEnableCloudState_runtime = "runtime"_sd;
+
+StatusWith<EnableCloudStateEnum> EnableCloudState_parse(StringData value) {
+    if (value == kEnableCloudState_on) {
+        return EnableCloudStateEnum::on;
+    }
+    if (value == kEnableCloudState_off) {
+        return EnableCloudStateEnum::off;
+    }
+    if (value == kEnableCloudState_runtime) {
+        return EnableCloudStateEnum::runtime;
+    }
+    
+    // TODO
+    return Status(ErrorCodes::InvalidOptions, "Unrecognized state");
+}
+
+std::string freeMonitoringTag; 
+EnableCloudStateEnum freeMonitoringState = EnableCloudStateEnum::runtime;
+
+Status addFreeMonitoringOptions(moe::OptionSection* options) {
+    moe::OptionSection freeMonitoringOptions("Free Monitoring options");
+
+//Command Line: --enableFreeMonitoring=<on|runtime|off>
+//YAML Name: cloud.monitoring.free=<on|runtime|off>
+    freeMonitoringOptions.addOptionChaining(
+        "cloud.monitoring.free.state", 
+        "enableFreeMonitoring", moe::String, 
+        "Enable Cloud Free Monitoring (on|runtime|off)");
+
+// Command Line: --enableFreeMonitoringTag=string
+// YAML Name: cloud.monitoring.free.tag=string
+    freeMonitoringOptions.addOptionChaining(
+        "cloud.monitoring.free.tag",
+        "freeMonitoringTag",
+        moe::String,
+        "Cloud Free Monitoring Tag");
+
+    Status ret = options->addSection(freeMonitoringOptions);
+    if (!ret.isOK()) {
+        log() << "Failed to add free monitoring option section: " << ret.toString();
+        return ret;
+    }
+
+    return Status::OK();
+}
+
+Status storeFreeMonitoringOptions(const moe::Environment& params) {
+
+    if (params.count("cloud.monitoring.free.state")) {
+        auto swState = EnableCloudState_parse(params["cloud.monitoring.free.state"].as<std::string>());
+        if (!swState.isOK()) {
+            return swState.getStatus();
+        }
+        freeMonitoringState = swState.getValue();
+    }
+
+    if (params.count("cloud.monitoring.free.tag")) {
+        freeMonitoringTag = params["cloud.monitoring.free.tag"].as<std::string>();
+    }
+
+    return Status::OK();
+}
+
+
+MONGO_MODULE_STARTUP_OPTIONS_REGISTER(FreeMonitoringOptions)(InitializerContext* context) {
+    return addFreeMonitoringOptions(&moe::startupOptions);
+}
+
+
+//MONGO_STARTUP_OPTIONS_VALIDATE(FreeMonitoringOptions)(InitializerContext* context) {
+//    return addFreeMonitoringOptions(&moe::startupOptions);
+//}
+
+MONGO_STARTUP_OPTIONS_STORE(FreeMonitoringOptions)(InitializerContext* context) {
+    return storeFreeMonitoringOptions(moe::startupOptionsParsed);
+}
+
+} // namespace
+
+void startFreeMonitoring() {
+    if (freeMonitoringState == EnableCloudStateEnum::off) {
+        return;
+    }
+
+    std::unique_ptr<FreeMonitoringHttpClientInterface> http = createFreeMonHttpClient();
+        
+    std::unique_ptr<FreeMonNetworkInterface> network = std::unique_ptr<FreeMonNetworkInterface>(new FreeMonNetworkHttp(std::move(http)));
+
+    std::unique_ptr<FreeMonStorageInterface> storage = std::unique_ptr<FreeMonStorageInterface>(new FreeMonStorageInterfaceMock());
+
+    auto controller = stdx::make_unique<FreeMonController>(std::move(network), std::move(storage));
+
+    controller->addRegistrationCollector(stdx::make_unique<FTDCSimpleInternalCommandCollector>(
+        "isMaster",
+        "isMaster",
+        "",
+        BSON("isMaster" << 1 )));
+
+    controller->addMetricsCollector(stdx::make_unique<FTDCSimpleInternalCommandCollector>(
+        "serverStatus",
+        "serverStatus",
+        "",
+        BSON("serverStatus" << 1 << "tcMalloc" << true << "sharding" << false)));
+
+    // Install the new controller
+    auto& staticFreeMon = getFreeMonController(getGlobalServiceContext());
+
+    staticFreeMon = std::move(controller);
+
+    staticFreeMon->start(freeMonitoringState == EnableCloudStateEnum::on);
+}
+
+void stopFreeMonitoring() {
+    if (freeMonitoringState == EnableCloudStateEnum::off) {
+        return;
+    }
+
+    auto controller = getGlobalFreeMonController();
+
+    if (controller) {
+        controller->stop();
+    }
+}
+
+FreeMonController* FreeMonController::get(ServiceContext* serviceContext) {
+    return getFreeMonController(serviceContext).get();
+}
+
+FreeMonitoringHttpClientInterface::~FreeMonitoringHttpClientInterface() {
+}
+
+
+} // namespace mongo

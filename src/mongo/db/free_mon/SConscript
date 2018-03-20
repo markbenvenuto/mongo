@@ -1,0 +1,54 @@
+# -*- mode: python -*-
+Import("env")
+
+env = env.Clone()
+
+fmEnv = env.Clone()
+fmEnv.InjectThirdPartyIncludePaths(libraries=['snappy'])
+
+fmEnv.Library(
+    target='free_mon',
+    source=[
+        'free_monitoring_controller.cpp',
+        env.Idlc('free_monitoring_protocol.idl')[0],
+        env.Idlc('free_monitoring_commands.idl')[0],
+        env.Idlc('free_monitoring_storage.idl')[0],
+    ],
+    LIBDEPS=[
+         '$BUILD_DIR/mongo/idl/idl_parser',
+       '$BUILD_DIR/mongo/base',
+        '$BUILD_DIR/third_party/shim_snappy',
+         '$BUILD_DIR/mongo/db/ftdc/ftdc',
+    ],
+)
+
+fmEnv.Library(
+    target='free_mon_mongod',
+    source=[
+        'free_mon_mongod.cpp',
+        'free_mon_curl_client.cpp',
+    ],
+    LIBDEPS=[
+         'free_mon',
+                 '$BUILD_DIR/mongo/util/options_parser/options_parser',
+         '$BUILD_DIR/mongo/db/ftdc/ftdc_server',
+
+    ],
+    SYSLIBDEPS=[
+        'libcurld' if env.TargetOSIs('windows') else 'curl',
+#        'wininet' if env.TargetOSIs('windows') else 'curl',
+    ],
+)
+
+
+env.CppUnitTest(
+    target='free_monitoring_test',
+    source=[
+        'free_monitoring_controller_test.cpp',
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/util/clock_source_mock',
+        '$BUILD_DIR/mongo/unittest/concurrency',
+        'free_mon',
+    ],
+)

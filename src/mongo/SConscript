@@ -296,6 +296,7 @@ env.Library(
         'db/commands/core',
         'db/dbdirectclient',
         'db/ftdc/ftdc_mongod',
+        'db/free_mon/free_mon_mongod',
         'db/index_d',
         'db/initialize_snmp',
         'db/keys_collection_client_direct',
