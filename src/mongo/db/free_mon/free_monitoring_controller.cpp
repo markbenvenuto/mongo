@@ -20,9 +20,6 @@ namespace mongo {
 
 FreeMonNetworkInterface::~FreeMonNetworkInterface() {}
 
-FreeMonStorageInterface::~FreeMonStorageInterface() {}
-
-
 
 FreeMonMessageQueue::FreeMonMessageQueue() : _stop(false) {}
 void FreeMonMessageQueue::enqueue(std::shared_ptr<FreeMonMessage> msg) {
@@ -49,14 +46,14 @@ boost::optional<std::shared_ptr<FreeMonMessage>> FreeMonMessageQueue::dequeue(Cl
             return{};
         }
 
-        Date_t deadline = Date_t::max();
+        Date_t deadlineCV = Date_t::max();
         if (!_queue.empty()) {
-            deadline = _queue.top()->getDeadline();
+            deadlineCV = _queue.top()->getDeadline();
         } else {
-            deadline = clockSource->now() + Hours(1);
+            deadlineCV = clockSource->now() + Hours(1);
         }
 
-        _condvar.wait_until(lock, deadline.toSystemTimePoint(), [this, clockSource]() {
+        _condvar.wait_until(lock, deadlineCV.toSystemTimePoint(), [this, clockSource]() {
             if (_stop) {
                 return true;
             }
@@ -65,14 +62,14 @@ boost::optional<std::shared_ptr<FreeMonMessage>> FreeMonMessageQueue::dequeue(Cl
                 return false;
             }
 
-            auto deadline2 = this->_queue.top()->getDeadline();
-            if (deadline2 == Date_t::min()) {
+            auto deadlineMessage = this->_queue.top()->getDeadline();
+            if (deadlineMessage == Date_t::min()) {
                 return true;
             }
 
             auto now = clockSource->now();
 
-            bool check = deadline2 < now;
+            bool check = deadlineMessage < now;
             return check;
         });
 
@@ -96,11 +93,6 @@ void FreeMonMessageQueue::stop() {
 }
 
 
-//FreeMonController* FreeMonController::get(ServiceContext* serviceContext) {
-//    return getFreeMonController(serviceContext).get();
-//}
-
-
 void FreeMonController::addRegistrationCollector(std::unique_ptr<FreeMonCollectorInterface> collector) {
     {
         stdx::lock_guard<stdx::mutex> lock(_mutex);
@@ -118,8 +110,12 @@ void FreeMonController::addMetricsCollector(std::unique_ptr<FreeMonCollectorInte
     }
 }
 
-Status FreeMonController::registerServer(bool acceptedEULA, Milliseconds timeout) {
-    auto msg = FreeMonRegisterMessage::createNow(acceptedEULA);
+void FreeMonController::registerServerStartup(RegistrationType registrationType) {
+    _enqueue(FreeMonServerRegisterMessage::createNow(registrationType));
+}
+
+Status FreeMonController::registerServerCommand(bool acceptedEULA, Milliseconds timeout) {
+    auto msg = FreeMonRegisterCommandMessage::createNow(acceptedEULA);
     _enqueue(msg);
 
     if (timeout > Milliseconds::min()) {
@@ -128,6 +124,7 @@ Status FreeMonController::registerServer(bool acceptedEULA, Milliseconds timeout
 
     return Status::OK();
 }
+
 
 void FreeMonController::_enqueue(std::shared_ptr<FreeMonMessage> msg) {
     {
@@ -139,7 +136,7 @@ void FreeMonController::_enqueue(std::shared_ptr<FreeMonMessage> msg) {
 }
 
 
-void FreeMonController::start(bool registerServerOnStart) {
+void FreeMonController::start(RegistrationType registrationType) {
     {
         stdx::lock_guard<stdx::mutex> lock(_mutex);
 
@@ -147,7 +144,7 @@ void FreeMonController::start(bool registerServerOnStart) {
     }
 
     // Start the agent
-    _processor = std::make_unique<FreeMonProcessor>(_registrationCollectors, _metricCollectors, _network.get(), _storage.get());
+    _processor = std::make_unique<FreeMonProcessor>(_registrationCollectors, _metricCollectors, _network.get());
 
     _thread = stdx::thread([this] { _processor->doLoop(); });
 
@@ -158,8 +155,8 @@ void FreeMonController::start(bool registerServerOnStart) {
         _state = State::kStarted;
     }
 
-    if (registerServerOnStart) {
-        uassertStatusOK(registerServer(false, Milliseconds::min()));
+    if (registrationType != RegistrationType::DoNotRegister) {
+        registerServerStartup(registrationType);
     }
 }
 
@@ -216,9 +213,14 @@ void FreeMonProcessor::doLoop() {
 
             // Do work here
             switch (item.get()->getType()) {
-            case FreeMonMessageType::Register:
+            case FreeMonMessageType::RegisterCommand:
             {
-                doRegister(client, static_cast<FreeMonRegisterMessage*>(item.get().get()));
+                doCommandRegister(client, static_cast<FreeMonRegisterCommandMessage*>(item.get().get()));
+                break;
+            }
+            case FreeMonMessageType::RegisterServer:
+            {
+                doServerRegister(client, static_cast<FreeMonServerRegisterMessage*>(item.get().get()));
                 break;
             }
 
@@ -239,16 +241,17 @@ void FreeMonProcessor::doLoop() {
 }
 
 void FreeMonProcessor::readState(Client* client) {
-    auto state = _storage->read();
+
+    auto optCtx = client->makeOperationContext();
+
+    auto state = _storage.read(optCtx.get());
 
     if (state.is_initialized() && _state.state != FreeMonStateState::Initialized) {
         invariant(state.get().getVersion() == 1);
         _state.registrationId = state.get().getRegistrationId().toString();
         _state.informationalURL = state.get().getInformationalURL().toString();
         
-        _state.reportingInterval = Seconds(state.get().getReportingInterval());
-
-        _state.userReminder = Minutes(state.get().getReportingInterval());
+        _state.userReminder = Minutes(state.get().getUserReminder());
     }
 }
 
@@ -261,7 +264,22 @@ Date_t fromNow(Client* client, Seconds seconds) {
     return client->getServiceContext()->getPreciseClockSource()->now() + seconds;
 }
 
-void FreeMonProcessor::doRegister(Client* client, const FreeMonRegisterMessage* msg) {
+void FreeMonProcessor::doServerRegister(Client* client, const FreeMonServerRegisterMessage* msg) {
+    // If we are asked to register now, then kick off a registration request
+    if (msg->getRegistrationType() == RegistrationType::RegisterOnStart) {
+        enqueue(FreeMonRegisterCommandMessage::createNow(false));
+    } else if (msg->getRegistrationType() == RegistrationType::RegisterAfterOnTransitionToPrimary ){
+        // Check if we need to wait to become primary
+        // If the 'admin.system.version' has content, do not wait and just re-register
+        // If the collection is empty, wait until we become primary
+        //    If we become secondary, OpObserver hooks will tell us our registration id
+        
+        // TODO: hook OnTransitionToPrimary instead of this hack
+        enqueue(FreeMonRegisterCommandMessage::createNow(false));
+    }
+}
+
+void FreeMonProcessor::doCommandRegister(Client* client, const FreeMonRegisterCommandMessage* msg) {
     readState(client);
 
     FreeMonRegistrationRequest req;

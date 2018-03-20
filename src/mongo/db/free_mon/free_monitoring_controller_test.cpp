@@ -49,9 +49,13 @@
 #include "mongo/db/ftdc/config.h"
 #include "mongo/db/ftdc/constants.h"
 #include "mongo/db/ftdc/controller.h"
+#include "mongo/db/service_context_d_test_fixture.h"
 #include "mongo/db/ftdc/ftdc_test.h"
 #include "mongo/db/jsobj.h"
 #include "mongo/db/service_context.h"
+#include "mongo/db/op_observer_noop.h"
+#include "mongo/db/op_observer_registry.h"
+#include "mongo/db/repl/replication_coordinator_mock.h"
 #include "mongo/stdx/memory.h"
 #include "mongo/unittest/temp_dir.h"
 #include "mongo/unittest/unittest.h"
@@ -306,29 +310,6 @@ public:
     }
 };
 
-class FreeMonStorageInterfaceMock : public FreeMonStorageInterface {
-public:
-    ~FreeMonStorageInterfaceMock() {}
-
-    boost::optional<FreeMonStorageState> read()override {
-        auto state = FreeMonStorageState();
-        state.setVersion(1);
-
-        return state;
-    }
-
-    bool replace(const FreeMonStorageState& doc) override {
-        return true;
-    }
-    bool deleteState() override {
-        return true;
-    }
-
-    BSONObj readClusterManagerState() override {
-        return BSONObj();
-    }
-};
-
 //TEST(FreeMonProcessor, TestRegister) {
 //    Client* client = &cc();
 //
@@ -350,17 +331,70 @@ public:
 //}
 
 
+class FreeMonControllerTest : public ServiceContextMongoDTest {
+
+private:
+    void setUp() override;
+    void tearDown() override;
+protected:
+    /**
+    * Looks up the current ReplicationCoordinator.
+    * The result is cast to a ReplicationCoordinatorMock to provide access to test features.
+    */
+    repl::ReplicationCoordinatorMock* _getReplCoord() const;
+
+    ServiceContext::UniqueOperationContext _opCtx;
+};
+
+void FreeMonControllerTest::setUp() {
+    ServiceContextMongoDTest::setUp();
+    auto service = getServiceContext();
+
+    //DBDirectClientFactory::get(service).registerImplementation(
+    //    [](OperationContext* opCtx) { return std::make_unique<DBDirectClient>(opCtx); });
+    repl::ReplicationCoordinator::set(service,
+        std::make_unique<repl::ReplicationCoordinatorMock>(service));
+
+    //// Set up an OpObserver to track the temporary collections mapReduce creates.
+    //auto opObserver = std::make_unique<MapReduceOpObserver>();
+    //_opObserver = opObserver.get();
+    //auto opObserverRegistry = dynamic_cast<OpObserverRegistry*>(service->getOpObserver());
+    //opObserverRegistry->addObserver(std::move(opObserver));
+
+    _opCtx = cc().makeOperationContext();
+
+    // Transition to PRIMARY so that the server can accept writes.
+    ASSERT_OK(_getReplCoord()->setFollowerMode(repl::MemberState::RS_PRIMARY));
+
+    // Create collection with one document.
+    CollectionOptions collectionOptions;
+    collectionOptions.uuid = UUID::gen();
+    //ASSERT_OK(_storage.createCollection(_opCtx.get(), inputNss, collectionOptions));
+}
+
+void FreeMonControllerTest::tearDown() {
+    _opCtx = {};
+    //_opObserver = nullptr;
+    ServiceContextMongoDTest::tearDown();
+}
+
+repl::ReplicationCoordinatorMock* FreeMonControllerTest::_getReplCoord() const {
+    auto replCoord = repl::ReplicationCoordinator::get(_opCtx.get());
+    ASSERT(replCoord) << "No ReplicationCoordinator installed";
+    auto replCoordMock = dynamic_cast<repl::ReplicationCoordinatorMock*>(replCoord);
+    ASSERT(replCoordMock) << "Unexpected type for installed ReplicationCoordinator";
+    return replCoordMock;
+}
+
 // Positive: Test Register works
-TEST(FreeMonController, TestRegister) {
+TEST_F(FreeMonControllerTest, TestRegister) {
     FreeMonNetworkInterfaceMock network;
-    FreeMonStorageInterfaceMock storage;
     FreeMonController controller(
-        std::unique_ptr<FreeMonNetworkInterface>(new FreeMonNetworkInterfaceMock()),
-        std::unique_ptr<FreeMonStorageInterface>(new FreeMonStorageInterfaceMock()));
+        std::unique_ptr<FreeMonNetworkInterface>(new FreeMonNetworkInterfaceMock()));
 
-    controller.start(false);
+    controller.start(RegistrationType::DoNotRegister);
 
-   ASSERT_OK(controller.registerServer(true, Milliseconds::min()));
+   ASSERT_OK(controller.registerServerCommand(true, Milliseconds::min()));
     //controller.registerServer(false, Milliseconds::min());
 
 
@@ -373,13 +407,13 @@ TEST(FreeMonController, TestRegister) {
 
 MONGO_INITIALIZER_WITH_PREREQUISITES(FreeMonTestInit, ("ThreadNameInitializer"))
 (InitializerContext* context) {
-    setGlobalServiceContext(stdx::make_unique<ServiceContextNoop>());
+    //setGlobalServiceContext(stdx::make_unique<ServiceContextNoop>());
 
     /*getGlobalServiceContext()->setFastClockSource(stdx::make_unique<ClockSourceMock>());
     getGlobalServiceContext()->setPreciseClockSource(stdx::make_unique<ClockSourceMock>());
     getGlobalServiceContext()->setTickSource(stdx::make_unique<TickSourceMock>());
 */
-    Client::initThreadIfNotAlready("UnitTest");
+//    Client::initThreadIfNotAlready("UnitTest");
 
     return Status::OK();
 }
