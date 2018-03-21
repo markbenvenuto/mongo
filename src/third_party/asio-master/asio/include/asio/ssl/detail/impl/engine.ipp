@@ -290,6 +290,11 @@ int engine::do_accept(void*, std::size_t)
 
 int engine::do_connect(void*, std::size_t)
 {
+  int ret = ::SSL_set_tlsext_host_name(sslConn->ssl, _severName.c_str());
+  if (ret != 1)
+        return ret;
+
+
   return ::SSL_connect(ssl_);
 }
 

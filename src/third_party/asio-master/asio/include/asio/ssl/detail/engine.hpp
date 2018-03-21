@@ -56,7 +56,7 @@ public:
   };
 
   // Construct a new engine for the specified context.
-  ASIO_DECL explicit engine(SSL_CTX* context);
+  ASIO_DECL explicit engine(SSL_CTX* context, std::string remoteHost);
 
   // Destructor.
   ASIO_DECL ~engine();
