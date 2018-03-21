@@ -616,3 +616,17 @@ commands:
         cpp_name: WellNamedCommand
         fields:
             field1: int
+
+    int_type_command:
+        description: Command with custom type int
+        namespace: type
+        type: int
+        fields:
+            field1: int
+
+    int_array_type_command:
+        description: Command with custom type for array of int
+        namespace: type
+        type: array<int>
+        fields:
+            field1: int
