@@ -45,6 +45,8 @@
 #include "mongo/db/client.h"
 #include "mongo/db/ftdc/collector.h"
 #include "mongo/db/ftdc/config.h"
+#include "mongo/db/repl/storage_interface.h"
+#include "mongo/db/repl/storage_interface_impl.h"
 #include "mongo/db/ftdc/constants.h"
 #include "mongo/db/ftdc/controller.h"
 #include "mongo/db/ftdc/ftdc_test.h"
@@ -374,6 +376,10 @@ protected:
     executor::NetworkInterfaceMock* _mockNetwork{nullptr};
 
     std::unique_ptr<executor::ThreadPoolTaskExecutor> _mockThreadPool;
+
+    // Use StorageInterface to access storage features below catalog interface.
+    //std::unique_ptr<repl::StorageInterface> _storage;
+
 };
 
 void FreeMonControllerTest::setUp() {
@@ -408,13 +414,23 @@ void FreeMonControllerTest::setUp() {
 
     _opCtx = cc().makeOperationContext();
 
+    //_storage = stdx::make_unique<repl::StorageInterfaceImpl>();
+    repl::StorageInterface::set(service, std::make_unique<repl::StorageInterfaceImpl>());
+
+
+
     // Transition to PRIMARY so that the server can accept writes.
     ASSERT_OK(_getReplCoord()->setFollowerMode(repl::MemberState::RS_PRIMARY));
+
 
     // Create collection with one document.
     CollectionOptions collectionOptions;
     collectionOptions.uuid = UUID::gen();
     // ASSERT_OK(_storage.createCollection(_opCtx.get(), inputNss, collectionOptions));
+
+    repl::StorageInterface::get(service)->createCollection(_opCtx.get(), NamespaceString("admin", "system.version"), collectionOptions);
+
+
 }
 
 void FreeMonControllerTest::tearDown() {

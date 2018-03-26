@@ -65,7 +65,7 @@ public:
     /**
      * Reads first document from local.clustermanager.
      */
-    static BSONObj readClusterManagerState(OperationContext* opCtx);
+    static boost::optional<BSONObj> readClusterManagerState(OperationContext* opCtx);
 };
 
 // class RetryCounter {

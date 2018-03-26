@@ -270,9 +270,17 @@ void FreeMonProcessor::readState(Client* client) {
     _lastReadState = state;
 
     if (state.is_initialized() && _status != FreeMonStateState::Initialized) {
-        invariant(state.get().getVersion() == 1);
+        invariant(state.get().getVersion() == kProtocolVersion);
 
         _state = state.get();
+    } else if (!state.is_initialized()) {
+        // Default the state
+        _state.setVersion(kProtocolVersion);
+        _state.setState(StorageStateEnum::enabled);
+        _state.setRegistrationId("");
+        _state.setInformationalURL("");
+        _state.setMessage("");
+        _state.setUserReminder("");
     }
 }
 
