@@ -166,7 +166,8 @@ void FreeMonController::start(RegistrationType registrationType) {
     }
 
     if (registrationType != RegistrationType::DoNotRegister) {
-        registerServerStartup(registrationType, std::vector<std::string>());
+        std::vector<std::string> vec;
+        registerServerStartup(registrationType, vec);
     }
 }
 
