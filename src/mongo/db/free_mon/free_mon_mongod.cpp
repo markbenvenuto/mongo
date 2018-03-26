@@ -18,6 +18,7 @@
 #include "mongo/base/data_type_validated.h"
 #include "mongo/rpc/object_check.h"
 #include "mongo/db/jsobj.h"
+#include "mongo/db/repl/replication_coordinator.h"
 
 
 namespace mongo {
@@ -80,30 +81,6 @@ private:
 
     std::string _path;
 } exportedExportedFreeMonEndpointURL;
-
-
-class FreeMonStorageInterfaceMock : public FreeMonStorageInterface {
-public:
-    ~FreeMonStorageInterfaceMock() {}
-
-    boost::optional<FreeMonStorageState> read()override {
-        auto state = FreeMonStorageState();
-        state.setVersion(1);
-
-        return state;
-    }
-
-    bool replace(const FreeMonStorageState& doc) override {
-        return true;
-    }
-    bool deleteState() override {
-        return true;
-    }
-
-    BSONObj readClusterManagerState() override {
-        return BSONObj();
-    }
-};
 
 
 //class FreeMonitoringHttpClientInterface {
@@ -301,28 +278,70 @@ void startFreeMonitoring() {
         
     std::unique_ptr<FreeMonNetworkInterface> network = std::unique_ptr<FreeMonNetworkInterface>(new FreeMonNetworkHttp(std::move(http)));
 
-    std::unique_ptr<FreeMonStorageInterface> storage = std::unique_ptr<FreeMonStorageInterface>(new FreeMonStorageInterfaceMock());
+    auto controller = stdx::make_unique<FreeMonController>(std::move(network));
 
-    auto controller = stdx::make_unique<FreeMonController>(std::move(network), std::move(storage));
+    // These are collected only on registration
+    //
+    // CmdBuildInfo
+    controller->addRegistrationCollector(stdx::make_unique<FTDCSimpleInternalCommandCollector>(
+        "buildInfo", "buildInfo", "", BSON("buildInfo" << 1)));
 
+    // HostInfoCmd
+    controller->addRegistrationCollector(stdx::make_unique<FTDCSimpleInternalCommandCollector>(
+        "hostInfo", "hostInfo", "", BSON("hostInfo" << 1)));
+
+    // TODO: Gather one document from local.clustermanager
+
+    // These are periodically for metrics upload
+    //
+    controller->addMetricsCollector(stdx::make_unique<FTDCSimpleInternalCommandCollector>(
+        "diagnosticData",
+        "diagnosticData",
+        "",
+        BSON("getDiagnosticData" << 1)));
+    
+    // These are collected registration and periodically
+    //
+    if (repl::ReplicationCoordinator::get(getGlobalServiceContext())->getReplicationMode() !=
+        repl::ReplicationCoordinator::modeNone) {
+        // CmdReplSetGetConfig
+        controller->addRegistrationCollector(stdx::make_unique<FTDCSimpleInternalCommandCollector>(
+            "replSetGetConfig", "replSetGetConfig", "", BSON("replSetGetConfig" << 1)));
+
+        controller->addMetricsCollector(stdx::make_unique<FTDCSimpleInternalCommandCollector>(
+            "replSetGetConfig", "replSetGetConfig", "", BSON("replSetGetConfig" << 1)));
+    }
+    
     controller->addRegistrationCollector(stdx::make_unique<FTDCSimpleInternalCommandCollector>(
         "isMaster",
         "isMaster",
         "",
-        BSON("isMaster" << 1 )));
+        BSON("isMaster" << 1)));
 
     controller->addMetricsCollector(stdx::make_unique<FTDCSimpleInternalCommandCollector>(
-        "serverStatus",
-        "serverStatus",
+        "isMaster",
+        "isMaster",
         "",
-        BSON("serverStatus" << 1 << "tcMalloc" << true << "sharding" << false)));
+        BSON("isMaster" << 1)));
+
 
     // Install the new controller
     auto& staticFreeMon = getFreeMonController(getGlobalServiceContext());
 
     staticFreeMon = std::move(controller);
 
-    staticFreeMon->start(freeMonitoringState == EnableCloudStateEnum::on);
+    RegistrationType registrationType = RegistrationType::DoNotRegister;
+    if (freeMonitoringState == EnableCloudStateEnum::on) {
+        if (repl::ReplicationCoordinator::get(getGlobalServiceContext())->getReplicationMode() !=
+            repl::ReplicationCoordinator::modeNone) {
+            registrationType = RegistrationType::RegisterAfterOnTransitionToPrimary;
+        } else {
+            registrationType = RegistrationType::RegisterOnStart;
+        }
+    }
+
+
+    staticFreeMon->start(registrationType);
 }
 
 void stopFreeMonitoring() {

@@ -46,28 +46,28 @@ public:
 /**
  * Storage tier for Free Monitoring. Provides access to storage engine.
  */
-class FreeMonStorageInterface {
+class FreeMonStorage {
 public:
-    virtual ~FreeMonStorageInterface();
+    ~FreeMonStorage();
     /**
      * Reads document from disk if it exists.
      */
-    virtual boost::optional<FreeMonStorageState> read() = 0;
+    boost::optional<FreeMonStorageState> read(OperationContext* opCtx);
 
     /**
      * Replaces document on disk with contents of document. Creates document if it does not exist.
      */
-    virtual bool replace(const FreeMonStorageState& doc) = 0;
+    bool replace(OperationContext* opCtx, const FreeMonStorageState& doc);
 
     /**
      * Deletes document on disk if it exists.
      */
-    virtual bool deleteState() = 0;
+    bool deleteState(OperationContext* opCtx);
 
     /**
      * Reads first document from local.clustermanager.
      */
-    virtual BSONObj readClusterManagerState() = 0;
+    BSONObj readClusterManagerState(OperationContext* opCtx);
 };
 
 // class RetryCounter {
@@ -76,13 +76,14 @@ public:
 // };
 
 enum class FreeMonMessageType {
-    Register,
+    RegisterServer,
+    RegisterCommand,
     //DeRegister,
     
     MetricsCallTimer,
     //MetricsCollectTimer,
 
-    #error ToDouble
+//#error ToDo
     // Make HTTP and collection separate loops
     // HTTP could be made async
         // Send Request
@@ -97,6 +98,26 @@ enum class FreeMonMessageType {
     //OnPrimary,
     //OpObserver,
 };
+
+
+enum class RegistrationType {
+    /**
+    * Do not register on start because it was not configured via commandline/config file.
+    */
+    DoNotRegister,
+
+    /**
+    * Register immediately on start since we are a standalone.
+    */
+    RegisterOnStart,
+
+    /**
+    * Register after transition to becoming primary because we are in a replica set.
+    */
+    RegisterAfterOnTransitionToPrimary,
+};
+
+
 
 
 class FreeMonMessage {
@@ -157,10 +178,25 @@ private:
 };
 
 
-class FreeMonRegisterMessage : public FreeMonMessage {
+class FreeMonServerRegisterMessage : public FreeMonMessage {
 public:
-    static std::shared_ptr<FreeMonRegisterMessage> createNow(bool acceptedEula) {
-        return std::make_shared<FreeMonRegisterMessage>(acceptedEula, Date_t::min());
+    static std::shared_ptr<FreeMonServerRegisterMessage> createNow(RegistrationType registrationType) {
+        return std::make_shared<FreeMonServerRegisterMessage>(registrationType, Date_t::min());
+    }
+
+    RegistrationType getRegistrationType() const { return _registrationType; }
+
+public:
+    FreeMonServerRegisterMessage(RegistrationType registrationType, Date_t deadline) :
+        FreeMonMessage(FreeMonMessageType::RegisterServer, deadline), _registrationType(registrationType) {}
+private:
+    RegistrationType _registrationType;
+};
+
+class FreeMonRegisterCommandMessage : public FreeMonMessage {
+public:
+    static std::shared_ptr<FreeMonRegisterCommandMessage> createNow(bool acceptedEula) {
+        return std::make_shared<FreeMonRegisterCommandMessage>(acceptedEula, Date_t::min());
     }
 
     bool getAcceptedEula() const { return _acceptedEula; }
@@ -169,8 +205,8 @@ public:
     Status wait_for(Milliseconds duration) { return _waitable.wait_for(duration); }
 
 public:
-    FreeMonRegisterMessage(bool acceptedEula, Date_t deadline) :
-        FreeMonMessage(FreeMonMessageType::Register, deadline), _acceptedEula(acceptedEula){}
+    FreeMonRegisterCommandMessage(bool acceptedEula, Date_t deadline) :
+        FreeMonMessage(FreeMonMessageType::RegisterCommand, deadline), _acceptedEula(acceptedEula){}
 private:
     bool _acceptedEula;
     WaitableResult _waitable{};
@@ -265,9 +301,9 @@ public:
 class FreeMonProcessor {
 public:
     FreeMonProcessor(FreeMonCollectorCollection& registration, FreeMonCollectorCollection &metrics,
-        FreeMonNetworkInterface* network, FreeMonStorageInterface* storage) :
+        FreeMonNetworkInterface* network) :
         _registration(registration), _metrics(metrics),
-        _network(network), _storage(storage)
+        _network(network)
         {}
     void enqueue(std::shared_ptr<FreeMonMessage> msg);
     void stop();
@@ -277,7 +313,8 @@ private:
     void readState(Client* client);
     void writeState(Client* client);
 
-    void doRegister(Client* client, const FreeMonRegisterMessage* msg);
+    void doCommandRegister(Client* client, const FreeMonRegisterCommandMessage* msg);
+    void doServerRegister(Client* client, const FreeMonServerRegisterMessage* msg);
     void doUnregister(Client* client);
     void doMetricsCall(Client* client);
 
@@ -287,7 +324,7 @@ private:
     FreeMonCollectorCollection& _registration;
     FreeMonCollectorCollection &_metrics;
     FreeMonNetworkInterface* _network; 
-    FreeMonStorageInterface* _storage;
+    FreeMonStorage _storage;
 
     // Producer Consumer Message queue, runs on background thread
     FreeMonMessageQueue _queue;
@@ -295,8 +332,6 @@ private:
     // TODO Add sync value
     FreeMonState _state;
 };
-
-
 
 /**
  * Manages and control Free Monitoring.
@@ -306,22 +341,18 @@ public:
 
     FreeMonController(
 
-        std::unique_ptr<FreeMonNetworkInterface> network,
-
-        std::unique_ptr<FreeMonStorageInterface> storage
+        std::unique_ptr<FreeMonNetworkInterface> network
 
     ):
-    _network(std::move(network)), _storage(std::move(storage)) {}
+    _network(std::move(network)) {}
 
 
 
     /**
      * Initializes free monitoring.
      * Start free monitoring thread in the background.
-     * 
-     * if registerServer is true, begin registration immedately
      */
-    void start(bool registerServerOnStart);
+    void start(RegistrationType registrationType);
 
     /**
      * Stops free monitoring thread.
@@ -352,8 +383,16 @@ public:
      * Only sends one remote registration at a time.
      * Returns after timeout if registrations is not complete. Registration continues though.
      */
-    Status registerServer(bool acceptedEULA, Milliseconds timeout);
-    
+    void registerServerStartup(RegistrationType registrationType);
+
+    /**
+    * Start registration of mongod with remote service.
+    *
+    * Only sends one remote registration at a time.
+    * Returns after timeout if registrations is not complete. Registration continues though.
+    */
+    Status registerServerCommand(bool acceptedEULA, Milliseconds timeout);
+
     
     Status deregisterServer();
 
@@ -420,8 +459,6 @@ private:
     FreeMonCollectorCollection _metricCollectors;
  
     std::unique_ptr<FreeMonNetworkInterface> _network;
-
-    std::unique_ptr<FreeMonStorageInterface> _storage;
 
     // Background thead for agent
     stdx::thread _thread;
