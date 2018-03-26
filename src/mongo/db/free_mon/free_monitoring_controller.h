@@ -376,6 +376,8 @@ private:
 
     // TODO Add sync value
     FreeMonState _state;
+
+    std::unique_ptr<Future<void>> _futureResponse;
 };
 
 /**

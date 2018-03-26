@@ -287,8 +287,12 @@ void FreeMonProcessor::doServerRegister(Client* client, const FreeMonMessageWith
 
 void FreeMonProcessor::doCommandRegister(Client* client, const FreeMonRegisterCommandMessage* msg) {
     // TODO: check if register is in-flight
+    if (_futureResponse.get()) {
+//#error request pending
+    }
 
     readState(client);
+
 
     FreeMonRegistrationRequest req;
     if (!_state.registrationId.empty()) {
@@ -307,7 +311,11 @@ void FreeMonProcessor::doCommandRegister(Client* client, const FreeMonRegisterCo
     req.setPayload(std::get<0>(collect));
 
     try {
-        auto respAsync = _network->sendRegistrationAsync(req).then([this](const auto& resp) {this->doRegisterCallback(resp); });
+        _futureResponse = std::make_unique<Future<void>>(_network->sendRegistrationAsync(req).then(
+            [this](const auto& resp) {
+            
+            // TODO: handle error information
+            this->doRegisterCallback(resp); }));
     }
     catch (const DBException&) {
         // TODO: do retry stuff
@@ -349,6 +357,13 @@ void FreeMonProcessor::doUnregister(Client* client) {
 }
 
 void FreeMonProcessor::doMetricsCall(Client* client) {
+    // Send Request
+    // RequestComplete
+    // Only allow one outstanding HTTP call at a time.
+    // If an upload is in-flight (i.e. slow), then the metrics is buffered
+    // Each upload wether new or retried gathers ALL samples and do all uploads
+
+
     readState(client);
 
     FreeMonMetricsRequest req;
