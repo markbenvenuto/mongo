@@ -32,6 +32,7 @@ structs:
     FreeMonStorageState:
         description: "Persisted document in admin.system.version"
         strict: false
+        generate_comparison_operators: true
         fields: 
           version:
             description: "Storage version, initial version is 1"
@@ -49,5 +50,6 @@ structs:
             description: "Informational message for shell to display to user"
             type: string
           userReminder:
-            description: "Minutes since last visit to website"
-            type: long
+            description: "Message to display to user to remind them about service"
+            type: string
+

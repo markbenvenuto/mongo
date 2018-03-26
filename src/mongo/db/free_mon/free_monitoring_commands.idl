@@ -40,9 +40,6 @@ commands:
           action:
             description: "Action to take"
             type: SetFreeMonAction
-          acknowledgeEULATerms:
-            description: "True if user accepted EULA terms. If false, command fails"
-            type: bool
 
     getFreeMonitoringStatus:
         description: "getFreeMonitoringStatus Command"

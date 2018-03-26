@@ -914,7 +914,7 @@ void shutdownTask() {
     }
 #endif
     stopFreeMonitoring();
-    
+
     // Shutdown Full-Time Data Capture
     stopMongoDFTDC();
 

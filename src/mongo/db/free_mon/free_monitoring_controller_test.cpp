@@ -32,35 +32,37 @@
 #include "mongo/platform/basic.h"
 
 #include <boost/filesystem.hpp>
-#include <iostream>
 #include <future>
+#include <iostream>
 
 #include "mongo/db/free_mon/free_monitoring_controller.h"
 
 #include "mongo/base/data_type_validated.h"
 #include "mongo/base/init.h"
 #include "mongo/bson/bson_validate.h"
-#include "mongo/db/service_context_noop.h"
 #include "mongo/bson/bsonmisc.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/client.h"
-#include "mongo/util/clock_source.h"
 #include "mongo/db/ftdc/collector.h"
 #include "mongo/db/ftdc/config.h"
 #include "mongo/db/ftdc/constants.h"
 #include "mongo/db/ftdc/controller.h"
-#include "mongo/db/service_context_d_test_fixture.h"
 #include "mongo/db/ftdc/ftdc_test.h"
 #include "mongo/db/jsobj.h"
-#include "mongo/db/service_context.h"
 #include "mongo/db/op_observer_noop.h"
 #include "mongo/db/op_observer_registry.h"
 #include "mongo/db/repl/replication_coordinator_mock.h"
+#include "mongo/db/service_context.h"
+#include "mongo/db/service_context_d_test_fixture.h"
+#include "mongo/db/service_context_noop.h"
 #include "mongo/stdx/memory.h"
+#include "mongo/unittest/barrier.h"
 #include "mongo/unittest/temp_dir.h"
 #include "mongo/unittest/unittest.h"
-#include "mongo/unittest/barrier.h"
+#include "mongo/util/clock_source.h"
+#include "mongo/executor/network_interface_mock.h"
 #include "mongo/util/log.h"
+#include "mongo/executor/thread_pool_task_executor_test_fixture.h"
 
 
 namespace mongo {
@@ -280,37 +282,60 @@ TEST(TestFreeMonMessageQueue, TestQueueStop) {
 
 class FreeMonNetworkInterfaceMock : public FreeMonNetworkInterface {
 public:
+    FreeMonNetworkInterfaceMock(executor::ThreadPoolTaskExecutor* threadPool) : _threadPool(threadPool) {}
     ~FreeMonNetworkInterfaceMock() {}
 
-    Future<FreeMonRegistrationResponse> sendRegistrationAsync(const FreeMonRegistrationRequest& req) override {
+    Future<FreeMonRegistrationResponse> sendRegistrationAsync(
+        const FreeMonRegistrationRequest& req) override {
         log() << "Sending Registration ...";
-        auto resp = FreeMonRegistrationResponse();
-        resp.setVersion(1);
 
-        if (req.getId().is_initialized()) {
-            resp.setId(req.getId().get());
-        } else {
-            resp.setId(UUID::gen().toString());
-        }
 
-        resp.setReportingInterval(1);
+        Promise<FreeMonRegistrationResponse> promise;
+        auto future = promise.getFuture();
+        auto shared_promise = promise.share();
 
-        return makeReadyFutureWith([resp] { return resp; });
+        _threadPool->scheduleWork([shared_promise, req](const executor::TaskExecutor::CallbackArgs& cbArgs) mutable {
+            auto resp = FreeMonRegistrationResponse();
+            resp.setVersion(1);
+
+            if (req.getId().is_initialized()) {
+                resp.setId(req.getId().get());
+            } else {
+                resp.setId(UUID::gen().toString());
+            }
+
+            resp.setReportingInterval(1);
+
+            shared_promise.emplaceValue(resp);
+        });
+
+        return future;
     }
 
     Future<FreeMonMetricsResponse> sendMetricsAsync(const FreeMonMetricsRequest& req) override {
         log() << "Sending Metrics ...";
         ASSERT_FALSE(req.getId().empty());
 
-        auto resp = FreeMonMetricsResponse();
-        resp.setVersion(1);
-        resp.setReportingInterval(1);
 
-        return makeReadyFutureWith([resp] { return resp; });
+        Promise<FreeMonMetricsResponse> promise;
+        auto future = promise.getFuture();
+        auto shared_promise = promise.share();
+
+        _threadPool->scheduleWork([shared_promise, req](const executor::TaskExecutor::CallbackArgs& cbArgs) mutable {
+            auto resp = FreeMonMetricsResponse();
+            resp.setVersion(1);
+            resp.setReportingInterval(1);
+
+            shared_promise.emplaceValue(resp);
+        });
+
+        return future;
     }
+private:
+    executor::ThreadPoolTaskExecutor* _threadPool;
 };
 
-//TEST(FreeMonProcessor, TestRegister) {
+// TEST(FreeMonProcessor, TestRegister) {
 //    Client* client = &cc();
 //
 //    FreeMonNetworkInterfaceMock network;
@@ -336,6 +361,7 @@ class FreeMonControllerTest : public ServiceContextMongoDTest {
 private:
     void setUp() override;
     void tearDown() override;
+
 protected:
     /**
     * Looks up the current ReplicationCoordinator.
@@ -344,22 +370,41 @@ protected:
     repl::ReplicationCoordinatorMock* _getReplCoord() const;
 
     ServiceContext::UniqueOperationContext _opCtx;
+
+    executor::NetworkInterfaceMock* _mockNetwork{nullptr};
+
+    std::unique_ptr<executor::ThreadPoolTaskExecutor> _mockThreadPool;
 };
 
 void FreeMonControllerTest::setUp() {
     ServiceContextMongoDTest::setUp();
     auto service = getServiceContext();
 
-    //DBDirectClientFactory::get(service).registerImplementation(
+    // DBDirectClientFactory::get(service).registerImplementation(
     //    [](OperationContext* opCtx) { return std::make_unique<DBDirectClient>(opCtx); });
     repl::ReplicationCoordinator::set(service,
-        std::make_unique<repl::ReplicationCoordinatorMock>(service));
+                                      std::make_unique<repl::ReplicationCoordinatorMock>(service));
+
+    // Set up a NetworkInterfaceMock. Note, unlike NetworkInterfaceASIO, which has its own pool of
+    // threads, tasks in the NetworkInterfaceMock must be carried out synchronously by the (single)
+    // thread the unit test is running on.
+    auto netForFixedTaskExecutor = std::make_unique<executor::NetworkInterfaceMock>();
+    _mockNetwork = netForFixedTaskExecutor.get();
+
+    // Set up a ThreadPoolTaskExecutor. Note, for local tasks this TaskExecutor uses a
+    // ThreadPoolMock, and for remote tasks it uses the NetworkInterfaceMock created above. However,
+    // note that the ThreadPoolMock uses the NetworkInterfaceMock's threads to run tasks, which is
+    // again just the (single) thread the unit test is running on. Therefore, all tasks, local and
+    // remote, must be carried out synchronously by the test thread.
+    _mockThreadPool = makeThreadPoolTestExecutor(std::move(netForFixedTaskExecutor));
+
+    _mockThreadPool->startup();
 
     //// Set up an OpObserver to track the temporary collections mapReduce creates.
-    //auto opObserver = std::make_unique<MapReduceOpObserver>();
+    // auto opObserver = std::make_unique<MapReduceOpObserver>();
     //_opObserver = opObserver.get();
-    //auto opObserverRegistry = dynamic_cast<OpObserverRegistry*>(service->getOpObserver());
-    //opObserverRegistry->addObserver(std::move(opObserver));
+    // auto opObserverRegistry = dynamic_cast<OpObserverRegistry*>(service->getOpObserver());
+    // opObserverRegistry->addObserver(std::move(opObserver));
 
     _opCtx = cc().makeOperationContext();
 
@@ -369,7 +414,7 @@ void FreeMonControllerTest::setUp() {
     // Create collection with one document.
     CollectionOptions collectionOptions;
     collectionOptions.uuid = UUID::gen();
-    //ASSERT_OK(_storage.createCollection(_opCtx.get(), inputNss, collectionOptions));
+    // ASSERT_OK(_storage.createCollection(_opCtx.get(), inputNss, collectionOptions));
 }
 
 void FreeMonControllerTest::tearDown() {
@@ -388,14 +433,14 @@ repl::ReplicationCoordinatorMock* FreeMonControllerTest::_getReplCoord() const {
 
 // Positive: Test Register works
 TEST_F(FreeMonControllerTest, TestRegister) {
-    FreeMonNetworkInterfaceMock network;
+    //FreeMonNetworkInterfaceMock network;
     FreeMonController controller(
-        std::unique_ptr<FreeMonNetworkInterface>(new FreeMonNetworkInterfaceMock()));
+        std::unique_ptr<FreeMonNetworkInterface>(new FreeMonNetworkInterfaceMock(_mockThreadPool.get())));
 
     controller.start(RegistrationType::DoNotRegister);
 
-   ASSERT_OK(controller.registerServerCommand(true, Milliseconds::min()));
-    //controller.registerServer(false, Milliseconds::min());
+    ASSERT_OK(controller.registerServerCommand(Milliseconds::min()));
+    // controller.registerServer(false, Milliseconds::min());
 
 
     // TODO: better
@@ -407,13 +452,13 @@ TEST_F(FreeMonControllerTest, TestRegister) {
 
 MONGO_INITIALIZER_WITH_PREREQUISITES(FreeMonTestInit, ("ThreadNameInitializer"))
 (InitializerContext* context) {
-    //setGlobalServiceContext(stdx::make_unique<ServiceContextNoop>());
+    // setGlobalServiceContext(stdx::make_unique<ServiceContextNoop>());
 
     /*getGlobalServiceContext()->setFastClockSource(stdx::make_unique<ClockSourceMock>());
     getGlobalServiceContext()->setPreciseClockSource(stdx::make_unique<ClockSourceMock>());
     getGlobalServiceContext()->setTickSource(stdx::make_unique<TickSourceMock>());
 */
-//    Client::initThreadIfNotAlready("UnitTest");
+    //    Client::initThreadIfNotAlready("UnitTest");
 
     return Status::OK();
 }

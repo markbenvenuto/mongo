@@ -2,18 +2,16 @@
 
 #include <boost/optional.hpp>
 #include <thread>
-//#include <priority_queue>
-//#include <heap>
 #include <queue>
 #include <vector>
 
+#include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/db/free_mon/free_monitoring_commands_gen.h"
 #include "mongo/db/free_mon/free_monitoring_protocol_gen.h"
 #include "mongo/db/free_mon/free_monitoring_storage_gen.h"
-#include "mongo/db/free_mon/free_monitoring_commands_gen.h"
-#include "mongo/util/duration.h"
-#include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/ftdc//controller.h"
 #include "mongo/util/clock_source.h"
+#include "mongo/util/duration.h"
 #include "mongo/util/future.h"
 
 namespace mongo {
@@ -29,22 +27,21 @@ public:
 
     /**
      * POSTs FreeMonRegistrationRequest to endpoint.
-     * 
+     *
      * Returns a FreeMonRegistrationResponse or throws an error on non-HTTP 200.
      */
-    virtual Future<FreeMonRegistrationResponse> sendRegistrationAsync(const FreeMonRegistrationRequest& req) = 0;
+    virtual Future<FreeMonRegistrationResponse> sendRegistrationAsync(
+        const FreeMonRegistrationRequest& req) = 0;
 
-   /**
-     * POSTs FreeMonMetricsRequest to endpoint.
-     * 
-     * Returns a FreeMonMetricsResponse or throws an error on non-HTTP 200.
-     */
+    /**
+      * POSTs FreeMonMetricsRequest to endpoint.
+      *
+      * Returns a FreeMonMetricsResponse or throws an error on non-HTTP 200.
+      */
     virtual Future<FreeMonMetricsResponse> sendMetricsAsync(const FreeMonMetricsRequest& req) = 0;
 };
 
 
-// See src/mongo/db/repl/storage_interface.h
-// Just use StorageInterface to 
 /**
  * Storage tier for Free Monitoring. Provides access to storage engine.
  */
@@ -73,25 +70,25 @@ public:
 
 // class RetryCounter {
 //     duration retry(kind);
-//     reset();   
+//     reset();
 // };
 
 enum class FreeMonMessageType {
     RegisterServer,
     RegisterCommand,
-    //DeRegister,
-    
-    MetricsCallTimer,
-    //MetricsCollectTimer,
+    // DeRegister,
 
-//#error ToDo
+    MetricsCallTimer,
+    // MetricsCollectTimer,
+
+    //#error ToDo
     // Make HTTP and collection separate loops
     // HTTP could be made async
-        // Send Request
-        // RequestComplete
-        // Only allow one outstanding HTTP call at a time.
-        // If an upload is in-flight (i.e. slow), then the metrics is buffered
-        // Each upload wether new or retried gathers ALL samples and do all uploads
+    // Send Request
+    // RequestComplete
+    // Only allow one outstanding HTTP call at a time.
+    // If an upload is in-flight (i.e. slow), then the metrics is buffered
+    // Each upload wether new or retried gathers ALL samples and do all uploads
     HttpRequest,
     AsyncHttpRequest,
 
@@ -100,8 +97,8 @@ enum class FreeMonMessageType {
     AsyncMetricsComplete,
 
     // TODO
-    //OnPrimary,
-    //OpObserver,
+    // OnPrimary,
+    // OpObserver,
 };
 
 
@@ -123,23 +120,26 @@ enum class RegistrationType {
 };
 
 
-
-
 class FreeMonMessage {
 public:
     static std::shared_ptr<FreeMonMessage> createNow(FreeMonMessageType type) {
         return std::make_shared<FreeMonMessage>(type, Date_t::min());
     }
 
-    static std::shared_ptr<FreeMonMessage> createWithDeadline(FreeMonMessageType type, Date_t deadline) {
+    static std::shared_ptr<FreeMonMessage> createWithDeadline(FreeMonMessageType type,
+                                                              Date_t deadline) {
         return std::make_shared<FreeMonMessage>(type, deadline);
     }
 
     FreeMonMessage(FreeMonMessage&) = delete;
     FreeMonMessage(FreeMonMessage&&) = default;
 
-    FreeMonMessageType getType() const { return _type; }
-    Date_t getDeadline() const { return _deadline; }
+    FreeMonMessageType getType() const {
+        return _type;
+    }
+    Date_t getDeadline() const {
+        return _deadline;
+    }
 
 public:
     FreeMonMessage(FreeMonMessageType type, Date_t deadline) : _type(type), _deadline(deadline) {}
@@ -151,7 +151,7 @@ private:
 
 
 /**
-* 
+*
 */
 class WaitableResult {
 public:
@@ -174,6 +174,7 @@ public:
 
         return _status;
     }
+
 private:
     bool _set{false};
     Status _status;
@@ -182,23 +183,23 @@ private:
     stdx::condition_variable _condvar;
 };
 
-template<FreeMonMessageType typeT>
+template <FreeMonMessageType typeT>
 struct FreeMonPayloadForMessage {
     using payload_type = void;
 };
 
-template<>
-struct FreeMonPayloadForMessage<FreeMonMessageType::AsyncRegisterComplete>{
+template <>
+struct FreeMonPayloadForMessage<FreeMonMessageType::AsyncRegisterComplete> {
     using payload_type = FreeMonRegistrationResponse;
 };
 
-template<>
+template <>
 struct FreeMonPayloadForMessage<FreeMonMessageType::RegisterServer> {
-    using payload_type = RegistrationType;
+    using payload_type = std::pair<RegistrationType, std::vector<std::string> >;
 };
 
 
-template<FreeMonMessageType typeT>
+template <FreeMonMessageType typeT>
 class FreeMonMessageWithPayload : public FreeMonMessage {
 public:
     using payload_type = typename FreeMonPayloadForMessage<typeT>::payload_type;
@@ -207,92 +208,157 @@ public:
         return std::make_shared<FreeMonMessageWithPayload>(t, Date_t::min());
     }
 
-    const payload_type& getPayload() const { return _t; }
+    const payload_type& getPayload() const {
+        return _t;
+    }
 
 public:
-    FreeMonMessageWithPayload(payload_type t, Date_t deadline) :
-        FreeMonMessage(typeT, deadline), _t(t) {}
+    FreeMonMessageWithPayload(payload_type t, Date_t deadline)
+        : FreeMonMessage(typeT, deadline), _t(t) {}
+
 private:
     payload_type _t;
 };
 
 
-//class FreeMonServerRegisterMessage : public FreeMonMessage {
-//public:
-//    static std::shared_ptr<FreeMonServerRegisterMessage> createNow(RegistrationType registrationType) {
+// class FreeMonServerRegisterMessage : public FreeMonMessage {
+// public:
+//    static std::shared_ptr<FreeMonServerRegisterMessage> createNow(RegistrationType
+//    registrationType) {
 //        return std::make_shared<FreeMonServerRegisterMessage>(registrationType, Date_t::min());
 //    }
 //
 //    RegistrationType getRegistrationType() const { return _registrationType; }
 //
-//public:
+// public:
 //    FreeMonServerRegisterMessage(RegistrationType registrationType, Date_t deadline) :
-//        FreeMonMessage(FreeMonMessageType::RegisterServer, deadline), _registrationType(registrationType) {}
-//private:
+//        FreeMonMessage(FreeMonMessageType::RegisterServer, deadline),
+//        _registrationType(registrationType) {}
+// private:
 //    RegistrationType _registrationType;
 //};
 
+
+//template <FreeMonMessageType typeT>
+//class FreeMonMessageWaitablePayload : public FreeMonMessage {
+//public:
+//    using payload_type = typename FreeMonPayloadForMessage<typeT>::payload_type;
+//
+//    static std::shared_ptr<FreeMonMessageWithPayload> createNow(payload_type t) {
+//        return std::make_shared<FreeMonMessageWithPayload>(t, Date_t::min());
+//    }
+//
+//    const payload_type& getPayload() const {
+//        return _t;
+//    }
+//
+//public:
+//    FreeMonMessageWithPayload(payload_type t, Date_t deadline)
+//        : FreeMonMessage(typeT, deadline), _t(t) {}
+//
+//private:
+//    payload_type _t;
+//};
+
+//class FreeMonRegisterCommandMessage : public FreeMonMessage {
+//public:
+//    static std::shared_ptr<FreeMonRegisterCommandMessage> createNow() {
+//        return std::make_shared<FreeMonRegisterCommandMessage>(Date_t::min());
+//    }
+//
+//
+//    void setStatus(Status status) {
+//        _waitable.set(status);
+//    }
+//
+//    Status wait_for(Milliseconds duration) {
+//        return _waitable.wait_for(duration);
+//    }
+//
+//public:
+//    FreeMonRegisterCommandMessage(Date_t deadline)
+//        : FreeMonMessage(FreeMonMessageType::RegisterCommand, deadline)
+//         {}
+//
+//private:
+//    WaitableResult _waitable{};
+//};
+
+
+
 class FreeMonRegisterCommandMessage : public FreeMonMessage {
 public:
-    static std::shared_ptr<FreeMonRegisterCommandMessage> createNow(bool acceptedEula) {
-        return std::make_shared<FreeMonRegisterCommandMessage>(acceptedEula, Date_t::min());
+    static std::shared_ptr<FreeMonRegisterCommandMessage> createNow(const std::vector<std::string>& tags) {
+        return std::make_shared<FreeMonRegisterCommandMessage>(tags, Date_t::min());
     }
 
-    bool getAcceptedEula() const { return _acceptedEula; }
+    const std::vector<std::string>& getTags() const { return _tags; }
 
-    void setStatus(Status status) { _waitable.set(status); }
-    Status wait_for(Milliseconds duration) { return _waitable.wait_for(duration); }
+    void setStatus(Status status) {
+        _waitable.set(status);
+    }
+
+    Status wait_for(Milliseconds duration) {
+        return _waitable.wait_for(duration);
+    }
 
 public:
-    FreeMonRegisterCommandMessage(bool acceptedEula, Date_t deadline) :
-        FreeMonMessage(FreeMonMessageType::RegisterCommand, deadline), _acceptedEula(acceptedEula){}
+    FreeMonRegisterCommandMessage(const std::vector<std::string>& tags, Date_t deadline)
+        : FreeMonMessage(FreeMonMessageType::RegisterCommand, deadline), _tags(tags)
+    {}
+
 private:
-    bool _acceptedEula;
     WaitableResult _waitable{};
+    const std::vector<std::string> _tags;
 };
 
 
-//class FMNotifyObserver : FMMessage {
+//class FreeMonRegisterCommandMessage : public FreeMonMessage {
 //public:
+//    static std::shared_ptr<FreeMonRegisterCommandMessage> createNow(bool acceptedEula) {
+//        return std::make_shared<FreeMonRegisterCommandMessage>(acceptedEula, Date_t::min());
+//    }
+//
+//    bool getAcceptedEula() const {
+//        return _acceptedEula;
+//    }
+//
+//    void setStatus(Status status) {
+//        _waitable.set(status);
+//    }
+//
+//    Status wait_for(Milliseconds duration) {
+//        return _waitable.wait_for(duration);
+//    }
+//
+//public:
+//    FreeMonRegisterCommandMessage(bool acceptedEula, Date_t deadline)
+//        : FreeMonMessage(FreeMonMessageType::RegisterCommand, deadline),
+//          _acceptedEula(acceptedEula) {}
+//
 //private:
+//    bool _acceptedEula;
+//    WaitableResult _waitable{};
+//};
+
+
+// class FMNotifyObserver : FMMessage {
+// public:
+// private:
 //    FMDocument _doc;
 //}
 
 
-struct FreeMonMessageGreater
-{
-    bool operator()(const FreeMonMessage& left, const FreeMonMessage& right) const
-    {
+struct FreeMonMessageGreater {
+    bool operator()(const FreeMonMessage& left, const FreeMonMessage& right) const {
         return (left.getDeadline() > right.getDeadline());
     }
-    bool operator()(const std::shared_ptr<FreeMonMessage>& left, const std::shared_ptr<FreeMonMessage>& right) const
-    {
+    bool operator()(const std::shared_ptr<FreeMonMessage>& left,
+                    const std::shared_ptr<FreeMonMessage>& right) const {
         return (left->getDeadline() > right->getDeadline());
     }
 };
 
-//template <typename T,
-//          typename CompT = std::less<T> >
-//class movable_priority_queue {
-//public:
-//    bool empty() { return _vector.empty(); }
-//    void emplace(T item) {
-//        _vector.push_back(std::move(item));
-//        std::push_heap(_vector.begin(), _vector.end(), _comp);
-//    }
-//    const T& top() const {
-//        return *(_vector.begin());
-//    }
-//    T pop() {
-//        std::pop_heap(_vector.begin(), _vector.end(), _comp);
-//        T item = std::move(_vector.back());
-//        _vector.pop_back();
-//        return item;
-//    }
-//private:
-//    std::vector<T> _vector;
-//    CompT _comp;
-//};
 
 class FreeMonMessageQueue {
 public:
@@ -301,15 +367,16 @@ public:
     boost::optional<std::shared_ptr<FreeMonMessage>> dequeue(ClockSource* clockSource);
 
     void stop();
+
 private:
     bool _stop;
     std::condition_variable _condvar;
     std::mutex _mutex;
 
-    //std::priority_queue < FreeMonMessage, std::vector<FreeMonMessage>, FreeMonMessageGreater> _queue;
-    //movable_priority_queue< FreeMonMessage, FreeMonMessageGreater> _queue;
-    std::priority_queue < std::shared_ptr<FreeMonMessage>, std::vector<std::shared_ptr<FreeMonMessage>>, FreeMonMessageGreater> _queue;
-
+    std::priority_queue<std::shared_ptr<FreeMonMessage>,
+                        std::vector<std::shared_ptr<FreeMonMessage>>,
+                        FreeMonMessageGreater>
+        _queue;
 };
 
 
@@ -319,63 +386,70 @@ enum class FreeMonStateState {
     Disabled = 2,
 };
 
-class FreeMonState {
-public:
-    // TODO make constant
-    FreeMonState() : reportingInterval(60), state(FreeMonStateState::Initialized){}
-
-    Seconds reportingInterval;
-    FreeMonStateState state;
-
-    std::string registrationId;
-
-
-    std::string informationalURL;
-    std::string informationalMessage;
-
-    Minutes userReminder;
-};
+//class FreeMonState {
+//public:
+//    std::string registrationId;
+//
+//
+//    std::string informationalURL;
+//    std::string informationalMessage;
+//
+//    boost::optional<std::string> userReminder;
+//};
 
 
 class FreeMonProcessor {
 public:
-    FreeMonProcessor(FreeMonCollectorCollection& registration, FreeMonCollectorCollection &metrics,
-        FreeMonNetworkInterface* network) :
-        _registration(registration), _metrics(metrics),
-        _network(network)
-        {}
+    FreeMonProcessor(FreeMonCollectorCollection& registration,
+                     FreeMonCollectorCollection& metrics,
+                     FreeMonNetworkInterface* network)
+        : _registration(registration), _metrics(metrics), _network(network) {}
     void enqueue(std::shared_ptr<FreeMonMessage> msg);
     void stop();
 
     void doLoop();
+
 private:
     void readState(Client* client);
     void writeState(Client* client);
 
     void doCommandRegister(Client* client, const FreeMonRegisterCommandMessage* msg);
-    void doServerRegister(Client* client, const  FreeMonMessageWithPayload<FreeMonMessageType::RegisterServer>* msg);
+    void doServerRegister(Client* client,
+                          const FreeMonMessageWithPayload<FreeMonMessageType::RegisterServer>* msg);
     void doUnregister(Client* client);
     void doMetricsCall(Client* client);
 
     void doRegisterCallback(const FreeMonRegistrationResponse& resp);
     void doMetricsCallback(const FreeMonMetricsResponse& resp);
 
-    void doAsyncRegisterComplete(Client* client, const  FreeMonMessageWithPayload<FreeMonMessageType::AsyncRegisterComplete>* msg);
-    void doAsyncMetricsComplete(Client* client, const  FreeMonMessageWithPayload<FreeMonMessageType::AsyncMetricsComplete>* msg);
+    void doAsyncRegisterComplete(
+        Client* client,
+        const FreeMonMessageWithPayload<FreeMonMessageType::AsyncRegisterComplete>* msg);
+    void doAsyncMetricsComplete(
+        Client* client,
+        const FreeMonMessageWithPayload<FreeMonMessageType::AsyncMetricsComplete>* msg);
 
 
     void doOpObserver(Client* client);
-private:
 
+private:
     FreeMonCollectorCollection& _registration;
-    FreeMonCollectorCollection &_metrics;
-    FreeMonNetworkInterface* _network; 
+    FreeMonCollectorCollection& _metrics;
+    FreeMonNetworkInterface* _network;
+
+    // TODO: make constant
+    Seconds _reportingInterval{60};
+
+    boost::optional<FreeMonStorageState> _lastReadState;
+
+    FreeMonStateState  _status;
+    FreeMonStorageState _state;
 
     // Producer Consumer Message queue, runs on background thread
     FreeMonMessageQueue _queue;
 
     // TODO Add sync value
-    FreeMonState _state;
+    //FreeMonState _state;
 
     std::unique_ptr<Future<void>> _futureResponse;
 };
@@ -385,15 +459,8 @@ private:
  */
 class FreeMonController {
 public:
-
-    FreeMonController(
-
-        std::unique_ptr<FreeMonNetworkInterface> network
-
-    ):
-    _network(std::move(network)) {}
-
-
+    FreeMonController(std::unique_ptr<FreeMonNetworkInterface> network)
+        : _network(std::move(network)) {}
 
     /**
      * Initializes free monitoring.
@@ -423,14 +490,14 @@ public:
 
     // Update is synchronous with 10sec timeout
     // kicks off register, and once register is done kicks off metrics upload
-    
+
     /**
      * Start registration of mongod with remote service.
-     * 
+     *
      * Only sends one remote registration at a time.
      * Returns after timeout if registrations is not complete. Registration continues though.
      */
-    void registerServerStartup(RegistrationType registrationType);
+    void registerServerStartup(RegistrationType registrationType, std::vector<std::string>& tags);
 
     /**
     * Start registration of mongod with remote service.
@@ -438,18 +505,19 @@ public:
     * Only sends one remote registration at a time.
     * Returns after timeout if registrations is not complete. Registration continues though.
     */
-    Status registerServerCommand(bool acceptedEULA, Milliseconds timeout);
+    Status registerServerCommand(Milliseconds timeout);
 
-    
+
     Status deregisterServer();
 
 
     void getStatus(BSONObjBuilder* builder);
     void getServerStatus(BSONObjBuilder* builder);
-    
-    //void notifyObserver(const FreeMonState& doc);
+
+    // void notifyObserver(const FreeMonState& doc);
 private:
     void _enqueue(std::shared_ptr<FreeMonMessage> msg);
+
 private:
     // collectRegistrationData();
     // collectMetricsData();
@@ -504,7 +572,7 @@ private:
 
     // Set of metric collectors
     FreeMonCollectorCollection _metricCollectors;
- 
+
     std::unique_ptr<FreeMonNetworkInterface> _network;
 
     // Background thead for agent
@@ -631,5 +699,4 @@ void MessageLoop() {
 // TODO: make options conditional with requires
 
 #endif
-
 }

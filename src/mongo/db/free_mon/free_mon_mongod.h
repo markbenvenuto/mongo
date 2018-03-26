@@ -44,4 +44,3 @@ void startFreeMonitoring(ServiceContext* serviceContext);
 void stopFreeMonitoring();
 
 }  // namespace mongo
-

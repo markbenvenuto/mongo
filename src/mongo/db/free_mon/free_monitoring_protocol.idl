@@ -36,11 +36,8 @@ structs:
           version:
             description: "Protocol version, initial version is 1"
             type: long
-          acceptedEULA:
-            description: "True indicates customer accepted EULA, false means it was initiated via command line"
-            type: bool
           payload:
-            description: "Payload of host information"
+            description: "Payload of registration information"
             type: object 
           id:
             description: "Existing Registration Id"
@@ -73,7 +70,7 @@ structs:
             description: "Metrics Reporting interval in seconds"
             type: long
           userReminder:
-            description: "Message to display to user to remind them about service"
+            description: "Informational message to display to user to remind them about the service"
             type: string
             optional: true
 
