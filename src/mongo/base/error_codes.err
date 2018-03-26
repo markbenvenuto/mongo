@@ -248,6 +248,13 @@ error_code("ProducerConsumerQueueBatchTooLarge", 247)
 error_code("ProducerConsumerQueueEndClosed", 248)
 error_code("StaleDbVersion", 249, extra="StaleDbRoutingVersion");
 
+
+error_code("FreeMonHttpInFlight", 255)
+error_code("FreeMonHttpTempFail", 256)
+error_code("FreeMonHttpPermFail", 257)
+error_code("FreeMonStorageTempFail", 258)
+error_code("FreeMonStoragePermFail", 259)
+
 # Error codes 4000-8999 are reserved.
 
 # Non-sequential error codes (for compatibility only)

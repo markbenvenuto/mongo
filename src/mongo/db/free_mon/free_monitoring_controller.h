@@ -14,6 +14,7 @@
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/ftdc//controller.h"
 #include "mongo/util/clock_source.h"
+#include "mongo/util/future.h"
 
 namespace mongo {
 using FreeMonCollectorInterface = FTDCCollectorInterface;
@@ -31,15 +32,16 @@ public:
      * 
      * Returns a FreeMonRegistrationResponse or throws an error on non-HTTP 200.
      */
-    virtual FreeMonRegistrationResponse sendRegistration(const FreeMonRegistrationRequest& req) = 0;
+    virtual Future<FreeMonRegistrationResponse> sendRegistrationAsync(const FreeMonRegistrationRequest& req) = 0;
 
    /**
      * POSTs FreeMonMetricsRequest to endpoint.
      * 
      * Returns a FreeMonMetricsResponse or throws an error on non-HTTP 200.
      */
-    virtual FreeMonMetricsResponse sendMetrics(const FreeMonMetricsRequest& req) = 0;
+    virtual Future<FreeMonMetricsResponse> sendMetricsAsync(const FreeMonMetricsRequest& req) = 0;
 };
+
 
 // See src/mongo/db/repl/storage_interface.h
 // Just use StorageInterface to 
@@ -48,26 +50,25 @@ public:
  */
 class FreeMonStorage {
 public:
-    ~FreeMonStorage();
     /**
      * Reads document from disk if it exists.
      */
-    boost::optional<FreeMonStorageState> read(OperationContext* opCtx);
+    static boost::optional<FreeMonStorageState> read(OperationContext* opCtx);
 
     /**
      * Replaces document on disk with contents of document. Creates document if it does not exist.
      */
-    bool replace(OperationContext* opCtx, const FreeMonStorageState& doc);
+    static bool replace(OperationContext* opCtx, const FreeMonStorageState& doc);
 
     /**
      * Deletes document on disk if it exists.
      */
-    bool deleteState(OperationContext* opCtx);
+    static bool deleteState(OperationContext* opCtx);
 
     /**
      * Reads first document from local.clustermanager.
      */
-    BSONObj readClusterManagerState(OperationContext* opCtx);
+    static BSONObj readClusterManagerState(OperationContext* opCtx);
 };
 
 // class RetryCounter {
@@ -93,6 +94,10 @@ enum class FreeMonMessageType {
         // Each upload wether new or retried gathers ALL samples and do all uploads
     HttpRequest,
     AsyncHttpRequest,
+
+    AsyncRegisterComplete,
+
+    AsyncMetricsComplete,
 
     // TODO
     //OnPrimary,
@@ -177,21 +182,55 @@ private:
     stdx::condition_variable _condvar;
 };
 
+template<FreeMonMessageType typeT>
+struct FreeMonPayloadForMessage {
+    using payload_type = void;
+};
 
-class FreeMonServerRegisterMessage : public FreeMonMessage {
+template<>
+struct FreeMonPayloadForMessage<FreeMonMessageType::AsyncRegisterComplete>{
+    using payload_type = FreeMonRegistrationResponse;
+};
+
+template<>
+struct FreeMonPayloadForMessage<FreeMonMessageType::RegisterServer> {
+    using payload_type = RegistrationType;
+};
+
+
+template<FreeMonMessageType typeT>
+class FreeMonMessageWithPayload : public FreeMonMessage {
 public:
-    static std::shared_ptr<FreeMonServerRegisterMessage> createNow(RegistrationType registrationType) {
-        return std::make_shared<FreeMonServerRegisterMessage>(registrationType, Date_t::min());
+    using payload_type = typename FreeMonPayloadForMessage<typeT>::payload_type;
+
+    static std::shared_ptr<FreeMonMessageWithPayload> createNow(payload_type t) {
+        return std::make_shared<FreeMonMessageWithPayload>(t, Date_t::min());
     }
 
-    RegistrationType getRegistrationType() const { return _registrationType; }
+    const payload_type& getPayload() const { return _t; }
 
 public:
-    FreeMonServerRegisterMessage(RegistrationType registrationType, Date_t deadline) :
-        FreeMonMessage(FreeMonMessageType::RegisterServer, deadline), _registrationType(registrationType) {}
+    FreeMonMessageWithPayload(payload_type t, Date_t deadline) :
+        FreeMonMessage(typeT, deadline), _t(t) {}
 private:
-    RegistrationType _registrationType;
+    payload_type _t;
 };
+
+
+//class FreeMonServerRegisterMessage : public FreeMonMessage {
+//public:
+//    static std::shared_ptr<FreeMonServerRegisterMessage> createNow(RegistrationType registrationType) {
+//        return std::make_shared<FreeMonServerRegisterMessage>(registrationType, Date_t::min());
+//    }
+//
+//    RegistrationType getRegistrationType() const { return _registrationType; }
+//
+//public:
+//    FreeMonServerRegisterMessage(RegistrationType registrationType, Date_t deadline) :
+//        FreeMonMessage(FreeMonMessageType::RegisterServer, deadline), _registrationType(registrationType) {}
+//private:
+//    RegistrationType _registrationType;
+//};
 
 class FreeMonRegisterCommandMessage : public FreeMonMessage {
 public:
@@ -314,9 +353,16 @@ private:
     void writeState(Client* client);
 
     void doCommandRegister(Client* client, const FreeMonRegisterCommandMessage* msg);
-    void doServerRegister(Client* client, const FreeMonServerRegisterMessage* msg);
+    void doServerRegister(Client* client, const  FreeMonMessageWithPayload<FreeMonMessageType::RegisterServer>* msg);
     void doUnregister(Client* client);
     void doMetricsCall(Client* client);
+
+    void doRegisterCallback(const FreeMonRegistrationResponse& resp);
+    void doMetricsCallback(const FreeMonMetricsResponse& resp);
+
+    void doAsyncRegisterComplete(Client* client, const  FreeMonMessageWithPayload<FreeMonMessageType::AsyncRegisterComplete>* msg);
+    void doAsyncMetricsComplete(Client* client, const  FreeMonMessageWithPayload<FreeMonMessageType::AsyncMetricsComplete>* msg);
+
 
     void doOpObserver(Client* client);
 private:
@@ -324,7 +370,6 @@ private:
     FreeMonCollectorCollection& _registration;
     FreeMonCollectorCollection &_metrics;
     FreeMonNetworkInterface* _network; 
-    FreeMonStorage _storage;
 
     // Producer Consumer Message queue, runs on background thread
     FreeMonMessageQueue _queue;

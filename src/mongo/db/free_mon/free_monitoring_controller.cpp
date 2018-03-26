@@ -111,7 +111,7 @@ void FreeMonController::addMetricsCollector(std::unique_ptr<FreeMonCollectorInte
 }
 
 void FreeMonController::registerServerStartup(RegistrationType registrationType) {
-    _enqueue(FreeMonServerRegisterMessage::createNow(registrationType));
+    _enqueue(FreeMonMessageWithPayload<FreeMonMessageType::RegisterServer>::createNow(registrationType));
 }
 
 Status FreeMonController::registerServerCommand(bool acceptedEULA, Milliseconds timeout) {
@@ -220,7 +220,7 @@ void FreeMonProcessor::doLoop() {
             }
             case FreeMonMessageType::RegisterServer:
             {
-                doServerRegister(client, static_cast<FreeMonServerRegisterMessage*>(item.get().get()));
+                doServerRegister(client, static_cast<FreeMonMessageWithPayload<FreeMonMessageType::RegisterServer>*>(item.get().get()));
                 break;
             }
 
@@ -228,6 +228,12 @@ void FreeMonProcessor::doLoop() {
                 doMetricsCall(client);
                 break;
             }
+            case FreeMonMessageType::AsyncRegisterComplete: {
+                doAsyncRegisterComplete(client, static_cast<FreeMonMessageWithPayload<FreeMonMessageType::AsyncRegisterComplete>*>(item.get().get()));
+                break;
+            }
+            default:
+                MONGO_UNREACHABLE;
             }
 
         }
@@ -244,7 +250,7 @@ void FreeMonProcessor::readState(Client* client) {
 
     auto optCtx = client->makeOperationContext();
 
-    auto state = _storage.read(optCtx.get());
+    auto state = FreeMonStorage::read(optCtx.get());
 
     if (state.is_initialized() && _state.state != FreeMonStateState::Initialized) {
         invariant(state.get().getVersion() == 1);
@@ -264,11 +270,11 @@ Date_t fromNow(Client* client, Seconds seconds) {
     return client->getServiceContext()->getPreciseClockSource()->now() + seconds;
 }
 
-void FreeMonProcessor::doServerRegister(Client* client, const FreeMonServerRegisterMessage* msg) {
+void FreeMonProcessor::doServerRegister(Client* client, const FreeMonMessageWithPayload<FreeMonMessageType::RegisterServer>* msg) {
     // If we are asked to register now, then kick off a registration request
-    if (msg->getRegistrationType() == RegistrationType::RegisterOnStart) {
+    if (msg->getPayload() == RegistrationType::RegisterOnStart) {
         enqueue(FreeMonRegisterCommandMessage::createNow(false));
-    } else if (msg->getRegistrationType() == RegistrationType::RegisterAfterOnTransitionToPrimary ){
+    } else if (msg->getPayload() == RegistrationType::RegisterAfterOnTransitionToPrimary ){
         // Check if we need to wait to become primary
         // If the 'admin.system.version' has content, do not wait and just re-register
         // If the collection is empty, wait until we become primary
@@ -280,6 +286,8 @@ void FreeMonProcessor::doServerRegister(Client* client, const FreeMonServerRegis
 }
 
 void FreeMonProcessor::doCommandRegister(Client* client, const FreeMonRegisterCommandMessage* msg) {
+    // TODO: check if register is in-flight
+
     readState(client);
 
     FreeMonRegistrationRequest req;
@@ -299,31 +307,41 @@ void FreeMonProcessor::doCommandRegister(Client* client, const FreeMonRegisterCo
     req.setPayload(std::get<0>(collect));
 
     try {
-        auto resp = _network->sendRegistration(req);
-
-        // TODO: validate response
-
-        // TODO: validate version - halt on bad version
-        // TODO resp.getHaltMetricsUploading();
-        // TODO:         resp.getUserReminder();
-        // TODO: duplicate registrations?
-
-        _state.reportingInterval = Seconds(resp.getReportingInterval());
-        _state.informationalMessage = resp.getMessage().toString();
-        _state.informationalURL = resp.getInformationalURL().toString();
-        _state.registrationId = resp.getId().toString();
-
+        auto respAsync = _network->sendRegistrationAsync(req).then([this](const auto& resp) {this->doRegisterCallback(resp); });
     }
     catch (const DBException&) {
         // TODO: do retry stuff
         error() << "Unexpected exception" << exceptionToStatus();
     }
+}
+
+void FreeMonProcessor::doRegisterCallback(const FreeMonRegistrationResponse& resp) {
+
+    enqueue(FreeMonMessageWithPayload<FreeMonMessageType::AsyncRegisterComplete>::createNow(resp));
+}
+
+void FreeMonProcessor::doAsyncRegisterComplete(Client* client, const  FreeMonMessageWithPayload<FreeMonMessageType::AsyncRegisterComplete>* msg) {
+
+    // TODO: validate response
+
+    // TODO: validate version - halt on bad version
+    // TODO resp.getHaltMetricsUploading();
+    // TODO:         resp.getUserReminder();
+    // TODO: duplicate registrations?
 
     // Persist state
     writeState(client);
 
+    auto& resp = msg->getPayload();
+
     // Enqueue next metrics upload
     enqueue(FreeMonMessage::createWithDeadline(FreeMonMessageType::MetricsCallTimer, fromNow(client, _state.reportingInterval)));
+
+
+    _state.reportingInterval = Seconds(resp.getReportingInterval());
+    _state.informationalMessage = resp.getMessage().toString();
+    _state.informationalURL = resp.getInformationalURL().toString();
+    _state.registrationId = resp.getId().toString();
 }
 
 void FreeMonProcessor::doUnregister(Client* client) {
@@ -351,19 +369,19 @@ void FreeMonProcessor::doMetricsCall(Client* client) {
     req.setMetrics( ConstDataRange(obj.objdata(), obj.objdata() + obj.objsize()));
 
     try {
-        auto resp = _network->sendMetrics(req);
+        //auto resp _network->sendMetrics(req);
 
-        // TODO: validate response
+        //// TODO: validate response
 
-        // TODO: validate version - halt on bad version
-        // TODO resp.getHaltMetricsUploading();
-        // TODO: resp.haltMetricsUploading
-        // TODO:         resp.getUserReminder();
+        //// TODO: validate version - halt on bad version
+        //// TODO resp.getHaltMetricsUploading();
+        //// TODO: resp.haltMetricsUploading
+        //// TODO:         resp.getUserReminder();
 
-        _state.reportingInterval = Seconds(resp.getReportingInterval());
-        if (resp.getMessage().is_initialized()) {
-            _state.informationalMessage = resp.getMessage().get().toString();
-        }
+        //_state.reportingInterval = Seconds(resp.getReportingInterval());
+        //if (resp.getMessage().is_initialized()) {
+        //    _state.informationalMessage = resp.getMessage().get().toString();
+        //}
 
     }
     catch (const DBException&) {

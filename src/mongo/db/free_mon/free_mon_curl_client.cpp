@@ -20,6 +20,8 @@
 #include "mongo/util/scopeguard.h"
 #include "mongo/util/time_support.h"
 #include "mongo/util/log.h"
+#include "mongo/util/concurrency/thread_pool.h"
+#include "mongo/executor/task_executor.h"
 
 namespace mongo {
 
@@ -81,71 +83,92 @@ CurlLibraryManager curlLibraryManager;
 
 class FreeMonitoringCurlHttpClient : public FreeMonitoringHttpClientInterface {
 public:
-    FreeMonitoringCurlHttpClient() = default;
+    FreeMonitoringCurlHttpClient(std::unique_ptr<executor::ThreadPoolTaskExecutor> executor) :
+        _executor(std::move(executor)) {}
     virtual ~FreeMonitoringCurlHttpClient() {};
 
-    StatusWith<std::vector<uint8_t>> post(StringData url, ConstDataRange data) override {
+    Future<std::vector<uint8_t>> postAsync(StringData url, const BSONObj obj) override {
 
-        LOG(0) << "Posting data to ("<<data.length()<<"): " << url;
+        Promise<std::vector<uint8_t>> promise;
+        auto future = promise.getFuture();
 
-        ConstDataRangeCursor cdrc(data);
+        auto shared_promise = promise.share();
 
-        std::unique_ptr<CURL, void(*)(CURL*)> myHandle(curl_easy_init(), curl_easy_cleanup);
+        std::string urlString(url.toString());
 
-        if (!myHandle) {
-            return{ErrorCodes::InternalError, "Curl initialization failed"};
-        }
-        curl_easy_setopt(myHandle.get(), CURLOPT_URL, url.toString().c_str());
-        curl_easy_setopt(myHandle.get(), CURLOPT_POST, 1);
+        //std::unique_ptr<executor::ThreadPoolTaskExecutor> foo;
 
-        curl_easy_setopt(myHandle.get(), CURLOPT_PROTOCOLS, CURLPROTO_HTTPS | CURLPROTO_HTTP);
-        curl_easy_setopt(myHandle.get(), CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+        auto status = _executor->scheduleWork([shared_promise, urlString, obj](const executor::TaskExecutor::CallbackArgs& cbArgs) mutable {
 
-        
+            ConstDataRange data(obj.objdata(), obj.objdata() + obj.objsize());
 
-        // TODO: just use std::vector instead
-        DataBuilder dataBuilder(4096);
+            LOG(0) << "Posting data to (" << data.length() << "): " << urlString;
 
-        curl_easy_setopt(myHandle.get(), CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
-        curl_easy_setopt(myHandle.get(), CURLOPT_WRITEDATA, &dataBuilder);
+            ConstDataRangeCursor cdrc(data);
 
-        curl_easy_setopt(myHandle.get(), CURLOPT_READFUNCTION, ReadMemoryCallback);
-        curl_easy_setopt(myHandle.get(), CURLOPT_READDATA, &cdrc);
-        curl_easy_setopt(myHandle.get(), CURLOPT_POSTFIELDSIZE, (long)cdrc.length());
+            std::unique_ptr<CURL, void(*)(CURL*)> myHandle(curl_easy_init(), curl_easy_cleanup);
 
-        // CURLOPT_EXPECT_100_TIMEOUT_MS??
-        curl_easy_setopt(myHandle.get(), CURLOPT_CONNECTTIMEOUT, 60);
-        curl_easy_setopt(myHandle.get(), CURLOPT_TIMEOUT, 120);
-        // Requires >= 7.34.0
-        // curl_easy_setopt(myHandle.get(), CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
-        curl_easy_setopt(myHandle.get(), CURLOPT_FOLLOWLOCATION, 0);
+            if (!myHandle) {
+                shared_promise.setError({ErrorCodes::InternalError, "Curl initialization failed"});
+                return;
+            }
+            curl_easy_setopt(myHandle.get(), CURLOPT_URL, urlString.c_str());
+            curl_easy_setopt(myHandle.get(), CURLOPT_POST, 1);
 
-        curl_easy_setopt(myHandle.get(), CURLOPT_NOSIGNAL, 1);
-        //             If server log level > 3
-
-        curl_easy_setopt(myHandle.get(), CURLOPT_VERBOSE, 1);
-        //curl_easy_setopt(myHandle.get(), CURLOPT_DEBUGFUNCTION , ???);
-
-        {
-            struct curl_slist *chunk = NULL;
-
-            chunk = curl_slist_append(chunk, "Content-Type: application/octet-stream");
-            chunk = curl_slist_append(chunk, "Accept: application/octet-stream");
-            chunk = curl_slist_append(chunk, "Expect:");
-            curl_easy_setopt(myHandle.get(), CURLOPT_HTTPHEADER, chunk);
-            /* TODO use curl_slist_free_all() after the *perform() call to free this
-            list again */
-        }
+            curl_easy_setopt(myHandle.get(), CURLOPT_PROTOCOLS, CURLPROTO_HTTPS | CURLPROTO_HTTP);
+            curl_easy_setopt(myHandle.get(), CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
 
 
-        CURLcode result = curl_easy_perform(myHandle.get());
-        if (result != CURLE_OK) {
-            return{ErrorCodes::OperationFailed, str::stream() << "Bad HTTP response from API server: "
-                << curl_easy_strerror(result)};
-        }
 
-        auto d = dataBuilder.getCursor();
-        return std::vector<uint8_t>(d.data(), d.data() + d.length());
+            // TODO: just use std::vector instead
+            DataBuilder dataBuilder(4096);
+
+            curl_easy_setopt(myHandle.get(), CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
+            curl_easy_setopt(myHandle.get(), CURLOPT_WRITEDATA, &dataBuilder);
+
+            curl_easy_setopt(myHandle.get(), CURLOPT_READFUNCTION, ReadMemoryCallback);
+            curl_easy_setopt(myHandle.get(), CURLOPT_READDATA, &cdrc);
+            curl_easy_setopt(myHandle.get(), CURLOPT_POSTFIELDSIZE, (long)cdrc.length());
+
+            // CURLOPT_EXPECT_100_TIMEOUT_MS??
+            curl_easy_setopt(myHandle.get(), CURLOPT_CONNECTTIMEOUT, 60);
+            curl_easy_setopt(myHandle.get(), CURLOPT_TIMEOUT, 120);
+            // Requires >= 7.34.0
+            // curl_easy_setopt(myHandle.get(), CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
+            curl_easy_setopt(myHandle.get(), CURLOPT_FOLLOWLOCATION, 0);
+
+            curl_easy_setopt(myHandle.get(), CURLOPT_NOSIGNAL, 1);
+            //             If server log level > 3
+
+            curl_easy_setopt(myHandle.get(), CURLOPT_VERBOSE, 1);
+            //curl_easy_setopt(myHandle.get(), CURLOPT_DEBUGFUNCTION , ???);
+
+            {
+                struct curl_slist *chunk = NULL;
+
+                chunk = curl_slist_append(chunk, "Content-Type: application/octet-stream");
+                chunk = curl_slist_append(chunk, "Accept: application/octet-stream");
+                chunk = curl_slist_append(chunk, "Expect:");
+                curl_easy_setopt(myHandle.get(), CURLOPT_HTTPHEADER, chunk);
+                /* TODO use curl_slist_free_all() after the *perform() call to free this
+                list again */
+            }
+
+
+            CURLcode result = curl_easy_perform(myHandle.get());
+            if (result != CURLE_OK) {
+                shared_promise.setError({ErrorCodes::OperationFailed, str::stream() << "Bad HTTP response from API server: "
+                    << curl_easy_strerror(result)});
+                return;
+            }
+
+            auto d = dataBuilder.getCursor();
+            shared_promise.emplaceValue(std::vector<uint8_t>(d.data(), d.data() + d.length()));
+
+            return;
+        });
+
+        uassertStatusOK(status);
         //std::vector<int> kBackoffSleepDurations{1, 5, 10, 15, 20, 25, 30};
 
         //for (std::size_t attempt = 0; attempt < kBackoffSleepDurations.size(); ++attempt) {
@@ -181,16 +204,18 @@ public:
         //    return{data.size()};
         //}
 
-      
+        return future;
     }
+private:
+    std::unique_ptr<executor::ThreadPoolTaskExecutor> _executor;
 };
 
 }  // namespace
 
 
-std::unique_ptr<FreeMonitoringHttpClientInterface> createFreeMonHttpClient() {
+std::unique_ptr<FreeMonitoringHttpClientInterface> createFreeMonHttpClient(std::unique_ptr<executor::ThreadPoolTaskExecutor> executor) {
     curlLibraryManager.initialize();
-    return std::make_unique<FreeMonitoringCurlHttpClient>();
+    return std::make_unique<FreeMonitoringCurlHttpClient>(std::move(executor));
 }
 
 } // namespace mongo

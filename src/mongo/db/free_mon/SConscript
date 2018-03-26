@@ -20,6 +20,9 @@ fmEnv.Library(
        '$BUILD_DIR/mongo/base',
         '$BUILD_DIR/third_party/shim_snappy',
          '$BUILD_DIR/mongo/db/ftdc/ftdc',
+                 '$BUILD_DIR/mongo/db/concurrency/lock_manager',
+                 '$BUILD_DIR/mongo/db/dbhelpers',
+
     ],
 )
 

@@ -28,13 +28,15 @@
 
 #pragma once
 
+#include "mongo/db/service_context.h"
+
 namespace mongo {
 
 /**
  * Start Full Time Data Capture
  * Starts 1 thread.
  */
-void startFreeMonitoring();
+void startFreeMonitoring(ServiceContext* serviceContext);
 
 /**
  * Stop Full Time Data Capture

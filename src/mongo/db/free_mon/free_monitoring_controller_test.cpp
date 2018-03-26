@@ -282,7 +282,7 @@ class FreeMonNetworkInterfaceMock : public FreeMonNetworkInterface {
 public:
     ~FreeMonNetworkInterfaceMock() {}
 
-    FreeMonRegistrationResponse sendRegistration(const FreeMonRegistrationRequest& req) override {
+    Future<FreeMonRegistrationResponse> sendRegistrationAsync(const FreeMonRegistrationRequest& req) override {
         log() << "Sending Registration ...";
         auto resp = FreeMonRegistrationResponse();
         resp.setVersion(1);
@@ -295,10 +295,10 @@ public:
 
         resp.setReportingInterval(1);
 
-        return resp;
+        return makeReadyFutureWith([resp] { return resp; });
     }
 
-    FreeMonMetricsResponse sendMetrics(const FreeMonMetricsRequest& req) override {
+    Future<FreeMonMetricsResponse> sendMetricsAsync(const FreeMonMetricsRequest& req) override {
         log() << "Sending Metrics ...";
         ASSERT_FALSE(req.getId().empty());
 
@@ -306,7 +306,7 @@ public:
         resp.setVersion(1);
         resp.setReportingInterval(1);
 
-        return resp;
+        return makeReadyFutureWith([resp] { return resp; });
     }
 };
 

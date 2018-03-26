@@ -506,7 +506,7 @@ ExitCode _initAndListen(int listenPort) {
 
         startMongoDFTDC();
 
-        startFreeMonitoring();
+        startFreeMonitoring(serviceContext);
 
         restartInProgressIndexesFromLastShutdown(startupOpCtx.get());
 

@@ -19,7 +19,9 @@
 #include "mongo/rpc/object_check.h"
 #include "mongo/db/jsobj.h"
 #include "mongo/db/repl/replication_coordinator.h"
-
+#include "mongo/executor/thread_pool_task_executor.h"
+#include "mongo/executor/network_interface_factory.h"
+#include "mongo/util/concurrency/thread_pool.h"
 
 namespace mongo {
 
@@ -95,71 +97,74 @@ public:
         _client(std::move(client)) {}
     ~FreeMonNetworkHttp() {}
 
-    FreeMonRegistrationResponse sendRegistration(const FreeMonRegistrationRequest& req) override {
+    Future<FreeMonRegistrationResponse> sendRegistrationAsync(const FreeMonRegistrationRequest& req) override {
         log() << "Sending Registration ...";
 
         BSONObj reqObj = req.toBSON();
 
         log() << "Sending data: " << reqObj.toString();
 
-        auto swPost = _client->post(exportedExportedFreeMonEndpointURL.getURL() + "/register",
-            ConstDataRange(reqObj.objdata(), reqObj.objdata() + reqObj.objsize()));
+        return _client->postAsync(exportedExportedFreeMonEndpointURL.getURL() + "/register",
+            reqObj).then(
+            [](std::vector<uint8_t> blob) {
 
-        uassertStatusOK(swPost.getStatus());
+            //uassertStatusOK(swPost.getStatus());
 
-        auto blob = swPost.getValue();
+            //auto blob = swPost.getValue();
 
-        if (blob.size() == 0) {
-            uassertStatusOK(Status(ErrorCodes::BadPerfCounterPath, "Short runt"));
-        }
+            if (blob.size() == 0) {
+                uassertStatusOK(Status(ErrorCodes::BadPerfCounterPath, "Short runt"));
+            }
 
-        ConstDataRange cdr(reinterpret_cast<char*>(blob.data()), blob.size());
+            ConstDataRange cdr(reinterpret_cast<char*>(blob.data()), blob.size());
 
-        auto swDoc = cdr.read<Validated<BSONObj>>();
-        uassertStatusOK(swDoc.getStatus());
+            auto swDoc = cdr.read<Validated<BSONObj>>();
+            uassertStatusOK(swDoc.getStatus());
 
-        BSONObj respObj(swDoc.getValue());
+            BSONObj respObj(swDoc.getValue());
 
-        log() << "Received data: " << respObj.toString();
+            log() << "Received data: " << respObj.toString();
 
-        auto resp = FreeMonRegistrationResponse::parse(IDLParserErrorContext("reponse"), respObj);
+            auto resp = FreeMonRegistrationResponse::parse(IDLParserErrorContext("response"), respObj);
 
 
-        return resp;
+            return resp;
+        });
     }
 
-    FreeMonMetricsResponse sendMetrics(const FreeMonMetricsRequest& req) override {
+    Future<FreeMonMetricsResponse> sendMetricsAsync(const FreeMonMetricsRequest& req) override {
         log() << "Sending Metrics ...";
 
         BSONObj reqObj = req.toBSON();
 
         log() << "Sending data: " << reqObj.toString();
 
-        auto swPost = _client->post(exportedExportedFreeMonEndpointURL.getURL() + "/metrics",
-            ConstDataRange(reqObj.objdata(), reqObj.objdata() + reqObj.objsize()));
+        return _client->postAsync(exportedExportedFreeMonEndpointURL.getURL() + "/metrics",
+            reqObj).then(
+                [](std::vector<uint8_t> blob) {
 
-        uassertStatusOK(swPost.getStatus());
+            //uassertStatusOK(swPost.getStatus());
 
-        auto blob = swPost.getValue();
+            //auto blob = swPost.getValue();
 
-        if (blob.size() == 0) {
-            uassertStatusOK(Status(ErrorCodes::BadPerfCounterPath, "Short runt"));
-        }
+            if (blob.size() == 0) {
+                uassertStatusOK(Status(ErrorCodes::BadPerfCounterPath, "Short runt"));
+            }
 
-        // TODO: validate BSON
+            ConstDataRange cdr(reinterpret_cast<char*>(blob.data()), blob.size());
 
-        ConstDataRange cdr(reinterpret_cast<char*>(blob.data()), blob.size());
+            auto swDoc = cdr.read<Validated<BSONObj>>();
+            uassertStatusOK(swDoc.getStatus());
 
-        auto swDoc = cdr.read<Validated<BSONObj>>();
-        uassertStatusOK(swDoc.getStatus());
+            BSONObj respObj(swDoc.getValue());
 
-        BSONObj respObj(swDoc.getValue());
+            log() << "Received data: " << respObj.toString();
 
-        log() << "Received data: " << respObj.toString();
+            auto resp = FreeMonMetricsResponse::parse(IDLParserErrorContext("response"), respObj);
 
-        auto resp = FreeMonMetricsResponse::parse(IDLParserErrorContext("reponse"), respObj);
 
-        return resp;
+            return resp;
+        });
     }
 private:
     std::unique_ptr<FreeMonitoringHttpClientInterface> _client;
@@ -269,18 +274,36 @@ MONGO_STARTUP_OPTIONS_STORE(FreeMonitoringOptions)(InitializerContext* context) 
 
 } // namespace
 
-void startFreeMonitoring() {
+
+auto makeTaskExecutor(ServiceContext* serviceContext) {
+    ThreadPool::Options tpOptions;
+    tpOptions.poolName = "freemon";
+    tpOptions.maxThreads = 50;
+    tpOptions.onCreateThread = [](const std::string& threadName) {
+        Client::initThread(threadName.c_str());
+    };
+    return stdx::make_unique<executor::ThreadPoolTaskExecutor>(
+        std::make_unique<ThreadPool>(tpOptions),
+        executor::makeNetworkInterface(
+            "NetworkInterfaceASIO-FreeMon"));
+}
+
+void startFreeMonitoring(ServiceContext* serviceContext) {
     if (freeMonitoringState == EnableCloudStateEnum::off) {
         return;
     }
 
-    std::unique_ptr<FreeMonitoringHttpClientInterface> http = createFreeMonHttpClient();
+    auto executor = makeTaskExecutor(serviceContext);
+
+    executor->startup();
+
+    std::unique_ptr<FreeMonitoringHttpClientInterface> http = createFreeMonHttpClient(std::move(executor));
         
     std::unique_ptr<FreeMonNetworkInterface> network = std::unique_ptr<FreeMonNetworkInterface>(new FreeMonNetworkHttp(std::move(http)));
 
     auto controller = stdx::make_unique<FreeMonController>(std::move(network));
 
-    // These are collected only on registration
+    // These are collected only at registration
     //
     // CmdBuildInfo
     controller->addRegistrationCollector(stdx::make_unique<FTDCSimpleInternalCommandCollector>(
@@ -295,12 +318,12 @@ void startFreeMonitoring() {
     // These are periodically for metrics upload
     //
     controller->addMetricsCollector(stdx::make_unique<FTDCSimpleInternalCommandCollector>(
-        "diagnosticData",
+        "getDiagnosticData",
         "diagnosticData",
         "",
         BSON("getDiagnosticData" << 1)));
     
-    // These are collected registration and periodically
+    // These are collected at registration and as metrics periodically
     //
     if (repl::ReplicationCoordinator::get(getGlobalServiceContext())->getReplicationMode() !=
         repl::ReplicationCoordinator::modeNone) {
@@ -326,7 +349,7 @@ void startFreeMonitoring() {
 
 
     // Install the new controller
-    auto& staticFreeMon = getFreeMonController(getGlobalServiceContext());
+    auto& staticFreeMon = getFreeMonController(serviceContext);
 
     staticFreeMon = std::move(controller);
 
@@ -355,6 +378,7 @@ void stopFreeMonitoring() {
         controller->stop();
     }
 }
+
 
 FreeMonController* FreeMonController::get(ServiceContext* serviceContext) {
     return getFreeMonController(serviceContext).get();
