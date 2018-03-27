@@ -1,4 +1,5 @@
 // Free Monitoring Controller
+#pragma once
 
 #include <boost/optional.hpp>
 #include <thread>
