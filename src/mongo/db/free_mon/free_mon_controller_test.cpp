@@ -296,7 +296,7 @@ public:
         auto future = promise.getFuture();
         auto shared_promise = promise.share();
 
-        _threadPool->scheduleWork([shared_promise, req](const executor::TaskExecutor::CallbackArgs& cbArgs) mutable {
+        auto swSchedule = _threadPool->scheduleWork([shared_promise, req](const executor::TaskExecutor::CallbackArgs& cbArgs) mutable {
             auto resp = FreeMonRegistrationResponse();
             resp.setVersion(1);
 
@@ -310,6 +310,7 @@ public:
 
             shared_promise.emplaceValue(resp);
         });
+        ASSERT_OK(swSchedule.getStatus());
 
         return future;
     }
@@ -323,13 +324,15 @@ public:
         auto future = promise.getFuture();
         auto shared_promise = promise.share();
 
-        _threadPool->scheduleWork([shared_promise, req](const executor::TaskExecutor::CallbackArgs& cbArgs) mutable {
+        auto swSchedule = _threadPool->scheduleWork([shared_promise, req](const executor::TaskExecutor::CallbackArgs& cbArgs) mutable {
             auto resp = FreeMonMetricsResponse();
             resp.setVersion(1);
             resp.setReportingInterval(1);
 
             shared_promise.emplaceValue(resp);
         });
+        ASSERT_OK(swSchedule.getStatus());
+
 
         return future;
     }
@@ -428,8 +431,8 @@ void FreeMonControllerTest::setUp() {
     collectionOptions.uuid = UUID::gen();
     // ASSERT_OK(_storage.createCollection(_opCtx.get(), inputNss, collectionOptions));
 
-    repl::StorageInterface::get(service)->createCollection(_opCtx.get(), NamespaceString("admin", "system.version"), collectionOptions);
-
+    auto statusCC = repl::StorageInterface::get(service)->createCollection(_opCtx.get(), NamespaceString("admin", "system.version"), collectionOptions);
+    ASSERT_OK(statusCC);
 
 }
 

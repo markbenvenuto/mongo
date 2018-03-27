@@ -167,101 +167,6 @@ private:
 
 }  // namespace
 
-namespace optionenvironment {
-class OptionSection;
-class Environment;
-}  // namespace optionenvironment
-
-namespace moe = mongo::optionenvironment;
-
-
-namespace {
-
-
-/**
-* Command line states
-*/
-enum class EnableCloudStateEnum : std::int32_t {
-    on,
-    off,
-    runtime,
-};
-
-constexpr StringData kEnableCloudState_on = "on"_sd;
-constexpr StringData kEnableCloudState_off = "off"_sd;
-constexpr StringData kEnableCloudState_runtime = "runtime"_sd;
-
-StatusWith<EnableCloudStateEnum> EnableCloudState_parse(StringData value) {
-    if (value == kEnableCloudState_on) {
-        return EnableCloudStateEnum::on;
-    }
-    if (value == kEnableCloudState_off) {
-        return EnableCloudStateEnum::off;
-    }
-    if (value == kEnableCloudState_runtime) {
-        return EnableCloudStateEnum::runtime;
-    }
-
-    // TODO
-    return Status(ErrorCodes::InvalidOptions, "Unrecognized state");
-}
-
-std::string freeMonitoringTag;
-EnableCloudStateEnum freeMonitoringState = EnableCloudStateEnum::runtime;
-
-Status addFreeMonitoringOptions(moe::OptionSection* options) {
-    moe::OptionSection freeMonitoringOptions("Free Monitoring options");
-
-    // Command Line: --enableFreeMonitoring=<on|runtime|off>
-    // YAML Name: cloud.monitoring.free=<on|runtime|off>
-    freeMonitoringOptions.addOptionChaining("cloud.monitoring.free.state",
-                                            "enableFreeMonitoring",
-                                            moe::String,
-                                            "Enable Cloud Free Monitoring (on|runtime|off)");
-
-    // Command Line: --enableFreeMonitoringTag=string
-    // YAML Name: cloud.monitoring.free.tag=string
-    freeMonitoringOptions.addOptionChaining(
-        "cloud.monitoring.free.tag", "freeMonitoringTag", moe::String, "Cloud Free Monitoring Tag");
-
-    Status ret = options->addSection(freeMonitoringOptions);
-    if (!ret.isOK()) {
-        log() << "Failed to add free monitoring option section: " << ret.toString();
-        return ret;
-    }
-
-    return Status::OK();
-}
-
-Status storeFreeMonitoringOptions(const moe::Environment& params) {
-
-    if (params.count("cloud.monitoring.free.state")) {
-        auto swState =
-            EnableCloudState_parse(params["cloud.monitoring.free.state"].as<std::string>());
-        if (!swState.isOK()) {
-            return swState.getStatus();
-        }
-        freeMonitoringState = swState.getValue();
-    }
-
-    if (params.count("cloud.monitoring.free.tag")) {
-        freeMonitoringTag = params["cloud.monitoring.free.tag"].as<std::string>();
-    }
-
-    return Status::OK();
-}
-
-
-MONGO_MODULE_STARTUP_OPTIONS_REGISTER(FreeMonitoringOptions)(InitializerContext* context) {
-    return addFreeMonitoringOptions(&moe::startupOptions);
-}
-
-MONGO_STARTUP_OPTIONS_STORE(FreeMonitoringOptions)(InitializerContext* context) {
-    return storeFreeMonitoringOptions(moe::startupOptionsParsed);
-}
-
-}  // namespace
-
 
 auto makeTaskExecutor(ServiceContext* serviceContext) {
     ThreadPool::Options tpOptions;
@@ -276,7 +181,7 @@ auto makeTaskExecutor(ServiceContext* serviceContext) {
 }
 
 void startFreeMonitoring(ServiceContext* serviceContext) {
-    if (freeMonitoringState == EnableCloudStateEnum::off) {
+    if (globalFreeMonParams.freeMonitoringState == EnableCloudStateEnum::off) {
         return;
     }
 
@@ -284,7 +189,7 @@ void startFreeMonitoring(ServiceContext* serviceContext) {
 
     executor->startup();
 
-    std::unique_ptr<FreeMonitoringHttpClientInterface> http =
+    std::unique_ptr<FreeMonHttpClientInterface> http =
         createFreeMonHttpClient(std::move(executor));
 
     std::unique_ptr<FreeMonNetworkInterface> network =
@@ -334,7 +239,7 @@ void startFreeMonitoring(ServiceContext* serviceContext) {
     staticFreeMon = std::move(controller);
 
     RegistrationType registrationType = RegistrationType::DoNotRegister;
-    if (freeMonitoringState == EnableCloudStateEnum::on) {
+    if (globalFreeMonParams.freeMonitoringState == EnableCloudStateEnum::on) {
         // If replication is enabled, we may need to register on becoming primary
         if (repl::ReplicationCoordinator::get(getGlobalServiceContext())->getReplicationMode() !=
             repl::ReplicationCoordinator::modeNone) {
@@ -348,7 +253,7 @@ void startFreeMonitoring(ServiceContext* serviceContext) {
 }
 
 void stopFreeMonitoring() {
-    if (freeMonitoringState == EnableCloudStateEnum::off) {
+    if (globalFreeMonParams.freeMonitoringState == EnableCloudStateEnum::off) {
         return;
     }
 
@@ -364,7 +269,7 @@ FreeMonController* FreeMonController::get(ServiceContext* serviceContext) {
     return getFreeMonController(serviceContext).get();
 }
 
-FreeMonitoringHttpClientInterface::~FreeMonitoringHttpClientInterface() {}
+FreeMonHttpClientInterface::~FreeMonHttpClientInterface() {}
 
 
 }  // namespace mongo
