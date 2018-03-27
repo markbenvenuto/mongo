@@ -334,7 +334,8 @@ struct FreeMonMessageGreater {
     }
 };
 
-
+// Multi-Producer
+// Single Consumer
 class FreeMonMessageQueue {
 public:
     FreeMonMessageQueue();

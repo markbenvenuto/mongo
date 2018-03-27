@@ -48,6 +48,7 @@ void FreeMonMessageQueue::enqueue(std::shared_ptr<FreeMonMessage> msg) {
         _condvar.notify_one();
     }
 }
+
 boost::optional<std::shared_ptr<FreeMonMessage>> FreeMonMessageQueue::dequeue(
     ClockSource* clockSource) {
     {
