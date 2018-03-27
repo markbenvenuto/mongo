@@ -6,9 +6,7 @@
 #include <vector>
 
 #include "mongo/bson/bsonobjbuilder.h"
-#include "mongo/db/free_mon/free_monitoring_commands_gen.h"
-#include "mongo/db/free_mon/free_monitoring_protocol_gen.h"
-#include "mongo/db/free_mon/free_monitoring_storage_gen.h"
+#include "mongo/db/free_mon/free_mon_network.h"
 #include "mongo/db/ftdc//controller.h"
 #include "mongo/util/clock_source.h"
 #include "mongo/util/duration.h"
@@ -17,30 +15,6 @@
 namespace mongo {
 using FreeMonCollectorInterface = FTDCCollectorInterface;
 using FreeMonCollectorCollection = FTDCCollectorCollection;
-
-/**
- * Makes HTTPS calls to cloud endpoint
- */
-class FreeMonNetworkInterface {
-public:
-    virtual ~FreeMonNetworkInterface();
-
-    /**
-     * POSTs FreeMonRegistrationRequest to endpoint.
-     *
-     * Returns a FreeMonRegistrationResponse or throws an error on non-HTTP 200.
-     */
-    virtual Future<FreeMonRegistrationResponse> sendRegistrationAsync(
-        const FreeMonRegistrationRequest& req) = 0;
-
-    /**
-      * POSTs FreeMonMetricsRequest to endpoint.
-      *
-      * Returns a FreeMonMetricsResponse or throws an error on non-HTTP 200.
-      */
-    virtual Future<FreeMonMetricsResponse> sendMetricsAsync(const FreeMonMetricsRequest& req) = 0;
-};
-
 
 
 // class RetryCounter {

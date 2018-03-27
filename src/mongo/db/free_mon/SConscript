@@ -29,6 +29,7 @@ fmEnv.Library(
     target='free_mon_mongod',
     source=[
         'free_mon_mongod.cpp',
+        'free_mon_options.cpp',
         'http_client_curl.cpp',
     ],
     LIBDEPS=[
@@ -43,7 +44,7 @@ fmEnv.Library(
 )
 
 env.CppUnitTest(
-    target='free_monitoring_test',
+    target='free_mon_test',
     source=[
         'free_mon_controller_test.cpp',
     ],

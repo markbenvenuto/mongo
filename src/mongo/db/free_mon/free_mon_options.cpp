@@ -7,8 +7,8 @@
 #include "mongo/db/free_mon/free_mon_mongod.h"
 
 #include "mongo/base/data_type_validated.h"
-#include "mongo/db/free_mon/free_monitoring_controller.h"
-#include "mongo/db/free_mon/free_monitoring_http.h"
+#include "mongo/db/free_mon/free_mon_controller.h"
+#include "mongo/db/free_mon/free_mon_http.h"
 #include "mongo/db/ftdc/constants.h"
 #include "mongo/db/ftdc/ftdc_server.h"
 #include "mongo/db/jsobj.h"

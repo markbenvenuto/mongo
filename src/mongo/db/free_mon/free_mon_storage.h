@@ -6,9 +6,7 @@
 #include <vector>
 
 #include "mongo/bson/bsonobjbuilder.h"
-#include "mongo/db/free_mon/free_monitoring_commands_gen.h"
-#include "mongo/db/free_mon/free_monitoring_protocol_gen.h"
-#include "mongo/db/free_mon/free_monitoring_storage_gen.h"
+#include "mongo/db/free_mon/free_mon_storage_gen.h"
 #include "mongo/db/ftdc//controller.h"
 #include "mongo/util/clock_source.h"
 #include "mongo/util/duration.h"

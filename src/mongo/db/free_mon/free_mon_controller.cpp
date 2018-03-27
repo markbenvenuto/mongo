@@ -4,7 +4,7 @@
 
 #include "mongo/platform/basic.h"
 
-#include "mongo/db/free_mon/free_monitoring_controller.h"
+#include "mongo/db/free_mon/free_mon_controller.h"
 
 #include <chrono>
 

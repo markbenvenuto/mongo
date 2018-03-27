@@ -4,7 +4,7 @@
 #include "mongo/platform/basic.h"
 
 
-#include "mongo/db/free_mon/free_monitoring_http.h"
+#include "mongo/db/free_mon/free_mon_http.h"
 
 #include <curl/curl.h>
 #include <curl/easy.h>

@@ -35,7 +35,7 @@
 #include <future>
 #include <iostream>
 
-#include "mongo/db/free_mon/free_monitoring_controller.h"
+#include "mongo/db/free_mon/free_mon_controller.h"
 
 #include "mongo/base/data_type_validated.h"
 #include "mongo/base/init.h"
