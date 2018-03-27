@@ -41,10 +41,16 @@
 
 namespace mongo {
 
+/**
+ * Interface used to upload and receive binary payloads to HTTP servers.
+ */
 class FreeMonHttpClientInterface {
 public:
     virtual ~FreeMonHttpClientInterface();
 
+    /**
+     * Url is a full URL with hostname and protocol specification
+     */
     virtual Future<std::vector<uint8_t>> postAsync(StringData url, const BSONObj data) = 0;
 };
 
