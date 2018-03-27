@@ -80,11 +80,11 @@ size_t ReadMemoryCallback(char* buffer, size_t size, size_t nitems, void* instre
 
 CurlLibraryManager curlLibraryManager;
 
-class FreeMonitoringCurlHttpClient : public FreeMonitoringHttpClientInterface {
+class FreeMonCurlHttpClient : public FreeMonHttpClientInterface {
 public:
-    FreeMonitoringCurlHttpClient(std::unique_ptr<executor::ThreadPoolTaskExecutor> executor)
+    FreeMonCurlHttpClient(std::unique_ptr<executor::ThreadPoolTaskExecutor> executor)
         : _executor(std::move(executor)) {}
-    virtual ~FreeMonitoringCurlHttpClient(){};
+    virtual ~FreeMonCurlHttpClient(){};
 
     Future<std::vector<uint8_t>> postAsync(StringData url, const BSONObj obj) override {
 
@@ -179,7 +179,7 @@ private:
 }  // namespace
 
 
-std::unique_ptr<FreeMonitoringHttpClientInterface> createFreeMonHttpClient(
+std::unique_ptr<FreeMonHttpClientInterface> createFreeMonHttpClient(
     std::unique_ptr<executor::ThreadPoolTaskExecutor> executor) {
     
     // TODO Start thread here
@@ -187,7 +187,7 @@ std::unique_ptr<FreeMonitoringHttpClientInterface> createFreeMonHttpClient(
     // std::unique_ptr<executor::ThreadPoolTaskExecutor> foo;
 
     curlLibraryManager.initialize();
-    return std::make_unique<FreeMonitoringCurlHttpClient>(std::move(executor));
+    return std::make_unique<FreeMonCurlHttpClient>(std::move(executor));
 }
 
 }  // namespace mongo

@@ -13,13 +13,13 @@
 
 namespace mongo {
 
-class FreeMonitoringHttpClientInterface {
+class FreeMonHttpClientInterface {
 public:
-    virtual ~FreeMonitoringHttpClientInterface();
+    virtual ~FreeMonHttpClientInterface();
 
     virtual Future<std::vector<uint8_t>> postAsync(StringData url, const BSONObj data) = 0;
 };
 
-std::unique_ptr<FreeMonitoringHttpClientInterface> createFreeMonHttpClient(
+std::unique_ptr<FreeMonHttpClientInterface> createFreeMonHttpClient(
     std::unique_ptr<executor::ThreadPoolTaskExecutor> executor);
 }  // namespace mongo

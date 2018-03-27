@@ -84,15 +84,9 @@ private:
 } exportedExportedFreeMonEndpointURL;
 
 
-// class FreeMonitoringHttpClientInterface {
-//    ~FreeMonitoringHttpClientInterface();
-//
-//    void post(StringData url, ConstDataRange data) = 0;
-//};
-
 class FreeMonNetworkHttp : public FreeMonNetworkInterface {
 public:
-    FreeMonNetworkHttp(std::unique_ptr<FreeMonitoringHttpClientInterface> client)
+    FreeMonNetworkHttp(std::unique_ptr<FreeMonHttpClientInterface> client)
         : _client(std::move(client)) {}
     ~FreeMonNetworkHttp() {}
 
@@ -168,7 +162,7 @@ public:
     }
 
 private:
-    std::unique_ptr<FreeMonitoringHttpClientInterface> _client;
+    std::unique_ptr<FreeMonHttpClientInterface> _client;
 };
 
 }  // namespace

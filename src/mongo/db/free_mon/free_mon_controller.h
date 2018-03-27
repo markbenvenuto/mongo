@@ -42,31 +42,6 @@ public:
 };
 
 
-/**
- * Storage tier for Free Monitoring. Provides access to storage engine.
- */
-class FreeMonStorage {
-public:
-    /**
-     * Reads document from disk if it exists.
-     */
-    static boost::optional<FreeMonStorageState> read(OperationContext* opCtx);
-
-    /**
-     * Replaces document on disk with contents of document. Creates document if it does not exist.
-     */
-    static bool replace(OperationContext* opCtx, const FreeMonStorageState& doc);
-
-    /**
-     * Deletes document on disk if it exists.
-     */
-    static bool deleteState(OperationContext* opCtx);
-
-    /**
-     * Reads first document from local.clustermanager.
-     */
-    static boost::optional<BSONObj> readClusterManagerState(OperationContext* opCtx);
-};
 
 // class RetryCounter {
 //     duration retry(kind);
