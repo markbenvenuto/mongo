@@ -36,4 +36,8 @@ void startFreeMonitoring(ServiceContext* serviceContext) {}
 
 void stopFreeMonitoring() {}
 
+void notifyOnTransitionToPrimary(){};
+
+void setupOpObserver(OpObserverRegistry* registry) {}
+
 }  // namespace mongo

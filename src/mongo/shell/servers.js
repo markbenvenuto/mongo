@@ -1171,9 +1171,9 @@ var MongoRunner, _startMongod, startMongoProgram, runMongoProgram, startMongoPro
                 // set on older versions, e.g., mongod-3.0.
                 if (programName.endsWith('mongod')) {
                     // Enable heartbeat logging for replica set nodes.
-                    if (!argArrayContains("logComponentVerbosity")) {
-                        logComponentVerbosity["replication"] = {"heartbeats": 2, "rollback": 2};
-                    }
+                    // if (!argArrayContains("logComponentVerbosity")) {
+                    //     logComponentVerbosity["replication"] = {"heartbeats": 2, "rollback": 2};
+                    // }
 
                     if (jsTest.options().storageEngine === "wiredTiger" ||
                         !jsTest.options().storageEngine) {

@@ -375,6 +375,23 @@ private:
     void doAsyncMetricsFail(
         Client* client, const FreeMonMessageWithPayload<FreeMonMessageType::AsyncMetricsFail>* msg);
 
+    /**
+     * Process a change to become a replica set primary
+     */
+    void doOnTransitionToPrimary(Client* client);
+
+    /**
+    * Process that the storage has received insert or update.
+    */
+    void doNotifyOnUpsert(Client* client,
+                          const FreeMonMessageWithPayload<FreeMonMessageType::NotifyOnUpsert>* msg);
+
+    /**
+    * Process that the storage has received delete or drop collection.
+    */
+    void doNotifyOnDelete(Client* client);
+
+
 private:
     // Collection of collectors to send on registration
     FreeMonCollectorCollection& _registration;
@@ -411,6 +428,12 @@ private:
 
     // Last read storage state
     boost::optional<FreeMonStorageState> _lastReadState;
+
+    // When we change to primary, do we register?
+    bool _registerOnTransitionToPrimary{false};
+
+    // How was the server configured at startup?
+    RegistrationType _registrationType;
 
     // Pending update to disk
     FreeMonStorageState _state;

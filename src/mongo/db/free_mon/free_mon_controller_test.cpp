@@ -850,7 +850,7 @@ TEST_F(FreeMonControllerTest, TestRegister) {
 
     ASSERT_OK(controller->registerServerCommand(Milliseconds::min()));
 
-    controller->turnCrankForTest(Turner().registerCommand());
+    controller->turnCrankForTest(Turner().registerServer().registerCommand());
 
     ASSERT_TRUE(!FreeMonStorage::read(_opCtx.get()).get().getRegistrationId().empty());
 
@@ -869,7 +869,7 @@ TEST_F(FreeMonControllerTest, TestRegisterTimeout) {
     controller->start(RegistrationType::DoNotRegister);
 
     ASSERT_OK(controller->registerServerCommand(Milliseconds::min()));
-    controller->turnCrankForTest(Turner().registerCommand(2));
+    controller->turnCrankForTest(Turner().registerServer().registerCommand(2));
 
     ASSERT_TRUE(FreeMonStorage::read(_opCtx.get()).get().getState() == StorageStateEnum::pending);
     ASSERT_GTE(controller.network->getRegistersCalls(), 2);
@@ -903,7 +903,7 @@ TEST_F(FreeMonControllerTest, TestRegisterHalts) {
     controller->start(RegistrationType::DoNotRegister);
 
     ASSERT_OK(controller->registerServerCommand(Milliseconds::min()));
-    controller->turnCrankForTest(Turner().registerCommand());
+    controller->turnCrankForTest(Turner().registerServer().registerCommand());
 
     ASSERT_TRUE(FreeMonStorage::read(_opCtx.get()).get().getState() == StorageStateEnum::disabled);
     ASSERT_EQ(controller.network->getRegistersCalls(), 1);
@@ -1057,7 +1057,7 @@ TEST_F(FreeMonControllerTest, TestMetricsUnregisterCancelsRegister) {
     controller->start(RegistrationType::DoNotRegister);
 
     ASSERT_OK(controller->registerServerCommand(Milliseconds::min()));
-    controller->turnCrankForTest(Turner().registerCommand(2));
+    controller->turnCrankForTest(Turner().registerServer().registerCommand(2));
 
     ASSERT_TRUE(FreeMonStorage::read(_opCtx.get()).get().getState() == StorageStateEnum::pending);
 
@@ -1214,12 +1214,37 @@ TEST_F(FreeMonControllerTest, TestMetricBatchingOnErrorRealtime) {
     ASSERT_EQ(controller.network->getLastMetrics().size(), 2UL);
 }
 
+// TODO: replication - storage -test reads and writes on secondary, and on primary and other states
+
+
 // TODO: Positive: ensure optional fields are rotated
 
 // TODO: Positive: Test Metrics works on command register on primary
 // TODO: Positive: Test Metrics works on startup register on secondary
 // TODO: Positive: Test Metrics works on secondary after opObserver register
 // TODO: Positive: Test Metrics works on secondary after opObserver de-register
+
+
+// TODO: Tricky - secondary as marked via command line - enableCloudFreeMOnitorig = false but a primary replicates a change to enable it
+
+// TODO: Tricky: Primary becomes secondary during registration
+// TODO: Tricky: Primary becomes secondary during metrics collection
+
+// TODO: OnDelete - make sure registration halts
+// TODO: OnDelete - make sure metrics halts
+
+// TODO: OnDelete - on drop - make sure registration halts
+// TODO: OnDelete - on drop - make sure metrics halts
+
+
+// TODO: OnInsert - make sure reg starts
+
+// TODO: OnUpdate - make sure reg starts if needed
+// TODO: OnUpdate - make sure reg stops if needed
+
+// TODO: OnUpdate - make sure time changes
+
+// TODO: replication of invalid document in insert/update
 
 }  // namespace
 }  // namespace mongo

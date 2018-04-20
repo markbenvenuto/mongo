@@ -86,6 +86,11 @@ public:
     static FreeMonController* get(ServiceContext* serviceContext);
 
     /**
+    * Set the FreeMonController in the ServiceContext.
+    */
+    static void set(ServiceContext* serviceContext, std::unique_ptr<FreeMonController> controller);
+
+    /**
      * Start registration of mongod with remote service.
      *
      * Only sends one remote registration at a time.
@@ -114,7 +119,23 @@ public:
     // TODO - add these methods
     // void getServerStatus(BSONObjBuilder* builder);
 
-    // void notifyObserver(const BSONObj& doc);
+    /**
+     * Notify on upsert.
+     *
+     * Updates and inserts are treated as the same.
+     */
+    void notifyOnUpsert(const BSONObj& doc);
+
+    /**
+     * Notify on document delete or drop collection.
+     */
+    void notifyOnDelete();
+
+    /**
+     * Notify that we local instance has become a primary.
+     */
+    void notifyOnTransitionToPrimary();
+
 private:
     void _enqueue(std::shared_ptr<FreeMonMessage> msg);
 

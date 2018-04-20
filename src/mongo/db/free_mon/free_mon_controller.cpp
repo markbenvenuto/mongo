@@ -38,6 +38,23 @@
 
 namespace mongo {
 
+namespace {
+
+const auto getFreeMonController =
+    ServiceContext::declareDecoration<std::unique_ptr<FreeMonController>>();
+
+}  // namespace
+
+FreeMonController* FreeMonController::get(ServiceContext* serviceContext) {
+    return getFreeMonController(serviceContext).get();
+}
+
+void FreeMonController::set(ServiceContext* serviceContext,
+                            std::unique_ptr<FreeMonController> controller) {
+    getFreeMonController(serviceContext) = std::move(controller);
+}
+
+
 FreeMonNetworkInterface::~FreeMonNetworkInterface() = default;
 
 void FreeMonController::addRegistrationCollector(
@@ -89,6 +106,28 @@ boost::optional<Status> FreeMonController::unregisterServerCommand(Milliseconds 
     return Status::OK();
 }
 
+void FreeMonController::notifyOnUpsert(const BSONObj& doc) {
+
+    log() << "On Update ";
+
+    _enqueue(FreeMonMessageWithPayload<FreeMonMessageType::NotifyOnUpsert>::createNow(doc));
+}
+
+
+void FreeMonController::notifyOnDelete() {
+    log() << "On notifyOnDelete ";
+        
+        _enqueue(FreeMonMessage::createNow(FreeMonMessageType::NotifyOnDelete));
+}
+
+
+void FreeMonController::notifyOnTransitionToPrimary() {
+    log() << "On notifyOnTransitionToPrimary ";
+
+
+    _enqueue(FreeMonMessage::createNow(FreeMonMessageType::OnTransitionToPrimary));
+}
+
 void FreeMonController::_enqueue(std::shared_ptr<FreeMonMessage> msg) {
     {
         stdx::lock_guard<stdx::mutex> lock(_mutex);
@@ -118,10 +157,8 @@ void FreeMonController::start(RegistrationType registrationType) {
         _state = State::kStarted;
     }
 
-    if (registrationType != RegistrationType::DoNotRegister) {
-        std::vector<std::string> vec;
-        registerServerStartup(registrationType, vec);
-    }
+    std::vector<std::string> vec;
+    registerServerStartup(registrationType, vec);
 }
 
 void FreeMonController::stop() {

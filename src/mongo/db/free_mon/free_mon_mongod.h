@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include "mongo/db/op_observer_registry.h"
 #include "mongo/db/service_context.h"
 
 namespace mongo {
@@ -42,5 +43,17 @@ void startFreeMonitoring(ServiceContext* serviceContext);
  * Stop Free Monitoring
  */
 void stopFreeMonitoring();
+
+/**
+ * Notify free monitoring about a replica set member becoming primary
+ */
+void notifyOnTransitionToPrimary();
+
+/**
+ * Setup OpObserver.
+ *
+ * Called before free monitoring is started.
+ */
+void setupOpObserver(OpObserverRegistry* registry);
 
 }  // namespace mongo

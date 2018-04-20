@@ -53,6 +53,7 @@ namespace mongo {
 namespace {
 
 constexpr auto kProtocolVersion = 1;
+constexpr auto kStorageVersion = 1;
 
 constexpr auto kRegistrationIdMaxLength = 4096;
 constexpr auto kInformationalURLMaxLength = 4096;
@@ -164,6 +165,8 @@ void FreeMonProcessor::run() {
 
             auto msg = item.get();
 
+            log() << "Processing " << (int)msg->getType();
+
             // Do work here
             switch (msg->getType()) {
                 case FreeMonMessageType::RegisterCommand: {
@@ -224,6 +227,22 @@ void FreeMonProcessor::run() {
                             msg.get()));
                     break;
                 }
+                case FreeMonMessageType::OnTransitionToPrimary: {
+                    doOnTransitionToPrimary(client);
+                    break;
+                }
+                case FreeMonMessageType::NotifyOnUpsert: {
+                    doNotifyOnUpsert(
+                        client,
+                        checked_cast<
+                            FreeMonMessageWithPayload<FreeMonMessageType::NotifyOnUpsert>*>(
+                            msg.get()));
+                    break;
+                }
+                case FreeMonMessageType::NotifyOnDelete: {
+                    doNotifyOnDelete(client);
+                    break;
+                }
                 default:
                     MONGO_UNREACHABLE;
             }
@@ -256,7 +275,7 @@ void FreeMonProcessor::readState(Client* client) {
     } else if (!state.is_initialized()) {
         // Default the state
         _state.setVersion(kProtocolVersion);
-        _state.setState(StorageStateEnum::enabled);
+        _state.setState(StorageStateEnum::disabled);
         _state.setRegistrationId("");
         _state.setInformationalURL("");
         _state.setMessage("");
@@ -292,10 +311,12 @@ void FreeMonProcessor::writeState(Client* client) {
 void FreeMonProcessor::doServerRegister(
     Client* client, const FreeMonMessageWithPayload<FreeMonMessageType::RegisterServer>* msg) {
 
+    _registrationType = msg->getPayload().first;
+
     // If we are asked to register now, then kick off a registration request
-    if (msg->getPayload().first == RegistrationType::RegisterOnStart) {
+    if (_registrationType == RegistrationType::RegisterOnStart) {
         enqueue(FreeMonRegisterCommandMessage::createNow(msg->getPayload().second));
-    } else if (msg->getPayload().first == RegistrationType::RegisterAfterOnTransitionToPrimary) {
+    } else if (_registrationType == RegistrationType::RegisterAfterOnTransitionToPrimary) {
         // Check if we need to wait to become primary:
         // If the 'admin.system.version' has content, do not wait and just re-register
         // If the collection is empty, wait until we become primary
@@ -312,7 +333,7 @@ void FreeMonProcessor::doServerRegister(
         // 2. a standalone which has never been registered
         //
         if (!state.is_initialized()) {
-            // TODO: hook OnTransitionToPrimary
+            _registerOnTransitionToPrimary = true;
         } else {
             // We are standalone, if we have a registration id, then send a registration
             // notification, else wait for the user to register us
@@ -320,12 +341,12 @@ void FreeMonProcessor::doServerRegister(
                 enqueue(FreeMonRegisterCommandMessage::createNow(msg->getPayload().second));
             }
         }
-    } else {
-        MONGO_UNREACHABLE;
     }
-
-    // Enqueue the first metrics gather
-    enqueue(FreeMonMessage::createNow(FreeMonMessageType::MetricsCollect));
+    
+    // Enqueue the first metrics gather unless we are not going to register
+    if (_registrationType != RegistrationType::DoNotRegister) {
+        enqueue(FreeMonMessage::createNow(FreeMonMessageType::MetricsCollect));
+    }
 }
 
 namespace {
@@ -813,5 +834,65 @@ void FreeMonProcessor::doAsyncMetricsFail(
     enqueue(FreeMonMessage::createWithDeadline(FreeMonMessageType::MetricsSend,
                                                _metricsRetry.getNextDeadline(client)));
 }
+
+void FreeMonProcessor::doOnTransitionToPrimary(Client* client) {
+    if (_registerOnTransitionToPrimary) {
+        enqueue(FreeMonRegisterCommandMessage::createNow(std::vector<std::string>()));
+
+        // On transition to primary once
+        _registerOnTransitionToPrimary = false;
+    }
+}
+
+void FreeMonProcessor::doNotifyOnUpsert(
+    Client* client, const FreeMonMessageWithPayload<FreeMonMessageType::NotifyOnUpsert>* msg) {
+    try {
+        const BSONObj& doc = msg->getPayload();
+        auto state = FreeMonStorageState::parse(IDLParserErrorContext("free_mon_storage"), doc);
+
+        // Likely, the update changed something
+        if (state != _state) {
+            uassert(50797,
+                    str::stream() << "Unexpected free monitoring storage version "
+                                  << state.getVersion(),
+                    state.getVersion() != kStorageVersion);
+
+            // Are we transition from disabled -> enabled?
+            if (_state.getState() != state.getState()) {
+                if (_state.getState() != StorageStateEnum::enabled &&
+                    _state.getState() == StorageStateEnum::enabled &&
+                    _registrationType != RegistrationType::DoNotRegister) {
+
+                    // Secondary needs to start registration
+                    enqueue(FreeMonRegisterCommandMessage::createNow(std::vector<std::string>()));
+                }
+            }
+            // Note: enabled -> disabled is handled implicitly by register and send metrics checks
+            // after _state is updated below
+
+            // Copy the fields
+            _state = state;
+        }
+
+    } catch (...) {
+
+        // Stop the queue
+        _queue.stop();
+
+        warning() << "Uncaught exception in '" << exceptionToStatus()
+                  << "' in free monitoring op observer. Shutting down the "
+                     "free monitoring subsystem.";
+    }
+}
+
+void FreeMonProcessor::doNotifyOnDelete(Client* client) {
+    // The config document was either deleted or the entire collection was dropped, we treat them
+    // the same
+    // and stop free monitoring. We continue collecting though.
+
+    // So we mark the internal state as disabled which stop registration and metrics send
+    _state.setState(StorageStateEnum::disabled);
+}
+
 
 }  // namespace mongo
