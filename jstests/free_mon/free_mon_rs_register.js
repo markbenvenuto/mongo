@@ -1,4 +1,4 @@
-// Validate registration works
+// Validate registration works in a replica set
 //
 load("jstests/free_mon/libs/free_mon.js");
 
@@ -15,7 +15,6 @@ load("jstests/free_mon/libs/free_mon.js");
         verbose: 1,
     };
 
-    // TODO: vary node count???
     const rst = new ReplSetTest({nodes: 2, nodeOptions: options});
     rst.startSet();
     rst.initiate();

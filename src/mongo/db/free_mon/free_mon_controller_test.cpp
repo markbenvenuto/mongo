@@ -1490,11 +1490,14 @@ TEST_F(FreeMonControllerRSTest, SecondaryRollbackStopMetrics) {
     ASSERT_EQ(controller.metricsCollector->count(), 2UL);
 
     // Simulate a rollback by writing out of band
+    // Cheat a little by flipping to primary to allow the write to succeed
+    ASSERT_OK(_getReplCoord()->setFollowerMode(repl::MemberState::RS_PRIMARY));
     FreeMonStorage::replace(_opCtx.get(), initStorage(StorageStateEnum::enabled));
+    ASSERT_OK(_getReplCoord()->setFollowerMode(repl::MemberState::RS_SECONDARY));
 
     controller->notifyOnRollback();
 
-    controller->turnCrankForTest(Turner().notifyOnRollback().registerCommand().collect(2));
+    controller->turnCrankForTest(Turner().notifyOnRollback().registerCommand().collect(2).metricsSend());
 
     // Since there is no local write, it remains enabled
     ASSERT_TRUE(FreeMonStorage::read(_opCtx.get()).get().getState() == StorageStateEnum::enabled);
@@ -1502,8 +1505,6 @@ TEST_F(FreeMonControllerRSTest, SecondaryRollbackStopMetrics) {
     ASSERT_EQ(controller.registerCollector->count(), 1UL);
     ASSERT_EQ(controller.metricsCollector->count(), 4UL);
 }
-
-// TODO: rollback - after registration
 
 // TODO: validate handling of 404 and other errors - avoid decoding them as BSON
 

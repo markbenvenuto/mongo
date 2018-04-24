@@ -45,6 +45,10 @@ namespace {
 class GetFreeMonitoringStatusCommandStub : public BasicCommand {
 public:
     GetFreeMonitoringStatusCommandStub() : BasicCommand("getFreeMonitoringStatus") {}
+    
+    bool adminOnly() const override {
+        return true;
+    }
 
     AllowedOnSecondary secondaryAllowed(ServiceContext*) const final {
         return AllowedOnSecondary::kAlways;

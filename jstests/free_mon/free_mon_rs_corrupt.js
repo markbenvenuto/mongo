@@ -1,5 +1,5 @@
-// Validate registration works
-//
+// Validate a user manipulating system.version for free monitoring does
+// not crash mongod
 load("jstests/free_mon/libs/free_mon.js");
 
 (function() {
@@ -31,8 +31,6 @@ load("jstests/free_mon/libs/free_mon.js");
     sleep(20 * 1000)
 
     rst.stopSet();
-
-
     
     mock_web.stop();
 })();

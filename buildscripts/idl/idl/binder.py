@@ -449,9 +449,8 @@ def _validate_field_of_type_enum(ctxt, field):
     # type: (errors.ParserContext, syntax.Field) -> None
     """Validate that for fields with a type of enum, no other properties are set."""
     if field.default is not None:
-        # Validate that the default is a valid value
-        ctxt.add_enum_field_must_be_empty_error(field, field.name, "default")
-
+        #TODO Consider validating that the default is a valid value
+        pass
 
 def _validate_array_type(ctxt, syntax_symbol, field):
     # type: (errors.ParserContext, Union[syntax.Command, syntax.Enum, syntax.Struct, syntax.Type], syntax.Field) -> None
