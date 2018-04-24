@@ -15,7 +15,6 @@ load("jstests/free_mon/libs/free_mon.js");
         verbose: 1,
     };
 
-    // TODO: vary node count???
     const rst = new ReplSetTest({nodes: 2, nodeOptions: options});
     rst.startSet();
     rst.initiate();
@@ -24,18 +23,12 @@ load("jstests/free_mon/libs/free_mon.js");
     WaitForRegistration(rst.getPrimary());
 
     mock_web.waitRegisters(2);
+    
+    // For kicks, corrupt the free monitoring storage state to knock free mon offline
+    // and make sure the node does not crash
+    rst.getPrimary().getDB("admin").system.version.update( { _id: "free_monitoring"}, { $set : { version : 2 } } )
 
-    // Restart the secondary
-    // Now we're going to shut down all nodes
-    var s1 = rst.liveNodes.slaves[0];
-    var s1Id = rst.getNodeId(s1);
-
-    rst.stop(s1Id);
-    rst.waitForState(s1, ReplSetTest.State.DOWN);
-
-    rst.restart(s1Id);
-
-    mock_web.waitRegisters(3);
+    sleep(20 * 1000)
 
     rst.stopSet();
 

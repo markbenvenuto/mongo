@@ -243,6 +243,10 @@ void FreeMonProcessor::run() {
                     doNotifyOnDelete(client);
                     break;
                 }
+                case FreeMonMessageType::NotifyOnRollback: {
+                    doNotifyOnRollback(client);
+                    break;
+                }
                 default:
                     MONGO_UNREACHABLE;
             }
@@ -311,12 +315,10 @@ void FreeMonProcessor::writeState(Client* client) {
 void FreeMonProcessor::doServerRegister(
     Client* client, const FreeMonMessageWithPayload<FreeMonMessageType::RegisterServer>* msg) {
 
-    _registrationType = msg->getPayload().first;
-
     // If we are asked to register now, then kick off a registration request
-    if (_registrationType == RegistrationType::RegisterOnStart) {
+    if (msg->getPayload().first == RegistrationType::RegisterOnStart) {
         enqueue(FreeMonRegisterCommandMessage::createNow(msg->getPayload().second));
-    } else if (_registrationType == RegistrationType::RegisterAfterOnTransitionToPrimary) {
+    } else if (msg->getPayload().first == RegistrationType::RegisterAfterOnTransitionToPrimary) {
         // Check if we need to wait to become primary:
         // If the 'admin.system.version' has content, do not wait and just re-register
         // If the collection is empty, wait until we become primary
@@ -341,12 +343,12 @@ void FreeMonProcessor::doServerRegister(
                 enqueue(FreeMonRegisterCommandMessage::createNow(msg->getPayload().second));
             }
         }
+    } else {
+        MONGO_UNREACHABLE;
     }
     
     // Enqueue the first metrics gather unless we are not going to register
-    if (_registrationType != RegistrationType::DoNotRegister) {
         enqueue(FreeMonMessage::createNow(FreeMonMessageType::MetricsCollect));
-    }
 }
 
 namespace {
@@ -789,7 +791,6 @@ void FreeMonProcessor::doAsyncMetricsComplete(
     // TODO: do we reset only the metrics we send or all pending on success?
 
     _metricsBuffer.reset();
-    _metricsRetry.setMin(Seconds(resp.getReportingInterval()));
 
     if (resp.getId().is_initialized()) {
         _state.setRegistrationId(resp.getId().get());
@@ -811,6 +812,7 @@ void FreeMonProcessor::doAsyncMetricsComplete(
     writeState(client);
 
     // Reset retry counter
+    _metricsRetry.setMin(Seconds(resp.getReportingInterval()));
     _metricsRetry.reset();
 
     // Enqueue next metrics upload
@@ -844,34 +846,40 @@ void FreeMonProcessor::doOnTransitionToPrimary(Client* client) {
     }
 }
 
+void FreeMonProcessor::processInMemoryStateChange(const FreeMonStorageState& originalState, const FreeMonStorageState& newState)
+{
+    // Are we transition from disabled -> enabled?
+    if (originalState.getState() != newState.getState()) {
+        if (originalState.getState() != StorageStateEnum::enabled &&
+            newState.getState() == StorageStateEnum::enabled) {
+
+            // Secondary needs to start registration
+            enqueue(FreeMonRegisterCommandMessage::createNow(std::vector<std::string>()));
+        }
+    }
+}
+
+
 void FreeMonProcessor::doNotifyOnUpsert(
     Client* client, const FreeMonMessageWithPayload<FreeMonMessageType::NotifyOnUpsert>* msg) {
     try {
         const BSONObj& doc = msg->getPayload();
-        auto state = FreeMonStorageState::parse(IDLParserErrorContext("free_mon_storage"), doc);
+        auto newState = FreeMonStorageState::parse(IDLParserErrorContext("free_mon_storage"), doc);
 
         // Likely, the update changed something
-        if (state != _state) {
+        if (newState != _state) {
             uassert(50797,
                     str::stream() << "Unexpected free monitoring storage version "
-                                  << state.getVersion(),
-                    state.getVersion() != kStorageVersion);
+                                  << newState.getVersion(),
+                newState.getVersion() == kStorageVersion);
 
-            // Are we transition from disabled -> enabled?
-            if (_state.getState() != state.getState()) {
-                if (_state.getState() != StorageStateEnum::enabled &&
-                    _state.getState() == StorageStateEnum::enabled &&
-                    _registrationType != RegistrationType::DoNotRegister) {
-
-                    // Secondary needs to start registration
-                    enqueue(FreeMonRegisterCommandMessage::createNow(std::vector<std::string>()));
-                }
-            }
+            processInMemoryStateChange(_state, newState);
+            
             // Note: enabled -> disabled is handled implicitly by register and send metrics checks
             // after _state is updated below
 
             // Copy the fields
-            _state = state;
+            _state = newState;
         }
 
     } catch (...) {
@@ -887,11 +895,28 @@ void FreeMonProcessor::doNotifyOnUpsert(
 
 void FreeMonProcessor::doNotifyOnDelete(Client* client) {
     // The config document was either deleted or the entire collection was dropped, we treat them
-    // the same
-    // and stop free monitoring. We continue collecting though.
+    // the same and stop free monitoring. We continue collecting though.
 
     // So we mark the internal state as disabled which stop registration and metrics send
     _state.setState(StorageStateEnum::disabled);
+}
+
+void FreeMonProcessor::doNotifyOnRollback(Client* client) {
+    // We have rolled back, the state on disk reflects our new reality
+    // We should re-read the disk state and proceed.
+
+    // copy the in-memory state
+    auto originalState = _state;
+
+    // Re-read state from disk
+     readState(client);
+
+     auto& newState = _state;
+
+     if (newState != originalState) {
+         processInMemoryStateChange(originalState, newState);
+     }
+
 }
 
 

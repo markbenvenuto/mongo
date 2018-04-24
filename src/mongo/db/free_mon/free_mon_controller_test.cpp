@@ -56,6 +56,7 @@
 #include "mongo/db/repl/replication_coordinator_mock.h"
 #include "mongo/db/repl/storage_interface.h"
 #include "mongo/db/repl/storage_interface_impl.h"
+#include "mongo/db/free_mon/free_mon_op_observer.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/service_context_d_test_fixture.h"
 #include "mongo/db/service_context_noop.h"
@@ -389,15 +390,15 @@ private:
 
 class FreeMonControllerTest : public ServiceContextMongoDTest {
 
-private:
-    void setUp() final;
-    void tearDown() final;
+protected:
+    void setUp() override;
+    void tearDown() override;
 
 protected:
     /**
-     * Looks up the current ReplicationCoordinator.
-     * The result is cast to a ReplicationCoordinatorMock to provide access to test features.
-     */
+    * Looks up the current ReplicationCoordinator.
+    * The result is cast to a ReplicationCoordinatorMock to provide access to test features.
+    */
     repl::ReplicationCoordinatorMock* _getReplCoord() const;
 
     ServiceContext::UniqueOperationContext _opCtx;
@@ -412,7 +413,7 @@ void FreeMonControllerTest::setUp() {
     auto service = getServiceContext();
 
     repl::ReplicationCoordinator::set(service,
-                                      std::make_unique<repl::ReplicationCoordinatorMock>(service));
+        std::make_unique<repl::ReplicationCoordinatorMock>(service));
 
     // Set up a NetworkInterfaceMock. Note, unlike NetworkInterfaceASIO, which has its own pool of
     // threads, tasks in the NetworkInterfaceMock must be carried out synchronously by the (single)
@@ -434,10 +435,8 @@ void FreeMonControllerTest::setUp() {
     //_storage = stdx::make_unique<repl::StorageInterfaceImpl>();
     repl::StorageInterface::set(service, std::make_unique<repl::StorageInterfaceImpl>());
 
-
     // Transition to PRIMARY so that the server can accept writes.
     ASSERT_OK(_getReplCoord()->setFollowerMode(repl::MemberState::RS_PRIMARY));
-
 
     // Create collection with one document.
     CollectionOptions collectionOptions;
@@ -467,6 +466,7 @@ repl::ReplicationCoordinatorMock* FreeMonControllerTest::_getReplCoord() const {
         ASSERT_GTE(__x, target + lower);      \
         ASSERT_LTE(__x, target + upper);      \
     }
+
 
 // Positive: Ensure deadlines sort properly
 TEST(FreeMonRetryTest, TestRegistration) {
@@ -783,6 +783,22 @@ public:
         return inc(2, count);
     }
 
+    Turner& onTransitionToPrimary() {
+        return inc(1, 1);
+    }
+
+    Turner& notifyUpsert() {
+        return inc(1, 1);
+    }
+
+    Turner& notifyDelete() {
+        return inc(1, 1);
+    }
+
+    Turner& notifyOnRollback() {
+        return inc(1, 1);
+    }
+
     operator size_t() {
         return _count;
     }
@@ -841,7 +857,7 @@ struct ControllerHolder {
 
     std::unique_ptr<FreeMonController> controller;
 };
-
+#if 0
 // Positive: Test Register works
 TEST_F(FreeMonControllerTest, TestRegister) {
     ControllerHolder controller(_mockThreadPool.get(), FreeMonNetworkInterfaceMock::Options());
@@ -850,7 +866,7 @@ TEST_F(FreeMonControllerTest, TestRegister) {
 
     ASSERT_OK(controller->registerServerCommand(Milliseconds::min()));
 
-    controller->turnCrankForTest(Turner().registerServer().registerCommand());
+    controller->turnCrankForTest(Turner().registerCommand());
 
     ASSERT_TRUE(!FreeMonStorage::read(_opCtx.get()).get().getRegistrationId().empty());
 
@@ -869,7 +885,7 @@ TEST_F(FreeMonControllerTest, TestRegisterTimeout) {
     controller->start(RegistrationType::DoNotRegister);
 
     ASSERT_OK(controller->registerServerCommand(Milliseconds::min()));
-    controller->turnCrankForTest(Turner().registerServer().registerCommand(2));
+    controller->turnCrankForTest(Turner().registerCommand(2));
 
     ASSERT_TRUE(FreeMonStorage::read(_opCtx.get()).get().getState() == StorageStateEnum::pending);
     ASSERT_GTE(controller.network->getRegistersCalls(), 2);
@@ -903,7 +919,7 @@ TEST_F(FreeMonControllerTest, TestRegisterHalts) {
     controller->start(RegistrationType::DoNotRegister);
 
     ASSERT_OK(controller->registerServerCommand(Milliseconds::min()));
-    controller->turnCrankForTest(Turner().registerServer().registerCommand());
+    controller->turnCrankForTest(Turner().registerCommand());
 
     ASSERT_TRUE(FreeMonStorage::read(_opCtx.get()).get().getState() == StorageStateEnum::disabled);
     ASSERT_EQ(controller.network->getRegistersCalls(), 1);
@@ -943,6 +959,7 @@ TEST_F(FreeMonControllerTest, TestMetricsWithEmptyStorage) {
     ASSERT_EQ(controller.registerCollector->count(), 0UL);
     ASSERT_GTE(controller.metricsCollector->count(), 4UL);
 }
+#endif
 
 FreeMonStorageState initStorage(StorageStateEnum e) {
     FreeMonStorageState storage;
@@ -956,6 +973,7 @@ FreeMonStorageState initStorage(StorageStateEnum e) {
     return storage;
 }
 
+#if 0
 // Positive: Test Metrics is collected and implicit registration happens when storage is initialized
 TEST_F(FreeMonControllerTest, TestMetricsWithEnabledStorage) {
     ControllerHolder controller(_mockThreadPool.get(), FreeMonNetworkInterfaceMock::Options());
@@ -1057,7 +1075,7 @@ TEST_F(FreeMonControllerTest, TestMetricsUnregisterCancelsRegister) {
     controller->start(RegistrationType::DoNotRegister);
 
     ASSERT_OK(controller->registerServerCommand(Milliseconds::min()));
-    controller->turnCrankForTest(Turner().registerServer().registerCommand(2));
+    controller->turnCrankForTest(Turner().registerCommand(2));
 
     ASSERT_TRUE(FreeMonStorage::read(_opCtx.get()).get().getState() == StorageStateEnum::pending);
 
@@ -1213,38 +1231,290 @@ TEST_F(FreeMonControllerTest, TestMetricBatchingOnErrorRealtime) {
     ASSERT_TRUE(controller.network->waitMetricsCalls(1, Seconds(5)).is_initialized());
     ASSERT_EQ(controller.network->getLastMetrics().size(), 2UL);
 }
+#endif
 
-// TODO: replication - storage -test reads and writes on secondary, and on primary and other states
+class FreeMonControllerRSTest : public FreeMonControllerTest {
+private:
+    void setUp() final;
+    void tearDown() final;
 
+};
+
+void FreeMonControllerRSTest::setUp() {
+    FreeMonControllerTest::setUp();
+    auto service = getServiceContext();
+
+    // Set up an OpObserver to exercise repl integration
+    auto opObserver = std::make_unique<FreeMonOpObserver>();
+    auto opObserverRegistry = dynamic_cast<OpObserverRegistry*>(service->getOpObserver());
+    opObserverRegistry->addObserver(std::move(opObserver));
+}
+
+void FreeMonControllerRSTest::tearDown() {
+    FreeMonControllerTest::tearDown();
+}
 
 // TODO: Positive: ensure optional fields are rotated
 
-// TODO: Positive: Test Metrics works on command register on primary
-// TODO: Positive: Test Metrics works on startup register on secondary
-// TODO: Positive: Test Metrics works on secondary after opObserver register
-// TODO: Positive: Test Metrics works on secondary after opObserver de-register
+// Positive: Transition to primary
+TEST_F(FreeMonControllerRSTest, TransitionToPrimary) {
+    ControllerHolder controller(_mockThreadPool.get(), FreeMonNetworkInterfaceMock::Options());
 
+    // Now become a secondary, then primary, and try what happens when we become primary
+    ASSERT_OK(_getReplCoord()->setFollowerMode(repl::MemberState::RS_SECONDARY));
+    ASSERT_OK(_getReplCoord()->setFollowerMode(repl::MemberState::RS_PRIMARY));
 
-// TODO: Tricky - secondary as marked via command line - enableCloudFreeMOnitorig = false but a primary replicates a change to enable it
+    controller->start(RegistrationType::RegisterAfterOnTransitionToPrimary);
 
-// TODO: Tricky: Primary becomes secondary during registration
-// TODO: Tricky: Primary becomes secondary during metrics collection
+    controller->turnCrankForTest(Turner().registerServer().collect(2));
 
-// TODO: OnDelete - make sure registration halts
-// TODO: OnDelete - make sure metrics halts
+    controller->notifyOnTransitionToPrimary();
 
-// TODO: OnDelete - on drop - make sure registration halts
-// TODO: OnDelete - on drop - make sure metrics halts
+    controller->turnCrankForTest(Turner().onTransitionToPrimary().registerCommand());
 
+    ASSERT_TRUE(FreeMonStorage::read(_opCtx.get()).is_initialized());
 
-// TODO: OnInsert - make sure reg starts
+    ASSERT_EQ(controller.registerCollector->count(), 1UL);
+    ASSERT_GTE(controller.metricsCollector->count(), 2UL);
+}
 
-// TODO: OnUpdate - make sure reg starts if needed
-// TODO: OnUpdate - make sure reg stops if needed
+// Positive: Test metrics works on secondary
+TEST_F(FreeMonControllerRSTest, StartupOnSecondary) {
+    ControllerHolder controller(_mockThreadPool.get(), FreeMonNetworkInterfaceMock::Options());
 
-// TODO: OnUpdate - make sure time changes
+    FreeMonStorage::replace(_opCtx.get(), initStorage(StorageStateEnum::enabled));
 
-// TODO: replication of invalid document in insert/update
+    // Now become a secondary, then primary, and try what happens when we become primary
+    ASSERT_OK(_getReplCoord()->setFollowerMode(repl::MemberState::RS_SECONDARY));
+
+    controller->start(RegistrationType::RegisterAfterOnTransitionToPrimary);
+
+    controller->turnCrankForTest(Turner().registerServer().registerCommand().collect());
+
+    ASSERT_TRUE(FreeMonStorage::read(_opCtx.get()).is_initialized());
+
+    // Validate the new registration id was not written
+    ASSERT_EQ(FreeMonStorage::read(_opCtx.get())->getRegistrationId(), "Foo");
+
+    ASSERT_EQ(controller.registerCollector->count(), 1UL);
+    ASSERT_GTE(controller.metricsCollector->count(), 1UL);
+}
+
+// Positive: Test registration occurs on replicated insert from primary
+TEST_F(FreeMonControllerRSTest, SecondaryStartOnInsert) {
+    ControllerHolder controller(_mockThreadPool.get(), FreeMonNetworkInterfaceMock::Options());
+
+    // Now become a secondary
+    ASSERT_OK(_getReplCoord()->setFollowerMode(repl::MemberState::RS_SECONDARY));
+
+    controller->start(RegistrationType::RegisterAfterOnTransitionToPrimary);
+
+    controller->turnCrankForTest(Turner().registerServer().collect(2));
+
+    controller->notifyOnUpsert(initStorage(StorageStateEnum::enabled).toBSON());
+
+    controller->turnCrankForTest(Turner().notifyUpsert().registerCommand().collect());
+
+    ASSERT_FALSE(FreeMonStorage::read(_opCtx.get()).is_initialized());
+
+    ASSERT_EQ(controller.registerCollector->count(), 1UL);
+    ASSERT_GTE(controller.metricsCollector->count(), 2UL);
+}
+
+// Positive: Test registration occurs on replicated update from primary
+TEST_F(FreeMonControllerRSTest, SecondaryStartOnUpdate) {
+    ControllerHolder controller(_mockThreadPool.get(), FreeMonNetworkInterfaceMock::Options());
+
+    FreeMonStorage::replace(_opCtx.get(), initStorage(StorageStateEnum::pending));
+
+    // Now become a secondary
+    ASSERT_OK(_getReplCoord()->setFollowerMode(repl::MemberState::RS_SECONDARY));
+
+    controller->start(RegistrationType::RegisterAfterOnTransitionToPrimary);
+
+    controller->turnCrankForTest(Turner().registerServer().collect(2));
+
+    controller->notifyOnUpsert(initStorage(StorageStateEnum::enabled).toBSON());
+
+    controller->turnCrankForTest(Turner().notifyUpsert().registerCommand().collect());
+
+    // Since there is no local write, it remains pending
+    ASSERT_TRUE(FreeMonStorage::read(_opCtx.get()).get().getState() == StorageStateEnum::pending);
+
+    ASSERT_EQ(controller.registerCollector->count(), 1UL);
+    ASSERT_GTE(controller.metricsCollector->count(), 2UL);
+}
+
+// Positive: Test Metrics works on secondary after opObserver de-register
+TEST_F(FreeMonControllerRSTest, SecondaryStopOnDeRegister) {
+    ControllerHolder controller(_mockThreadPool.get(), FreeMonNetworkInterfaceMock::Options());
+
+    FreeMonStorage::replace(_opCtx.get(), initStorage(StorageStateEnum::enabled));
+
+    // Now become a secondary
+    ASSERT_OK(_getReplCoord()->setFollowerMode(repl::MemberState::RS_SECONDARY));
+
+    controller->start(RegistrationType::RegisterAfterOnTransitionToPrimary);
+
+    controller->turnCrankForTest(Turner().registerServer().registerCommand().collect(1));
+
+    ASSERT_EQ(controller.metricsCollector->count(), 1UL);
+
+    controller->notifyOnUpsert(initStorage(StorageStateEnum::disabled).toBSON());
+
+    controller->turnCrankForTest(Turner().notifyUpsert().collect());
+
+    ASSERT_TRUE(FreeMonStorage::read(_opCtx.get()).is_initialized());
+
+    // Since there is no local write, it remains enabled
+    ASSERT_TRUE(FreeMonStorage::read(_opCtx.get()).get().getState() == StorageStateEnum::enabled);
+    
+    ASSERT_EQ(controller.registerCollector->count(), 1UL);
+    ASSERT_EQ(controller.metricsCollector->count(), 2UL);
+}
+
+// Negative: Tricky: Primary becomes secondary during registration
+TEST_F(FreeMonControllerRSTest, StepdownDuringRegistration) {
+    ControllerHolder controller(_mockThreadPool.get(), FreeMonNetworkInterfaceMock::Options());
+
+    controller->start(RegistrationType::RegisterAfterOnTransitionToPrimary);
+
+    ASSERT_OK(controller->registerServerCommand(Milliseconds::min()));
+
+    controller->turnCrankForTest(Turner().registerServer() + 1);
+
+    ASSERT_TRUE(FreeMonStorage::read(_opCtx.get()).get().getState() == StorageStateEnum::pending);
+
+    // Now become a secondary
+    ASSERT_OK(_getReplCoord()->setFollowerMode(repl::MemberState::RS_SECONDARY));
+
+    // Finish registration
+    controller->turnCrankForTest(1);
+    controller->turnCrankForTest(Turner().metricsSend().collect(1));
+
+    // Registration cannot write back to the local store so remain in pending
+    ASSERT_TRUE(FreeMonStorage::read(_opCtx.get()).get().getState() == StorageStateEnum::pending);
+
+    ASSERT_EQ(controller.registerCollector->count(), 1UL);
+    ASSERT_EQ(controller.metricsCollector->count(), 2UL);
+}
+
+// Negative: Tricky: Primary becomes secondary during metrics send
+TEST_F(FreeMonControllerRSTest, StepdownDuringMetricsSend) {
+    ControllerHolder controller(_mockThreadPool.get(), FreeMonNetworkInterfaceMock::Options());
+
+    controller->start(RegistrationType::RegisterAfterOnTransitionToPrimary);
+
+    ASSERT_OK(controller->registerServerCommand(Milliseconds::min()));
+
+    controller->turnCrankForTest(Turner().registerServer().registerCommand().collect());
+
+    // Finish registration
+    controller->turnCrankForTest(Turner().collect(1) + 1);
+
+    // Now become a secondary
+    ASSERT_OK(_getReplCoord()->setFollowerMode(repl::MemberState::RS_SECONDARY));
+
+    // Finish send
+    controller->turnCrankForTest(1);
+
+    ASSERT_EQ(controller.registerCollector->count(), 1UL);
+    ASSERT_EQ(controller.metricsCollector->count(), 2UL);
+}
+
+// Positive: Test Metrics works on secondary after opObserver delete of document
+TEST_F(FreeMonControllerRSTest, SecondaryStopOnDocumentDrop) {
+    ControllerHolder controller(_mockThreadPool.get(), FreeMonNetworkInterfaceMock::Options());
+
+    FreeMonStorage::replace(_opCtx.get(), initStorage(StorageStateEnum::enabled));
+
+    // Now become a secondary
+    ASSERT_OK(_getReplCoord()->setFollowerMode(repl::MemberState::RS_SECONDARY));
+
+    controller->start(RegistrationType::RegisterAfterOnTransitionToPrimary);
+
+    controller->turnCrankForTest(Turner().registerServer().registerCommand().collect(1));
+
+    ASSERT_EQ(controller.metricsCollector->count(), 1UL);
+
+    controller->notifyOnDelete();
+
+    controller->turnCrankForTest(Turner().notifyDelete().collect());
+
+    ASSERT_TRUE(FreeMonStorage::read(_opCtx.get()).is_initialized());
+
+    // Since there is no local write, it remains enabled
+    ASSERT_TRUE(FreeMonStorage::read(_opCtx.get()).get().getState() == StorageStateEnum::enabled);
+
+    ASSERT_EQ(controller.registerCollector->count(), 1UL);
+    ASSERT_EQ(controller.metricsCollector->count(), 2UL);
+}
+
+// Negative: Test nice shutdown on bad update
+TEST_F(FreeMonControllerRSTest, SecondaryStartOnBadUpdate) {
+    ControllerHolder controller(_mockThreadPool.get(), FreeMonNetworkInterfaceMock::Options());
+
+    FreeMonStorage::replace(_opCtx.get(), initStorage(StorageStateEnum::enabled));
+
+    // Now become a secondary
+    ASSERT_OK(_getReplCoord()->setFollowerMode(repl::MemberState::RS_SECONDARY));
+
+    controller->start(RegistrationType::RegisterAfterOnTransitionToPrimary);
+
+    controller->turnCrankForTest(Turner().registerServer().registerCommand().collect(2));
+
+    controller->notifyOnUpsert(BSON("version" << 2LL));
+
+    controller->turnCrankForTest(Turner().notifyUpsert());
+
+    // Since there is no local write, it remains enabled
+    ASSERT_TRUE(FreeMonStorage::read(_opCtx.get()).get().getState() == StorageStateEnum::enabled);
+
+    ASSERT_EQ(controller.registerCollector->count(), 1UL);
+    ASSERT_EQ(controller.metricsCollector->count(), 2UL);
+}
+
+// Positive: On rollback, start registration if needed
+TEST_F(FreeMonControllerRSTest, SecondaryRollbackStopMetrics) {
+    ControllerHolder controller(_mockThreadPool.get(), FreeMonNetworkInterfaceMock::Options());
+
+    FreeMonStorage::replace(_opCtx.get(), initStorage(StorageStateEnum::disabled));
+
+    // Now become a secondary
+    ASSERT_OK(_getReplCoord()->setFollowerMode(repl::MemberState::RS_SECONDARY));
+
+    controller->start(RegistrationType::RegisterAfterOnTransitionToPrimary);
+
+    controller->turnCrankForTest(Turner().registerServer().collect(2));
+
+    ASSERT_EQ(controller.metricsCollector->count(), 2UL);
+
+    // Simulate a rollback by writing out of band
+    FreeMonStorage::replace(_opCtx.get(), initStorage(StorageStateEnum::enabled));
+
+    controller->notifyOnRollback();
+
+    controller->turnCrankForTest(Turner().notifyOnRollback().registerCommand().collect(2));
+
+    // Since there is no local write, it remains enabled
+    ASSERT_TRUE(FreeMonStorage::read(_opCtx.get()).get().getState() == StorageStateEnum::enabled);
+
+    ASSERT_EQ(controller.registerCollector->count(), 1UL);
+    ASSERT_EQ(controller.metricsCollector->count(), 4UL);
+}
+
+// TODO: rollback - after registration
+
+// TODO: validate handling of 404 and other errors - avoid decoding them as BSON
+
+// TODO: tricky - OnUpser - disable - OnDelete - make sure registration halts
+// TODO: tricky - OnDelete - make sure registration halts
+
+// TODO: Integration: Tricky - secondary as marked via command line - enableCloudFreeMOnitorig = false but a primary replicates a change to enable it
+// TODO: test array of strings for tags
+// TODO: test SSL???
+
+// TODO: test registerCommand and getStatus commands 
 
 }  // namespace
 }  // namespace mongo

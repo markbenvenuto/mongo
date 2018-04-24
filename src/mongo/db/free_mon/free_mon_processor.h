@@ -381,16 +381,26 @@ private:
     void doOnTransitionToPrimary(Client* client);
 
     /**
-    * Process that the storage has received insert or update.
+    * Process a notification that storage has received insert or update.
     */
     void doNotifyOnUpsert(Client* client,
                           const FreeMonMessageWithPayload<FreeMonMessageType::NotifyOnUpsert>* msg);
 
     /**
-    * Process that the storage has received delete or drop collection.
+    * Process a notification that storage has received delete or drop collection.
     */
     void doNotifyOnDelete(Client* client);
 
+
+    /**
+    * Process a notification that storage has rolled back.
+    */
+    void doNotifyOnRollback(Client* client);
+
+    /**
+     * Process a in-memory state transition of state.
+     */
+    void processInMemoryStateChange(const FreeMonStorageState& originalState, const FreeMonStorageState& newState);
 
 private:
     // Collection of collectors to send on registration
@@ -431,9 +441,6 @@ private:
 
     // When we change to primary, do we register?
     bool _registerOnTransitionToPrimary{false};
-
-    // How was the server configured at startup?
-    RegistrationType _registrationType;
 
     // Pending update to disk
     FreeMonStorageState _state;

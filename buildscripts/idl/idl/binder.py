@@ -449,6 +449,7 @@ def _validate_field_of_type_enum(ctxt, field):
     # type: (errors.ParserContext, syntax.Field) -> None
     """Validate that for fields with a type of enum, no other properties are set."""
     if field.default is not None:
+        # Validate that the default is a valid value
         ctxt.add_enum_field_must_be_empty_error(field, field.name, "default")
 
 
@@ -576,6 +577,7 @@ def _bind_field(ctxt, parsed_spec, field):
         enum_type_info = enum_types.get_type_info(cast(syntax.Enum, syntax_symbol))
 
         ast_field.enum_type = True
+        ast_field.default = field.default
         ast_field.cpp_type = enum_type_info.get_qualified_cpp_type_name()
         ast_field.bson_serialization_type = enum_type_info.get_bson_types()
         ast_field.serializer = enum_type_info.get_enum_serializer_name()

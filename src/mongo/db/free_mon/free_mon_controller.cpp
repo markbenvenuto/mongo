@@ -94,7 +94,7 @@ boost::optional<Status> FreeMonController::registerServerCommand(Milliseconds ti
     return Status::OK();
 }
 
-boost::optional<Status> FreeMonController::unregisterServerCommand(Milliseconds timeout) {
+boost::optional<Status> FreeMonController::unregisterServerCommand(Milliseconds timeout){ 
     auto msg =
         FreeMonWaitableMessageWithPayload<FreeMonMessageType::UnregisterCommand>::createNow(true);
     _enqueue(msg);
@@ -128,6 +128,13 @@ void FreeMonController::notifyOnTransitionToPrimary() {
     _enqueue(FreeMonMessage::createNow(FreeMonMessageType::OnTransitionToPrimary));
 }
 
+void FreeMonController::notifyOnRollback() {
+    log() << "On notifyOnRollback ";
+
+
+    _enqueue(FreeMonMessage::createNow(FreeMonMessageType::NotifyOnRollback));
+}
+
 void FreeMonController::_enqueue(std::shared_ptr<FreeMonMessage> msg) {
     {
         stdx::lock_guard<stdx::mutex> lock(_mutex);
@@ -157,8 +164,10 @@ void FreeMonController::start(RegistrationType registrationType) {
         _state = State::kStarted;
     }
 
-    std::vector<std::string> vec;
-    registerServerStartup(registrationType, vec);
+    if (registrationType != RegistrationType::DoNotRegister) {
+        std::vector<std::string> vec;
+        registerServerStartup(registrationType, vec);
+    }
 }
 
 void FreeMonController::stop() {

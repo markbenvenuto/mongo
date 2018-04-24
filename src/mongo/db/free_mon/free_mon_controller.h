@@ -136,6 +136,11 @@ public:
      */
     void notifyOnTransitionToPrimary();
 
+    /**
+     * Notify that storage has rolled back
+     */
+    void notifyOnRollback();
+
 private:
     void _enqueue(std::shared_ptr<FreeMonMessage> msg);
 

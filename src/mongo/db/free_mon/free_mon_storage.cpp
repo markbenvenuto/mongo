@@ -38,6 +38,7 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/db/repl/storage_interface.h"
 #include "mongo/util/assert_util.h"
+#include "mongo/db/repl/replication_coordinator.h"
 
 namespace mongo {
 
@@ -64,7 +65,7 @@ boost::optional<FreeMonStorageState> FreeMonStorage::read(OperationContext* opCt
         opCtx, NamespaceString::kServerConfigurationNamespace, elementKey);
     if (!swObj.isOK()) {
         if (swObj.getStatus() == ErrorCodes::NoSuchKey || swObj.getStatus() == ErrorCodes::NamespaceNotFound) {
-            return {};
+            return{};
         }
 
         uassertStatusOK(swObj.getStatus());
@@ -85,10 +86,12 @@ void FreeMonStorage::replace(OperationContext* opCtx, const FreeMonStorageState&
         Lock::CollectionLock lk(
             opCtx->lockState(), NamespaceString::kServerConfigurationNamespace.ns(), MODE_IS);
 
-        auto swObj = storageInterface->upsertById(
-            opCtx, NamespaceString::kServerConfigurationNamespace, elementKey, obj);
-        if (!swObj.isOK()) {
-            uassertStatusOK(swObj);
+        if (repl::ReplicationCoordinator::get(opCtx)->canAcceptWritesFor(opCtx, NamespaceString::kServerConfigurationNamespace)) {
+            auto swObj = storageInterface->upsertById(
+                opCtx, NamespaceString::kServerConfigurationNamespace, elementKey, obj);
+            if (!swObj.isOK()) {
+                uassertStatusOK(swObj);
+            }
         }
     }
 }
@@ -103,15 +106,18 @@ void FreeMonStorage::deleteState(OperationContext* opCtx) {
         Lock::CollectionLock lk(
             opCtx->lockState(), NamespaceString::kServerConfigurationNamespace.ns(), MODE_IS);
 
-        auto swObj = storageInterface->deleteById(
-            opCtx, NamespaceString::kServerConfigurationNamespace, elementKey);
-        if (!swObj.isOK()) {
-            // Ignore errors about no document
-            if (swObj.getStatus() == ErrorCodes::NoSuchKey) {
-                return;
-            }
+        if (repl::ReplicationCoordinator::get(opCtx)->canAcceptWritesFor(opCtx, NamespaceString::kServerConfigurationNamespace)) {
 
-            uassertStatusOK(swObj);
+            auto swObj = storageInterface->deleteById(
+                opCtx, NamespaceString::kServerConfigurationNamespace, elementKey);
+            if (!swObj.isOK()) {
+                // Ignore errors about no document
+                if (swObj.getStatus() == ErrorCodes::NoSuchKey) {
+                    return;
+                }
+
+                uassertStatusOK(swObj);
+            }
         }
     }
 }

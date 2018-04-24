@@ -96,14 +96,19 @@ enum class FreeMonMessageType {
     OnTransitionToPrimary,
 
     /**
-     * Notify that the storage has received insert or update.
+     * Notify that storage has received an insert or update.
      */
     NotifyOnUpsert,
 
     /**
-     * Notify that the storage has received delete or drop collection.
+     * Notify that storage has received a delete or drop collection.
      */
     NotifyOnDelete,
+
+    /**
+     * Notify that storage has been rolled back.
+     */
+    NotifyOnRollback,
 };
 
 /**

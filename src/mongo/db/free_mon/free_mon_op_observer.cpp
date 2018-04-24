@@ -131,7 +131,17 @@ void FreeMonOpObserver::onDelete(OperationContext* opCtx,
 }
 
 void FreeMonOpObserver::onReplicationRollback(OperationContext* opCtx,
-                                              const RollbackObserverInfo& rbInfo) {}
+                                              const RollbackObserverInfo& rbInfo) {
+    // Invalidate any in-memory auth data if necessary.
+    const auto& rollbackNamespaces = rbInfo.rollbackNamespaces;
+    if (rollbackNamespaces.count(NamespaceString::kServerConfigurationNamespace) == 1) {
+        auto controller = FreeMonController::get(opCtx->getServiceContext());
+
+        if (controller != nullptr) {
+            controller->notifyOnRollback();
+        }
+    }
+}
 
 
 }  // namespace mongo
