@@ -76,7 +76,11 @@ void ClientMetadataIsMasterState::setClientMetadata(
 
 Status ClientMetadataIsMasterState::readFromMetadata(OperationContext* opCtx,
                                                      BSONElement& element) {
+    auto& clientMetadataIsMasterState = ClientMetadataIsMasterState::get(opCtx->getClient());
+
     if (element.eoo()) {
+        clientMetadataIsMasterState.setClientMetadata(opCtx->getClient(),
+                                                    boost::none);
         return Status::OK();
     }
 
@@ -85,8 +89,6 @@ Status ClientMetadataIsMasterState::readFromMetadata(OperationContext* opCtx,
     if (!swParseClientMetadata.getStatus().isOK()) {
         return swParseClientMetadata.getStatus();
     }
-
-    auto& clientMetadataIsMasterState = ClientMetadataIsMasterState::get(opCtx->getClient());
 
     clientMetadataIsMasterState.setClientMetadata(opCtx->getClient(),
                                                   std::move(swParseClientMetadata.getValue()));
