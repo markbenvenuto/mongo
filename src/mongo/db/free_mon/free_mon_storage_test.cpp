@@ -170,16 +170,16 @@ TEST_F(FreeMonStorageTest, TestSecondary) {
 
     FreeMonStorageState initialState =
         FreeMonStorageState::parse(IDLParserErrorContext("foo"),
-            BSON("version" << 1LL << "state"
-                << "enabled"
-                << "registrationId"
-                << "1234"
-                << "informationalURL"
-                << "http://example.com"
-                << "message"
-                << "hello"
-                << "userReminder"
-                << ""));
+                                   BSON("version" << 1LL << "state"
+                                                  << "enabled"
+                                                  << "registrationId"
+                                                  << "1234"
+                                                  << "informationalURL"
+                                                  << "http://example.com"
+                                                  << "message"
+                                                  << "hello"
+                                                  << "userReminder"
+                                                  << ""));
 
     FreeMonStorage::replace(_opCtx.get(), initialState);
 
@@ -196,16 +196,16 @@ TEST_F(FreeMonStorageTest, TestSecondary) {
 
     FreeMonStorageState updatedState =
         FreeMonStorageState::parse(IDLParserErrorContext("foo"),
-            BSON("version" << 2LL << "state"
-                << "enabled"
-                << "registrationId"
-                << "1234"
-                << "informationalURL"
-                << "http://example.com"
-                << "message"
-                << "hello"
-                << "userReminder"
-                << ""));
+                                   BSON("version" << 2LL << "state"
+                                                  << "enabled"
+                                                  << "registrationId"
+                                                  << "1234"
+                                                  << "informationalURL"
+                                                  << "http://example.com"
+                                                  << "message"
+                                                  << "hello"
+                                                  << "userReminder"
+                                                  << ""));
 
 
     {

@@ -94,7 +94,7 @@ boost::optional<Status> FreeMonController::registerServerCommand(Milliseconds ti
     return Status::OK();
 }
 
-boost::optional<Status> FreeMonController::unregisterServerCommand(Milliseconds timeout){ 
+boost::optional<Status> FreeMonController::unregisterServerCommand(Milliseconds timeout) {
     auto msg =
         FreeMonWaitableMessageWithPayload<FreeMonMessageType::UnregisterCommand>::createNow(true);
     _enqueue(msg);
@@ -116,8 +116,8 @@ void FreeMonController::notifyOnUpsert(const BSONObj& doc) {
 
 void FreeMonController::notifyOnDelete() {
     log() << "On notifyOnDelete ";
-        
-        _enqueue(FreeMonMessage::createNow(FreeMonMessageType::NotifyOnDelete));
+
+    _enqueue(FreeMonMessage::createNow(FreeMonMessageType::NotifyOnDelete));
 }
 
 

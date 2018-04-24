@@ -346,9 +346,9 @@ void FreeMonProcessor::doServerRegister(
     } else {
         MONGO_UNREACHABLE;
     }
-    
+
     // Enqueue the first metrics gather unless we are not going to register
-        enqueue(FreeMonMessage::createNow(FreeMonMessageType::MetricsCollect));
+    enqueue(FreeMonMessage::createNow(FreeMonMessageType::MetricsCollect));
 }
 
 namespace {
@@ -846,8 +846,8 @@ void FreeMonProcessor::doOnTransitionToPrimary(Client* client) {
     }
 }
 
-void FreeMonProcessor::processInMemoryStateChange(const FreeMonStorageState& originalState, const FreeMonStorageState& newState)
-{
+void FreeMonProcessor::processInMemoryStateChange(const FreeMonStorageState& originalState,
+                                                  const FreeMonStorageState& newState) {
     // Are we transition from disabled -> enabled?
     if (originalState.getState() != newState.getState()) {
         if (originalState.getState() != StorageStateEnum::enabled &&
@@ -871,10 +871,10 @@ void FreeMonProcessor::doNotifyOnUpsert(
             uassert(50797,
                     str::stream() << "Unexpected free monitoring storage version "
                                   << newState.getVersion(),
-                newState.getVersion() == kStorageVersion);
+                    newState.getVersion() == kStorageVersion);
 
             processInMemoryStateChange(_state, newState);
-            
+
             // Note: enabled -> disabled is handled implicitly by register and send metrics checks
             // after _state is updated below
 
@@ -909,14 +909,13 @@ void FreeMonProcessor::doNotifyOnRollback(Client* client) {
     auto originalState = _state;
 
     // Re-read state from disk
-     readState(client);
+    readState(client);
 
-     auto& newState = _state;
+    auto& newState = _state;
 
-     if (newState != originalState) {
-         processInMemoryStateChange(originalState, newState);
-     }
-
+    if (newState != originalState) {
+        processInMemoryStateChange(originalState, newState);
+    }
 }
 
 

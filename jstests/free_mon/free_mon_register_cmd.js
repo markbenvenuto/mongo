@@ -17,12 +17,12 @@ load("jstests/free_mon/libs/free_mon.js");
     const conn = MongoRunner.runMongod(options);
     assert.neq(null, conn, 'mongod was unable to start up');
 
-    assert.commandWorked(conn.adminCommand({setFreeMonitoring : 1, action : "enable"}))
+    assert.commandWorked(conn.adminCommand({setFreeMonitoring: 1, action: "enable"}))
 
-    // The command should either timeout or suceed after registration is complete
-    const retStatus1 = conn.adminCommand({getFreeMonitoringStatus : 1});
+        // The command should either timeout or suceed after registration is complete
+        const retStatus1 = conn.adminCommand({getFreeMonitoringStatus: 1});
     assert.commandWorked(retStatus1);
-    assert.eq(retStatus1.state,"enabled", tojson(retStatus1));
+    assert.eq(retStatus1.state, "enabled", tojson(retStatus1));
 
     const stats = mock_web.queryStats();
     print(tojson(stats));
@@ -45,17 +45,18 @@ load("jstests/free_mon/libs/free_mon.js");
 
     assert.eq(last_metrics.version, 1);
 
-    assert.commandWorked(conn.adminCommand({setFreeMonitoring : 1, action : "disable"}))
+    assert
+        .commandWorked(conn.adminCommand({setFreeMonitoring: 1, action: "disable"}))
 
-    // Wait for unregistration to occur
-    assert.soon(function() {
-        const regDoc = FreeMonGetRegistration(conn);
-                return regDoc.state == "disabled";
-    }, "Failed to unregister", 60 * 1000);
+        // Wait for unregistration to occur
+        assert.soon(function() {
+            const regDoc = FreeMonGetRegistration(conn);
+            return regDoc.state == "disabled";
+        }, "Failed to unregister", 60 * 1000);
 
-    const retStatus2 = conn.adminCommand({getFreeMonitoringStatus : 1});
+    const retStatus2 = conn.adminCommand({getFreeMonitoringStatus: 1});
     assert.commandWorked(retStatus2);
-    assert.eq(retStatus2.state,"disabled", tojson(retStatus1));
+    assert.eq(retStatus2.state, "disabled", tojson(retStatus1));
 
     MongoRunner.stopMongod(conn);
 

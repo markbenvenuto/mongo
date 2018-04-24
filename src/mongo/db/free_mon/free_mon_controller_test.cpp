@@ -45,6 +45,7 @@
 #include "mongo/bson/bsonmisc.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/client.h"
+#include "mongo/db/free_mon/free_mon_op_observer.h"
 #include "mongo/db/ftdc/collector.h"
 #include "mongo/db/ftdc/config.h"
 #include "mongo/db/ftdc/constants.h"
@@ -56,7 +57,6 @@
 #include "mongo/db/repl/replication_coordinator_mock.h"
 #include "mongo/db/repl/storage_interface.h"
 #include "mongo/db/repl/storage_interface_impl.h"
-#include "mongo/db/free_mon/free_mon_op_observer.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/service_context_d_test_fixture.h"
 #include "mongo/db/service_context_noop.h"
@@ -413,7 +413,7 @@ void FreeMonControllerTest::setUp() {
     auto service = getServiceContext();
 
     repl::ReplicationCoordinator::set(service,
-        std::make_unique<repl::ReplicationCoordinatorMock>(service));
+                                      std::make_unique<repl::ReplicationCoordinatorMock>(service));
 
     // Set up a NetworkInterfaceMock. Note, unlike NetworkInterfaceASIO, which has its own pool of
     // threads, tasks in the NetworkInterfaceMock must be carried out synchronously by the (single)
@@ -1237,7 +1237,6 @@ class FreeMonControllerRSTest : public FreeMonControllerTest {
 private:
     void setUp() final;
     void tearDown() final;
-
 };
 
 void FreeMonControllerRSTest::setUp() {
@@ -1368,7 +1367,7 @@ TEST_F(FreeMonControllerRSTest, SecondaryStopOnDeRegister) {
 
     // Since there is no local write, it remains enabled
     ASSERT_TRUE(FreeMonStorage::read(_opCtx.get()).get().getState() == StorageStateEnum::enabled);
-    
+
     ASSERT_EQ(controller.registerCollector->count(), 1UL);
     ASSERT_EQ(controller.metricsCollector->count(), 2UL);
 }
@@ -1497,7 +1496,8 @@ TEST_F(FreeMonControllerRSTest, SecondaryRollbackStopMetrics) {
 
     controller->notifyOnRollback();
 
-    controller->turnCrankForTest(Turner().notifyOnRollback().registerCommand().collect(2).metricsSend());
+    controller->turnCrankForTest(
+        Turner().notifyOnRollback().registerCommand().collect(2).metricsSend());
 
     // Since there is no local write, it remains enabled
     ASSERT_TRUE(FreeMonStorage::read(_opCtx.get()).get().getState() == StorageStateEnum::enabled);
@@ -1511,11 +1511,12 @@ TEST_F(FreeMonControllerRSTest, SecondaryRollbackStopMetrics) {
 // TODO: tricky - OnUpser - disable - OnDelete - make sure registration halts
 // TODO: tricky - OnDelete - make sure registration halts
 
-// TODO: Integration: Tricky - secondary as marked via command line - enableCloudFreeMOnitorig = false but a primary replicates a change to enable it
+// TODO: Integration: Tricky - secondary as marked via command line - enableCloudFreeMOnitorig =
+// false but a primary replicates a change to enable it
 // TODO: test array of strings for tags
 // TODO: test SSL???
 
-// TODO: test registerCommand and getStatus commands 
+// TODO: test registerCommand and getStatus commands
 
 }  // namespace
 }  // namespace mongo

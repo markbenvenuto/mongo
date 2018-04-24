@@ -45,7 +45,7 @@ namespace {
 class GetFreeMonitoringStatusCommandStub : public BasicCommand {
 public:
     GetFreeMonitoringStatusCommandStub() : BasicCommand("getFreeMonitoringStatus") {}
-    
+
     bool adminOnly() const override {
         return true;
     }

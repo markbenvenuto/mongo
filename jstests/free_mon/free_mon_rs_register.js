@@ -38,7 +38,5 @@ load("jstests/free_mon/libs/free_mon.js");
 
     rst.stopSet();
 
-
-    
     mock_web.stop();
 })();

@@ -400,7 +400,8 @@ private:
     /**
      * Process a in-memory state transition of state.
      */
-    void processInMemoryStateChange(const FreeMonStorageState& originalState, const FreeMonStorageState& newState);
+    void processInMemoryStateChange(const FreeMonStorageState& originalState,
+                                    const FreeMonStorageState& newState);
 
 private:
     // Collection of collectors to send on registration

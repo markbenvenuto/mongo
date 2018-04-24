@@ -46,7 +46,7 @@ const auto kRegisterSyncTimeout = Milliseconds{5000};
 class GetFreeMonitoringStatusCommand : public BasicCommand {
 public:
     GetFreeMonitoringStatusCommand() : BasicCommand("getFreeMonitoringStatus") {}
-    
+
     bool adminOnly() const override {
         return true;
     }
@@ -129,7 +129,11 @@ public:
         auto* controller = FreeMonController::get(opCtx->getServiceContext());
         if (!controller) {
             // Pending operation.
-            return CommandHelpers::appendCommandStatus(result, Status(ErrorCodes::FreeMonHttpInFlight, "Free Monitoring has been disabled via the command-line and/or config file"));
+            return CommandHelpers::appendCommandStatus(
+                result,
+                Status(
+                    ErrorCodes::FreeMonHttpInFlight,
+                    "Free Monitoring has been disabled via the command-line and/or config file"));
         }
 
         boost::optional<Status> optStatus = boost::none;

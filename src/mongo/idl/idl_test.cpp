@@ -1526,7 +1526,7 @@ TEST(IDLEnum, TestEnum) {
     auto testStruct = StructWithEnum::parse(ctxt, testDoc);
     ASSERT_TRUE(testStruct.getField1() == IntEnum::c2);
     ASSERT_TRUE(testStruct.getField2() == StringEnumEnum::s0);
-        ASSERT_TRUE(testStruct.getFieldDefault() == StringEnumEnum::s1);
+    ASSERT_TRUE(testStruct.getFieldDefault() == StringEnumEnum::s1);
 
     assert_same_types<decltype(testStruct.getField1()), IntEnum>();
     assert_same_types<decltype(testStruct.getField1o()), const boost::optional<IntEnum>>();
@@ -1534,8 +1534,10 @@ TEST(IDLEnum, TestEnum) {
     assert_same_types<decltype(testStruct.getField2o()), const boost::optional<StringEnumEnum>>();
     assert_same_types<decltype(testStruct.getFieldDefault()), StringEnumEnum>();
 
-        auto testSerializedDoc = BSON("field1" << 2 << "field2"
-                                    << "zero" << "fieldDefault" << "one");
+    auto testSerializedDoc = BSON("field1" << 2 << "field2"
+                                           << "zero"
+                                           << "fieldDefault"
+                                           << "one");
 
 
     // Positive: Test we can roundtrip from the just parsed document

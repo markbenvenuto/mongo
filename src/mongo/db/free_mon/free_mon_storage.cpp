@@ -36,9 +36,9 @@
 #include "mongo/db/concurrency/lock_manager_defs.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/operation_context.h"
+#include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/repl/storage_interface.h"
 #include "mongo/util/assert_util.h"
-#include "mongo/db/repl/replication_coordinator.h"
 
 namespace mongo {
 
@@ -64,8 +64,9 @@ boost::optional<FreeMonStorageState> FreeMonStorage::read(OperationContext* opCt
     auto swObj = storageInterface->findById(
         opCtx, NamespaceString::kServerConfigurationNamespace, elementKey);
     if (!swObj.isOK()) {
-        if (swObj.getStatus() == ErrorCodes::NoSuchKey || swObj.getStatus() == ErrorCodes::NamespaceNotFound) {
-            return{};
+        if (swObj.getStatus() == ErrorCodes::NoSuchKey ||
+            swObj.getStatus() == ErrorCodes::NamespaceNotFound) {
+            return {};
         }
 
         uassertStatusOK(swObj.getStatus());
@@ -86,7 +87,8 @@ void FreeMonStorage::replace(OperationContext* opCtx, const FreeMonStorageState&
         Lock::CollectionLock lk(
             opCtx->lockState(), NamespaceString::kServerConfigurationNamespace.ns(), MODE_IS);
 
-        if (repl::ReplicationCoordinator::get(opCtx)->canAcceptWritesFor(opCtx, NamespaceString::kServerConfigurationNamespace)) {
+        if (repl::ReplicationCoordinator::get(opCtx)->canAcceptWritesFor(
+                opCtx, NamespaceString::kServerConfigurationNamespace)) {
             auto swObj = storageInterface->upsertById(
                 opCtx, NamespaceString::kServerConfigurationNamespace, elementKey, obj);
             if (!swObj.isOK()) {
@@ -106,7 +108,8 @@ void FreeMonStorage::deleteState(OperationContext* opCtx) {
         Lock::CollectionLock lk(
             opCtx->lockState(), NamespaceString::kServerConfigurationNamespace.ns(), MODE_IS);
 
-        if (repl::ReplicationCoordinator::get(opCtx)->canAcceptWritesFor(opCtx, NamespaceString::kServerConfigurationNamespace)) {
+        if (repl::ReplicationCoordinator::get(opCtx)->canAcceptWritesFor(
+                opCtx, NamespaceString::kServerConfigurationNamespace)) {
 
             auto swObj = storageInterface->deleteById(
                 opCtx, NamespaceString::kServerConfigurationNamespace, elementKey);
