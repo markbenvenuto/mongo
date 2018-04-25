@@ -868,7 +868,7 @@ void FreeMonProcessor::doNotifyOnUpsert(
 
         // Likely, the update changed something
         if (newState != _state) {
-            uassert(50797,
+            uassert(50808,
                     str::stream() << "Unexpected free monitoring storage version "
                                   << newState.getVersion(),
                     newState.getVersion() == kStorageVersion);

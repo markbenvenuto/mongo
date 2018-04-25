@@ -857,7 +857,8 @@ struct ControllerHolder {
 
     std::unique_ptr<FreeMonController> controller;
 };
-#if 0
+
+
 // Positive: Test Register works
 TEST_F(FreeMonControllerTest, TestRegister) {
     ControllerHolder controller(_mockThreadPool.get(), FreeMonNetworkInterfaceMock::Options());
@@ -959,7 +960,6 @@ TEST_F(FreeMonControllerTest, TestMetricsWithEmptyStorage) {
     ASSERT_EQ(controller.registerCollector->count(), 0UL);
     ASSERT_GTE(controller.metricsCollector->count(), 4UL);
 }
-#endif
 
 FreeMonStorageState initStorage(StorageStateEnum e) {
     FreeMonStorageState storage;
@@ -973,7 +973,6 @@ FreeMonStorageState initStorage(StorageStateEnum e) {
     return storage;
 }
 
-#if 0
 // Positive: Test Metrics is collected and implicit registration happens when storage is initialized
 TEST_F(FreeMonControllerTest, TestMetricsWithEnabledStorage) {
     ControllerHolder controller(_mockThreadPool.get(), FreeMonNetworkInterfaceMock::Options());
@@ -1231,7 +1230,7 @@ TEST_F(FreeMonControllerTest, TestMetricBatchingOnErrorRealtime) {
     ASSERT_TRUE(controller.network->waitMetricsCalls(1, Seconds(5)).is_initialized());
     ASSERT_EQ(controller.network->getLastMetrics().size(), 2UL);
 }
-#endif
+
 
 class FreeMonControllerRSTest : public FreeMonControllerTest {
 private:
@@ -1506,17 +1505,13 @@ TEST_F(FreeMonControllerRSTest, SecondaryRollbackStopMetrics) {
     ASSERT_EQ(controller.metricsCollector->count(), 4UL);
 }
 
-// TODO: validate handling of 404 and other errors - avoid decoding them as BSON, curl TODO
-
 // TODO: tricky - OnUpser - disable - OnDelete - make sure registration halts
 // TODO: tricky - OnDelete - make sure registration halts
 
 // TODO: Integration: Tricky - secondary as marked via command line - enableCloudFreeMOnitorig =
 // false but a primary replicates a change to enable it
-// TODO: test array of strings for tags
-// TODO: test SSL???
 
-// TODO: test registerCommand and getStatus commands
+// TODO: test SSL???
 
 }  // namespace
 }  // namespace mongo

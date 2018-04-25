@@ -144,7 +144,7 @@ void FreeMonController::_enqueue(std::shared_ptr<FreeMonMessage> msg) {
     _processor->enqueue(std::move(msg));
 }
 
-void FreeMonController::start(RegistrationType registrationType) {
+void FreeMonController::start(RegistrationType registrationType, const std::vector<std::string>& tags) {
     {
         stdx::lock_guard<stdx::mutex> lock(_mutex);
 
@@ -165,8 +165,7 @@ void FreeMonController::start(RegistrationType registrationType) {
     }
 
     if (registrationType != RegistrationType::DoNotRegister) {
-        std::vector<std::string> vec;
-        registerServerStartup(registrationType, vec);
+        registerServerStartup(registrationType, tags);
     }
 }
 

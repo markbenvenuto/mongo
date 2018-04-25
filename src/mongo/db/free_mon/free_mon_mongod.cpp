@@ -326,7 +326,7 @@ void startFreeMonitoring(ServiceContext* serviceContext) {
         registrationType = RegistrationType::RegisterAfterOnTransitionToPrimary;
     }
 
-    controllerPtr->start(registrationType);
+    controllerPtr->start(registrationType, globalFreeMonParams.freeMonitoringTags);
 }
 
 void stopFreeMonitoring() {
