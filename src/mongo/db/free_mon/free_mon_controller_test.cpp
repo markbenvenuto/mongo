@@ -1506,7 +1506,7 @@ TEST_F(FreeMonControllerRSTest, SecondaryRollbackStopMetrics) {
     ASSERT_EQ(controller.metricsCollector->count(), 4UL);
 }
 
-// TODO: validate handling of 404 and other errors - avoid decoding them as BSON
+// TODO: validate handling of 404 and other errors - avoid decoding them as BSON, curl TODO
 
 // TODO: tricky - OnUpser - disable - OnDelete - make sure registration halts
 // TODO: tricky - OnDelete - make sure registration halts
