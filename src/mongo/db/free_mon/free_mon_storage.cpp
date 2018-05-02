@@ -57,9 +57,7 @@ boost::optional<FreeMonStorageState> FreeMonStorage::read(OperationContext* opCt
 
     auto storageInterface = repl::StorageInterface::get(opCtx);
 
-    Lock::DBLock dblk(opCtx, NamespaceString::kServerConfigurationNamespace.db(), MODE_IS);
-    Lock::CollectionLock lk(
-        opCtx->lockState(), NamespaceString::kServerConfigurationNamespace.ns(), MODE_IS);
+    AutoGetCollectionForRead autoRead(opCtx, NamespaceString::kServerConfigurationNamespace);
 
     auto swObj = storageInterface->findById(
         opCtx, NamespaceString::kServerConfigurationNamespace, elementKey);
@@ -83,9 +81,7 @@ void FreeMonStorage::replace(OperationContext* opCtx, const FreeMonStorageState&
 
     auto storageInterface = repl::StorageInterface::get(opCtx);
     {
-        Lock::DBLock dblk(opCtx, NamespaceString::kServerConfigurationNamespace.db(), MODE_IS);
-        Lock::CollectionLock lk(
-            opCtx->lockState(), NamespaceString::kServerConfigurationNamespace.ns(), MODE_IS);
+    AutoGetCollection autoWrite(opCtx, NamespaceString::kServerConfigurationNamespace,  MODE_IX);
 
         if (repl::ReplicationCoordinator::get(opCtx)->canAcceptWritesFor(
                 opCtx, NamespaceString::kServerConfigurationNamespace)) {
@@ -104,9 +100,7 @@ void FreeMonStorage::deleteState(OperationContext* opCtx) {
 
     auto storageInterface = repl::StorageInterface::get(opCtx);
     {
-        Lock::DBLock dblk(opCtx, NamespaceString::kServerConfigurationNamespace.db(), MODE_IS);
-        Lock::CollectionLock lk(
-            opCtx->lockState(), NamespaceString::kServerConfigurationNamespace.ns(), MODE_IS);
+    AutoGetCollection autoWrite(opCtx, NamespaceString::kServerConfigurationNamespace,  MODE_IX);
 
         if (repl::ReplicationCoordinator::get(opCtx)->canAcceptWritesFor(
                 opCtx, NamespaceString::kServerConfigurationNamespace)) {
@@ -128,9 +122,7 @@ void FreeMonStorage::deleteState(OperationContext* opCtx) {
 boost::optional<BSONObj> FreeMonStorage::readClusterManagerState(OperationContext* opCtx) {
     auto storageInterface = repl::StorageInterface::get(opCtx);
 
-    Lock::DBLock dblk(opCtx, NamespaceString::kServerConfigurationNamespace.db(), MODE_IS);
-    Lock::CollectionLock lk(
-        opCtx->lockState(), NamespaceString::kServerConfigurationNamespace.ns(), MODE_IS);
+    AutoGetCollectionForRead autoRead(opCtx, NamespaceString::kServerConfigurationNamespace);
 
     auto swObj = storageInterface->findSingleton(opCtx, localClusterManagerNss);
     if (!swObj.isOK()) {
