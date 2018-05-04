@@ -298,6 +298,8 @@ StatusWith<std::string> mapSubjectLabel(::CFStringRef label) {
         return {"DC"};
     } else if (!::CFStringCompare(label, CFSTR("0.9.2342.19200300.100.1.1"), 0)) {
         return {"UID"};
+    } else if (!::CFStringCompare(label, ::kSecOIDEmailAddress, 0)) {
+        return {"emailAddress"};
     }
     // RFC 2253 specifies #hexstring encoding for unknown OIDs,
     // however for backward compatibility purposes, we omit these.

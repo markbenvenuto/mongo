@@ -199,7 +199,9 @@ void FreeMonController::turnCrankForTest(size_t countMessagesToIgnore) {
 void FreeMonController::getServerStatus(OperationContext* opCtx, BSONObjBuilder* status) {
     if (!_processor) {
         status->append("state", "disabled");
+        return;
     }
+    
     _processor->getServerStatus(opCtx, status);
 }
 
