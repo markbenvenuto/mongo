@@ -710,15 +710,18 @@ void FreeMonProcessor::doMetricsCollect(Client* client) {
 }
 
 std::string compressMetrics(MetricsBuffer& buffer) {
-    BSONArrayBuilder payload;
+    BSONObjBuilder payload;
 
-    for (const auto& obj : buffer) {
-        payload.append(obj);
+    {
+        BSONArrayBuilder arrayBuilder(builder->subarrayStart("data"));
+
+        for (const auto& obj : buffer) {
+            arrayBuilder.append(obj);
+        }
     }
-    auto arr = payload.arr();
 
     std::string outBuffer;
-    snappy::Compress(arr.objdata(), arr.objsize(), &outBuffer);
+    snappy::Compress(payload.objdata(), payload.objsize(), &outBuffer);
 
     return outBuffer;
 }

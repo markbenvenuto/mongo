@@ -136,7 +136,7 @@ private:
     std::uint32_t _wait{0};
 };
 
-BSONArray decompressMetrics(ConstDataRange cdr) {
+BSONObj decompressMetrics(ConstDataRange cdr) {
     std::string outBuffer;
     snappy::Uncompress(cdr.data(), cdr.length(), &outBuffer);
 
@@ -144,9 +144,8 @@ BSONArray decompressMetrics(ConstDataRange cdr) {
     auto swObj = raw.read<Validated<BSONObj>>();
     ASSERT_OK(swObj.getStatus());
     auto obj = swObj.getValue().val;
-    ASSERT(obj.couldBeArray());
 
-    return BSONArray(obj.getOwned());
+    return swObj.getValue().getOwned();
 }
 
 /**
