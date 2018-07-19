@@ -53,10 +53,10 @@ StatusWith<boost::optional<DWORD>> windows::getDWORDRegistryKey(const CString& g
     }
 
     if (ERROR_SUCCESS != res) {
-        return boost::none;
+        return {boost::none};
     }
 
-    return val;
+    return {val};
 }
 
 }  // namespace mongo

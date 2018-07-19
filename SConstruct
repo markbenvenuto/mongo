@@ -1604,7 +1604,7 @@ elif env.TargetOSIs('windows'):
     #env.Append( CCFLAGS=['/Yu"pch.h"'] )
 
     # Don't send error reports in case of internal compiler error
-    env.Append( CCFLAGS= ["/errorReport:none"] ) 
+    env.Append( CCFLAGS= ["/errorReport:none"] )
 
     # Select debugging format. /Zi gives faster links but seem to use more memory
     if get_option('msvc-debugging-format') == "codeview":
@@ -1755,7 +1755,7 @@ if env.TargetOSIs('posix'):
 
     if optBuild and not optBuildForSize:
         env.Append( CCFLAGS=["-O2"] )
-    elif optBuild and optBuildForSize: 
+    elif optBuild and optBuildForSize:
         env.Append( CCFLAGS=["-Os"] )
     else:
         env.Append( CCFLAGS=["-O0"] )
@@ -2257,7 +2257,8 @@ def doConfigure(myenv):
 
     if myenv.ToolchainIs('msvc'):
         if get_option('cxx-std') == "14":
-            myenv.AppendUnique(CCFLAGS=['/std:c++14'])
+            #myenv.AppendUnique(CCFLAGS=['/std:c++14'])
+            pass
         elif get_option('cxx-std') == "17":
             myenv.AppendUnique(CCFLAGS=['/std:c++17', '/Zc:__cplusplus'])
     else:
@@ -3260,7 +3261,7 @@ def doConfigure(myenv):
         if conf.CheckExtendedAlignment(size):
             conf.env.SetConfigHeaderDefine("MONGO_CONFIG_MAX_EXTENDED_ALIGNMENT", size)
             break
- 
+
     def CheckMongoCMinVersion(context):
         compile_test_body = textwrap.dedent("""
         #include <mongoc.h>

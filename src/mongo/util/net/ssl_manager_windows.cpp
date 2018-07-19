@@ -436,7 +436,7 @@ StatusWith<UniqueCertChainEngine> initChainEngine(CERT_CHAIN_ENGINE_CONFIG* chai
                                     << errnoWithDescription(gle));
     }
 
-    return chainEngine;
+    return {chainEngine};
 }
 
 Status SSLManagerWindows::_initChainEngines(bool hasCAFile) {

@@ -78,7 +78,7 @@ namespace date_time {
       return create_time(&c_time::gmtime);
     }
 
-  private:
+  public:
     static time_type create_time(time_converter converter)
     {
 #ifdef BOOST_HAS_GETTIMEOFDAY

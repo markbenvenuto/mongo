@@ -37,6 +37,17 @@
 #include "mongo/base/static_assert.h"
 #include "mongo/stdx/type_traits.h"
 
+    template <long long>
+    inline bool isnan(long long _X) throw()
+    {
+        return false;
+    }
+
+    inline int fpclassify(long long _X) throw()
+    {
+        return FP_NORMAL;
+    }
+
 namespace mongo {
 
 namespace detail {
@@ -166,6 +177,7 @@ int compare(T t, U u) {
 }
 
 }  // namespace detail
+
 
 /**
  * Given a number of some type Input and a desired numerical type Output,
