@@ -72,8 +72,8 @@ def _is_required_serializer_field(field):
 def _get_field_constant_name(field):
     # type: (ast.Field) -> unicode
     """Get the C++ string constant name for a field."""
-    return common.template_args('k${constant_name}FieldName', constant_name=common.title_case(
-        field.cpp_name))
+    return common.template_args(
+        'k${constant_name}FieldName', constant_name=common.title_case(field.cpp_name))
 
 
 def _access_member(field):
@@ -532,14 +532,16 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
 
         for field in _get_all_fields(struct):
             self._writer.write_line(
-                common.template_args('static constexpr auto ${constant_name} = "${field_name}"_sd;',
-                                     constant_name=_get_field_constant_name(field),
-                                     field_name=field.name))
+                common.template_args(
+                    'static constexpr auto ${constant_name} = "${field_name}"_sd;',
+                    constant_name=_get_field_constant_name(field),
+                    field_name=field.name))
 
         if isinstance(struct, ast.Command):
             self._writer.write_line(
-                common.template_args('static constexpr auto kCommandName = "${struct_name}"_sd;',
-                                     struct_name=struct.name))
+                common.template_args(
+                    'static constexpr auto kCommandName = "${struct_name}"_sd;',
+                    struct_name=struct.name))
 
     def gen_enum_functions(self, idl_enum):
         # type: (ast.Enum) -> None
@@ -559,8 +561,10 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
                          '};'):
             for enum_value in idl_enum.values:
                 self._writer.write_line(
-                    common.template_args('${name} ${value},', name=enum_value.name,
-                                         value=enum_type_info.get_cpp_value_assignment(enum_value)))
+                    common.template_args(
+                        '${name} ${value},',
+                        name=enum_value.name,
+                        value=enum_type_info.get_cpp_value_assignment(enum_value)))
 
     def gen_op_msg_request_methods(self, command):
         # type: (ast.Command) -> None
@@ -595,9 +599,12 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
         """Generate comparison operators declarations for the type."""
         # pylint: disable=invalid-name
 
-        sorted_fields = sorted([
-            field for field in struct.fields if (not field.ignore) and field.comparison_order != -1
-        ], key=lambda f: f.comparison_order)
+        sorted_fields = sorted(
+            [
+                field for field in struct.fields
+                if (not field.ignore) and field.comparison_order != -1
+            ],
+            key=lambda f: f.comparison_order)
         fields = [_get_field_member_name(field) for field in sorted_fields]
 
         with self._block("auto relationalTie() const {", "}"):
@@ -607,7 +614,8 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
             self.write_empty_line()
             decl = common.template_args(
                 "friend bool operator${rel_op}(const ${class_name}& left, const ${class_name}& right) {",
-                rel_op=rel_op, class_name=common.title_case(struct.name))
+                rel_op=rel_op,
+                class_name=common.title_case(struct.name))
 
             with self._block(decl, "}"):
                 self._writer.write_line('return left.relationalTie() %s right.relationalTie();' %
@@ -775,10 +783,12 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                 if field.enum_type:
                     self._writer.write_line('IDLParserErrorContext tempContext(%s, &ctxt);' %
                                             (_get_field_constant_name(field)))
-                    return common.template_args("${method_name}(tempContext, ${expression})",
-                                                method_name=method_name, expression=expression)
-                return common.template_args("${method_name}(${expression})",
-                                            method_name=method_name, expression=expression)
+                    return common.template_args(
+                        "${method_name}(tempContext, ${expression})",
+                        method_name=method_name,
+                        expression=expression)
+                return common.template_args(
+                    "${method_name}(${expression})", method_name=method_name, expression=expression)
 
             # BSONObjects are allowed to be pass through without deserialization
             assert field.bson_serialization_type == ['object']
@@ -845,16 +855,20 @@ class _CppSourceFileWriter(_CppFileWriterBase):
         else:
             self._writer.write_line('%s = std::move(values);' % (_get_field_member_name(field)))
 
+    def _gen_usage_check(self, field, bson_element, field_usage_check):
+        # type: (ast.Field, unicode, _FieldUsageCheckerBase) -> None
+        """Generate the field usage check and insert the required field check."""
+        if field_usage_check:
+            field_usage_check.add(field, bson_element)
+
+            if _is_required_serializer_field(field):
+                self._writer.write_line('%s = true;' % (_get_has_field_member_name(field)))
+
     def gen_field_deserializer(self, field, bson_object, bson_element, field_usage_check):
         # type: (ast.Field, unicode, unicode, _FieldUsageCheckerBase) -> None
         """Generate the C++ deserializer piece for a field."""
         if field.array:
-            if field_usage_check:
-                field_usage_check.add(field,bson_element)
-
-                if _is_required_serializer_field(field):
-                    self._writer.write_line('%s = true;' %
-                                        (_get_has_field_member_name(field)))
+            self._gen_usage_check(field, bson_element, field_usage_check)
 
             self._gen_array_deserializer(field, bson_element)
             return
@@ -871,12 +885,7 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                 method_name = writer.get_method_name_from_qualified_method_name(field.deserializer)
                 expression = "%s(%s)" % (method_name, bson_object)
 
-            if field_usage_check:
-                field_usage_check.add(field,bson_element)
-
-                if _is_required_serializer_field(field):
-                    self._writer.write_line('%s = true;' %
-                                        (_get_has_field_member_name(field)))
+            self._gen_usage_check(field, bson_element, field_usage_check)
 
             self._writer.write_line('%s = %s;' % (_get_field_member_name(field), expression))
         else:
@@ -886,12 +895,7 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                 predicate = "MONGO_likely(%s)" % (predicate)
             with self._predicate(predicate):
 
-                if field_usage_check:
-                    field_usage_check.add(field,bson_element)
-
-                    if _is_required_serializer_field(field):
-                        self._writer.write_line('%s = true;' %
-                                            (_get_has_field_member_name(field)))
+                self._gen_usage_check(field, bson_element, field_usage_check)
 
                 object_value = self._gen_field_deserializer_expression(bson_element, field)
                 if field.chained_struct_field:
@@ -998,7 +1002,8 @@ class _CppSourceFileWriter(_CppFileWriterBase):
 
         if isinstance(struct, ast.Command) and struct.command_field:
             with self._block('{', '}'):
-                self.gen_field_deserializer(struct.command_field, bson_object, "commandElement", None)
+                self.gen_field_deserializer(struct.command_field, bson_object, "commandElement",
+                                            None)
         else:
             struct_type_info = struct_types.get_struct_info(struct)
 
@@ -1047,7 +1052,8 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                     if field.ignore:
                         self._writer.write_line('// ignore field')
                     else:
-                        self.gen_field_deserializer(field, bson_object, "element", field_usage_check)
+                        self.gen_field_deserializer(field, bson_object, "element",
+                                                    field_usage_check)
 
                 if first_field:
                     first_field = False
@@ -1466,14 +1472,16 @@ class _CppSourceFileWriter(_CppFileWriterBase):
 
         for field in _get_all_fields(struct):
             self._writer.write_line(
-                common.template_args('constexpr StringData ${class_name}::${constant_name};',
-                                     class_name=common.title_case(struct.cpp_name),
-                                     constant_name=_get_field_constant_name(field)))
+                common.template_args(
+                    'constexpr StringData ${class_name}::${constant_name};',
+                    class_name=common.title_case(struct.cpp_name),
+                    constant_name=_get_field_constant_name(field)))
 
         if isinstance(struct, ast.Command):
             self._writer.write_line(
-                common.template_args('constexpr StringData ${class_name}::kCommandName;',
-                                     class_name=common.title_case(struct.cpp_name)))
+                common.template_args(
+                    'constexpr StringData ${class_name}::kCommandName;',
+                    class_name=common.title_case(struct.cpp_name)))
 
     def gen_enum_definition(self, idl_enum):
         # type: (ast.Enum) -> None
@@ -1501,12 +1509,13 @@ class _CppSourceFileWriter(_CppFileWriterBase):
             for field in sorted_fields:
                 self._writer.write_line(
                     common.template_args(
-                        '${class_name}::${constant_name},', class_name=common.title_case(
-                            struct.cpp_name), constant_name=_get_field_constant_name(field)))
+                        '${class_name}::${constant_name},',
+                        class_name=common.title_case(struct.cpp_name),
+                        constant_name=_get_field_constant_name(field)))
 
             self._writer.write_line(
-                common.template_args('${class_name}::kCommandName,', class_name=common.title_case(
-                    struct.cpp_name)))
+                common.template_args(
+                    '${class_name}::kCommandName,', class_name=common.title_case(struct.cpp_name)))
 
     def generate(self, spec, header_file_name):
         # type: (ast.IDLAST, unicode) -> None
