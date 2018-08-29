@@ -1050,6 +1050,8 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                 with self._predicate(field_predicate, not first_field):
 
                     if field.ignore:
+                        field_usage_check.add(field, "element")
+
                         self._writer.write_line('// ignore field')
                     else:
                         self.gen_field_deserializer(field, bson_object, "element",

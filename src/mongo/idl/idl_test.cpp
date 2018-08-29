@@ -625,6 +625,18 @@ TEST(IDLFieldTests, TestStrictStructIgnoredField) {
     }
 }
 
+// Negative: check duplicate ignored fields fail
+TEST(IDLFieldTests, TestStrictDuplicateIgnoredFields) {
+    IDLParserErrorContext ctxt("root");
+
+    // Negative: Test duplicate ignored fields fail
+    {
+        auto testDoc = BSON("required_field" << 12 << "ignored_field" << 123 << "ignored_field" << 456);
+        ASSERT_THROWS(IgnoredField::parse(ctxt, testDoc),AssertionException );
+    }
+}
+
+
 // First test: test an empty document and the default value
 // Second test: test a non-empty document and that we do not get the default value
 #define TEST_DEFAULT_VALUES(field_name, default_value, new_value)   \
