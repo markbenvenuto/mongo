@@ -468,6 +468,8 @@ variables:
   - name: buildscripts_test
   - name: ese
   - name: external_auth
+    distros:
+    - windows-64-2016
   - name: jsCore
   - name: jsCore_ese
   - name: jsCore_decimal
