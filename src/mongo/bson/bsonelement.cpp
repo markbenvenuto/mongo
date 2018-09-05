@@ -44,6 +44,7 @@
 #include "mongo/util/hex.h"
 #include "mongo/util/log.h"
 #include "mongo/util/mongoutils/str.h"
+#include "mongo/util/scopeguard.h"
 #include "mongo/util/string_map.h"
 #include "mongo/util/stringutils.h"
 #include "mongo/util/uuid.h"
@@ -87,6 +88,8 @@ void BSONElement::jsonStringStream(JsonStringFormat format,
         case NumberDouble:
             if (number() >= -std::numeric_limits<double>::max() &&
                 number() <= std::numeric_limits<double>::max()) {
+                auto origPrecision = s.precision();
+                auto guard = MakeGuard([&s, origPrecision]() { s.precision(origPrecision); });
                 s.precision(16);
                 s << number();
             }
@@ -206,10 +209,20 @@ void BSONElement::jsonStringStream(JsonStringFormat format,
 
             s << "{ \"$binary\" : \"";
             base64::encode(s, reader.view(), len);
-            s << "\", \"$type\" : \"" << hex;
+
+            auto origFill = s.fill();
+            auto guardFill = MakeGuard([&s, origFill]() { s.fill(origFill); });
+            auto origFmtF = s.flags();
+            auto guardFmtF = MakeGuard([&s, origFmtF]() { s.setf(origFmtF); });
+            auto origWidth = s.width();
+            auto guardWidth = MakeGuard([&s, origWidth]() { s.width(origWidth); });
+
+            s.setf(std::ios_base::hex, std::ios_base::basefield);
+
+            s << "\", \"$type\" : \"";
             s.width(2);
+            s << type;
             s.fill('0');
-            s << type << dec;
             s << "\" }";
             break;
         }
