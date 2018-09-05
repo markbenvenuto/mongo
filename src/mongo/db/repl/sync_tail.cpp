@@ -207,7 +207,7 @@ void ApplyBatchFinalizerForJournal::_run() {
 NamespaceString parseUUIDOrNs(OperationContext* opCtx, const OplogEntry& oplogEntry) {
     auto optionalUuid = oplogEntry.getUuid();
     if (!optionalUuid) {
-        return oplogEntry.getNamespace();
+        return oplogEntry.getNss();
     }
 
     const auto& uuid = optionalUuid.get();
@@ -497,7 +497,7 @@ void fillWriterVectors(OperationContext* opCtx,
     CachedCollectionProperties collPropertiesCache;
 
     for (auto&& op : *ops) {
-        StringMapTraits::HashedKey hashedNs(op.getNamespace().ns());
+        StringMapTraits::HashedKey hashedNs(op.getNss().ns());
         uint32_t hash = hashedNs.hash();
 
         // We need to track all types of ops, including type 'n' (these are generated from chunk
@@ -931,7 +931,7 @@ bool SyncTail::tryPopAndWaitForMore(OperationContext* opCtx,
     // immediately reflects changes for each oplog entry so we can see inconsistent view catalog if
     // multiple oplog entries on 'system.views' are being applied out of the original order.
     if ((entry.isCommand() && entry.getCommandType() != OplogEntry::CommandType::kApplyOps) ||
-        entry.getNamespace().isSystemDotViews()) {
+        entry.getNss().isSystemDotViews()) {
         if (ops->getCount() == 1) {
             // apply commands one-at-a-time
             _consume(opCtx, oplogBuffer);
@@ -1018,7 +1018,7 @@ BSONObj SyncTail::getMissingDoc(OperationContext* opCtx, const OplogEntry& oplog
 
         BSONObj query = BSONObjBuilder().append(idElem).obj();
         BSONObj missingObj;
-        auto nss = oplogEntry.getNamespace();
+        auto nss = oplogEntry.getNss();
         try {
             auto uuid = oplogEntry.getUuid();
             if (!uuid) {
