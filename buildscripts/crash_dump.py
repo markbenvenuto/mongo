@@ -87,6 +87,17 @@ def main():
 
     depends_dict = task_info.depends_on[0]
 
+    if('compile' not in depends_dict['id']):
+        # Recurse
+
+        nested_task_id = depends_dict['id']
+
+        nested_task_json = evergreen.get_info_for_task(nested_task_id)
+
+        task_info = TaskInfoModel(nested_task_json)
+        depends_dict = task_info.depends_on[0]
+        
+
     assert "compile" in depends_dict['id']
 
     compile_task_id = depends_dict['id']
