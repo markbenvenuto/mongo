@@ -4791,7 +4791,7 @@ tasks:
 
 ## Standalone generational fuzzer for aggregation pipelines ##
 - &aggregation_multiversion_fuzzer_template
-  <<: *jstestfuzz_template 
+  <<: *jstestfuzz_template
   name: aggregation_multiversion_fuzzer
   commands:
   - func: "do setup"
@@ -7591,6 +7591,17 @@ tasks:
       resmoke_args: --suites=watchdog --storageEngine=wiredTiger
       run_multiple_jobs: false
 
+# This is a separate task because it is only supported on Ubuntu 16.04+ which are not inmemory builders
+- <<: *task_template
+  name: watchdog_inmemory
+  commands:
+  - func: "do setup"
+  - func: "do watchdog setup"
+  - func: "run tests"
+    vars:
+      resmoke_args: --suites=watchdog --storageEngine=inMemory
+      run_multiple_jobs: false
+
 - <<: *task_template
   name: free_monitoring
   commands:
@@ -9112,6 +9123,7 @@ buildvariants:
   - name: snmp
   - name: ssl
   - name: sslSpecial
+  - name: watchdog_inmemory
   - name: watchdog_wiredtiger
   - name: package
     distros:
@@ -9159,7 +9171,6 @@ buildvariants:
   - name: snmp
   - name: ssl
   - name: sslSpecial
-  - name: watchdog_wiredtiger
 
 - name: enterprise-ubuntu1804-64-clang-cxx17
   display_name: ~ Enterprise Ubuntu 18.04 (System clang 6.0 C++17 libc++ DEBUG)
@@ -13566,6 +13577,7 @@ buildvariants:
   - name: snmp
   - name: ssl
   - name: sslSpecial
+  - name: watchdog_inmemory
   - name: watchdog_wiredtiger
   - name: package
     distros:
