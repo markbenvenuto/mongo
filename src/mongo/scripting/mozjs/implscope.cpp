@@ -124,6 +124,14 @@ struct MozJSImplScope::MozJSEntry {
 void MozJSImplScope::_reportError(JSContext* cx, const char* message, JSErrorReport* report) {
     auto scope = getScope(cx);
 
+    // If we are recursively calling _reportError because of ReportOverRecursed, lets just quit now
+    if(scope->_inErrorRecursion) {
+        return;
+    }
+
+    scope->_inErrorRecursion = true;
+    auto guard = ScopeGuard([&]{scope->_inErrorRecursion = false;})
+
     if (!JSREPORT_IS_WARNING(report->flags)) {
 
         std::string exceptionMsg;
@@ -433,6 +441,7 @@ MozJSImplScope::MozJSImplScope(MozJSScriptEngine* engine)
       _generation(0),
       _requireOwnedObjects(false),
       _hasOutOfMemoryException(false),
+      _inErrorRecursion(false),
       _binDataProto(_context),
       _bsonProto(_context),
       _codeProto(_context),
@@ -460,7 +469,8 @@ MozJSImplScope::MozJSImplScope(MozJSScriptEngine* engine)
       _sessionProto(_context),
       _statusProto(_context),
       _timestampProto(_context),
-      _uriProto(_context) {
+      _uriProto(_context)
+       {
     kCurrentScope = this;
 
     // The default is quite low and doesn't seem to directly correlate with
