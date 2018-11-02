@@ -130,7 +130,7 @@ void MozJSImplScope::_reportError(JSContext* cx, const char* message, JSErrorRep
     }
 
     scope->_inErrorRecursion = true;
-    auto guard = ScopeGuard([&]{scope->_inErrorRecursion = false;})
+    auto guard = MakeGuard([&]{scope->_inErrorRecursion = false;});
 
     if (!JSREPORT_IS_WARNING(report->flags)) {
 
