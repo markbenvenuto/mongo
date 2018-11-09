@@ -402,6 +402,9 @@ MozJSImplScope::MozRuntime::MozRuntime(const MozJSScriptEngine* engine) {
             // stored on the stack which increases the stack pressure. It does not affects non-debug
             // builds.
             const decltype(available_stack_space) reserve_stack_space = 96 * 1024;
+#elif defined(_WIN32)
+            // Windows is greedy
+            const decltype(available_stack_space) reserve_stack_space = 96 * 1024;
 #else
             const decltype(available_stack_space) reserve_stack_space = 64 * 1024;
 #endif
