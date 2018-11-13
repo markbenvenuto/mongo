@@ -56,7 +56,7 @@
 #endif
 
 // session_asio.h has some header dependencies that require it to be the last header.
-#ifdef __linux__
+#if 0
 #include "mongo/transport/baton_asio_linux.h"
 #endif
 #include "mongo/transport/session_asio.h"
@@ -867,7 +867,7 @@ SSLParams::SSLModes TransportLayerASIO::_sslMode() const {
 #endif
 
 BatonHandle TransportLayerASIO::makeBaton(OperationContext* opCtx) {
-#ifdef __linux__
+#if 0
     auto baton = std::make_shared<BatonASIO>(opCtx);
 
     {
