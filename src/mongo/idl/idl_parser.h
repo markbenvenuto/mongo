@@ -216,7 +216,7 @@ void throwComparisonError(IDLParserErrorContext& ctxt,
  */
 template <typename T>
 void throwComparisonError(StringData fieldName, StringData op, T actualValue, T expectedValue) {
-    uasserted(51021,
+    uasserted(51024,
               str::stream() << "BSON field '" << fieldName << "' value must be " << op
                             << " " << expectedValue
                             << ", actual value '"

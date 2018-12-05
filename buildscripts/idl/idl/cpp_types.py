@@ -231,7 +231,7 @@ class _CppTypeBasic(CppTypeBase):
     def get_setter_body(self, member_name, validator_method_name):
         # type: (unicode, unicode) -> unicode
         return common.template_args(
-            '${validator} ${member_name} = std::move(value);', validator=_optionally_make_call(
+            '${optionally_call_validator} ${member_name} = std::move(value);', optionally_call_validator=_optionally_make_call(
                 validator_method_name, 'value'), member_name=member_name)
 
     def get_transform_to_getter_type(self, expression):
@@ -287,8 +287,8 @@ class _CppTypeView(CppTypeBase):
     def get_setter_body(self, member_name, validator_method_name):
         # type: (unicode, unicode) -> unicode
         return common.template_args(
-            'auto _tmpValue = ${value}; ${validator} ${member_name} = std::move(_tmpValue);',
-            member_name=member_name, validator=_optionally_make_call(validator_method_name,
+            'auto _tmpValue = ${value}; ${optionally_call_validator} ${member_name} = std::move(_tmpValue);',
+            member_name=member_name, optionally_call_validator=_optionally_make_call(validator_method_name,
                                                                      '_tmpValue'),
             value=self.get_transform_to_storage_type("value"))
 
@@ -344,8 +344,8 @@ class _CppTypeVector(CppTypeBase):
     def get_setter_body(self, member_name, validator_method_name):
         # type: (unicode, unicode) -> unicode
         return common.template_args(
-            'auto _tmpValue = ${value}; ${validator} ${member_name} = std::move(_tmpValue);',
-            member_name=member_name, validator=_optionally_make_call(validator_method_name,
+            'auto _tmpValue = ${value}; ${optionally_call_validator} ${member_name} = std::move(_tmpValue);',
+            member_name=member_name, optionally_call_validator=_optionally_make_call(validator_method_name,
                                                                      '_tmpValue'),
             value=self.get_transform_to_storage_type("value"))
 
@@ -447,8 +447,8 @@ class _CppTypeArray(_CppTypeDelegating):
         convert = self.get_transform_to_storage_type("value")
         if convert:
             return common.template_args(
-                'auto _tmpValue = ${convert}; ${validator} ${member_name} = std::move(_tmpValue);',
-                member_name=member_name, validator=_optionally_make_call(
+                'auto _tmpValue = ${convert}; ${optionally_call_validator} ${member_name} = std::move(_tmpValue);',
+                member_name=member_name, optionally_call_validator=_optionally_make_call(
                     validator_method_name, '_tmpValue'), convert=convert)
         return self._base.get_setter_body(member_name, validator_method_name)
 
@@ -524,13 +524,13 @@ class _CppTypeOptional(_CppTypeDelegating):
                 textwrap.dedent("""\
                             if (value.is_initialized()) {
                                 auto _tmpValue = ${convert};
-                                ${validator}
+                                ${optionally_call_validator}
                                 ${member_name} = std::move(_tmpValue);
                             } else {
                                 ${member_name} = boost::none;
                             }
                             """), member_name=member_name, convert=convert,
-                validator=_optionally_make_call(validator_method_name, '_tmpValue'))
+                optionally_call_validator=_optionally_make_call(validator_method_name, '_tmpValue'))
         return self._base.get_setter_body(member_name, validator_method_name)
 
 
