@@ -77,9 +77,9 @@ __wt_checksum_hw(const void *chunk, size_t len)
 	}
 	return (~crc);
 }
-#endif
 
-#if defined(_M_AMD64)
+#elif defined(_M_AMD64)
+
 /*
  * __wt_checksum_hw --
  *	Return a checksum for a chunk of memory, computed in hardware
