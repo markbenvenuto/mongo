@@ -569,6 +569,10 @@ structs:
             string_starts_with_x:
                 type: string
                 validator: { callback: "validateStartsWith<'x'>" }
+            string_starts_with_x2:
+                type: string
+                optional: true
+                validator: { callback: "validateStartsWith<'x'>" }
 
 
 ##################################################################################################
