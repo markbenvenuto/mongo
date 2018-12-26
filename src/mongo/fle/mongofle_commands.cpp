@@ -93,6 +93,9 @@ public:
             //     return std::vector<char>{0x1, 0x2, 0x3, 0x4};
             // }
             if (_context.findField(fieldRef)) {
+
+                EncryptionPlaceholder placeholder()
+
                 log() << "Found encrypted field";
             }
         }

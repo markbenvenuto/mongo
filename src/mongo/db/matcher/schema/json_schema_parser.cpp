@@ -1215,12 +1215,12 @@ private:
  *  - mongoKeyId1
  *  - mongoKeyId2
  */
-Status translateEncryptionKeywords(StringMap<BSONElement>* keywordMap,
+Status translateEncryptionKeywords(StringMap<BSONElement>& keywordMap,
                                    StringData path,
                                    AndMatchExpression* andExpr,
                                    bool ignoreUnknownKeywords,
                                    JSONSchemaContext* paths) {
-    if (auto encryptElem = keywordMap->get(kSchemaEncrypt)) {
+    if (auto encryptElem = keywordMap[kSchemaEncrypt]) {
 
         // TODO - validate type
         auto binDataSubTypeExpr = stdx::make_unique<BinDataTypeMatchExpression>(path, Encrypted);
@@ -1291,7 +1291,7 @@ Status translateArrayKeywords(StringMap<BSONElement>& keywordMap,
                               StringData path,
                               bool ignoreUnknownKeywords,
                               InternalSchemaTypeExpression* typeExpr,
-                                                            AndMatchExpression* andExpr, EncryptionPaths* paths) {
+                            AndMatchExpression* andExpr, JSONSchemaContext* paths) {
 
     if (auto minItemsElt = keywordMap[kSchemaMinItemsKeyword]) {
         auto minItemsExpr = parseLength<InternalSchemaMinItemsMatchExpression>(
@@ -1677,7 +1677,7 @@ StatusWithMatchExpression _parse(StringData path,
 
 
     translationStatus =
-        translateEncryptionKeywords(&keywordMap, path, andExpr.get(), ignoreUnknownKeywords, paths);
+        translateEncryptionKeywords(keywordMap, path, andExpr.get(), ignoreUnknownKeywords, paths);
     if (!translationStatus.isOK()) {
         return translationStatus;
     }
