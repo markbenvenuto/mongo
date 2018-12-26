@@ -42,7 +42,7 @@ void InternalSchemaNumPropertiesMatchExpression::debugString(StringBuilder& debu
     debug << builder.obj().toString() << "\n";
 }
 
-void InternalSchemaNumPropertiesMatchExpression::serialize(BSONObjBuilder* out) const {
+void InternalSchemaNumPropertiesMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
     out->append(_name, _numProperties);
 }
 

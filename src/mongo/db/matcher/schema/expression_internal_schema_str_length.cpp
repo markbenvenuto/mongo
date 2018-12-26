@@ -54,7 +54,7 @@ void InternalSchemaStrLengthMatchExpression::debugString(StringBuilder& debug, i
     debug << "\n";
 }
 
-void InternalSchemaStrLengthMatchExpression::serialize(BSONObjBuilder* out) const {
+void InternalSchemaStrLengthMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
     BSONObjBuilder subBob(out->subobjStart(path()));
     subBob.append(_name, _strLen);
     subBob.doneFast();

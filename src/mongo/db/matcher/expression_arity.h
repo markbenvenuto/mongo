@@ -102,7 +102,7 @@ public:
     /**
      * Serializes each subexpression sequentially in a BSONArray.
      */
-    void serialize(BSONObjBuilder* builder) const final {
+    void serialize(BSONObjBuilder* builder, ExpressionSerializationContext* context) const final {
         BSONArrayBuilder exprArray(builder->subarrayStart(name()));
         for (const auto& expr : _expressions) {
             BSONObjBuilder exprBuilder(exprArray.subobjStart());

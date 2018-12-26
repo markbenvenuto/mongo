@@ -74,7 +74,7 @@ void InternalSchemaFmodMatchExpression::debugString(StringBuilder& debug, int le
     debug << "\n";
 }
 
-void InternalSchemaFmodMatchExpression::serialize(BSONObjBuilder* out) const {
+void InternalSchemaFmodMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
     BSONObjBuilder objMatchBob(out->subobjStart(path()));
     BSONArrayBuilder arrBuilder(objMatchBob.subarrayStart("$_internalSchemaFmod"));
     arrBuilder.append(_divisor);

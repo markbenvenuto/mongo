@@ -91,7 +91,7 @@ public:
 
     virtual void debugString(StringBuilder& debug, int level = 0) const;
 
-    virtual void serialize(BSONObjBuilder* out) const;
+    virtual void serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const;
 
     virtual bool equivalent(const MatchExpression* other) const;
 
@@ -182,7 +182,7 @@ public:
 
     virtual void debugString(StringBuilder& debug, int level = 0) const;
 
-    virtual void serialize(BSONObjBuilder* out) const;
+    virtual void serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const;
 
     virtual bool equivalent(const MatchExpression* other) const;
 

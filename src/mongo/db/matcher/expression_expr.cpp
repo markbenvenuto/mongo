@@ -53,7 +53,7 @@ bool ExprMatchExpression::matches(const MatchableDocument* doc, MatchDetails* de
     return value.coerceToBool();
 }
 
-void ExprMatchExpression::serialize(BSONObjBuilder* out) const {
+void ExprMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
     *out << "$expr" << _expression->serialize(false);
 }
 

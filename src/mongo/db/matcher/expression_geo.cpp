@@ -389,8 +389,9 @@ void GeoMatchExpression::debugString(StringBuilder& debug, int level) const {
     debug << "\n";
 }
 
-void GeoMatchExpression::serialize(BSONObjBuilder* out) const {
+void GeoMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
     BSONObjBuilder subobj(out->subobjStart(path()));
+    // TODO - do not support geonear
     subobj.appendElements(_rawObj);
     subobj.doneFast();
 }
@@ -447,8 +448,9 @@ void GeoNearMatchExpression::debugString(StringBuilder& debug, int level) const 
     debug << "\n";
 }
 
-void GeoNearMatchExpression::serialize(BSONObjBuilder* out) const {
+void GeoNearMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
     BSONObjBuilder subobj(out->subobjStart(path()));
+    // TODO: do not support
     subobj.appendElements(_rawObj);
     subobj.doneFast();
 }

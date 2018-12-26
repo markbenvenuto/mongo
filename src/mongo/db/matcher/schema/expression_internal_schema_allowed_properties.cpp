@@ -127,7 +127,7 @@ bool InternalSchemaAllowedPropertiesMatchExpression::_matchesBSONObj(const BSONO
     return true;
 }
 
-void InternalSchemaAllowedPropertiesMatchExpression::serialize(BSONObjBuilder* builder) const {
+void InternalSchemaAllowedPropertiesMatchExpression::serialize(BSONObjBuilder* builder, ExpressionSerializationContext* context) const {
     BSONObjBuilder expressionBuilder(
         builder->subobjStart(InternalSchemaAllowedPropertiesMatchExpression::kName));
 

@@ -46,6 +46,8 @@
 
 namespace mongo {
 
+class ExpressionSerializationContext;
+
 /**
  * Enabling the disableMatchExpressionOptimization fail point will stop match expressions from
  * being optimized.
@@ -291,7 +293,7 @@ public:
      * to be a valid query object, that, when parsed, produces a logically equivalent
      * MatchExpression.
      */
-    virtual void serialize(BSONObjBuilder* out) const = 0;
+    virtual void serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const = 0;
 
     /**
      * Returns true if this expression will always evaluate to false, such as an $or with no

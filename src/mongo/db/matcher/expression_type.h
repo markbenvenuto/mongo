@@ -78,7 +78,7 @@ public:
         debug << "\n";
     }
 
-    void serialize(BSONObjBuilder* out) const final {
+    void serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const final {
         BSONObjBuilder subBuilder(out->subobjStart(path()));
         BSONArrayBuilder arrBuilder(subBuilder.subarrayStart(name()));
         _typeSet.toBSONArray(&arrBuilder);

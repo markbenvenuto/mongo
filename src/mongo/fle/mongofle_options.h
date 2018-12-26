@@ -30,37 +30,41 @@
 
 #pragma once
 
-#include "mongo/db/matcher/expression_tree.h"
+#include <cstdint>
+#include <iosfwd>
+#include <string>
+#include <vector>
+
+#include "mongo/base/status.h"
 
 namespace mongo {
 
-/**
- * MatchExpression for $_internalSchemaXor keyword. Returns true only if exactly
- * one of its child nodes matches.
- */
-class InternalSchemaXorMatchExpression final : public ListOfMatchExpression {
-public:
-    static constexpr StringData kName = "$_internalSchemaXor"_sd;
+namespace optionenvironment {
+class OptionSection;
+class Environment;
+}  // namespace optionenvironment
 
-    InternalSchemaXorMatchExpression() : ListOfMatchExpression(INTERNAL_SCHEMA_XOR) {}
+namespace moe = mongo::optionenvironment;
 
-    bool matches(const MatchableDocument* doc, MatchDetails* details = nullptr) const final;
+struct MongoFLEGlobalParams {
+    int port = 0;
 
-    bool matchesSingleElement(const BSONElement&, MatchDetails* details = nullptr) const final;
-
-    virtual std::unique_ptr<MatchExpression> shallowClone() const {
-        auto xorCopy = stdx::make_unique<InternalSchemaXorMatchExpression>();
-        for (size_t i = 0; i < numChildren(); ++i) {
-            xorCopy->add(getChild(i)->shallowClone().release());
-        }
-        if (getTag()) {
-            xorCopy->setTag(getTag()->clone());
-        }
-        return std::move(xorCopy);
-    }
-
-    void debugString(StringBuilder& debug, int level = 0) const final;
-
-    void serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const final;
+    MongoFLEGlobalParams() = default;
 };
-}  // namespace mongo
+
+extern MongoFLEGlobalParams mongoFLEGlobalParams;
+
+Status addMongoFLEOptions(moe::OptionSection* options);
+
+void printMongoFLEHelp(std::ostream* out);
+
+/**
+ * Handle options that should come before validation, such as "help".
+ *
+ * Returns false if an option was found that implies we should prematurely exit with success.
+ */
+bool handlePreValidationMongoFLEOptions(const moe::Environment& params);
+
+Status storeMongoFLEOptions(const moe::Environment& params,
+                               const std::vector<std::string>& args);
+}

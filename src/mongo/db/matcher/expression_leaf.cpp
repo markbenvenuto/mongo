@@ -87,7 +87,8 @@ void ComparisonMatchExpressionBase::debugString(StringBuilder& debug, int level)
     debug << "\n";
 }
 
-void ComparisonMatchExpressionBase::serialize(BSONObjBuilder* out) const {
+void ComparisonMatchExpressionBase::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
+    // TODO: support
     out->append(path(), BSON(name() << _rhs));
 }
 
@@ -290,7 +291,7 @@ void RegexMatchExpression::debugString(StringBuilder& debug, int level) const {
     debug << "\n";
 }
 
-void RegexMatchExpression::serialize(BSONObjBuilder* out) const {
+void RegexMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
     BSONObjBuilder regexBuilder(out->subobjStart(path()));
     regexBuilder.append("$regex", _regex);
 
@@ -333,7 +334,7 @@ void ModMatchExpression::debugString(StringBuilder& debug, int level) const {
     debug << "\n";
 }
 
-void ModMatchExpression::serialize(BSONObjBuilder* out) const {
+void ModMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
     out->append(path(), BSON("$mod" << BSON_ARRAY(_divisor << _remainder)));
 }
 
@@ -367,7 +368,7 @@ void ExistsMatchExpression::debugString(StringBuilder& debug, int level) const {
     debug << "\n";
 }
 
-void ExistsMatchExpression::serialize(BSONObjBuilder* out) const {
+void ExistsMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
     out->append(path(), BSON("$exists" << true));
 }
 
@@ -440,7 +441,7 @@ void InMatchExpression::debugString(StringBuilder& debug, int level) const {
     debug << "\n";
 }
 
-void InMatchExpression::serialize(BSONObjBuilder* out) const {
+void InMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
     BSONObjBuilder inBob(out->subobjStart(path()));
     BSONArrayBuilder arrBob(inBob.subarrayStart("$in"));
     for (auto&& _equality : _equalitySet) {
@@ -779,7 +780,7 @@ void BitTestMatchExpression::debugString(StringBuilder& debug, int level) const 
     }
 }
 
-void BitTestMatchExpression::serialize(BSONObjBuilder* out) const {
+void BitTestMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
     std::string opString = "";
 
     switch (matchType()) {

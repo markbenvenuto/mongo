@@ -28,39 +28,49 @@
  *    it in the license file.
  */
 
-#pragma once
+#include "mongo/fle/mongofle_options.h"
 
-#include "mongo/db/matcher/expression_tree.h"
+#include <iostream>
+
+#include "mongo/transport/message_compressor_registry.h"
+#include "mongo/util/exit_code.h"
+#include "mongo/util/options_parser/startup_option_init.h"
+#include "mongo/util/options_parser/startup_options.h"
+#include "mongo/util/quick_exit.h"
 
 namespace mongo {
+MONGO_GENERAL_STARTUP_OPTIONS_REGISTER(MongoFLEOptions)(InitializerContext* context) {
+    auto ret = addMessageCompressionOptions(&moe::startupOptions, false);
+    if (!ret.isOK())
+        return ret;
+    return addMongoFLEOptions(&moe::startupOptions);
+}
 
-/**
- * MatchExpression for $_internalSchemaXor keyword. Returns true only if exactly
- * one of its child nodes matches.
- */
-class InternalSchemaXorMatchExpression final : public ListOfMatchExpression {
-public:
-    static constexpr StringData kName = "$_internalSchemaXor"_sd;
+MONGO_STARTUP_OPTIONS_VALIDATE(MongoFLEOptions)(InitializerContext* context) {
+    if (!handlePreValidationMongoFLEOptions(moe::startupOptionsParsed)) {
+        quickExit(EXIT_SUCCESS);
+    }
+    Status ret = moe::startupOptionsParsed.validate();
+    if (!ret.isOK()) {
+        return ret;
+    }
+    return Status::OK();
+}
 
-    InternalSchemaXorMatchExpression() : ListOfMatchExpression(INTERNAL_SCHEMA_XOR) {}
-
-    bool matches(const MatchableDocument* doc, MatchDetails* details = nullptr) const final;
-
-    bool matchesSingleElement(const BSONElement&, MatchDetails* details = nullptr) const final;
-
-    virtual std::unique_ptr<MatchExpression> shallowClone() const {
-        auto xorCopy = stdx::make_unique<InternalSchemaXorMatchExpression>();
-        for (size_t i = 0; i < numChildren(); ++i) {
-            xorCopy->add(getChild(i)->shallowClone().release());
-        }
-        if (getTag()) {
-            xorCopy->setTag(getTag()->clone());
-        }
-        return std::move(xorCopy);
+MONGO_STARTUP_OPTIONS_STORE(MongoFLEOptions)(InitializerContext* context) {
+    Status ret = storeMongoFLEOptions(moe::startupOptionsParsed, context->args());
+    if (!ret.isOK()) {
+        std::cerr << ret.toString() << std::endl;
+        std::cerr << "try '" << context->args()[0] << " --help' for more information" << std::endl;
+        quickExit(EXIT_BADOPTIONS);
     }
 
-    void debugString(StringBuilder& debug, int level = 0) const final;
+    ret = storeMessageCompressionOptions(moe::startupOptionsParsed);
+    if (!ret.isOK()) {
+        std::cerr << ret.toString() << std::endl;
+        quickExit(EXIT_BADOPTIONS);
+    }
 
-    void serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const final;
-};
-}  // namespace mongo
+    return Status::OK();
+}
+}

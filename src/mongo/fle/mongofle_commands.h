@@ -30,37 +30,28 @@
 
 #pragma once
 
-#include "mongo/db/matcher/expression_tree.h"
+#include "mongo/stdx/mutex.h"
+#include "mongo/stdx/unordered_map.h"
+#include "mongo/util/time_support.h"
+#include "mongo/rpc/op_msg.h"
 
 namespace mongo {
 
-/**
- * MatchExpression for $_internalSchemaXor keyword. Returns true only if exactly
- * one of its child nodes matches.
- */
-class InternalSchemaXorMatchExpression final : public ListOfMatchExpression {
+class BSONObj;
+struct HostAndPort;
+class Status;
+template <typename T>
+class StatusWith;
+class StringData;
+
+
+class FLECommand {
 public:
-    static constexpr StringData kName = "$_internalSchemaXor"_sd;
+    static StatusWith<FLECommand*> findCommand(StringData cmdName);
 
-    InternalSchemaXorMatchExpression() : ListOfMatchExpression(INTERNAL_SCHEMA_XOR) {}
+    virtual ~FLECommand() = 0;
 
-    bool matches(const MatchableDocument* doc, MatchDetails* details = nullptr) const final;
-
-    bool matchesSingleElement(const BSONElement&, MatchDetails* details = nullptr) const final;
-
-    virtual std::unique_ptr<MatchExpression> shallowClone() const {
-        auto xorCopy = stdx::make_unique<InternalSchemaXorMatchExpression>();
-        for (size_t i = 0; i < numChildren(); ++i) {
-            xorCopy->add(getChild(i)->shallowClone().release());
-        }
-        if (getTag()) {
-            xorCopy->setTag(getTag()->clone());
-        }
-        return std::move(xorCopy);
-    }
-
-    void debugString(StringBuilder& debug, int level = 0) const final;
-
-    void serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const final;
+    virtual Status run(const OpMsgRequest& request, BSONObjBuilder* builder) = 0;
 };
+
 }  // namespace mongo

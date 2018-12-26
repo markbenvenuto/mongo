@@ -130,7 +130,7 @@ public:
 
     virtual void debugString(StringBuilder& debug, int level = 0) const;
 
-    virtual void serialize(BSONObjBuilder* out) const;
+    virtual void serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const;
 
     bool isTriviallyTrue() const final;
 };
@@ -159,7 +159,7 @@ public:
 
     virtual void debugString(StringBuilder& debug, int level = 0) const;
 
-    virtual void serialize(BSONObjBuilder* out) const;
+    virtual void serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const;
 
     bool isTriviallyFalse() const final;
 };
@@ -188,7 +188,7 @@ public:
 
     virtual void debugString(StringBuilder& debug, int level = 0) const;
 
-    virtual void serialize(BSONObjBuilder* out) const;
+    virtual void serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const;
 };
 
 class NotMatchExpression final : public MatchExpression {
@@ -214,7 +214,7 @@ public:
 
     virtual void debugString(StringBuilder& debug, int level = 0) const;
 
-    virtual void serialize(BSONObjBuilder* out) const;
+    virtual void serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const;
 
     bool equivalent(const MatchExpression* other) const;
 

@@ -59,7 +59,7 @@ bool InternalSchemaUniqueItemsMatchExpression::equivalent(const MatchExpression*
     return path() == other->path();
 }
 
-void InternalSchemaUniqueItemsMatchExpression::serialize(BSONObjBuilder* builder) const {
+void InternalSchemaUniqueItemsMatchExpression::serialize(BSONObjBuilder* builder, ExpressionSerializationContext* context) const {
     BSONObjBuilder subobj(builder->subobjStart(path()));
     subobj.append(kName, true);
     subobj.doneFast();

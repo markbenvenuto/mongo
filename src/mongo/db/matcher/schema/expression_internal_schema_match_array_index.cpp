@@ -69,7 +69,7 @@ bool InternalSchemaMatchArrayIndexMatchExpression::equivalent(const MatchExpress
         _expression->equivalent(other->_expression.get());
 }
 
-void InternalSchemaMatchArrayIndexMatchExpression::serialize(BSONObjBuilder* builder) const {
+void InternalSchemaMatchArrayIndexMatchExpression::serialize(BSONObjBuilder* builder, ExpressionSerializationContext* context) const {
     BSONObjBuilder pathSubobj(builder->subobjStart(path()));
     {
         BSONObjBuilder matchArrayElemSubobj(pathSubobj.subobjStart(kName));

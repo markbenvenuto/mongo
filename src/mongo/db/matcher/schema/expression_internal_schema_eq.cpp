@@ -67,7 +67,7 @@ void InternalSchemaEqMatchExpression::debugString(StringBuilder& debug, int leve
     debug << "\n";
 }
 
-void InternalSchemaEqMatchExpression::serialize(BSONObjBuilder* out) const {
+void InternalSchemaEqMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
     BSONObjBuilder eqObj(out->subobjStart(path()));
     eqObj.appendAs(_rhsElem, kName);
     eqObj.doneFast();

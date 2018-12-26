@@ -67,7 +67,7 @@ public:
 
     void debugString(StringBuilder& debug, int level = 0) const final;
 
-    void serialize(BSONObjBuilder* out) const final;
+    void serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const final;
 
     bool equivalent(const MatchExpression* other) const final;
 
