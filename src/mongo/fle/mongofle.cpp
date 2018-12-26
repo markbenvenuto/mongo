@@ -68,7 +68,7 @@ namespace mongo {
 class FLEContext {
 public:
     Status runFLECommand(const OpMsgRequest& request, BSONObjBuilder* builder) {
-        
+
         auto status = FLECommand::findCommand(request.getCommandName());
         if (!status.isOK()) {
             log() << "failed to find parsing command: " << request.getCommandName();
@@ -156,14 +156,12 @@ DbResponse ServiceEntryPointFLE::handleRequest(OperationContext* opCtx, const Me
 
         replyBuilder->getBodyBuilder().appendElements(builder.obj());
     } catch (const DBException& ex) {
-                BSONObjBuilder metadataBob;
+        BSONObjBuilder metadataBob;
 
-        generateErrorResponse(
-            opCtx, replyBuilder.get(), ex, metadataBob.obj(), BSONObj());
+        generateErrorResponse(opCtx, replyBuilder.get(), ex, metadataBob.obj(), BSONObj());
 
         auto response = replyBuilder->done();
         return DbResponse{std::move(response)};
-
     }
     auto response = replyBuilder->done();
     return DbResponse{std::move(response)};

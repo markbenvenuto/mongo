@@ -69,7 +69,7 @@ public:
         return _expression->matchesBSONElement(element, details);
     }
 
-    void serialize(BSONObjBuilder* builder) const final;
+    void serialize(BSONObjBuilder* builder, ExpressionSerializationContext* context) const final;
 
     std::unique_ptr<MatchExpression> shallowClone() const final;
 

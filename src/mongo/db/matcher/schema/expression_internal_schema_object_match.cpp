@@ -58,10 +58,11 @@ void InternalSchemaObjectMatchExpression::debugString(StringBuilder& debug, int 
     _sub->debugString(debug, level + 1);
 }
 
-void InternalSchemaObjectMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
+void InternalSchemaObjectMatchExpression::serialize(BSONObjBuilder* out,
+                                                    ExpressionSerializationContext* context) const {
     BSONObjBuilder objMatchBob(out->subobjStart(path()));
     BSONObjBuilder subBob(objMatchBob.subobjStart(kName));
-    _sub->serialize(&subBob);
+    _sub->serialize(&subBob, context);
     subBob.doneFast();
     objMatchBob.doneFast();
 }

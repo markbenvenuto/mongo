@@ -74,13 +74,14 @@ void InternalSchemaAllElemMatchFromIndexMatchExpression::debugString(StringBuild
     _expression->getFilter()->debugString(debug, level + 1);
 }
 
-void InternalSchemaAllElemMatchFromIndexMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
+void InternalSchemaAllElemMatchFromIndexMatchExpression::serialize(
+    BSONObjBuilder* out, ExpressionSerializationContext* context) const {
     BSONObjBuilder allElemMatchBob(out->subobjStart(path()));
     BSONArrayBuilder subArray(allElemMatchBob.subarrayStart(kName));
     subArray.append(_index);
     {
         BSONObjBuilder eBuilder(subArray.subobjStart());
-        _expression->getFilter()->serialize(&eBuilder);
+        _expression->getFilter()->serialize(&eBuilder, context);
         eBuilder.doneFast();
     }
     subArray.doneFast();

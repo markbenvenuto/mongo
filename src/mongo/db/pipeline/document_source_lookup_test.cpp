@@ -836,7 +836,7 @@ TEST_F(DocumentSourceLookUpTest, ExprEmbeddedInMatchExpressionShouldBeOptimized)
 
     // Ensure that the '$$var' in the embedded expression got optimized to ExpressionConstant.
     BSONObjBuilder builder;
-    matchSource.getMatchExpression()->serialize(&builder);
+    matchSource.getMatchExpression()->serialize(&builder, nullptr);
     auto serializedMatch = builder.obj();
     auto expectedMatch =
         fromjson("{$and: [{_id: {$_internalExprEq: 5}}, {$expr: {$eq: ['$_id', {$const: 5}]}}]}");

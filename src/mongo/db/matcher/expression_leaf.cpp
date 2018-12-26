@@ -42,6 +42,7 @@
 #include "mongo/db/field_ref.h"
 #include "mongo/db/jsobj.h"
 #include "mongo/db/matcher/expression_parser.h"
+#include "mongo/db/matcher/expression_serialization_context.h"
 #include "mongo/db/matcher/path.h"
 #include "mongo/db/query/collation/collator_interface.h"
 #include "mongo/stdx/memory.h"
@@ -87,8 +88,20 @@ void ComparisonMatchExpressionBase::debugString(StringBuilder& debug, int level)
     debug << "\n";
 }
 
-void ComparisonMatchExpressionBase::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
+void ComparisonMatchExpressionBase::serialize(BSONObjBuilder* out,
+                                              ExpressionSerializationContext* context) const {
     // TODO: support
+    if (context != nullptr) {
+        auto data = context->encrypt(elementPath(), _rhs);
+        if (data) {
+            BSONObjBuilder builder = out->subobjStart(path());
+            builder.appendBinData(
+                name(), data.get().size(), BinDataType::Encrypted, data.get().data());
+            builder.doneFast();
+            return;
+        }
+        // fall through
+    }
     out->append(path(), BSON(name() << _rhs));
 }
 
@@ -291,7 +304,8 @@ void RegexMatchExpression::debugString(StringBuilder& debug, int level) const {
     debug << "\n";
 }
 
-void RegexMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
+void RegexMatchExpression::serialize(BSONObjBuilder* out,
+                                     ExpressionSerializationContext* context) const {
     BSONObjBuilder regexBuilder(out->subobjStart(path()));
     regexBuilder.append("$regex", _regex);
 
@@ -334,7 +348,8 @@ void ModMatchExpression::debugString(StringBuilder& debug, int level) const {
     debug << "\n";
 }
 
-void ModMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
+void ModMatchExpression::serialize(BSONObjBuilder* out,
+                                   ExpressionSerializationContext* context) const {
     out->append(path(), BSON("$mod" << BSON_ARRAY(_divisor << _remainder)));
 }
 
@@ -368,7 +383,8 @@ void ExistsMatchExpression::debugString(StringBuilder& debug, int level) const {
     debug << "\n";
 }
 
-void ExistsMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
+void ExistsMatchExpression::serialize(BSONObjBuilder* out,
+                                      ExpressionSerializationContext* context) const {
     out->append(path(), BSON("$exists" << true));
 }
 
@@ -441,7 +457,8 @@ void InMatchExpression::debugString(StringBuilder& debug, int level) const {
     debug << "\n";
 }
 
-void InMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
+void InMatchExpression::serialize(BSONObjBuilder* out,
+                                  ExpressionSerializationContext* context) const {
     BSONObjBuilder inBob(out->subobjStart(path()));
     BSONArrayBuilder arrBob(inBob.subarrayStart("$in"));
     for (auto&& _equality : _equalitySet) {
@@ -780,7 +797,8 @@ void BitTestMatchExpression::debugString(StringBuilder& debug, int level) const 
     }
 }
 
-void BitTestMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
+void BitTestMatchExpression::serialize(BSONObjBuilder* out,
+                                       ExpressionSerializationContext* context) const {
     std::string opString = "";
 
     switch (matchType()) {

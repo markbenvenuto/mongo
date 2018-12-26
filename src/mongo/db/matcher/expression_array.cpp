@@ -103,9 +103,10 @@ void ElemMatchObjectMatchExpression::debugString(StringBuilder& debug, int level
     _sub->debugString(debug, level + 1);
 }
 
-void ElemMatchObjectMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
+void ElemMatchObjectMatchExpression::serialize(BSONObjBuilder* out,
+                                               ExpressionSerializationContext* context) const {
     BSONObjBuilder subBob;
-    _sub->serialize(&subBob);
+    _sub->serialize(&subBob, context);
     out->append(path(), BSON("$elemMatch" << subBob.obj()));
 }
 
@@ -178,12 +179,13 @@ void ElemMatchValueMatchExpression::debugString(StringBuilder& debug, int level)
     }
 }
 
-void ElemMatchValueMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
+void ElemMatchValueMatchExpression::serialize(BSONObjBuilder* out,
+                                              ExpressionSerializationContext* context) const {
     BSONObjBuilder emBob;
 
     for (unsigned i = 0; i < _subs.size(); i++) {
         BSONObjBuilder predicate;
-        _subs[i]->serialize(&predicate);
+        _subs[i]->serialize(&predicate, context);
         BSONObj predObj = predicate.obj();
         emBob.appendElements(predObj.firstElement().embeddedObject());
     }
@@ -226,7 +228,8 @@ void SizeMatchExpression::debugString(StringBuilder& debug, int level) const {
     }
 }
 
-void SizeMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
+void SizeMatchExpression::serialize(BSONObjBuilder* out,
+                                    ExpressionSerializationContext* context) const {
     out->append(path(), BSON("$size" << _size));
 }
 

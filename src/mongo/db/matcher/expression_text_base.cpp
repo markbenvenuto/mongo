@@ -57,7 +57,8 @@ void TextMatchExpressionBase::debugString(StringBuilder& debug, int level) const
     debug << "\n";
 }
 
-void TextMatchExpressionBase::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
+void TextMatchExpressionBase::serialize(BSONObjBuilder* out,
+                                        ExpressionSerializationContext* context) const {
     const fts::FTSQuery& ftsQuery = getFTSQuery();
     out->append("$text",
                 BSON("$search" << ftsQuery.getQuery() << "$language" << ftsQuery.getLanguage()

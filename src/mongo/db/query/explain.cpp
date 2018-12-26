@@ -671,7 +671,7 @@ void Explain::generatePlannerInfo(PlanExecutor* exec,
     // does not canonicalize for idhack updates). In these cases, 'query' is NULL.
     if (NULL != query) {
         BSONObjBuilder parsedQueryBob(plannerBob.subobjStart("parsedQuery"));
-        query->root()->serialize(&parsedQueryBob);
+        query->root()->serialize(&parsedQueryBob, nullptr);
         parsedQueryBob.doneFast();
 
         if (query->getCollator()) {

@@ -48,7 +48,7 @@ void InternalSchemaMatchArrayIndexMatchExpression::debugString(StringBuilder& de
     _debugAddSpace(debug, level);
 
     BSONObjBuilder builder;
-    serialize(&builder);
+    serialize(&builder, nullptr);
     debug << builder.obj().toString() << "\n";
 
     const auto* tag = getTag();
@@ -69,7 +69,8 @@ bool InternalSchemaMatchArrayIndexMatchExpression::equivalent(const MatchExpress
         _expression->equivalent(other->_expression.get());
 }
 
-void InternalSchemaMatchArrayIndexMatchExpression::serialize(BSONObjBuilder* builder, ExpressionSerializationContext* context) const {
+void InternalSchemaMatchArrayIndexMatchExpression::serialize(
+    BSONObjBuilder* builder, ExpressionSerializationContext* context) const {
     BSONObjBuilder pathSubobj(builder->subobjStart(path()));
     {
         BSONObjBuilder matchArrayElemSubobj(pathSubobj.subobjStart(kName));
@@ -77,7 +78,7 @@ void InternalSchemaMatchArrayIndexMatchExpression::serialize(BSONObjBuilder* bui
         matchArrayElemSubobj.append("namePlaceholder", _expression->getPlaceholder().value_or(""));
         {
             BSONObjBuilder subexprSubObj(matchArrayElemSubobj.subobjStart("expression"));
-            _expression->getFilter()->serialize(&subexprSubObj);
+            _expression->getFilter()->serialize(&subexprSubObj, context);
             subexprSubObj.doneFast();
         }
         matchArrayElemSubobj.doneFast();

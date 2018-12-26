@@ -43,7 +43,7 @@ namespace {
 #define ASSERT_SERIALIZES_TO(match, expected)   \
     do {                                        \
         BSONObjBuilder bob;                     \
-        match->serialize(&bob);                 \
+        match->serialize(&bob, nullptr);        \
         ASSERT_BSONOBJ_EQ(bob.obj(), expected); \
     } while (false)
 
@@ -1047,7 +1047,8 @@ TEST(JSONSchemaParserTest, SharedJsonAndBsonTypeAliasesTranslateIdentically) {
         ASSERT_OK(bsonTypeResult.getStatus());
 
         BSONObjBuilder typeBuilder;
-        MatchExpression::optimize(std::move(typeResult.getValue()))->serialize(&typeBuilder);
+        MatchExpression::optimize(std::move(typeResult.getValue()))
+            ->serialize(&typeBuilder, nullptr);
 
         BSONObjBuilder bsonTypeBuilder;
         MatchExpression::optimize(std::move(bsonTypeResult.getValue()))

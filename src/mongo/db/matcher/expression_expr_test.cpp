@@ -704,7 +704,7 @@ TEST(ExprMatchTest, OptimizingExprAbsorbsAndOfAnd) {
     BSONObj serialized;
     {
         BSONObjBuilder builder;
-        optimized->serialize(&builder);
+        optimized->serialize(&builder, nullptr);
         serialized = builder.obj();
     }
 

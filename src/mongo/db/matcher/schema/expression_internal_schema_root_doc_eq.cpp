@@ -54,7 +54,8 @@ void InternalSchemaRootDocEqMatchExpression::debugString(StringBuilder& debug, i
     debug << "\n";
 }
 
-void InternalSchemaRootDocEqMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
+void InternalSchemaRootDocEqMatchExpression::serialize(
+    BSONObjBuilder* out, ExpressionSerializationContext* context) const {
     BSONObjBuilder subObj(out->subobjStart(kName));
     subObj.appendElements(_rhsObj);
     subObj.doneFast();

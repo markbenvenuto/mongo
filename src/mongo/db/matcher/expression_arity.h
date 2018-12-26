@@ -58,7 +58,7 @@ public:
         _debugAddSpace(debug, level);
 
         BSONObjBuilder builder;
-        serialize(&builder);
+        serialize(&builder, nullptr);
         debug << builder.obj().toString();
     }
 
@@ -106,7 +106,7 @@ public:
         BSONArrayBuilder exprArray(builder->subarrayStart(name()));
         for (const auto& expr : _expressions) {
             BSONObjBuilder exprBuilder(exprArray.subobjStart());
-            expr->serialize(&exprBuilder);
+            expr->serialize(&exprBuilder, context);
             exprBuilder.doneFast();
         }
         exprArray.doneFast();

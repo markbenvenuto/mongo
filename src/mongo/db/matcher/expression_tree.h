@@ -98,7 +98,7 @@ public:
 protected:
     void _debugList(StringBuilder& debug, int level) const;
 
-    void _listToBSON(BSONArrayBuilder* out) const;
+    void _listToBSON(BSONArrayBuilder* out, ExpressionSerializationContext* context) const;
 
 private:
     ExpressionOptimizerFunc getOptimizer() const final;

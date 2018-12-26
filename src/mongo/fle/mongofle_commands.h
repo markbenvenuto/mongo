@@ -30,10 +30,10 @@
 
 #pragma once
 
+#include "mongo/rpc/op_msg.h"
 #include "mongo/stdx/mutex.h"
 #include "mongo/stdx/unordered_map.h"
 #include "mongo/util/time_support.h"
-#include "mongo/rpc/op_msg.h"
 
 namespace mongo {
 

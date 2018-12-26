@@ -71,8 +71,7 @@ bool handlePreValidationMongoFLEOptions(const moe::Environment& params) {
     return true;
 }
 
-Status storeMongoFLEOptions(const moe::Environment& params,
-                               const std::vector<std::string>& args) {
+Status storeMongoFLEOptions(const moe::Environment& params, const std::vector<std::string>& args) {
     if (!params.count("port")) {
         return {ErrorCodes::BadValue, "Missing required option: --port"};
     }

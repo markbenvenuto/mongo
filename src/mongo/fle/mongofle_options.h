@@ -65,6 +65,5 @@ void printMongoFLEHelp(std::ostream* out);
  */
 bool handlePreValidationMongoFLEOptions(const moe::Environment& params);
 
-Status storeMongoFLEOptions(const moe::Environment& params,
-                               const std::vector<std::string>& args);
+Status storeMongoFLEOptions(const moe::Environment& params, const std::vector<std::string>& args);
 }

@@ -50,7 +50,7 @@ using std::unique_ptr;
 
 BSONObj serialize(MatchExpression* match) {
     BSONObjBuilder bob;
-    match->serialize(&bob);
+    match->serialize(&bob, nullptr);
     return bob.obj();
 }
 

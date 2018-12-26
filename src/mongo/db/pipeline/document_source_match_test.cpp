@@ -541,7 +541,7 @@ DEATH_TEST_F(DocumentSourceMatchTest,
     const auto matchExpression =
         unittest::assertGet(MatchExpressionParser::parse(matchSpec, expCtx));
     BSONObjBuilder out;
-    matchExpression->serialize(&out);
+    matchExpression->serialize(&out, nullptr);
     DocumentSourceMatch::descendMatchOnPath(matchExpression.get(), "a", expCtx);
 }
 

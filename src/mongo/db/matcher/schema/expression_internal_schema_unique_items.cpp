@@ -39,7 +39,7 @@ void InternalSchemaUniqueItemsMatchExpression::debugString(StringBuilder& debug,
     _debugAddSpace(debug, level);
 
     BSONObjBuilder builder;
-    serialize(&builder);
+    serialize(&builder, nullptr);
     debug << builder.obj().toString() << "\n";
 
     const auto* tag = getTag();
@@ -59,7 +59,8 @@ bool InternalSchemaUniqueItemsMatchExpression::equivalent(const MatchExpression*
     return path() == other->path();
 }
 
-void InternalSchemaUniqueItemsMatchExpression::serialize(BSONObjBuilder* builder, ExpressionSerializationContext* context) const {
+void InternalSchemaUniqueItemsMatchExpression::serialize(
+    BSONObjBuilder* builder, ExpressionSerializationContext* context) const {
     BSONObjBuilder subobj(builder->subobjStart(path()));
     subobj.append(kName, true);
     subobj.doneFast();

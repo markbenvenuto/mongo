@@ -51,7 +51,8 @@ void InternalSchemaNumArrayItemsMatchExpression::debugString(StringBuilder& debu
     debug << "\n";
 }
 
-void InternalSchemaNumArrayItemsMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
+void InternalSchemaNumArrayItemsMatchExpression::serialize(
+    BSONObjBuilder* out, ExpressionSerializationContext* context) const {
     BSONObjBuilder subBob(out->subobjStart(path()));
     subBob.append(_name, _numItems);
     subBob.doneFast();

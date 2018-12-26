@@ -279,7 +279,7 @@ TEST(CanonicalQueryTest, CanonicalizeFromBaseQuery) {
     auto childCq = assertGet(CanonicalQuery::canonicalize(opCtx.get(), *baseCq, firstClauseExpr));
 
     BSONObjBuilder expectedFilter;
-    firstClauseExpr->serialize(&expectedFilter);
+    firstClauseExpr->serialize(&expectedFilter, nullptr);
     ASSERT_BSONOBJ_EQ(childCq->getQueryRequest().getFilter(), expectedFilter.obj());
 
     ASSERT_BSONOBJ_EQ(childCq->getQueryRequest().getProj(), baseCq->getQueryRequest().getProj());

@@ -57,10 +57,11 @@ void ListOfMatchExpression::_debugList(StringBuilder& debug, int level) const {
         _expressions[i]->debugString(debug, level + 1);
 }
 
-void ListOfMatchExpression::_listToBSON(BSONArrayBuilder* out) const {
+void ListOfMatchExpression::_listToBSON(BSONArrayBuilder* out,
+                                        ExpressionSerializationContext* context) const {
     for (unsigned i = 0; i < _expressions.size(); i++) {
         BSONObjBuilder childBob(out->subobjStart());
-        _expressions[i]->serialize(&childBob);
+        _expressions[i]->serialize(&childBob, context);
     }
     out->doneFast();
 }
@@ -222,7 +223,8 @@ void AndMatchExpression::debugString(StringBuilder& debug, int level) const {
     _debugList(debug, level);
 }
 
-void AndMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
+void AndMatchExpression::serialize(BSONObjBuilder* out,
+                                   ExpressionSerializationContext* context) const {
     if (!numChildren()) {
         // It is possible for an AndMatchExpression to have no children, resulting in the serialized
         // expression {$and: []}, which is not a valid query object.
@@ -230,7 +232,7 @@ void AndMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationC
     }
 
     BSONArrayBuilder arrBob(out->subarrayStart("$and"));
-    _listToBSON(&arrBob);
+    _listToBSON(&arrBob, context);
     arrBob.doneFast();
 }
 
@@ -265,7 +267,8 @@ void OrMatchExpression::debugString(StringBuilder& debug, int level) const {
     _debugList(debug, level);
 }
 
-void OrMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
+void OrMatchExpression::serialize(BSONObjBuilder* out,
+                                  ExpressionSerializationContext* context) const {
     if (!numChildren()) {
         // It is possible for an OrMatchExpression to have no children, resulting in the serialized
         // expression {$or: []}, which is not a valid query object. An empty $or is logically
@@ -274,7 +277,7 @@ void OrMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationCo
         return;
     }
     BSONArrayBuilder arrBob(out->subarrayStart("$or"));
-    _listToBSON(&arrBob);
+    _listToBSON(&arrBob, context);
 }
 
 bool OrMatchExpression::isTriviallyFalse() const {
@@ -307,9 +310,10 @@ void NorMatchExpression::debugString(StringBuilder& debug, int level) const {
     _debugList(debug, level);
 }
 
-void NorMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
+void NorMatchExpression::serialize(BSONObjBuilder* out,
+                                   ExpressionSerializationContext* context) const {
     BSONArrayBuilder arrBob(out->subarrayStart("$nor"));
-    _listToBSON(&arrBob);
+    _listToBSON(&arrBob, context);
 }
 
 // -------
@@ -320,9 +324,10 @@ void NotMatchExpression::debugString(StringBuilder& debug, int level) const {
     _exp->debugString(debug, level + 1);
 }
 
-void NotMatchExpression::serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const {
+void NotMatchExpression::serialize(BSONObjBuilder* out,
+                                   ExpressionSerializationContext* context) const {
     BSONObjBuilder childBob;
-    _exp->serialize(&childBob);
+    _exp->serialize(&childBob, context);
 
     BSONObj tempObj = childBob.obj();
 

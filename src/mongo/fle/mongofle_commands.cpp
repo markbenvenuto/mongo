@@ -46,14 +46,33 @@
 #include "mongo/util/net/hostandport.h"
 #include "mongo/util/string_map.h"
 
+#include "mongo/db/matcher/extensions_callback_noop.h"
 #include "mongo/db/query/canonical_query.h"
 #include "mongo/db/query/query_request.h"
-#include "mongo/db/matcher/extensions_callback_noop.h"
 #include "mongo/util/log.h"
+
+#include "mongo/db/matcher/expression_serialization_context.h"
 
 namespace mongo {
 
 namespace {
+
+
+class FLEExpressionSerializationContext : public ExpressionSerializationContext {
+public:
+    virtual boost::optional<std::vector<char>> encrypt(ElementPath path,
+                                                       BSONElement element) final {
+        const FieldRef& fieldRef = path.fieldRef();
+        if (fieldRef.numParts() > 0) {
+            if (fieldRef.getPart(0) == "_id") {
+                return std::vector<char>{0x1, 0x2, 0x3, 0x4};
+            }
+        }
+
+        return boost::none;
+    }
+};
+
 
 class FLECmdFind final : public FLECommand {
 public:
@@ -61,50 +80,51 @@ public:
         builder->append("query", request.body);
 
         // Parse the command BSON to a QueryRequest.
-        const bool isExplain =  false;
-    
+        const bool isExplain = false;
+
         // Pass parseNs to makeFromFindCommand in case _request.body does not have a UUID.
         auto qr = uassertStatusOK(QueryRequest::makeFromFindCommand(
-            NamespaceString("TODO.TODO"),
-           request.body,
-           isExplain));
-       
-//CommandHelpers::parseNsOrUUID(_dbName,  _request.body)   
+            NamespaceString("TODO.TODO"), request.body, isExplain));
 
-    // Finish the parsing step by using the QueryRequest to create a CanonicalQuery.
-    const boost::intrusive_ptr<ExpressionContext> expCtx;
-    OperationContext *opCtx = nullptr;
-    auto cq = uassertStatusOK(
-        CanonicalQuery::canonicalize(opCtx,
-                                        std::move(qr),
-                                        expCtx,
-                                        ExtensionsCallbackNoop(),
-                                        MatchExpressionParser::kAllowAllSpecialFeatures));
+        // CommandHelpers::parseNsOrUUID(_dbName,  _request.body)
+
+        // Finish the parsing step by using the QueryRequest to create a CanonicalQuery.
+        const boost::intrusive_ptr<ExpressionContext> expCtx;
+        OperationContext* opCtx = nullptr;
+        auto cq = uassertStatusOK(
+            CanonicalQuery::canonicalize(opCtx,
+                                         std::move(qr),
+                                         expCtx,
+                                         ExtensionsCallbackNoop(),
+                                         MatchExpressionParser::kAllowAllSpecialFeatures));
 
 
-    invariant(cq.get());
+        invariant(cq.get());
 
-    log() << "Running query:\n" << redact(cq->toString());
-    log() << "Running query: " << redact(cq->toStringShort());
+        log() << "Running query:\n" << redact(cq->toString());
+        log() << "Running query: " << redact(cq->toStringShort());
 
-    log() << "Foo" << cq->getQueryObj();
-    {
-        BSONObjBuilder cursor = builder->subobjStart("cursor");
-    
-
-    cursor.append("id", static_cast<long long>(0));
-        cursor.append("ns", "ginore.me");
-    cq->root()->serialize(&cursor);
-        
+        log() << "Foo" << cq->getQueryObj();
         {
-BSONArrayBuilder arrayBuilder(cursor.subarrayStart("firstBatch"));
+            // TODO: use CursorResponse
+            BSONObjBuilder cursor = builder->subobjStart("cursor");
 
-    arrayBuilder.append(cq->getQueryObj());
-    
-    
+
+            FLEExpressionSerializationContext fleContext;
+            cursor.append("id", static_cast<long long>(0));
+            cursor.append("ns", "ginore.me");
+
+            {
+                BSONArrayBuilder arrayBuilder(cursor.subarrayStart("firstBatch"));
+
+                BSONObjBuilder scratch;
+
+                cq->root()->serialize(&scratch, &fleContext);
+                arrayBuilder.append(scratch.obj());
+                // arrayBuilder.append(cq->getQueryObj());
+            }
+            cursor.done();
         }
-        cursor.done();
-    }
         return Status::OK();
     }
 };

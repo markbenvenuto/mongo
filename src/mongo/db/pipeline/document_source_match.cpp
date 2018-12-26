@@ -64,7 +64,7 @@ const char* DocumentSourceMatch::getSourceName() const {
 Value DocumentSourceMatch::serialize(boost::optional<ExplainOptions::Verbosity> explain) const {
     if (explain) {
         BSONObjBuilder builder;
-        _expression->serialize(&builder);
+        _expression->serialize(&builder, nullptr);
         return Value(DOC(getSourceName() << Document(builder.obj())));
     }
     return Value(DOC(getSourceName() << Document(getQuery())));
@@ -416,13 +416,13 @@ DocumentSourceMatch::splitSourceBy(const std::set<std::string>& fields,
     // serialize them, and then re-parse them, constructing new BSON that is owned by the
     // DocumentSourceMatch.
     BSONObjBuilder firstBob;
-    newExpr.first->serialize(&firstBob);
+    newExpr.first->serialize(&firstBob, nullptr);
     auto firstMatch = DocumentSourceMatch::create(firstBob.obj(), pExpCtx);
 
     intrusive_ptr<DocumentSourceMatch> secondMatch;
     if (newExpr.second) {
         BSONObjBuilder secondBob;
-        newExpr.second->serialize(&secondBob);
+        newExpr.second->serialize(&secondBob, nullptr);
         secondMatch = DocumentSourceMatch::create(secondBob.obj(), pExpCtx);
     }
 
@@ -458,7 +458,7 @@ boost::intrusive_ptr<DocumentSourceMatch> DocumentSourceMatch::descendMatchOnPat
     });
 
     BSONObjBuilder query;
-    matchExpr->serialize(&query);
+    matchExpr->serialize(&query, nullptr);
     return new DocumentSourceMatch(query.obj(), expCtx);
 }
 
