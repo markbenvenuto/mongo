@@ -547,7 +547,7 @@ StatusWithMatchExpression parseProperties(
                                   << "' must be an object"};
         }
 
-        paths->pushPath(path, false);
+        paths->pushPath(property.fieldNameStringData(), false);
         auto nestedSchemaMatch = _parse(property.fieldNameStringData(),
                                         property.embeddedObject(),
                                         ignoreUnknownKeywords,
@@ -555,6 +555,7 @@ StatusWithMatchExpression parseProperties(
         if (!nestedSchemaMatch.isOK()) {
             return nestedSchemaMatch.getStatus();
         }
+        paths->popPath();
 
         if (requiredProperties.find(property.fieldNameStringData()) != requiredProperties.end()) {
             // The field name for which we created the nested schema is a required property. This

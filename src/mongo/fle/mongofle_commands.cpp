@@ -54,8 +54,8 @@
 #include "mongo/db/matcher/expression_serialization_context.h"
 #include "mongo/db/matcher/schema/json_schema_parser.h"
 
-#include "mongo/fle/match_support.h"
 #include "mongo/db/matcher/schema/encrypt_schema_gen.h"
+#include "mongo/fle/match_support.h"
 
 
 namespace mongo {
@@ -88,7 +88,7 @@ class FLEExpressionSerializationContext : public ExpressionSerializationContext 
 public:
     FLEExpressionSerializationContext(JSONSchemaContext& context) : _context(context) {}
     virtual boost::optional<std::vector<char>> generatePlaceHolder(ElementPath path,
-                                                       BSONElement element) final {
+                                                                   BSONElement element) final {
         const FieldRef& fieldRef = path.fieldRef();
         if (fieldRef.numParts() > 0) {
             // if (fieldRef.getPart(0) == "_id") {
@@ -98,18 +98,22 @@ public:
             if (optEi) {
                 auto& ei = optEi.get();
                 EncryptionPlaceholder placeholder;
-        placeholder.setAlgorithm(ei.getAlgorithm());
-        placeholder.setInitializationVector(ei.getInitializationVector());
-        if(ei.getKeyId().type() == KeyId::Type::kUUIDs) {
-            placeholder.setKeyId(NormalizedKeyId(ei.getKeyId().UUIDs()[0]));
-        }
-        //placeholder.setKeyId(ei.getKeyId());
-        placeholder.setKeyVaultURI(ei.getKeyVaultURI());
-        placeholder.setValue(AnyBasicType::parseFromBSON(element));
+                placeholder.setAlgorithm(ei.getAlgorithm());
+                placeholder.setInitializationVector(ei.getInitializationVector());
+                if (ei.getKeyId().type() == KeyId::Type::kUUIDs) {
+                    placeholder.setKeyId(NormalizedKeyId(ei.getKeyId().UUIDs()[0]));
+                } else {
+                    // TODO - fix uuid gen
+                    placeholder.setKeyId(NormalizedKeyId(UUID::gen()));
+                }
+                // placeholder.setKeyId(ei.getKeyId());
+                placeholder.setKeyVaultURI(ei.getKeyVaultURI());
+                placeholder.setValue(AnyBasicType::parseFromBSON(element));
+                placeholder.setType("int");
 
-        BSONObj obj = placeholder.toBSON();
+                BSONObj obj = placeholder.toBSON();
 
-        return std::vector<char>(obj.objdata(), obj.objdata() + obj.objsize());
+                return std::vector<char>(obj.objdata(), obj.objdata() + obj.objsize());
             }
         }
 
@@ -195,8 +199,8 @@ public:
         log() << "Running query:\n" << redact(cq->toString());
         log() << "Running query: " << redact(cq->toStringShort());
 
-        // using MatchInfo = std::tuple<std::string, MatchParserEncryptionContext::OrdinalPath, EncryptionInfo>;
-        // std::vector<MatchInfo> encryptedFields();
+        // using MatchInfo = std::tuple<std::string, MatchParserEncryptionContext::OrdinalPath,
+        // EncryptionInfo>; std::vector<MatchInfo> encryptedFields();
 
         // {
         //         BSONArrayBuilder arrayBuilder(builder->subarrayStart("encryptedFields"));
@@ -209,7 +213,8 @@ public:
         //     auto optionalField = paths.findField(fr);
         //     if (optionalField) {
         //         log() << "Found encrypted field";
-        //         //encryptedFields.push_back(std::get<0>(match_path), std::get<1>(match_path), nullptr);
+        //         //encryptedFields.push_back(std::get<0>(match_path), std::get<1>(match_path),
+        //         nullptr);
 
         //         arrayBuilder.append(BSON("name" << std::get<0>(match_path)
         //             << "query_path" << toArray(std::get<1>(match_path))
@@ -221,26 +226,32 @@ public:
         // }
 
         log() << "Foo" << cq->getQueryObj();
+
         {
-            // TODO: use CursorResponse
-            BSONObjBuilder cursor = builder->subobjStart("cursor");
-
-
+            BSONObjBuilder place = builder->subobjStart("placeholder");
             FLEExpressionSerializationContext fleContext(paths);
-            cursor.append("id", static_cast<long long>(0));
-            cursor.append("ns", "ginore.me");
-
-            {
-                BSONArrayBuilder arrayBuilder(cursor.subarrayStart("firstBatch"));
-
-                BSONObjBuilder scratch;
-
-                cq->root()->serialize(&scratch, &fleContext);
-                arrayBuilder.append(scratch.obj());
-                // arrayBuilder.append(cq->getQueryObj());
-            }
-            cursor.done();
+            cq->root()->serialize(&place, &fleContext);
         }
+        //{
+        //    // TODO: use CursorResponse
+        //    BSONObjBuilder cursor = builder->subobjStart("cursor");
+
+
+        //    FLEExpressionSerializationContext fleContext(paths);
+        //    cursor.append("id", static_cast<long long>(0));
+        //    cursor.append("ns", "ginore.me");
+
+        //    {
+        //        BSONArrayBuilder arrayBuilder(cursor.subarrayStart("firstBatch"));
+
+        //        BSONObjBuilder scratch;
+
+        //        cq->root()->serialize(&scratch, &fleContext);
+        //        arrayBuilder.append(scratch.obj());
+        //        // arrayBuilder.append(cq->getQueryObj());
+        //    }
+        //    cursor.done();
+        //}
         return Status::OK();
     }
 };
