@@ -89,7 +89,7 @@ public:
 
     virtual void debugString(StringBuilder& debug, int level) const;
 
-    virtual void serialize(BSONObjBuilder* out) const;
+    virtual void serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const;
 
     std::vector<MatchExpression*>* getChildVector() final {
         return nullptr;
@@ -144,7 +144,7 @@ public:
 
     virtual void debugString(StringBuilder& debug, int level) const;
 
-    virtual void serialize(BSONObjBuilder* out) const;
+    virtual void serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const;
 
     virtual std::vector<MatchExpression*>* getChildVector() {
         return &_subs;
@@ -195,7 +195,7 @@ public:
 
     virtual void debugString(StringBuilder& debug, int level) const;
 
-    virtual void serialize(BSONObjBuilder* out) const;
+    virtual void serialize(BSONObjBuilder* out, ExpressionSerializationContext* context) const;
 
     virtual bool equivalent(const MatchExpression* other) const;
 
