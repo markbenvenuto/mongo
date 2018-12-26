@@ -2109,8 +2109,7 @@ TEST(JSONSchemaParserTest, EncryptTranslatesCorrectly) {
 
 
 TEST(JSONSchemaParserTest, IgnoreEncryptionFields) {
-    BSONObj schema =
-        fromjson(R"({properties: {foo: {bsonType: 'binData', encrypt: 1,
+    BSONObj schema = fromjson(R"({properties: {foo: {bsonType: 'binData', encrypt: 1,
                 		encryptionDeterministic: true,
 		encryptionInitializationVector: 0,
 		mongoKeyVault: "mongo.example.com:12345",

@@ -30,70 +30,113 @@
 
 #pragma once
 
-#include <unordered_map>
 #include <algorithm>
 #include <functional>
 #include <numeric>
+#include <unordered_map>
 
 #include "mongo/db/matcher/expression.h"
 #include "mongo/db/matcher/expression_tree.h"
 #include "mongo/db/matcher/expression_type.h"
+#include "mongo/util/mongoutils/str.h"
 
 
 namespace mongo {
-    struct EncryptionPath {
-            std::vector<std::string> path;
+struct EncryptionPath {
+    std::vector<std::string> path;
+};
 
-    };
+inline bool operator==(const EncryptionPath& lhs, const EncryptionPath& rhs) {
+    return lhs.path == rhs.path;
+}
+}
 
-    inline bool operator==(const EncryptionPath& lhs, const EncryptionPath& rhs) {
-        return lhs.path == rhs.path;
+namespace std {
+template <>
+struct hash<mongo::EncryptionPath> {
+    typedef mongo::EncryptionPath argument_type;
+    typedef std::size_t result_type;
+    result_type operator()(argument_type const& s) const noexcept {
+        return std::accumulate<decltype(argument_type::path)::const_iterator, std::size_t>(
+            cbegin(s.path), cend(s.path), 0, [](size_t s, std::string a) {
+                return s ^ std::hash<std::string>()(a);
+            });
+    }
+};
+}
+
+namespace mongo {
+
+template <typename T>
+std::string vectorToString2(const std::vector<T>& list) {
+    StringBuilder str;
+    for (const auto& entry : list) {
+        str << "[" << entry << "]";
     }
 
-
+    return str.str();
 }
 
-namespace std
-{
-    template<> struct hash<mongo::EncryptionPath>
-    {
-        typedef mongo::EncryptionPath argument_type;
-        typedef std::size_t result_type;
-        result_type operator()(argument_type const& s) const noexcept
-        {
-            return std::accumulate<decltype(argument_type::path)::const_iterator, std::size_t>(cbegin(s.path), cend(s.path), 0,
-            []( size_t s, std::string a) { return s ^ std::hash<std::string>()(a); });
-        }
+class EncryptionInfo {
+public:
+    std::string name;
+    std::vector<std::string> path;
+
+    int algo{0};
+    bool deterministic{false};
+    std::vector<uint8_t> iv;
+
+    std::string keyVault;
+
+    std::string key1;
+    std::string key2;
+
+    std::string toString() const {
+        std::string s1 = str::stream() << "name: " << name << ", path: " << vectorToString2(path) << ", algo: " << algo
+                                       << ", deterministic: " << deterministic << ", keyVault: "
+                                       << keyVault << ", key1: " << key1 << ", key2: " << key2;
+
+        return s1;
+    }
+
+    BSONObj toBSON() const {
+        BSONObjBuilder builder;
+        builder.append("name", name);
+        builder.append("path", path);
+        builder.append("algo", algo);
+
+
+builder.append("deeterministic", deterministic  );
+builder.append("iv", iv);
+builder.append("keyVault", keyVault);
+builder.append("key1", key1);
+builder.append("key2", key2);
+
+return builder.obj();
+    }
+};
+
+
+class JSONSchemaContext {
+public:
+    // TODO: create a struct of properties
+    void addEncryptionInformation(EncryptionInfo ei);
+    void pushPath(StringData path, bool isArray);
+    void popPath();
+
+    boost::optional<EncryptionInfo> findField(const FieldRef& path);
+
+    std::unordered_map<EncryptionPath, EncryptionInfo>& keys() {
+        return _map;
     };
 
-}
+    std::vector<std::string> paths() const {  return _paths; }
 
-namespace mongo {
+private:
+    std::vector<std::string> _paths;
 
-    class EncryptionInfo {
-        public:
-        std::string placeholder;
-
-        std::string toString() const {  return placeholder; }
-    };
-
-
-
-    class JSONSchemaContext {
-        public:
-            // TODO: create a struct of properties
-            void addEncryptionInformation(StringData name);
-            void pushPath(StringData path, bool isArray);
-            void popPath();
-
-          boost::optional<EncryptionInfo> findField(const FieldRef& path);
-
-            std::unordered_map<EncryptionPath, EncryptionInfo>& keys() { return _map; };
-        private:
-            std::vector<std::string> _paths;
-
-            std::unordered_map<EncryptionPath, EncryptionInfo> _map;
-    };
+    std::unordered_map<EncryptionPath, EncryptionInfo> _map;
+};
 
 class JSONSchemaParser {
 public:
@@ -111,7 +154,9 @@ public:
      * Converts a JSON schema, represented as BSON, into a semantically equivalent match expression
      * tree. Returns a non-OK status if the schema is invalid or cannot be parsed.
      */
-    static StatusWithMatchExpression parse(BSONObj schema, bool ignoreUnknownKeywords = false, JSONSchemaContext* encryptionPaths = nullptr);
+    static StatusWithMatchExpression parse(BSONObj schema,
+                                           bool ignoreUnknownKeywords = false,
+                                           JSONSchemaContext* encryptionPaths = nullptr);
 };
 
 }  // namespace mongo

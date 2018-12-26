@@ -92,25 +92,25 @@ void ComparisonMatchExpressionBase::serialize(BSONObjBuilder* out,
                                               ExpressionSerializationContext* context) const {
     // TODO: support
     if (context != nullptr) {
-/*
-        auto data = context->encrypt(elementPath(), _rhs);
-        if (data) {
-            BSONObjBuilder builder = out->subobjStart(path());
-            builder.appendBinData(
-                name(), data.get().size(), BinDataType::Encrypted, data.get().data());
-            builder.doneFast();
-            return;
-        }
-        // fall through
-        auto data = context->placeholder(elementPath(), _rhs);
-        if (data) {
-            BSONObjBuilder builder = out->subobjStart(path());
-            builder.appendBinData(
-                name(), data.get().size(), BinDataType::Encrypted, data.get().data());
-            builder.doneFast();
-            return;
-        }
-*/
+        /*
+                auto data = context->encrypt(elementPath(), _rhs);
+                if (data) {
+                    BSONObjBuilder builder = out->subobjStart(path());
+                    builder.appendBinData(
+                        name(), data.get().size(), BinDataType::Encrypted, data.get().data());
+                    builder.doneFast();
+                    return;
+                }
+                // fall through
+                auto data = context->placeholder(elementPath(), _rhs);
+                if (data) {
+                    BSONObjBuilder builder = out->subobjStart(path());
+                    builder.appendBinData(
+                        name(), data.get().size(), BinDataType::Encrypted, data.get().data());
+                    builder.doneFast();
+                    return;
+                }
+        */
     }
     out->append(path(), BSON(name() << _rhs));
 }

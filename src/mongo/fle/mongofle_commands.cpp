@@ -61,7 +61,7 @@ namespace mongo {
 namespace {
 
 
-template<typename T>
+template <typename T>
 std::string vectorToString(const std::vector<T>& list) {
     StringBuilder str;
     for (const auto& entry : list) {
@@ -70,6 +70,17 @@ std::string vectorToString(const std::vector<T>& list) {
 
     return str.str();
 }
+
+template <typename T>
+mongo::BSONArray toArray(const std::vector<T>& list) {
+    mongo::BSONArrayBuilder b;
+    for (const auto& entry : list) {
+        b.append(entry);
+    }
+
+    return b.arr();
+}
+
 
 class FLEExpressionSerializationContext : public ExpressionSerializationContext {
 public:
@@ -84,22 +95,22 @@ public:
             if (_context.findField(fieldRef)) {
                 log() << "Found encrypted field";
             }
-
         }
 
         return boost::none;
     }
-    private:
+
+private:
     JSONSchemaContext& _context;
 };
 
 
 class FLECmdFind final : public FLECommand {
 public:
-    StatusWith<BSONObj> extractJSONSchema(BSONObj obj, BSONObjBuilder* stripped){
+    StatusWith<BSONObj> extractJSONSchema(BSONObj obj, BSONObjBuilder* stripped) {
         BSONObj ret;
-        for(auto& e : obj ) {
-            if( e.fieldNameStringData() == "$jsonSchema") {
+        for (auto& e : obj) {
+            if (e.fieldNameStringData() == "$jsonSchema") {
 
                 // TODO: add error checking
                 ret = e.Obj();
@@ -108,7 +119,7 @@ public:
             }
         }
 
-        if( ret.isEmpty() ) {
+        if (ret.isEmpty()) {
             return Status(ErrorCodes::BadValue, "JSON SCHEMA IS MISSING!!!!");
         }
 
@@ -116,7 +127,6 @@ public:
 
         return ret;
     }
-
 
 
     Status run(const OpMsgRequest& request, BSONObjBuilder* builder) final {
@@ -130,12 +140,12 @@ public:
         JSONSchemaContext paths;
         auto swMatch = uassertStatusOK(JSONSchemaParser::parse(schema, false, &paths));
 
-                BSONObjBuilder scratch2;
+        BSONObjBuilder scratch2;
 
-                swMatch->serialize(&scratch2, nullptr);
-                log() << "SCHEMA: " << scratch2.obj();
+        swMatch->serialize(&scratch2, nullptr);
+        log() << "SCHEMA: " << scratch2.obj();
 
-        for(auto& k : paths.keys()) {
+        for (auto& k : paths.keys()) {
             log() << "KEY INFO: " << vectorToString(k.first.path) << " --- " << k.second;
         }
 
@@ -165,8 +175,34 @@ public:
 
         invariant(cq.get());
 
+
         log() << "Running query:\n" << redact(cq->toString());
         log() << "Running query: " << redact(cq->toStringShort());
+
+        // using MatchInfo = std::tuple<std::string, MatchParserEncryptionContext::OrdinalPath, EncryptionInfo>;
+        // std::vector<MatchInfo> encryptedFields();
+
+        {
+                BSONArrayBuilder arrayBuilder(builder->subarrayStart("encryptedFields"));
+
+        // Now we have all the encryption info and JSON schema info
+        // Merge the two lists and tell the end-user
+        for(const auto& match_path: encContxt.paths()) {
+            FieldRef fr;
+            fr.parse(std::get<0>(match_path));
+            auto optionalField = paths.findField(fr);
+            if (optionalField) {
+                log() << "Found encrypted field";
+                //encryptedFields.push_back(std::get<0>(match_path), std::get<1>(match_path), nullptr);
+
+                arrayBuilder.append(BSON("name" << std::get<0>(match_path)
+                    << "query_path" << toArray(std::get<1>(match_path))
+                    << "encrypted_info" <<  optionalField.get().toBSON()
+                 ));
+            }
+        }
+
+        }
 
         log() << "Foo" << cq->getQueryObj();
         {

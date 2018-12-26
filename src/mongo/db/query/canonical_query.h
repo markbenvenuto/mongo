@@ -81,7 +81,7 @@ public:
         const ExtensionsCallback& extensionsCallback = ExtensionsCallbackNoop(),
         MatchExpressionParser::AllowedFeatureSet allowedFeatures =
             MatchExpressionParser::kDefaultSpecialFeatures,
-            MatchParserEncryptionContext *context = nullptr);
+        MatchParserEncryptionContext* context = nullptr);
 
     /**
      * For testing or for internal clients to use.
