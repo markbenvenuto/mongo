@@ -392,6 +392,8 @@ StatusWithMatchExpression parseLogicalKeyword(StringData path,
                                   << elem.type()};
         }
 
+        paths->pushPath(path, false);
+
         auto nestedSchemaMatch = _parse(path, elem.embeddedObject(), ignoreUnknownKeywords, paths);
         if (!nestedSchemaMatch.isOK()) {
             return nestedSchemaMatch.getStatus();
@@ -542,6 +544,7 @@ StatusWithMatchExpression parseProperties(
                                   << "' must be an object"};
         }
 
+        paths->pushPath(path, false);
         auto nestedSchemaMatch = _parse(
             property.fieldNameStringData(), property.embeddedObject(), ignoreUnknownKeywords, paths);
         if (!nestedSchemaMatch.isOK()) {
@@ -605,11 +608,13 @@ StatusWith<std::vector<PatternSchema>> parsePatternProperties(BSONElement patter
 
         // Parse the nested schema using a placeholder as the path, since we intend on using the
         // resulting match expression inside an ExpressionWithPlaceholder.
+        paths->pushPath("placeholder1", false);
         auto nestedSchemaMatch =
             _parse(kNamePlaceholder, patternSchema.embeddedObject(), ignoreUnknownKeywords, paths);
         if (!nestedSchemaMatch.isOK()) {
             return nestedSchemaMatch.getStatus();
         }
+        paths->popPath();
 
         auto exprWithPlaceholder = stdx::make_unique<ExpressionWithPlaceholder>(
             kNamePlaceholder.toString(), std::move(nestedSchemaMatch.getValue()));
@@ -646,11 +651,13 @@ StatusWithMatchExpression parseAdditionalProperties(BSONElement additionalProper
 
     // Parse the nested schema using a placeholder as the path, since we intend on using the
     // resulting match expression inside an ExpressionWithPlaceholder.
+        paths->pushPath("placeholder2", false);
     auto nestedSchemaMatch =
         _parse(kNamePlaceholder, additionalPropertiesElt.embeddedObject(), ignoreUnknownKeywords, paths);
     if (!nestedSchemaMatch.isOK()) {
         return nestedSchemaMatch.getStatus();
     }
+        paths->popPath();
 
     return {std::move(nestedSchemaMatch.getValue())};
 }
@@ -750,10 +757,12 @@ StatusWithMatchExpression translateSchemaDependency(StringData path,
                                                     bool ignoreUnknownKeywords, JSONSchemaContext* paths ) {
     invariant(dependency.type() == BSONType::Object);
 
+        paths->pushPath(path, false);
     auto nestedSchemaMatch = _parse(path, dependency.embeddedObject(), ignoreUnknownKeywords, paths);
     if (!nestedSchemaMatch.isOK()) {
         return nestedSchemaMatch.getStatus();
     }
+        paths->popPath();
 
     auto ifClause = makeDependencyExistsClause(path, dependency.fieldNameStringData());
     if (!ifClause.isOK()) {
@@ -900,11 +909,14 @@ StatusWith<boost::optional<long long>> parseItems(StringData path,
 
             // We want to make an ExpressionWithPlaceholder for $_internalSchemaMatchArrayIndex,
             // so we use our default placeholder as the path.
+        paths->pushPath("placeholder3", false);
             auto parsedSubschema =
                 _parse(kNamePlaceholder, subschema.embeddedObject(), ignoreUnknownKeywords, paths);
             if (!parsedSubschema.isOK()) {
                 return parsedSubschema.getStatus();
             }
+        paths->popPath();
+
             auto exprWithPlaceholder = stdx::make_unique<ExpressionWithPlaceholder>(
                 kNamePlaceholder.toString(), std::move(parsedSubschema.getValue()));
             auto matchArrayIndex = stdx::make_unique<InternalSchemaMatchArrayIndexMatchExpression>(
@@ -925,11 +937,13 @@ StatusWith<boost::optional<long long>> parseItems(StringData path,
         // When "items" is an object, generate a single AllElemMatchFromIndex that applies to every
         // element in the array to match. The parsed expression is intended for an
         // ExpressionWithPlaceholder, so we use the default placeholder as the path.
+        paths->pushPath("placeholder4", false);
         auto nestedItemsSchema =
             _parse(kNamePlaceholder, itemsElt.embeddedObject(), ignoreUnknownKeywords, paths);
         if (!nestedItemsSchema.isOK()) {
             return nestedItemsSchema.getStatus();
         }
+        paths->popPath();
         auto exprWithPlaceholder = stdx::make_unique<ExpressionWithPlaceholder>(
             kNamePlaceholder.toString(), std::move(nestedItemsSchema.getValue()));
 
@@ -970,11 +984,13 @@ Status parseAdditionalItems(StringData path,
                 emptyPlaceholder, stdx::make_unique<AlwaysFalseMatchExpression>());
         }
     } else if (additionalItemsElt.type() == BSONType::Object) {
+        paths->pushPath("placeholder5", false);
         auto parsedOtherwiseExpr =
             _parse(kNamePlaceholder, additionalItemsElt.embeddedObject(), ignoreUnknownKeywords, paths);
         if (!parsedOtherwiseExpr.isOK()) {
             return parsedOtherwiseExpr.getStatus();
         }
+        paths->popPath();
         otherwiseExpr = stdx::make_unique<ExpressionWithPlaceholder>(
             kNamePlaceholder.toString(), std::move(parsedOtherwiseExpr.getValue()));
     } else {
@@ -1074,10 +1090,12 @@ Status translateLogicalKeywords(StringMap<BSONElement>& keywordMap,
                                   << notElt.type()};
         }
 
+        paths->pushPath(path, false);
         auto parsedExpr = _parse(path, notElt.embeddedObject(), ignoreUnknownKeywords, paths);
         if (!parsedExpr.isOK()) {
             return parsedExpr.getStatus();
         }
+        paths->popPath();
 
         auto notMatchExpr = stdx::make_unique<NotMatchExpression>(parsedExpr.getValue().release());
         andExpr->add(notMatchExpr.release());
@@ -1189,6 +1207,7 @@ Status translateEncryptionKeywords(StringMap<BSONElement>* keywordMap,
 
         andExpr->add(binDataSubTypeExpr.release());
 
+        // TODO - gather encryption information here
         //if(paths != nullptr) {
             std::cout << "PATH " << path.toString() << std::endl;
         //}
@@ -1641,5 +1660,17 @@ void JSONSchemaContext::popPath(){
     _paths.pop_back();
 
 }
+
+void JSONSchemaContext::addEncryptionInformation(StringData name) {
+    EncryptionInfo ei;
+
+    std::vector<std::string> path(_paths);
+
+    EncryptionPath p1;
+    p1.path = path;
+
+    _map.insert({p1, ei});
+}
+
 
 }  // namespace mongo

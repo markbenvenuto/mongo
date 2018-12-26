@@ -59,15 +59,29 @@ namespace mongo {
 namespace {
 
 
+template<typename T>
+std::string vectorToString(const std::vector<T>& list) {
+    StringBuilder str;
+    for (const auto& entry : list) {
+        str << "[" << entry << "]";
+    }
+
+    return str.str();
+}
+
 class FLEExpressionSerializationContext : public ExpressionSerializationContext {
 public:
+    FLEExpressionSerializationContext
+
     virtual boost::optional<std::vector<char>> encrypt(ElementPath path,
                                                        BSONElement element) final {
         const FieldRef& fieldRef = path.fieldRef();
         if (fieldRef.numParts() > 0) {
-            if (fieldRef.getPart(0) == "_id") {
-                return std::vector<char>{0x1, 0x2, 0x3, 0x4};
-            }
+            // if (fieldRef.getPart(0) == "_id") {
+            //     return std::vector<char>{0x1, 0x2, 0x3, 0x4};
+            // }
+
+
         }
 
         return boost::none;
@@ -98,6 +112,8 @@ public:
         return ret;
     }
 
+
+
     Status run(const OpMsgRequest& request, BSONObjBuilder* builder) final {
         builder->append("query", request.body);
 
@@ -113,6 +129,10 @@ public:
 
                 swMatch->serialize(&scratch2, nullptr);
                 log() << "SCHEMA: " << scratch2.obj();
+
+        for(auto& k : paths.keys()) {
+            log() << "KEY INFO: " << vectorToString(k.first.path) << " --- " << k.second;
+        }
 
         // Parse the command BSON to a QueryRequest.
         const bool isExplain = false;
