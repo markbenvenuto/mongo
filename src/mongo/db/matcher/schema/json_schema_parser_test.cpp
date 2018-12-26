@@ -2090,7 +2090,13 @@ TEST(JSONSchemaParserTest, TopLevelEnumWithZeroObjectsTranslatesCorrectly) {
 
 TEST(JSONSchemaParserTest, EncryptTranslatesCorrectly) {
     BSONObj schema =
-        fromjson("{properties: {foo: {bsonType: 'binData', encrypt: 1}}, type: 'object'}");
+        fromjson(R"({properties: {foo: {bsonType: 'binData',encrypt : {
+		type: "int",
+		algorithm: "TBD_Deterministic",
+		initializationVector: { "$binary" : "YWJj", "$type" : "00" },
+		keyId: "/email",
+        keyVaultURI: "mongodb://example.com:27017/admin.datakeys"
+	}}}, type: 'object'})");
     auto result = JSONSchemaParser::parse(schema);
     ASSERT_OK(result.getStatus());
     auto optimizedResult = MatchExpression::optimize(std::move(result.getValue()));
@@ -2109,12 +2115,14 @@ TEST(JSONSchemaParserTest, EncryptTranslatesCorrectly) {
 
 
 TEST(JSONSchemaParserTest, IgnoreEncryptionFields) {
-    BSONObj schema = fromjson(R"({properties: {foo: {bsonType: 'binData', encrypt: 1,
-                		encryptionDeterministic: true,
-		encryptionInitializationVector: 0,
-		mongoKeyVault: "mongo.example.com:12345",
-		mongoKeyId1: 0,
-		mongoKeyId2: 0
+    BSONObj schema = fromjson(R"({properties: {foo: {bsonType: 'binData', encrypt : {
+		type: "int",
+		algorithm: "TBD_Deterministic",
+		initializationVector: { "$binary" : "YWJj", "$type" : "00" },
+		keyId: "/email",
+        keyVaultURI: "mongodb://example.com:27017/admin.datakeys"
+	}
+
         }}, type: 'object'})");
     auto result = JSONSchemaParser::parse(schema);
     ASSERT_OK(result.getStatus());

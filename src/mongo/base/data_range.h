@@ -31,6 +31,7 @@
 #pragma once
 
 #include <cstring>
+#include <vector>
 #include <tuple>
 #include <type_traits>
 
@@ -59,6 +60,9 @@ public:
 
     ConstDataRange(const char* begin, std::size_t length, std::ptrdiff_t debug_offset = 0)
         : ConstDataRange(begin, begin + length, debug_offset) {}
+
+    ConstDataRange(const std::vector<uint8_t>& vec, std::ptrdiff_t debug_offset = 0)
+        : ConstDataRange(reinterpret_cast<const char*>(vec.data()), reinterpret_cast<const char*>(vec.data()) + vec.size(), debug_offset) {}
 
     const char* data() const {
         return _begin;

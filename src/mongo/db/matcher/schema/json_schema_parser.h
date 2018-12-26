@@ -39,7 +39,7 @@
 #include "mongo/db/matcher/expression_tree.h"
 #include "mongo/db/matcher/expression_type.h"
 #include "mongo/util/mongoutils/str.h"
-
+#include "mongo/db/matcher/schema/encrypt_schema_gen.h"
 
 namespace mongo {
 struct EncryptionPath {
@@ -77,44 +77,47 @@ std::string vectorToString2(const std::vector<T>& list) {
     return str.str();
 }
 
-class EncryptionInfo {
-public:
-    std::string name;
-    std::vector<std::string> path;
 
-    int algo{0};
-    bool deterministic{false};
-    std::vector<uint8_t> iv;
+// class EncryptionInfo {
+// public:
+// enum class Algorithm {
+//     TBD_Deterministic = 0,
+//     TBD_Random = 1,
+// };
+//     std::string name;
+//     std::vector<std::string> path;
 
-    std::string keyVault;
+//     Algorithm algo{Algorithm::TBD_Deterministic};
+//     bool deterministic{false};
+//     std::vector<uint8_t> iv;
 
-    std::string key1;
-    std::string key2;
+//     std::string keyVault;
 
-    std::string toString() const {
-        std::string s1 = str::stream() << "name: " << name << ", path: " << vectorToString2(path) << ", algo: " << algo
-                                       << ", deterministic: " << deterministic << ", keyVault: "
-                                       << keyVault << ", key1: " << key1 << ", key2: " << key2;
+//     std::string keyId;
 
-        return s1;
-    }
+//     std::string toString() const {
+//         std::string s1 = str::stream() << "name: " << name << ", path: " << vectorToString2(path) << ", algo: " << algo
+//                                        << ", deterministic: " << deterministic << ", keyVault: "
+//                                        << keyVault << ", keyId: " << keyId;
 
-    BSONObj toBSON() const {
-        BSONObjBuilder builder;
-        builder.append("name", name);
-        builder.append("path", path);
-        builder.append("algo", algo);
+//         return s1;
+//     }
+
+//     BSONObj toBSON() const {
+//         BSONObjBuilder builder;
+//         builder.append("name", name);
+//         builder.append("path", path);
+//         builder.append("algo", algo);
 
 
-builder.append("deeterministic", deterministic  );
-builder.append("iv", iv);
-builder.append("keyVault", keyVault);
-builder.append("key1", key1);
-builder.append("key2", key2);
+// builder.append("deeterministic", deterministic  );
+// builder.append("iv", iv);
+// builder.append("keyVault", keyVault);
+// builder.append("keyId", keyId);
 
-return builder.obj();
-    }
-};
+// return builder.obj();
+//     }
+// };
 
 
 class JSONSchemaContext {

@@ -102,12 +102,10 @@ constexpr StringData kSchemaUniqueItemsKeyword = "uniqueItems"_sd;
 constexpr StringData kSchemaBsonTypeKeyword = "bsonType"_sd;
 
 constexpr StringData kSchemaEncrypt = "encrypt"_sd;
-constexpr StringData kSchemaEncryptionAlgorithm = "encryptionAlgorithm"_sd;
-constexpr StringData kSchemaEncryptDeterministic = "encryptionDeterministic"_sd;
-constexpr StringData kSchemaEncryptionIV = "encryptionInitializationVector"_sd;
-constexpr StringData kSchemaMongoKeyVault = "mongoKeyVault"_sd;
-constexpr StringData kSchemaMongoKeyId1 = "mongoKeyId1"_sd;
-constexpr StringData kSchemaMongoKeyId2 = "mongoKeyId2"_sd;
+constexpr StringData kSchemaAlgorithm = "algorithm"_sd;
+constexpr StringData kSchemaIV = "initializationVector"_sd;
+constexpr StringData kSchemaKeyVault = "keyVaultURI"_sd;
+constexpr StringData kSchemaKeyId = "keyId"_sd;
 
 
 // Explicitly unsupported JSON Schema keywords.
@@ -1224,49 +1222,47 @@ Status translateEncryptionKeywords(StringMap<BSONElement>* keywordMap,
                                    JSONSchemaContext* paths) {
     if (auto encryptElem = keywordMap->get(kSchemaEncrypt)) {
 
+        // TODO - validate type
         auto binDataSubTypeExpr = stdx::make_unique<BinDataTypeMatchExpression>(path, Encrypted);
 
         andExpr->add(binDataSubTypeExpr.release());
 
-        EncryptionInfo ei;
-        ei.algo = 0;
-        ei.name = path.toString();
-        ei.path = std::vector<std::string>(paths->paths());
+        // TODO - use the full path instead of just encrypt
+        auto ei = EncryptionInfo::parse(IDLParserErrorContext("encrypt"), encryptElem.Obj());
 
-        if (auto deterministicElem = keywordMap->get(kSchemaEncryptDeterministic)) {
-            if (deterministicElem.type() != BSONType::Bool) {
-                return Status(ErrorCodes::BadValue, "encryptionDeterministicmust be bool");
-            }
-            ei.deterministic = deterministicElem.boolean();
-        }
+        // EncryptionInfo ei;
+        // ei.algo = 0;
+        // ei.name = path.toString();
+        // ei.path = std::vector<std::string>(paths->paths());
 
-        if (auto ivElem = keywordMap->get(kSchemaEncryptionIV)) {
-            if (ivElem.type() != BSONType::BinData) {
-                return Status(ErrorCodes::BadValue,
-                              "encryptionInitializationVector must be bindata");
-            }
-            ei.iv = ivElem._binDataVector();
-        }
-        if (auto keyVaultElem = keywordMap->get(kSchemaMongoKeyVault)) {
-            if (keyVaultElem.type() != BSONType::String) {
-                return Status(ErrorCodes::BadValue, "mongoKeyVault must be string");
-            }
-            ei.keyVault = keyVaultElem.String();
-        }
+        // if (auto ivElem = keywordMap->get(kSchemaIV)) {
+        //     if (ivElem.type() != BSONType::BinData) {
+        //         return Status(ErrorCodes::BadValue,
+        //                       "initializationVector must be bindata");
+        //     }
+        //     ei.iv = ivElem._binDataVector();
+        // }
+        // if (auto keyVaultElem = keywordMap->get(kSchemaKeyVault)) {
+        //     if (keyVaultElem.type() != BSONType::String) {
+        //         return Status(ErrorCodes::BadValue, "mongoKeyVault must be string");
+        //     }
+        //     ei.keyVault = keyVaultElem.String();
+        // }
 
-        if (auto key1Elem = keywordMap->get(kSchemaMongoKeyId1)) {
-            if (key1Elem.type() != BSONType::String) {
-                return Status(ErrorCodes::BadValue, "mongoKeyId1 must be string");
-            }
-            ei.key1 = key1Elem.String();
-        }
+        // if (auto keyIdElem = keywordMap->get(kSchemaKeyId)) {
+        //     // TODO validate array is UUID
+        //     if (keyIdElem.type() != BSONType::String && keyIdElem.type() != BSONType::Array) {
+        //         return Status(ErrorCodes::BadValue, "mongoKeyId1 must be string");
+        //     }
+        //     ei.keyId = keyIdElem.String();
+        // }
 
-        if (auto key2Elem = keywordMap->get(kSchemaMongoKeyId2)) {
-            if (key2Elem.type() != BSONType::String) {
-                return Status(ErrorCodes::BadValue, "mongoKeyId2 must be string");
-            }
-            ei.key2 = key2Elem.String();
-        }
+        // // if (auto key2Elem = keywordMap->get(kSchemaType)) {
+        // //     if (key2Elem.type() != BSONType::String) {
+        // //         return Status(ErrorCodes::BadValue, "mongoKeyId2 must be string");
+        // //     }
+        // //     ei.key2 = key2Elem.String();
+        // // }
 
         //// TODO - gather encryption information here
         paths->addEncryptionInformation(ei);
@@ -1589,14 +1585,11 @@ StatusWithMatchExpression _parse(StringData path,
         {std::string(kSchemaTypeKeyword), {}},
         {std::string(kSchemaUniqueItemsKeyword), {}},
 
-
-{std::string(kSchemaEncrypt), {}},
-{std::string(kSchemaEncryptionAlgorithm), {}},
-{std::string(kSchemaEncryptDeterministic), {}},
-{std::string(kSchemaEncryptionIV), {}},
-{std::string(kSchemaMongoKeyVault), {}},
-{std::string(kSchemaMongoKeyId1), {}},
-{std::string(kSchemaMongoKeyId2), {}},
+        {std::string(kSchemaEncrypt), {}},
+        {std::string(kSchemaAlgorithm), {}},
+        {std::string(kSchemaIV), {}},
+        {std::string(kSchemaKeyVault), {}},
+        {std::string(kSchemaKeyId), {}},
     };
 
     for (auto&& elt : schema) {
@@ -1713,8 +1706,9 @@ StatusWithMatchExpression JSONSchemaParser::parse(BSONObj schema,
                                                   bool ignoreUnknownKeywords,
                                                   JSONSchemaContext* paths) {
     LOG(5) << "Parsing JSON Schema: " << schema.jsonString();
+    JSONSchemaContext alt;
     try {
-        auto translation = _parse(""_sd, schema, ignoreUnknownKeywords, paths);
+        auto translation = _parse(""_sd, schema, ignoreUnknownKeywords, paths ? paths : &alt);
         if (shouldLog(logger::LogSeverity::Debug(5)) && translation.isOK()) {
             LOG(5) << "Translated schema match expression: " << translation.getValue()->toString();
         }

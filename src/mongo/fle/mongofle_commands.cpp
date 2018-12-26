@@ -85,7 +85,7 @@ mongo::BSONArray toArray(const std::vector<T>& list) {
 class FLEExpressionSerializationContext : public ExpressionSerializationContext {
 public:
     FLEExpressionSerializationContext(JSONSchemaContext& context) : _context(context) {}
-    virtual boost::optional<std::vector<char>> encrypt(ElementPath path,
+    virtual boost::optional<std::vector<char>> generatePlaceHolder(ElementPath path,
                                                        BSONElement element) final {
         const FieldRef& fieldRef = path.fieldRef();
         if (fieldRef.numParts() > 0) {
@@ -146,7 +146,7 @@ public:
         log() << "SCHEMA: " << scratch2.obj();
 
         for (auto& k : paths.keys()) {
-            log() << "KEY INFO: " << vectorToString(k.first.path) << " --- " << k.second;
+            log() << "KEY INFO: " << vectorToString(k.first.path) << " --- " << k.second.toBSON();
         }
 
         // Parse the command BSON to a QueryRequest.
@@ -182,27 +182,27 @@ public:
         // using MatchInfo = std::tuple<std::string, MatchParserEncryptionContext::OrdinalPath, EncryptionInfo>;
         // std::vector<MatchInfo> encryptedFields();
 
-        {
-                BSONArrayBuilder arrayBuilder(builder->subarrayStart("encryptedFields"));
+        // {
+        //         BSONArrayBuilder arrayBuilder(builder->subarrayStart("encryptedFields"));
 
-        // Now we have all the encryption info and JSON schema info
-        // Merge the two lists and tell the end-user
-        for(const auto& match_path: encContxt.paths()) {
-            FieldRef fr;
-            fr.parse(std::get<0>(match_path));
-            auto optionalField = paths.findField(fr);
-            if (optionalField) {
-                log() << "Found encrypted field";
-                //encryptedFields.push_back(std::get<0>(match_path), std::get<1>(match_path), nullptr);
+        // // Now we have all the encryption info and JSON schema info
+        // // Merge the two lists and tell the end-user
+        // for(const auto& match_path: encContxt.paths()) {
+        //     FieldRef fr;
+        //     fr.parse(std::get<0>(match_path));
+        //     auto optionalField = paths.findField(fr);
+        //     if (optionalField) {
+        //         log() << "Found encrypted field";
+        //         //encryptedFields.push_back(std::get<0>(match_path), std::get<1>(match_path), nullptr);
 
-                arrayBuilder.append(BSON("name" << std::get<0>(match_path)
-                    << "query_path" << toArray(std::get<1>(match_path))
-                    << "encrypted_info" <<  optionalField.get().toBSON()
-                 ));
-            }
-        }
+        //         arrayBuilder.append(BSON("name" << std::get<0>(match_path)
+        //             << "query_path" << toArray(std::get<1>(match_path))
+        //             << "encrypted_info" <<  optionalField.get().toBSON()
+        //          ));
+        //     }
+        // }
 
-        }
+        // }
 
         log() << "Foo" << cq->getQueryObj();
         {
@@ -253,7 +253,7 @@ public:
 class FLECmdBuildInfo final : public FLECommand {
 public:
     Status run(const OpMsgRequest& request, BSONObjBuilder* builder) final {
-        builder->append("version", "0.0.0");
+        builder->append("version", "4.2.0");
 
         return Status::OK();
     }

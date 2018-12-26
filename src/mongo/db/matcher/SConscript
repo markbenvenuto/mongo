@@ -65,6 +65,7 @@ env.Library(
         'schema/expression_internal_schema_unique_items.cpp',
         'schema/expression_internal_schema_xor.cpp',
         'schema/json_schema_parser.cpp',
+        env.Idlc('schema/encrypt_schema.idl')[0],
     ],
     LIBDEPS=[
         '$BUILD_DIR/mongo/base',

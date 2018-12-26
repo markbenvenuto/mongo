@@ -42,6 +42,7 @@
 #include "mongo/db/service_context.h"
 #include "mongo/fle/mongofle_commands.h"
 #include "mongo/fle/mongofle_options.h"
+#include "mongo/fle/mongofle_entry_point.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/platform/random.h"
 #include "mongo/rpc/factory.h"
@@ -54,6 +55,8 @@
 #include "mongo/transport/service_entry_point_impl.h"
 #include "mongo/transport/service_executor_synchronous.h"
 #include "mongo/transport/transport_layer_asio.h"
+#include "mongo/transport/transport_layer.h"
+#include "mongo/transport/transport_layer_manager.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/exit.h"
 #include "mongo/util/log.h"
@@ -65,106 +68,21 @@
 #include "mongo/util/timer.h"
 
 namespace mongo {
-class FLEContext {
-public:
-    Status runFLECommand(const OpMsgRequest& request, BSONObjBuilder* builder) {
-
-        auto status = FLECommand::findCommand(request.getCommandName());
-        if (!status.isOK()) {
-            log() << "failed to find parsing command: " << request.getCommandName();
-
-            return status.getStatus();
-        }
-
-        log() << "Processing FLE command: " << request.getCommandName();
-
-        FLECommand* command = status.getValue();
-        return command->run(request, builder);
-    }
-
-    static FLEContext* get();
-
-private:
-    static const ServiceContext::Decoration<FLEContext> _get;
-};
-
-const ServiceContext::Decoration<FLEContext> FLEContext::_get =
-    ServiceContext::declareDecoration<FLEContext>();
-
-FLEContext* FLEContext::get() {
-    return &_get(getGlobalServiceContext());
-}
-
-class ServiceEntryPointFLE;
-
-class ServiceEntryPointFLE final : public ServiceEntryPointImpl {
-public:
-    explicit ServiceEntryPointFLE(ServiceContext* svcCtx) : ServiceEntryPointImpl(svcCtx) {}
-
-    DbResponse handleRequest(OperationContext* opCtx, const Message& request) final;
-};
-
-void generateErrorResponse(OperationContext* opCtx,
-                           rpc::ReplyBuilderInterface* replyBuilder,
-                           const DBException& exception,
-                           const BSONObj& replyMetadata,
-                           BSONObj extraFields = {}) {
-
-    // We could have thrown an exception after setting fields in the builder,
-    // so we need to reset it to a clean state just to be sure.
-    replyBuilder->reset();
-    replyBuilder->setCommandReply(exception.toStatus(), extraFields);
-    replyBuilder->getBodyBuilder().appendElements(replyMetadata);
-}
 
 
-DbResponse ServiceEntryPointFLE::handleRequest(OperationContext* opCtx, const Message& message) {
-    auto brCtx = FLEContext::get();
+void initWireSpec() {
+    WireSpec& spec = WireSpec::instance();
 
-    log() << "Handling Request";
+    // The featureCompatibilityVersion behavior defaults to the downgrade behavior while the
+    // in-memory version is unset.
 
-    auto replyBuilder = rpc::makeReplyBuilder(rpc::protocolForMessage(message));
+    spec.incomingInternalClient.minWireVersion = RELEASE_2_4_AND_BEFORE;
+    spec.incomingInternalClient.maxWireVersion = LATEST_WIRE_VERSION;
 
-    OpMsgRequest request;
-    try {  // Parse.
-        request = rpc::opMsgRequestFromAnyProtocol(message);
-    } catch (const DBException& ex) {
-        // If this error needs to fail the connection, propagate it out.
-        if (ErrorCodes::isConnectionFatalMessageParseError(ex.code()))
-            throw;
+    spec.outgoing.minWireVersion = RELEASE_2_4_AND_BEFORE;
+    spec.outgoing.maxWireVersion = LATEST_WIRE_VERSION;
 
-        // Otherwise, reply with the parse error. This is useful for cases where parsing fails
-        // due to user-supplied input, such as the document too deep error. Since we failed
-        // during parsing, we can't log anything about the command.
-        log() << "assertion while parsing command: " << ex.toString();
-
-        BSONObjBuilder metadataBob;
-
-        generateErrorResponse(opCtx, replyBuilder.get(), ex, metadataBob.obj(), BSONObj());
-
-        auto response = replyBuilder->done();
-        return DbResponse{std::move(response)};
-    }
-
-
-    try {
-        BSONObjBuilder builder;
-        (void)brCtx->runFLECommand(request, &builder);
-
-        // TODO - improve
-        builder.append("ok", 1);
-
-        replyBuilder->getBodyBuilder().appendElements(builder.obj());
-    } catch (const DBException& ex) {
-        BSONObjBuilder metadataBob;
-
-        generateErrorResponse(opCtx, replyBuilder.get(), ex, metadataBob.obj(), BSONObj());
-
-        auto response = replyBuilder->done();
-        return DbResponse{std::move(response)};
-    }
-    auto response = replyBuilder->done();
-    return DbResponse{std::move(response)};
+    spec.isInternalClient = true;
 }
 
 int FLEMain(int argc, char** argv, char** envp) {
@@ -189,37 +107,25 @@ int FLEMain(int argc, char** argv, char** envp) {
     runGlobalInitializersOrDie(argc, argv, envp);
     startSignalProcessingThread(LogFileStatus::kNoLogFileToRotate);
 
-    WireSpec& spec = WireSpec::instance();
-
-    // Since the upgrade order calls for upgrading mongos last, it only needs to talk the latest
-    // wire version. This ensures that users will get errors if they upgrade in the wrong order.
-    spec.outgoing.minWireVersion = LATEST_WIRE_VERSION;
-    spec.outgoing.maxWireVersion = LATEST_WIRE_VERSION;
+    initWireSpec();
 
     setGlobalServiceContext(ServiceContext::make());
     auto serviceContext = getGlobalServiceContext();
     serviceContext->setServiceEntryPoint(std::make_unique<ServiceEntryPointFLE>(serviceContext));
-    serviceContext->setServiceExecutor(
-        std::make_unique<transport::ServiceExecutorSynchronous>(serviceContext));
 
-    fassert(51999, serviceContext->getServiceExecutor()->start());
 
-    transport::TransportLayerASIO::Options opts;
-    opts.ipList.emplace_back("127.0.0.1");
-    opts.port = mongoFLEGlobalParams.port;
+    serverGlobalParams.bind_ips.push_back("127.0.0.1");
+    serverGlobalParams.port = mongoFLEGlobalParams.port;
+    serverGlobalParams.serviceExecutor = "synchronous";
 
-    serviceContext->setTransportLayer(std::make_unique<mongo::transport::TransportLayerASIO>(
-        opts, serviceContext->getServiceEntryPoint()));
-    auto tl = serviceContext->getTransportLayer();
-    if (!tl->setup().isOK()) {
-        log() << "Error setting up transport layer";
-        return EXIT_NET_ERROR;
-    }
+    auto tl =
+        transport::TransportLayerManager::createWithConfig(&serverGlobalParams, serviceContext);
+    uassertStatusOK(tl->setup());
 
-    if (!tl->start().isOK()) {
-        log() << "Error starting transport layer";
-        return EXIT_NET_ERROR;
-    }
+    serviceContext->setTransportLayer(std::move(tl));
+
+    uassertStatusOK(serviceContext->getServiceExecutor()->start());
+    uassertStatusOK(serviceContext->getTransportLayer()->start());
 
     serviceContext->notifyStartupComplete();
     return waitForShutdown();
