@@ -123,13 +123,13 @@ std::string vectorToString2(const std::vector<T>& list) {
 class JSONSchemaContext {
 public:
     // TODO: create a struct of properties
-    void addEncryptionInformation(EncryptionInfo ei);
+    void addEncryptionInformation(EncryptionInfoNormalized ei);
     void pushPath(StringData path, bool isArray);
     void popPath();
 
-    boost::optional<EncryptionInfo> findField(const FieldRef& path);
+    boost::optional<EncryptionInfoNormalized> findField(const FieldRef& path);
 
-    std::unordered_map<EncryptionPath, EncryptionInfo>& keys() {
+    std::unordered_map<EncryptionPath, EncryptionInfoNormalized>& keys() {
         return _map;
     };
 
@@ -138,7 +138,7 @@ public:
 private:
     std::vector<std::string> _paths;
 
-    std::unordered_map<EncryptionPath, EncryptionInfo> _map;
+    std::unordered_map<EncryptionPath, EncryptionInfoNormalized> _map;
 };
 
 class JSONSchemaParser {

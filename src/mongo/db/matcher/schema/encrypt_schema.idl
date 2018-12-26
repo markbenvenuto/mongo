@@ -28,9 +28,35 @@
 
 global:
     cpp_namespace: "mongo"
+    cpp_includes:
+        - "mongo/idl/idl_test_types.h"
+        - "mongo/db/matcher/schema/encrypt_types.h"
 
 imports:
     - "mongo/idl/basic_types.idl"
+
+# TODO - stop using the test type
+types:
+    any_basic_type:
+        bson_serialization_type: any
+        description: "An Any Type"
+        cpp_type: "mongo::AnyBasicType"
+        serializer: mongo::AnyBasicType::serializeToBSON
+        deserializer: mongo::AnyBasicType::parseFromBSON
+
+    keyid:
+        bson_serialization_type: any
+        description: "An Any Type"
+        cpp_type: "mongo::KeyId"
+        serializer: mongo::KeyId::serializeToBSON
+        deserializer: mongo::KeyId::parseFromBSON
+
+    normalizedKeyId:
+        bson_serialization_type: any
+        description: "An Any Type"
+        cpp_type: "mongo::NormalizedKeyId"
+        serializer: mongo::NormalizedKeyId::serializeToBSON
+        deserializer: mongo::NormalizedKeyId::parseFromBSON
 
 
 enums:
@@ -43,6 +69,7 @@ enums:
 
 structs:
     # Everything is optional
+    # maps to "encrypt" in JSON Schema
     EncryptionInfo:
         description: "Encrypt Schema information"
         strict: true
@@ -62,7 +89,7 @@ structs:
           # TODO: key id is a union of types
           keyId:
             description: "foo"
-            type: string
+            type: keyid
             optional: true
           keyVaultURI:
             description: "foo"
@@ -70,6 +97,7 @@ structs:
             optional: true
 
     # Everything is optional
+    # maps to "encryptMetadata" in JSON Schema
     EncryptionMetadata:
         description: "Encrypt Schema metadata information"
         strict: true
@@ -85,12 +113,32 @@ structs:
           # TODO: key id is a union of types
           keyId:
             description: "foo"
-            type: string
+            type: keyid
             optional: true
           keyVaultURI:
             description: "foo"
             type: string
             optional: true
+
+    # Nothing is optional
+    # Normalized JSON schema - merges encrypt and encryptMetadata
+    EncryptionInfoNormalized:
+        description: "Encrypt Schema metadata information"
+        strict: true
+        fields:
+          algorithm:
+            description: "foo"
+            type: FLEAlgorithm
+          initializationVector:
+            description: "foo"
+            type: bindata_generic
+          # TODO: key id is a union of types
+          keyId:
+            description: "foo"
+            type: keyid
+          keyVaultURI:
+            description: "foo"
+            type: string
 
     # Nothing is optional as we want to be explicit to drivers
     EncryptionPlaceholder:
@@ -109,7 +157,10 @@ structs:
           # TODO: key id is a union of types
           keyId:
             description: "foo"
-            type: string
+            type: normalizedKeyId
           keyVaultURI:
             description: "foo"
             type: string
+          value:
+            description: "value to encrypt"
+            type: any_basic_type

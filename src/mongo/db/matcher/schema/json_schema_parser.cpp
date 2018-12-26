@@ -1230,6 +1230,7 @@ Status translateEncryptionKeywords(StringMap<BSONElement>& keywordMap,
         // TODO - use the full path instead of just encrypt
         auto ei = EncryptionInfo::parse(IDLParserErrorContext("encrypt"), encryptElem.Obj());
 
+
         // EncryptionInfo ei;
         // ei.algo = 0;
         // ei.name = path.toString();
@@ -1264,8 +1265,16 @@ Status translateEncryptionKeywords(StringMap<BSONElement>& keywordMap,
         // //     ei.key2 = key2Elem.String();
         // // }
 
+        // TODO - merge stuff here
+        // TODO - validate iv
+        EncryptionInfoNormalized norm;
+        norm.setAlgorithm(ei.getAlgorithm().get());
+        norm.setInitializationVector(ei.getInitializationVector().get());
+        norm.setKeyId(ei.getKeyId().get());
+        norm.setKeyVaultURI(ei.getKeyVaultURI().get());
+
         //// TODO - gather encryption information here
-        paths->addEncryptionInformation(ei);
+        paths->addEncryptionInformation(norm);
         // if(paths != nullptr) {
         std::cout << "PATH " << path.toString() << std::endl;
         //}
@@ -1734,7 +1743,7 @@ void JSONSchemaContext::popPath() {
     _paths.pop_back();
 }
 
-void JSONSchemaContext::addEncryptionInformation(EncryptionInfo ei) {
+void JSONSchemaContext::addEncryptionInformation(EncryptionInfoNormalized ei) {
     std::vector<std::string> path(_paths);
 
     EncryptionPath p1;
@@ -1761,7 +1770,7 @@ bool operator==(const EncryptionPath& lhs, const FieldRef& rhs) {
     return true;
     // return lhs.path == rhs.path;
 }
-boost::optional<EncryptionInfo> JSONSchemaContext::findField(const FieldRef& path) {
+boost::optional<EncryptionInfoNormalized> JSONSchemaContext::findField(const FieldRef& path) {
 
     for (const auto& kvp : _map) {
         // const EncryptionPath& ep = kvp.first;

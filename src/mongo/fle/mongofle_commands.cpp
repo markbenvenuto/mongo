@@ -55,6 +55,8 @@
 #include "mongo/db/matcher/schema/json_schema_parser.h"
 
 #include "mongo/fle/match_support.h"
+#include "mongo/db/matcher/schema/encrypt_schema_gen.h"
+
 
 namespace mongo {
 
@@ -92,11 +94,22 @@ public:
             // if (fieldRef.getPart(0) == "_id") {
             //     return std::vector<char>{0x1, 0x2, 0x3, 0x4};
             // }
-            if (_context.findField(fieldRef)) {
+            auto optEi = _context.findField(fieldRef);
+            if (optEi) {
+                auto& ei = optEi.get();
+                EncryptionPlaceholder placeholder;
+        placeholder.setAlgorithm(ei.getAlgorithm());
+        placeholder.setInitializationVector(ei.getInitializationVector());
+        if(ei.getKeyId().type() == KeyId::Type::kUUIDs) {
+            placeholder.setKeyId(NormalizedKeyId(ei.getKeyId().UUIDs()[0]));
+        }
+        //placeholder.setKeyId(ei.getKeyId());
+        placeholder.setKeyVaultURI(ei.getKeyVaultURI());
+        placeholder.setValue(AnyBasicType::parseFromBSON(element));
 
-                EncryptionPlaceholder placeholder()
+        BSONObj obj = placeholder.toBSON();
 
-                log() << "Found encrypted field";
+        return std::vector<char>(obj.objdata(), obj.objdata() + obj.objsize());
             }
         }
 
