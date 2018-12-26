@@ -134,6 +134,8 @@ public:
         INTERNAL_SCHEMA_TYPE,
         INTERNAL_SCHEMA_UNIQUE_ITEMS,
         INTERNAL_SCHEMA_XOR,
+
+        INTERNAL_SCHEMA_BINDATATYPE,
     };
 
     /**

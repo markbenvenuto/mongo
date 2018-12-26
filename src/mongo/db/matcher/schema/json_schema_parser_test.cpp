@@ -1052,7 +1052,7 @@ TEST(JSONSchemaParserTest, SharedJsonAndBsonTypeAliasesTranslateIdentically) {
 
         BSONObjBuilder bsonTypeBuilder;
         MatchExpression::optimize(std::move(bsonTypeResult.getValue()))
-            ->serialize(&bsonTypeBuilder);
+            ->serialize(&bsonTypeBuilder, nullptr);
 
         ASSERT_BSONOBJ_EQ(typeBuilder.obj(), bsonTypeBuilder.obj());
     }
@@ -2087,6 +2087,52 @@ TEST(JSONSchemaParserTest, TopLevelEnumWithZeroObjectsTranslatesCorrectly) {
     auto optimizedResult = MatchExpression::optimize(std::move(result.getValue()));
     ASSERT_SERIALIZES_TO(optimizedResult, fromjson("{$alwaysFalse: 1}"));
 }
+
+TEST(JSONSchemaParserTest, EncryptTranslatesCorrectly) {
+    BSONObj schema =
+        fromjson("{properties: {foo: {bsonType: 'binData', encrypt: 1}}, type: 'object'}");
+    auto result = JSONSchemaParser::parse(schema);
+    ASSERT_OK(result.getStatus());
+    auto optimizedResult = MatchExpression::optimize(std::move(result.getValue()));
+    ASSERT_SERIALIZES_TO(optimizedResult, fromjson(R"({
+                            $or: [
+                                {$nor: [{foo: {$exists: true}}]},
+                                {
+                                    $and: [
+                                        {foo: {$_internalBinDataType: 6}},
+                                        {foo: {$_internalSchemaType: [5]}}
+                                    ]
+                                }
+                            ]
+                        })"));
+}
+
+
+TEST(JSONSchemaParserTest, IgnoreEncryptionFields) {
+    BSONObj schema =
+        fromjson(R"({properties: {foo: {bsonType: 'binData', encrypt: 1,
+                		encryptionDeterministic: true,
+		encryptionInitializationVector: 0,
+		mongoKeyVault: "mongo.example.com:12345",
+		mongoKeyId1: 0,
+		mongoKeyId2: 0
+        }}, type: 'object'})");
+    auto result = JSONSchemaParser::parse(schema);
+    ASSERT_OK(result.getStatus());
+    auto optimizedResult = MatchExpression::optimize(std::move(result.getValue()));
+    ASSERT_SERIALIZES_TO(optimizedResult, fromjson(R"({
+                            $or: [
+                                {$nor: [{foo: {$exists: true}}]},
+                                {
+                                    $and: [
+                                        {foo: {$_internalBinDataType: 6}},
+                                        {foo: {$_internalSchemaType: [5]}}
+                                    ]
+                                }
+                            ]
+                        })"));
+}
+
 
 }  // namespace
 }  // namespace mongo

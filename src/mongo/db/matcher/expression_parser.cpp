@@ -407,6 +407,21 @@ StatusWithMatchExpression parseComment(StringData name,
     return {nullptr};
 }
 
+// StatusWithMatchExpression parseJSONSchema(StringData name,
+//                                        BSONElement elem,
+//                                        const boost::intrusive_ptr<ExpressionContext>& expCtx,
+//                                        const ExtensionsCallback* extensionsCallback,
+//                                        MatchExpressionParser::AllowedFeatureSet allowedFeatures,
+//                                        DocumentParseLevel currentLevel) {
+ 
+//     auto matchExpr = JSONSchemaParser::parse(elem.Obj(), false);
+//     if(!matchExpr.isOK()) {
+//         return matchExpr.getStatus();
+//     }
+//     return {nullptr};
+// }
+
+
 StatusWithMatchExpression parseWhere(StringData name,
                                      BSONElement elem,
                                      const boost::intrusive_ptr<ExpressionContext>& expCtx,

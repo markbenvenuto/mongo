@@ -36,6 +36,8 @@
 
 namespace mongo {
 
+class EncryptionPaths;
+
 class JSONSchemaParser {
 public:
     // Primitive type name constants.
@@ -52,7 +54,7 @@ public:
      * Converts a JSON schema, represented as BSON, into a semantically equivalent match expression
      * tree. Returns a non-OK status if the schema is invalid or cannot be parsed.
      */
-    static StatusWithMatchExpression parse(BSONObj schema, bool ignoreUnknownKeywords = false);
+    static StatusWithMatchExpression parse(BSONObj schema, bool ignoreUnknownKeywords = false, EncryptionPaths* encryptionPaths = nullptr);
 };
 
 }  // namespace mongo

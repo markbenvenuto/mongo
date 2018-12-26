@@ -52,6 +52,7 @@
 #include "mongo/util/log.h"
 
 #include "mongo/db/matcher/expression_serialization_context.h"
+#include "mongo/db/matcher/schema/json_schema_parser.h"
 
 namespace mongo {
 
@@ -76,15 +77,52 @@ public:
 
 class FLECmdFind final : public FLECommand {
 public:
+    StatusWith<BSONObj> extractJSONSchema(BSONObj obj, BSONObjBuilder* stripped){
+        BSONObj ret;
+        for(auto& e : obj ) {
+            if( e.fieldNameStringData() == "$jsonSchema") {
+
+                // TODO: add error checking
+                ret = e.Obj();
+            } else {
+                stripped->append(e);
+            }
+        }
+
+        if( ret.isEmpty() ) { 
+            return Status(ErrorCodes::BadValue, "JSON SCHEMA IS MISSING!!!!");
+        }
+
+        stripped->doneFast();
+
+        return ret;
+    }
+
     Status run(const OpMsgRequest& request, BSONObjBuilder* builder) final {
         builder->append("query", request.body);
+
+
+        BSONObjBuilder stripped;
+        auto swJSONSchema = extractJSONSchema(request.body, &stripped);
+        if(!swJSONSchema.isOK()) {
+            return swJSONSchema.getStatus();
+        }
+
+        // Valdidate JSON Schema and get crypto crap
+        EncryptionPaths paths;
+        auto swMatch = JSONSchemaParser::parse(swJSONSchema.getValue(), false, &paths) {
+if(!swMatch.isOK()) {
+            return swMatch.getStatus();
+        }
+
 
         // Parse the command BSON to a QueryRequest.
         const bool isExplain = false;
 
+
         // Pass parseNs to makeFromFindCommand in case _request.body does not have a UUID.
         auto qr = uassertStatusOK(QueryRequest::makeFromFindCommand(
-            NamespaceString("TODO.TODO"), request.body, isExplain));
+            NamespaceString("TODO.TODO"), stripped.obj(), isExplain));
 
         // CommandHelpers::parseNsOrUUID(_dbName,  _request.body)
 
