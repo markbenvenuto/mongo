@@ -54,6 +54,8 @@
 #include "mongo/db/matcher/expression_serialization_context.h"
 #include "mongo/db/matcher/schema/json_schema_parser.h"
 
+#include "mongo/fle/match_support.h"
+
 namespace mongo {
 
 namespace {
@@ -71,8 +73,7 @@ std::string vectorToString(const std::vector<T>& list) {
 
 class FLEExpressionSerializationContext : public ExpressionSerializationContext {
 public:
-    FLEExpressionSerializationContext
-
+    FLEExpressionSerializationContext(JSONSchemaContext& context) : _context(context) {}
     virtual boost::optional<std::vector<char>> encrypt(ElementPath path,
                                                        BSONElement element) final {
         const FieldRef& fieldRef = path.fieldRef();
@@ -80,12 +81,16 @@ public:
             // if (fieldRef.getPart(0) == "_id") {
             //     return std::vector<char>{0x1, 0x2, 0x3, 0x4};
             // }
-
+            if (_context.findField(fieldRef)) {
+                log() << "Found encrypted field";
+            }
 
         }
 
         return boost::none;
     }
+    private:
+    JSONSchemaContext& _context;
 };
 
 
@@ -103,7 +108,7 @@ public:
             }
         }
 
-        if( ret.isEmpty() ) { 
+        if( ret.isEmpty() ) {
             return Status(ErrorCodes::BadValue, "JSON SCHEMA IS MISSING!!!!");
         }
 
@@ -144,6 +149,8 @@ public:
 
         // CommandHelpers::parseNsOrUUID(_dbName,  _request.body)
 
+        MatchParserEncryptionContext encContxt;
+
         // Finish the parsing step by using the QueryRequest to create a CanonicalQuery.
         const boost::intrusive_ptr<ExpressionContext> expCtx;
         OperationContext* opCtx = nullptr;
@@ -152,7 +159,8 @@ public:
                                          std::move(qr),
                                          expCtx,
                                          ExtensionsCallbackNoop(),
-                                         MatchExpressionParser::kAllowAllSpecialFeatures));
+                                         MatchExpressionParser::kAllowAllSpecialFeatures,
+                                         &encContxt));
 
 
         invariant(cq.get());
@@ -166,7 +174,7 @@ public:
             BSONObjBuilder cursor = builder->subobjStart("cursor");
 
 
-            FLEExpressionSerializationContext fleContext;
+            FLEExpressionSerializationContext fleContext(paths);
             cursor.append("id", static_cast<long long>(0));
             cursor.append("ns", "ginore.me");
 

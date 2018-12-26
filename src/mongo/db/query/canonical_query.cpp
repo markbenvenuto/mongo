@@ -133,7 +133,8 @@ StatusWith<std::unique_ptr<CanonicalQuery>> CanonicalQuery::canonicalize(
     std::unique_ptr<QueryRequest> qr,
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
     const ExtensionsCallback& extensionsCallback,
-    MatchExpressionParser::AllowedFeatureSet allowedFeatures) {
+    MatchExpressionParser::AllowedFeatureSet allowedFeatures,
+    MatchParserEncryptionContext *context) {
     auto qrStatus = qr->validate();
     if (!qrStatus.isOK()) {
         return qrStatus;
@@ -158,7 +159,7 @@ StatusWith<std::unique_ptr<CanonicalQuery>> CanonicalQuery::canonicalize(
         invariant(CollatorInterface::collatorsMatch(collator.get(), expCtx->getCollator()));
     }
     StatusWithMatchExpression statusWithMatcher = MatchExpressionParser::parse(
-        qr->getFilter(), newExpCtx, extensionsCallback, allowedFeatures);
+        qr->getFilter(), newExpCtx, extensionsCallback, allowedFeatures, context);
     if (!statusWithMatcher.isOK()) {
         return statusWithMatcher.getStatus();
     }

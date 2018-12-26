@@ -73,6 +73,8 @@
 #include "mongo/util/mongoutils/str.h"
 #include "mongo/util/string_map.h"
 
+#include "mongo/fle/match_support.h"
+
 namespace {
 
 using namespace mongo;
@@ -117,6 +119,42 @@ enum class DocumentParseLevel {
     // Indicates that match expression nodes in this position will match against a nested
     // document or a subdocument inside an array.
     kUserSubDocument,
+};
+
+class EncryptionFrameContext {
+    public:
+    EncryptionFrameContext() = delete;
+    //EncryptionFrameContext(EncryptionFrameContext& ) = delete;
+    explicit EncryptionFrameContext(EncryptionFrameContext* parent) :
+        _parent(parent), _context(parent ? parent->_context : nullptr) {}
+    explicit EncryptionFrameContext(MatchParserEncryptionContext* context):
+        _context(context) {}
+
+    void visit(uint32_t count = 1 ) {
+        _pos += count;
+    }
+
+    void record(StringData name) {
+        if(!_context) {
+            return;
+        }
+
+        std::vector<std::uint32_t> paths;
+        paths.push_back(_pos);
+        auto parent = _parent;
+        while(parent) {
+            paths.insert(paths.begin(), parent->_pos);
+
+            parent = parent->_parent;
+        }
+
+        _context->record(name, std::move(paths));
+    }
+
+private:
+    EncryptionFrameContext* _parent{nullptr};
+    MatchParserEncryptionContext* _context{nullptr};
+    std::uint32_t _pos{0};
 };
 
 StatusWith<long long> MatchExpressionParser::parseIntegerElementToNonNegativeLong(
@@ -204,14 +242,14 @@ Status parseSub(StringData name,
                 const boost::intrusive_ptr<ExpressionContext>& expCtx,
                 const ExtensionsCallback* extensionsCallback,
                 MatchExpressionParser::AllowedFeatureSet allowedFeatures,
-                DocumentParseLevel currentLevel);
+                DocumentParseLevel currentLevel, EncryptionFrameContext frame);
 
 stdx::function<StatusWithMatchExpression(StringData,
                                          BSONElement,
                                          const boost::intrusive_ptr<ExpressionContext>&,
                                          const ExtensionsCallback*,
                                          MatchExpressionParser::AllowedFeatureSet,
-                                         DocumentParseLevel)>
+                                         DocumentParseLevel, EncryptionFrameContext)>
 retrievePathlessParser(StringData name);
 
 StatusWithMatchExpression parseRegexElement(StringData name, BSONElement e) {
@@ -226,7 +264,8 @@ StatusWithMatchExpression parseComparison(
     std::unique_ptr<ComparisonMatchExpression> cmp,
     BSONElement e,
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
-    MatchExpressionParser::AllowedFeatureSet allowedFeatures) {
+    MatchExpressionParser::AllowedFeatureSet allowedFeatures,
+    EncryptionFrameContext* frame) {
     // Non-equality comparison match expressions cannot have a regular expression as the argument.
     // (e.g. {a: {$gt: /b/}} is illegal).
     if (MatchExpression::EQ != cmp->matchType() && BSONType::RegEx == e.type()) {
@@ -234,6 +273,9 @@ StatusWithMatchExpression parseComparison(
                 str::stream() << "Can't have RegEx as arg to predicate over field '" << name
                               << "'."};
     }
+
+    // TODO: log encryption stuff
+    frame->record(name);
 
     cmp->setCollator(expCtx->getCollator());
     return {std::move(cmp)};
@@ -320,7 +362,8 @@ StatusWithMatchExpression parse(const BSONObj& obj,
                                 const boost::intrusive_ptr<ExpressionContext>& expCtx,
                                 const ExtensionsCallback* extensionsCallback,
                                 MatchExpressionParser::AllowedFeatureSet allowedFeatures,
-                                DocumentParseLevel currentLevel) {
+                                DocumentParseLevel currentLevel,
+                                EncryptionFrameContext frame) {
     auto root = stdx::make_unique<AndMatchExpression>();
 
     const DocumentParseLevel nextLevel = (currentLevel == DocumentParseLevel::kPredicateTopLevel)
@@ -328,6 +371,8 @@ StatusWithMatchExpression parse(const BSONObj& obj,
         : currentLevel;
 
     for (auto e : obj) {
+        frame.visit();
+
         if (e.fieldName()[0] == '$') {
             auto name = e.fieldNameStringData().substr(1);
             auto parseExpressionMatchFunction = retrievePathlessParser(name);
@@ -339,7 +384,7 @@ StatusWithMatchExpression parse(const BSONObj& obj,
             }
 
             auto parsedExpression = parseExpressionMatchFunction(
-                name, e, expCtx, extensionsCallback, allowedFeatures, currentLevel);
+                name, e, expCtx, extensionsCallback, allowedFeatures, currentLevel, frame);
 
             if (!parsedExpression.isOK()) {
                 return parsedExpression;
@@ -363,7 +408,8 @@ StatusWithMatchExpression parse(const BSONObj& obj,
                               expCtx,
                               extensionsCallback,
                               allowedFeatures,
-                              nextLevel);
+                              nextLevel,
+                              EncryptionFrameContext(&frame));
             if (!s.isOK())
                 return s;
             continue;
@@ -382,7 +428,7 @@ StatusWithMatchExpression parse(const BSONObj& obj,
                             stdx::make_unique<EqualityMatchExpression>(e.fieldNameStringData(), e),
                             e,
                             expCtx,
-                            allowedFeatures);
+                            allowedFeatures, &frame);
         if (!eq.isOK())
             return eq;
 
@@ -403,7 +449,8 @@ StatusWithMatchExpression parseComment(StringData name,
                                        const boost::intrusive_ptr<ExpressionContext>& expCtx,
                                        const ExtensionsCallback* extensionsCallback,
                                        MatchExpressionParser::AllowedFeatureSet allowedFeatures,
-                                       DocumentParseLevel currentLevel) {
+                                       DocumentParseLevel currentLevel,
+                                       EncryptionFrameContext frame) {
     return {nullptr};
 }
 
@@ -413,7 +460,7 @@ StatusWithMatchExpression parseComment(StringData name,
 //                                        const ExtensionsCallback* extensionsCallback,
 //                                        MatchExpressionParser::AllowedFeatureSet allowedFeatures,
 //                                        DocumentParseLevel currentLevel) {
- 
+
 //     auto matchExpr = JSONSchemaParser::parse(elem.Obj(), false);
 //     if(!matchExpr.isOK()) {
 //         return matchExpr.getStatus();
@@ -427,7 +474,7 @@ StatusWithMatchExpression parseWhere(StringData name,
                                      const boost::intrusive_ptr<ExpressionContext>& expCtx,
                                      const ExtensionsCallback* extensionsCallback,
                                      MatchExpressionParser::AllowedFeatureSet allowedFeatures,
-                                     DocumentParseLevel currentLevel) {
+                                     DocumentParseLevel currentLevel, EncryptionFrameContext frame) {
     if ((allowedFeatures & MatchExpressionParser::AllowedFeatures::kJavascript) == 0u) {
         return {Status(ErrorCodes::BadValue, "$where is not allowed in this context")};
     }
@@ -440,7 +487,7 @@ StatusWithMatchExpression parseText(StringData name,
                                     const boost::intrusive_ptr<ExpressionContext>& expCtx,
                                     const ExtensionsCallback* extensionsCallback,
                                     MatchExpressionParser::AllowedFeatureSet allowedFeatures,
-                                    DocumentParseLevel currentLevel) {
+                                    DocumentParseLevel currentLevel, EncryptionFrameContext frame) {
     if (currentLevel == DocumentParseLevel::kUserSubDocument) {
         return {
             Status(ErrorCodes::BadValue, "$text can only be applied to the top-level document")};
@@ -458,7 +505,7 @@ StatusWithMatchExpression parseDBRef(StringData name,
                                      const boost::intrusive_ptr<ExpressionContext>& expCtx,
                                      const ExtensionsCallback* extensionsCallback,
                                      MatchExpressionParser::AllowedFeatureSet allowedFeatures,
-                                     DocumentParseLevel currentLevel) {
+                                     DocumentParseLevel currentLevel, EncryptionFrameContext frame) {
     auto eq = stdx::make_unique<EqualityMatchExpression>(elem.fieldName(), elem);
 
     // 'id' is collation-aware. 'ref' and 'db' are compared using binary comparison.
@@ -472,7 +519,7 @@ StatusWithMatchExpression parseJSONSchema(StringData name,
                                           const boost::intrusive_ptr<ExpressionContext>& expCtx,
                                           const ExtensionsCallback* extensionsCallback,
                                           MatchExpressionParser::AllowedFeatureSet allowedFeatures,
-                                          DocumentParseLevel currentLevel) {
+                                          DocumentParseLevel currentLevel, EncryptionFrameContext frame) {
     if ((allowedFeatures & MatchExpressionParser::AllowedFeatures::kJSONSchema) == 0u) {
         return Status(ErrorCodes::QueryFeatureNotAllowed,
                       "$jsonSchema is not allowed in this context");
@@ -492,7 +539,8 @@ StatusWithMatchExpression parseAlwaysBoolean(
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
     const ExtensionsCallback* extensionsCallback,
     MatchExpressionParser::AllowedFeatureSet allowedFeatures,
-    DocumentParseLevel currentLevel) {
+    DocumentParseLevel currentLevel,
+    EncryptionFrameContext frame) {
     auto statusWithLong = MatchExpressionParser::parseIntegerElementToLong(elem);
     if (!statusWithLong.isOK()) {
         return statusWithLong.getStatus();
@@ -511,7 +559,7 @@ StatusWithMatchExpression parseExpr(StringData name,
                                     const boost::intrusive_ptr<ExpressionContext>& expCtx,
                                     const ExtensionsCallback* extensionsCallback,
                                     MatchExpressionParser::AllowedFeatureSet allowedFeatures,
-                                    DocumentParseLevel currentLevel) {
+                                    DocumentParseLevel currentLevel, EncryptionFrameContext frame) {
     if (currentLevel == DocumentParseLevel::kUserSubDocument) {
         return {
             Status(ErrorCodes::BadValue, "$expr can only be applied to the top-level document")};
@@ -762,7 +810,7 @@ StatusWithMatchExpression parseInternalSchemaRootDocEq(
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
     const ExtensionsCallback* extensionsCallback,
     MatchExpressionParser::AllowedFeatureSet allowedFeatures,
-    DocumentParseLevel currentLevel) {
+    DocumentParseLevel currentLevel, EncryptionFrameContext frame) {
     if (currentLevel == DocumentParseLevel::kUserSubDocument) {
         return {Status(ErrorCodes::FailedToParse,
                        str::stream() << InternalSchemaRootDocEqMatchExpression::kName
@@ -806,7 +854,7 @@ StatusWithMatchExpression parseTopLevelInternalSchemaSingleIntegerArgument(
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
     const ExtensionsCallback* extensionsCallback,
     MatchExpressionParser::AllowedFeatureSet allowedFeatures,
-    DocumentParseLevel currentLevel) {
+    DocumentParseLevel currentLevelm, EncryptionFrameContext frame) {
     auto parsedInt = MatchExpressionParser::parseIntegerElementToNonNegativeLong(elem);
     if (!parsedInt.isOK()) {
         return parsedInt.getStatus();
@@ -868,7 +916,7 @@ StatusWith<std::unique_ptr<ExpressionWithPlaceholder>> parseExprWithPlaceholder(
                         expCtx,
                         extensionsCallback,
                         MatchExpressionParser::kBanAllSpecialFeatures,
-                        currentLevel);
+                        currentLevel, EncryptionFrameContext(static_cast<EncryptionFrameContext*>(nullptr)));
 
     if (!filter.isOK()) {
         return filter.getStatus();
@@ -1001,7 +1049,7 @@ StatusWithMatchExpression parseInternalSchemaAllowedProperties(
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
     const ExtensionsCallback* extensionsCallback,
     MatchExpressionParser::AllowedFeatureSet allowedFeatures,
-    DocumentParseLevel currentLevel) {
+    DocumentParseLevel currentLevel, EncryptionFrameContext frame) {
     if (elem.type() != BSONType::Object) {
         return {ErrorCodes::TypeMismatch,
                 str::stream() << InternalSchemaAllowedPropertiesMatchExpression::kName
@@ -1143,7 +1191,8 @@ StatusWithMatchExpression parseTreeTopLevel(
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
     const ExtensionsCallback* extensionsCallback,
     MatchExpressionParser::AllowedFeatureSet allowedFeatures,
-    DocumentParseLevel currentLevel) {
+    DocumentParseLevel currentLevel,
+    EncryptionFrameContext frame) {
     if (elem.type() != BSONType::Array) {
         return {Status(ErrorCodes::BadValue, str::stream() << T::kName << " must be an array")};
     }
@@ -1156,10 +1205,11 @@ StatusWithMatchExpression parseTreeTopLevel(
     }
 
     for (auto e : arr) {
+        frame.visit();
         if (e.type() != BSONType::Object)
             return Status(ErrorCodes::BadValue, "$or/$and/$nor entries need to be full objects");
 
-        auto sub = parse(e.Obj(), expCtx, extensionsCallback, allowedFeatures, currentLevel);
+        auto sub = parse(e.Obj(), expCtx, extensionsCallback, allowedFeatures, currentLevel, EncryptionFrameContext(&frame));
         if (!sub.isOK())
             return sub.getStatus();
 
@@ -1173,7 +1223,8 @@ StatusWithMatchExpression parseElemMatch(StringData name,
                                          BSONElement e,
                                          const boost::intrusive_ptr<ExpressionContext>& expCtx,
                                          const ExtensionsCallback* extensionsCallback,
-                                         MatchExpressionParser::AllowedFeatureSet allowedFeatures) {
+                                         MatchExpressionParser::AllowedFeatureSet allowedFeatures,
+                                         EncryptionFrameContext frame) {
     if (e.type() != BSONType::Object)
         return {Status(ErrorCodes::BadValue, "$elemMatch needs an Object")};
 
@@ -1205,7 +1256,8 @@ StatusWithMatchExpression parseElemMatch(StringData name,
                           expCtx,
                           extensionsCallback,
                           allowedFeatures,
-                          DocumentParseLevel::kUserSubDocument);
+                          DocumentParseLevel::kUserSubDocument,
+                          EncryptionFrameContext(&frame));
         if (!s.isOK())
             return s;
 
@@ -1226,7 +1278,7 @@ StatusWithMatchExpression parseElemMatch(StringData name,
     // Object case.
 
     auto subRaw = parse(
-        obj, expCtx, extensionsCallback, allowedFeatures, DocumentParseLevel::kUserSubDocument);
+        obj, expCtx, extensionsCallback, allowedFeatures, DocumentParseLevel::kUserSubDocument, EncryptionFrameContext(&frame));
     if (!subRaw.isOK())
         return subRaw;
     auto sub = std::move(subRaw.getValue());
@@ -1244,7 +1296,8 @@ StatusWithMatchExpression parseAll(StringData name,
                                    BSONElement e,
                                    const boost::intrusive_ptr<ExpressionContext>& expCtx,
                                    const ExtensionsCallback* extensionsCallback,
-                                   MatchExpressionParser::AllowedFeatureSet allowedFeatures) {
+                                   MatchExpressionParser::AllowedFeatureSet allowedFeatures,
+                                   EncryptionFrameContext frame) {
     if (e.type() != BSONType::Array)
         return {Status(ErrorCodes::BadValue, "$all needs an array")};
 
@@ -1257,6 +1310,7 @@ StatusWithMatchExpression parseAll(StringData name,
         // $all : [ { $elemMatch : {} } ... ]
 
         while (i.more()) {
+            frame.visit();
             auto hopefullyElemMatchElement = i.next();
 
             if (hopefullyElemMatchElement.type() != BSONType::Object) {
@@ -1274,7 +1328,7 @@ StatusWithMatchExpression parseAll(StringData name,
                                         hopefullyElemMatchObj.firstElement(),
                                         expCtx,
                                         extensionsCallback,
-                                        allowedFeatures);
+                                        allowedFeatures, EncryptionFrameContext(&frame));
             if (!inner.isOK())
                 return inner;
             myAnd->add(inner.getValue().release());
@@ -1316,7 +1370,7 @@ StatusWithMatchExpression parseInternalSchemaFixedArityArgument(
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
     const ExtensionsCallback* extensionsCallback,
     MatchExpressionParser::AllowedFeatureSet allowedFeatures,
-    DocumentParseLevel currentLevel) {
+    DocumentParseLevel currentLevel, EncryptionFrameContext frame) {
     constexpr auto arity = T::arity();
     if (elem.type() != BSONType::Array) {
         return {ErrorCodes::FailedToParse,
@@ -1346,7 +1400,7 @@ StatusWithMatchExpression parseInternalSchemaFixedArityArgument(
         }
 
         auto subexpr =
-            parse(obj.embeddedObject(), expCtx, extensionsCallback, allowedFeatures, currentLevel);
+            parse(obj.embeddedObject(), expCtx, extensionsCallback, allowedFeatures, currentLevel, EncryptionFrameContext(static_cast<EncryptionFrameContext*>(nullptr)));
         if (!subexpr.isOK()) {
             return subexpr.getStatus();
         }
@@ -1362,7 +1416,7 @@ StatusWithMatchExpression parseNot(StringData name,
                                    const boost::intrusive_ptr<ExpressionContext>& expCtx,
                                    const ExtensionsCallback* extensionsCallback,
                                    MatchExpressionParser::AllowedFeatureSet allowedFeatures,
-                                   DocumentParseLevel currentLevel) {
+                                   DocumentParseLevel currentLevel, EncryptionFrameContext frame) {
     if (elem.type() == BSONType::RegEx) {
         auto regex = parseRegexElement(name, elem);
         if (!regex.isOK()) {
@@ -1382,7 +1436,7 @@ StatusWithMatchExpression parseNot(StringData name,
 
     auto theAnd = stdx::make_unique<AndMatchExpression>();
     auto parseStatus = parseSub(
-        name, notObject, theAnd.get(), expCtx, extensionsCallback, allowedFeatures, currentLevel);
+        name, notObject, theAnd.get(), expCtx, extensionsCallback, allowedFeatures, currentLevel, EncryptionFrameContext(&frame));
     if (!parseStatus.isOK()) {
         return parseStatus;
     }
@@ -1408,16 +1462,17 @@ StatusWithMatchExpression parseSubField(const BSONObj& context,
                                         const boost::intrusive_ptr<ExpressionContext>& expCtx,
                                         const ExtensionsCallback* extensionsCallback,
                                         MatchExpressionParser::AllowedFeatureSet allowedFeatures,
-                                        DocumentParseLevel currentLevel) {
+                                        DocumentParseLevel currentLevel,
+                                        EncryptionFrameContext frame) {
     invariant(e);
 
     if ("$eq"_sd == e.fieldNameStringData()) {
         return parseComparison(
-            name, stdx::make_unique<EqualityMatchExpression>(name, e), e, expCtx, allowedFeatures);
+            name, stdx::make_unique<EqualityMatchExpression>(name, e), e, expCtx, allowedFeatures, &frame);
     }
 
     if ("$not"_sd == e.fieldNameStringData()) {
-        return parseNot(name, e, expCtx, extensionsCallback, allowedFeatures, currentLevel);
+        return parseNot(name, e, expCtx, extensionsCallback, allowedFeatures, currentLevel, frame);
     }
 
     auto parseExpMatchType = MatchExpressionParser::parsePathAcceptingKeyword(e);
@@ -1434,16 +1489,16 @@ StatusWithMatchExpression parseSubField(const BSONObj& context,
     switch (*parseExpMatchType) {
         case PathAcceptingKeyword::LESS_THAN:
             return parseComparison(
-                name, stdx::make_unique<LTMatchExpression>(name, e), e, expCtx, allowedFeatures);
+                name, stdx::make_unique<LTMatchExpression>(name, e), e, expCtx, allowedFeatures, &frame);
         case PathAcceptingKeyword::LESS_THAN_OR_EQUAL:
             return parseComparison(
-                name, stdx::make_unique<LTEMatchExpression>(name, e), e, expCtx, allowedFeatures);
+                name, stdx::make_unique<LTEMatchExpression>(name, e), e, expCtx, allowedFeatures, &frame);
         case PathAcceptingKeyword::GREATER_THAN:
             return parseComparison(
-                name, stdx::make_unique<GTMatchExpression>(name, e), e, expCtx, allowedFeatures);
+                name, stdx::make_unique<GTMatchExpression>(name, e), e, expCtx, allowedFeatures, &frame);
         case PathAcceptingKeyword::GREATER_THAN_OR_EQUAL:
             return parseComparison(
-                name, stdx::make_unique<GTEMatchExpression>(name, e), e, expCtx, allowedFeatures);
+                name, stdx::make_unique<GTEMatchExpression>(name, e), e, expCtx, allowedFeatures, &frame);
         case PathAcceptingKeyword::NOT_EQUAL: {
             if (BSONType::RegEx == e.type()) {
                 // Just because $ne can be rewritten as the negation of an equality does not mean
@@ -1455,7 +1510,7 @@ StatusWithMatchExpression parseSubField(const BSONObj& context,
                                 stdx::make_unique<EqualityMatchExpression>(name, e),
                                 e,
                                 expCtx,
-                                allowedFeatures);
+                                allowedFeatures, &frame);
             return {stdx::make_unique<NotMatchExpression>(s.getValue().release())};
         }
         case PathAcceptingKeyword::EQUALITY:
@@ -1463,7 +1518,7 @@ StatusWithMatchExpression parseSubField(const BSONObj& context,
                                    stdx::make_unique<EqualityMatchExpression>(name, e),
                                    e,
                                    expCtx,
-                                   allowedFeatures);
+                                   allowedFeatures, &frame);
 
         case PathAcceptingKeyword::IN_EXPR: {
             if (e.type() != BSONType::Array) {
@@ -1553,10 +1608,10 @@ StatusWithMatchExpression parseSubField(const BSONObj& context,
         }
 
         case PathAcceptingKeyword::ELEM_MATCH:
-            return parseElemMatch(name, e, expCtx, extensionsCallback, allowedFeatures);
+            return parseElemMatch(name, e, expCtx, extensionsCallback, allowedFeatures, EncryptionFrameContext(&frame));
 
         case PathAcceptingKeyword::ALL:
-            return parseAll(name, e, expCtx, extensionsCallback, allowedFeatures);
+            return parseAll(name, e, expCtx, extensionsCallback, allowedFeatures, EncryptionFrameContext(&frame));
 
         case PathAcceptingKeyword::WITHIN:
         case PathAcceptingKeyword::GEO_INTERSECTS:
@@ -1619,7 +1674,8 @@ StatusWithMatchExpression parseSubField(const BSONObj& context,
                                           expCtx,
                                           extensionsCallback,
                                           allowedFeatures,
-                                          DocumentParseLevel::kUserSubDocument);
+                                          DocumentParseLevel::kUserSubDocument,
+                                          EncryptionFrameContext(&frame));
             if (!parsedSubObjExpr.isOK()) {
                 return parsedSubObjExpr;
             }
@@ -1697,11 +1753,12 @@ StatusWithMatchExpression parseSubField(const BSONObj& context,
                                   << "must be an object");
             }
 
+            frame.visit(3);
             auto filter = parse(second.embeddedObject(),
                                 expCtx,
                                 extensionsCallback,
                                 MatchExpressionParser::kBanAllSpecialFeatures,
-                                DocumentParseLevel::kUserSubDocument);
+                                DocumentParseLevel::kUserSubDocument, EncryptionFrameContext(&frame));
 
             if (!filter.isOK()) {
                 return filter.getStatus();
@@ -1740,7 +1797,9 @@ Status parseSub(StringData name,
                 const boost::intrusive_ptr<ExpressionContext>& expCtx,
                 const ExtensionsCallback* extensionsCallback,
                 MatchExpressionParser::AllowedFeatureSet allowedFeatures,
-                DocumentParseLevel currentLevel) {
+                DocumentParseLevel currentLevel,
+                EncryptionFrameContext frame
+                ) {
     // The one exception to {field : {fully contained argument} } is, of course, geo.  Example:
     // sub == { field : {$near[Sphere]: [0,0], $maxDistance: 1000, $minDistance: 10 } }
     // We peek inside of 'sub' to see if it's possibly a $near.  If so, we can't iterate over its
@@ -1752,6 +1811,7 @@ Status parseSub(StringData name,
     // modifiers as sibling BSON elements.
     BSONObjIterator geoIt(sub);
     if (geoIt.more()) {
+        // TODO - visit walk
         auto firstElt = geoIt.next();
         if (firstElt.isABSONObj()) {
             if (MatchExpressionParser::parsePathAcceptingKeyword(firstElt) ==
@@ -1768,8 +1828,9 @@ Status parseSub(StringData name,
     }
 
     for (auto deep : sub) {
+        frame.visit();
         auto s = parseSubField(
-            sub, root, name, deep, expCtx, extensionsCallback, allowedFeatures, currentLevel);
+            sub, root, name, deep, expCtx, extensionsCallback, allowedFeatures, currentLevel, EncryptionFrameContext(&frame));
         if (!s.isOK())
             return s.getStatus();
 
@@ -1786,11 +1847,12 @@ StatusWithMatchExpression MatchExpressionParser::parse(
     const BSONObj& obj,
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
     const ExtensionsCallback& extensionsCallback,
-    AllowedFeatureSet allowedFeatures) {
+    AllowedFeatureSet allowedFeatures,
+    MatchParserEncryptionContext* context) {
     invariant(expCtx.get());
     const DocumentParseLevel currentLevelCall = DocumentParseLevel::kPredicateTopLevel;
     try {
-        return ::mongo::parse(obj, expCtx, &extensionsCallback, allowedFeatures, currentLevelCall);
+        return ::mongo::parse(obj, expCtx, &extensionsCallback, allowedFeatures, currentLevelCall, EncryptionFrameContext(context));
     } catch (const DBException& ex) {
         return {ex.toStatus()};
     }
@@ -1804,7 +1866,7 @@ std::unique_ptr<StringMap<
                                              const boost::intrusive_ptr<ExpressionContext>&,
                                              const ExtensionsCallback*,
                                              MatchExpressionParser::AllowedFeatureSet,
-                                             DocumentParseLevel)>>>
+                                             DocumentParseLevel, EncryptionFrameContext)>>>
     pathlessOperatorMap;
 
 MONGO_INITIALIZER(PathlessOperatorMap)(InitializerContext* context) {
@@ -1814,14 +1876,15 @@ MONGO_INITIALIZER(PathlessOperatorMap)(InitializerContext* context) {
                                                  const boost::intrusive_ptr<ExpressionContext>&,
                                                  const ExtensionsCallback*,
                                                  MatchExpressionParser::AllowedFeatureSet,
-                                                 DocumentParseLevel)>>>(
+                                                 DocumentParseLevel,
+                                                 EncryptionFrameContext)>>>(
         StringMap<
             stdx::function<StatusWithMatchExpression(StringData,
                                                      BSONElement,
                                                      const boost::intrusive_ptr<ExpressionContext>&,
                                                      const ExtensionsCallback*,
                                                      MatchExpressionParser::AllowedFeatureSet,
-                                                     DocumentParseLevel)>>{
+                                                     DocumentParseLevel, EncryptionFrameContext)>>{
             {"_internalSchemaAllowedProperties", &parseInternalSchemaAllowedProperties},
             {"_internalSchemaCond",
              &parseInternalSchemaFixedArityArgument<InternalSchemaCondMatchExpression>},
@@ -1910,7 +1973,8 @@ stdx::function<StatusWithMatchExpression(StringData,
                                          const boost::intrusive_ptr<ExpressionContext>&,
                                          const ExtensionsCallback*,
                                          MatchExpressionParser::AllowedFeatureSet,
-                                         DocumentParseLevel)>
+                                         DocumentParseLevel,
+                                         EncryptionFrameContext)>
 retrievePathlessParser(StringData name) {
     auto func = pathlessOperatorMap->find(name);
     if (func == pathlessOperatorMap->end()) {

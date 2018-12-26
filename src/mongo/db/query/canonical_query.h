@@ -80,7 +80,8 @@ public:
         const boost::intrusive_ptr<ExpressionContext>& expCtx = nullptr,
         const ExtensionsCallback& extensionsCallback = ExtensionsCallbackNoop(),
         MatchExpressionParser::AllowedFeatureSet allowedFeatures =
-            MatchExpressionParser::kDefaultSpecialFeatures);
+            MatchExpressionParser::kDefaultSpecialFeatures,
+            MatchParserEncryptionContext *context = nullptr);
 
     /**
      * For testing or for internal clients to use.

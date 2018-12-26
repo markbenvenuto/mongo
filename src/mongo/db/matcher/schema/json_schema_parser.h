@@ -46,9 +46,11 @@ namespace mongo {
 
     };
 
-    inline bool operator==(const EncryptionPath& lhs, const EncryptionPath rhs) {
+    inline bool operator==(const EncryptionPath& lhs, const EncryptionPath& rhs) {
         return lhs.path == rhs.path;
     }
+
+
 }
 
 namespace std
@@ -83,6 +85,8 @@ namespace mongo {
             void addEncryptionInformation(StringData name);
             void pushPath(StringData path, bool isArray);
             void popPath();
+
+          boost::optional<EncryptionInfo> findField(const FieldRef& path);
 
             std::unordered_map<EncryptionPath, EncryptionInfo>& keys() { return _map; };
         private:

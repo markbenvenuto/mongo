@@ -88,6 +88,7 @@ enum class PathAcceptingKeyword {
     WITHIN,
 };
 
+class MatchParserEncryptionContext;
 class MatchExpressionParser {
 public:
     /**
@@ -123,7 +124,8 @@ public:
         const BSONObj& obj,
         const boost::intrusive_ptr<ExpressionContext>& expCtx,
         const ExtensionsCallback& extensionsCallback = ExtensionsCallbackNoop(),
-        AllowedFeatureSet allowedFeatures = kDefaultSpecialFeatures);
+        AllowedFeatureSet allowedFeatures = kDefaultSpecialFeatures,
+        MatchParserEncryptionContext* context = nullptr);
 
     /**
      * Parses a BSONElement of any numeric type into a positive long long, failing if the value

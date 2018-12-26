@@ -1207,7 +1207,8 @@ Status translateEncryptionKeywords(StringMap<BSONElement>* keywordMap,
 
         andExpr->add(binDataSubTypeExpr.release());
 
-        // TODO - gather encryption information here
+        //// TODO - gather encryption information here
+        paths->addEncryptionInformation(path);
         //if(paths != nullptr) {
             std::cout << "PATH " << path.toString() << std::endl;
         //}
@@ -1654,15 +1655,27 @@ StatusWithMatchExpression JSONSchemaParser::parse(BSONObj schema, bool ignoreUnk
     }
 }
 void JSONSchemaContext::pushPath(StringData path, bool isArray) {
+    // The first path is usually an empty string and is an artifact of "properties" is a top-level
+    // and the root of a JSON document has not explicit path.
+    if(_paths.empty() && path.empty()) {
+        return;
+    }
+
     _paths.push_back(path.toString());
 }
 void JSONSchemaContext::popPath(){
+    if(_paths.empty())
+    {
+        return;
+    }
+
     _paths.pop_back();
 
 }
 
 void JSONSchemaContext::addEncryptionInformation(StringData name) {
     EncryptionInfo ei;
+    ei.placeholder = name.toString();
 
     std::vector<std::string> path(_paths);
 
@@ -1672,5 +1685,34 @@ void JSONSchemaContext::addEncryptionInformation(StringData name) {
     _map.insert({p1, ei});
 }
 
+bool operator==(const EncryptionPath& lhs, const FieldRef& rhs) {
+    if( lhs.path.size() != rhs.numParts() ) {
+        return false;
+    }
+
+    // TODO - improve comparison semantics around array
+    for(size_t i = 0; i < lhs.path.size(); ++i) {
+                const auto& left = lhs.path[i];
+        const auto right = rhs.getPart(i);
+
+        if( left != right) {
+            return false;
+        }
+    }
+
+    return true;
+    //return lhs.path == rhs.path;
+}
+boost::optional<EncryptionInfo> JSONSchemaContext::findField(const FieldRef& path) {
+
+    for(const auto& kvp: _map ) {
+        //const EncryptionPath& ep = kvp.first;
+        if( kvp.first == path) {
+            return kvp.second;
+        }
+    }
+
+    return boost::none;
+}
 
 }  // namespace mongo
