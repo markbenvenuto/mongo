@@ -103,18 +103,16 @@ public:
 
 
         BSONObjBuilder stripped;
-        auto swJSONSchema = extractJSONSchema(request.body, &stripped);
-        if(!swJSONSchema.isOK()) {
-            return swJSONSchema.getStatus();
-        }
+        auto schema = uassertStatusOK(extractJSONSchema(request.body, &stripped));
 
         // Valdidate JSON Schema and get crypto crap
-        EncryptionPaths paths;
-        auto swMatch = JSONSchemaParser::parse(swJSONSchema.getValue(), false, &paths) {
-if(!swMatch.isOK()) {
-            return swMatch.getStatus();
-        }
+        JSONSchemaContext paths;
+        auto swMatch = uassertStatusOK(JSONSchemaParser::parse(schema, false, &paths));
 
+                BSONObjBuilder scratch2;
+
+                swMatch->serialize(&scratch2, nullptr);
+                log() << "SCHEMA: " << scratch2.obj();
 
         // Parse the command BSON to a QueryRequest.
         const bool isExplain = false;

@@ -36,7 +36,14 @@
 
 namespace mongo {
 
-class EncryptionPaths;
+    class JSONSchemaContext {
+        public:
+            void pushPath(StringData path, bool isArray);
+            void popPath();
+        private:
+            std::vector<std::string> _paths;
+
+    };
 
 class JSONSchemaParser {
 public:
@@ -54,7 +61,7 @@ public:
      * Converts a JSON schema, represented as BSON, into a semantically equivalent match expression
      * tree. Returns a non-OK status if the schema is invalid or cannot be parsed.
      */
-    static StatusWithMatchExpression parse(BSONObj schema, bool ignoreUnknownKeywords = false, EncryptionPaths* encryptionPaths = nullptr);
+    static StatusWithMatchExpression parse(BSONObj schema, bool ignoreUnknownKeywords = false, JSONSchemaContext* encryptionPaths = nullptr);
 };
 
 }  // namespace mongo
