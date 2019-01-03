@@ -86,7 +86,6 @@ structs:
             description: "foo"
             type: bindata_generic
             optional: true
-          # TODO: key id is a union of types
           keyId:
             description: "foo"
             type: keyid
@@ -110,7 +109,6 @@ structs:
             description: "foo"
             type: bindata_generic
             optional: true
-          # TODO: key id is a union of types
           keyId:
             description: "foo"
             type: keyid
@@ -132,7 +130,6 @@ structs:
           initializationVector:
             description: "foo"
             type: bindata_generic
-          # TODO: key id is a union of types
           keyId:
             description: "foo"
             type: keyid
@@ -154,7 +151,6 @@ structs:
           initializationVector:
             description: "foo"
             type: bindata_generic
-          # TODO: key id is a union of types
           keyId:
             description: "foo"
             type: normalizedKeyId
