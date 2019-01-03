@@ -28,33 +28,40 @@
  *    it in the license file.
  */
 
-#pragma once
+#include <boost/optional.hpp>
+#include <cstdint>
+
+#include "mongo/base/init.h"
+#include "mongo/base/initializer.h"
+#include "mongo/db/dbmessage.h"
+#include "mongo/db/operation_context.h"
+#include "mongo/db/service_context.h"
+#include "mongo/rpc/factory.h"
+#include "mongo/rpc/message.h"
+#include "mongo/rpc/reply_builder_interface.h"
+#include "mongo/stdx/memory.h"
+#include "mongo/stdx/mutex.h"
+#include "mongo/stdx/thread.h"
+#include "mongo/transport/message_compressor_manager.h"
+#include "mongo/transport/service_entry_point_impl.h"
+#include "mongo/transport/service_executor_synchronous.h"
+#include "mongo/transport/transport_layer_asio.h"
+#include "mongo/util/assert_util.h"
+#include "mongo/util/exit.h"
+#include "mongo/util/mongoutils/str.h"
+#include "mongo/util/quick_exit.h"
+#include "mongo/util/signal_handlers.h"
+#include "mongo/util/text.h"
+#include "mongo/util/time_support.h"
+#include "mongo/util/timer.h"
 
 namespace mongo {
 
-class ServiceContext;
+class ServiceEntryPointFLE final : public ServiceEntryPointImpl {
+public:
+    explicit ServiceEntryPointFLE(ServiceContext* svcCtx) : ServiceEntryPointImpl(svcCtx) {}
 
-/**
- * Perform initialization activity common across all mongo server types.
- *
- * Set up logging, daemonize the process, configure SSL, etc.
- */
-bool initializeServerGlobalState(ServiceContext* service);
+    DbResponse handleRequest(OperationContext* opCtx, const Message& request) final;
+};
 
-/**
- * Forks and detaches the server, on platforms that support it, if serverGlobalParams.doFork is
- * true.
- *
- * Call after processing the command line but before running mongo initializers.
- */
-void forkServerOrDie();
-
-/**
- * Notify the parent that we forked from that we have successfully completed basic
- * initialization so it can stop waiting and exit.
- */
-void signalForkSuccess();
-
-bool initializeServerSecurityGlobalState(ServiceContext* service);
-
-}  // namespace mongo
+} // namespace mongo

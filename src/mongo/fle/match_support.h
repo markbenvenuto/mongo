@@ -10,7 +10,7 @@ class MatchParserEncryptionContext {
 public:
     using OrdinalPath = std::vector<std::uint32_t>;
     void record(StringData name, OrdinalPath path) {
-        _paths.push_back({name.toString(), path});
+        _paths.push_back(std::tuple<std::string, OrdinalPath>(name.toString(), path));
     }
 
     const std::vector<std::tuple<std::string, OrdinalPath>>& paths() const { return _paths; }

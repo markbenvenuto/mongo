@@ -388,35 +388,6 @@ bool initializeServerGlobalState(ServiceContext* service) {
         }
     }
 
-    int clusterAuthMode = serverGlobalParams.clusterAuthMode.load();
-    if (!serverGlobalParams.keyFile.empty() &&
-        clusterAuthMode != ServerGlobalParams::ClusterAuthMode_x509) {
-        if (!setUpSecurityKey(serverGlobalParams.keyFile)) {
-            // error message printed in setUpPrivateKey
-            return false;
-        }
-    }
-
-    // Auto-enable auth unless we are in mixed auth/no-auth or clusterAuthMode was not provided.
-    // clusterAuthMode defaults to "keyFile" if a --keyFile parameter is provided.
-    if (clusterAuthMode != ServerGlobalParams::ClusterAuthMode_undefined &&
-        !serverGlobalParams.transitionToAuth) {
-        AuthorizationManager::get(service)->setAuthEnabled(true);
-    }
-
-#ifdef MONGO_CONFIG_SSL
-    if (clusterAuthMode == ServerGlobalParams::ClusterAuthMode_x509 ||
-        clusterAuthMode == ServerGlobalParams::ClusterAuthMode_sendX509) {
-        auth::setInternalUserAuthParams(
-            BSON(saslCommandMechanismFieldName
-                 << "MONGODB-X509"
-                 << saslCommandUserDBFieldName
-                 << "$external"
-                 << saslCommandUserFieldName
-                 << getSSLManager()->getSSLConfiguration().clientSubjectName.toString()));
-    }
-#endif
-
     return true;
 }
 

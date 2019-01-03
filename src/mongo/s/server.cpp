@@ -601,6 +601,9 @@ ExitCode mongoSMain(int argc, char* argv[], char** envp) {
         if (!initializeServerGlobalState(service))
             return EXIT_ABRUPT;
 
+        if (!initializeServerSecurityGlobalState(service))
+            quickExit(EXIT_FAILURE);
+
         startSignalProcessingThread();
 
         return main(service);

@@ -1031,6 +1031,9 @@ int mongoDbMain(int argc, char* argv[], char** envp) {
     if (!initializeServerGlobalState(service))
         quickExit(EXIT_FAILURE);
 
+    if (!initializeServerSecurityGlobalState(service))
+        quickExit(EXIT_FAILURE);
+
     // Per SERVER-7434, startSignalProcessingThread must run after any forks (i.e.
     // initializeServerGlobalState) and before the creation of any other threads
     startSignalProcessingThread();
