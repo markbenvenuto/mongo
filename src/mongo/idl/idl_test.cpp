@@ -232,6 +232,9 @@ TEST(IDLOneTypeTests, TestObjectLoopbackTest) {
 
         auto serializedDoc = builder.obj();
         ASSERT_BSONOBJ_EQ(testDoc, serializedDoc);
+
+        ASSERT_TRUE(one_new == testStruct);
+        ASSERT_FALSE(one_new < testStruct);
     }
 }
 

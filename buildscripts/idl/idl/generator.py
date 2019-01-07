@@ -131,6 +131,29 @@ def _get_bson_type_check(bson_element, ctxt_name, field):
         return '%s.checkAndAssertTypes(%s, %s)' % (ctxt_name, bson_element, type_list)
 
 
+def _get_comparison(field, rel_op):
+    # type: (ast.Field, unicode) -> unicode
+    """Generate a comparison for a field."""
+    name = _get_field_member_name(field)
+    if not "BSONObj" in field.cpp_type:
+        return "left.%s %s right.%s" % (name, rel_op, name)
+
+    return "SimpleBSONObjComparator::kInstance.compare(left.%s, right.%s) %s 0" % (name, name,
+                                                                                   rel_op)
+
+
+def _gen_comparison_less(fields):
+    # type: (List[ast.Field]) -> unicode
+    """Generate a less then comparison for a list of fields recursively."""
+    field = fields[0]
+    if len(fields) == 1:
+        return _get_comparison(field, "<")
+
+    return common.template_args(
+        "left.${name} < right.${name} " + " || (!(right.${name} < right.${name}) && (${recurse}))",
+        name=_get_field_member_name(field), recurse=_gen_comparison_less(fields[1:]))
+
+
 def _get_all_fields(struct):
     # type: (ast.Struct) -> List[ast.Field]
     """Get a list of all the fields, including the command field."""
@@ -722,24 +745,48 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
         # type: (ast.Struct) -> None
         """Generate comparison operators declarations for the type."""
         # pylint: disable=invalid-name
-
         sorted_fields = sorted([
             field for field in struct.fields if (not field.ignore) and field.comparison_order != -1
         ], key=lambda f: f.comparison_order)
-        fields = [_get_field_member_name(field) for field in sorted_fields]
 
-        with self._block("auto relationalTie() const {", "}"):
-            self._writer.write_line('return std::tie(%s);' % (', '.join(fields)))
-
-        for rel_op in ['==', '!=', '<', '>', '<=', '>=']:
+        for rel_op in ['==', '!=']:
             self.write_empty_line()
             decl = common.template_args(
                 "friend bool operator${rel_op}(const ${class_name}& left, const ${class_name}& right) {",
                 rel_op=rel_op, class_name=common.title_case(struct.name))
 
+            join_op = " && "
+            if "!" in rel_op:
+                join_op = " || "
+
             with self._block(decl, "}"):
-                self._writer.write_line('return left.relationalTie() %s right.relationalTie();' %
-                                        (rel_op))
+                self._writer.write_line(
+                    'return %s;' %
+                    (join_op.join([_get_comparison(field, rel_op) for field in sorted_fields])))
+
+        decl = common.template_args(
+            "friend bool operator<(const ${class_name}& left, const ${class_name}& right) {",
+            class_name=common.title_case(struct.name))
+        with self._block(decl, "}"):
+            self._writer.write_line("return %s;" % (_gen_comparison_less(sorted_fields)))
+
+        decl = common.template_args(
+            "friend bool operator>(const ${class_name}& left, const ${class_name}& right) {",
+            class_name=common.title_case(struct.name))
+        with self._block(decl, "}"):
+            self._writer.write_line('return right < left;')
+
+        decl = common.template_args(
+            "friend bool operator<=(const ${class_name}& left, const ${class_name}& right) {",
+            class_name=common.title_case(struct.name))
+        with self._block(decl, "}"):
+            self._writer.write_line('return !(right < left);')
+
+        decl = common.template_args(
+            "friend bool operator>=(const ${class_name}& left, const ${class_name}& right) {",
+            class_name=common.title_case(struct.name))
+        with self._block(decl, "}"):
+            self._writer.write_line('return !(left < right);')
 
         self.write_empty_line()
 
@@ -807,6 +854,7 @@ class _CppHeaderFileWriter(_CppFileWriterBase):
             'mongo/base/data_range.h',
             'mongo/bson/bsonobj.h',
             'mongo/bson/bsonobjbuilder.h',
+            'mongo/bson/simple_bsonobj_comparator.h',
             'mongo/idl/idl_parser.h',
             'mongo/rpc/op_msg.h',
         ] + spec.globals.cpp_includes
