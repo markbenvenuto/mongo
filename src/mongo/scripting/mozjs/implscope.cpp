@@ -362,9 +362,11 @@ MozJSImplScope::MozRuntime::MozRuntime(const MozJSScriptEngine* engine) {
         }
 
         _context = std::unique_ptr<JSContext, std::function<void(JSContext*)>>(
-            JS_NewContext(kMaxBytesBeforeGC,JS::DefaultNurseryBytes),
+            JS_NewContext(kMaxBytesBeforeGC, JS::DefaultNurseryBytes),
             [](JSContext* ptr) { JS_DestroyContext(ptr); });
-        uassert(ErrorCodes::JSInterpreterFailure, "InitSelfHostedCode", JS::InitSelfHostedCode(_context.get()));
+        uassert(ErrorCodes::JSInterpreterFailure,
+                "InitSelfHostedCode",
+                JS::InitSelfHostedCode(_context.get()));
 
         uassert(ErrorCodes::JSInterpreterFailure, "Failed to initialize JSContext", _context);
         uassert(ErrorCodes::ExceededMemoryLimit,
@@ -426,7 +428,6 @@ MozJSImplScope::MozRuntime::MozRuntime(const MozJSScriptEngine* engine) {
         JS_SetGCParametersBasedOnAvailableMemory(_context.get(), engine->getJSHeapLimitMB());
         JS_SetGCParameter(_context.get(), JSGC_MAX_BYTES, 0xffffffff);
     }
-
 }
 
 MozJSImplScope::MozJSImplScope(MozJSScriptEngine* engine)
@@ -489,7 +490,7 @@ MozJSImplScope::MozJSImplScope(MozJSScriptEngine* engine)
     JSAutoRequest ar(_context);
 
     // TODO REMOVED
-    //JS_SetErrorReporter(_context, _reportError);
+    // JS_SetErrorReporter(_context, _reportError);
 
     JSAutoCompartment ac(_context, _global);
 
