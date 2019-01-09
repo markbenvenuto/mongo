@@ -168,6 +168,7 @@ Status addBaseServerOptions(moe::OptionSection* options) {
 
     options->addOptionChaining("systemLog.quiet", "quiet", moe::Switch, "quieter output");
 
+    // TODO: mongocryptd filter this out - Windows only allowed
     options->addOptionChaining("net.port", "port", moe::Int, portInfoBuilder.str().c_str());
 
     options

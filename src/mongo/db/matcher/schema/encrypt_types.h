@@ -54,6 +54,10 @@ public:
         kJSONPointer,
     };
 
+    KeyId() = default;
+    KeyId(StringData key) : _strKeyId(key), _type(Type::kJSONPointer)
+    {}
+
     static KeyId parseFromBSON(const BSONElement& element) {
         KeyId keyid;
 

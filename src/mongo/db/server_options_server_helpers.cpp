@@ -118,12 +118,14 @@ Status addGeneralServerOptions(moe::OptionSection* options) {
         .setSources(moe::SourceCommandLine)
         .hidden();
 
+    // TODO: mongocryptd filter this out - not allowed
     options->addOptionChaining(
         "net.bindIp",
         "bind_ip",
         moe::String,
         "comma separated list of ip addresses to listen on - localhost by default");
 
+    // TODO: mongocryptd filter this out - not allowed
     options
         ->addOptionChaining("net.bindIpAll", "bind_ip_all", moe::Switch, "bind to all ip addresses")
         .canonicalize([](moe::Environment* env) {
@@ -135,6 +137,7 @@ Status addGeneralServerOptions(moe::OptionSection* options) {
             return all ? env->set("net.bindIp", moe::Value("*")) : Status::OK();
         });
 
+    // TODO: mongocryptd filter this out - Windows only allowed
     options->addOptionChaining(
         "net.ipv6", "ipv6", moe::Switch, "enable IPv6 support (disabled by default)");
 
@@ -229,11 +232,13 @@ Status addGeneralServerOptions(moe::OptionSection* options) {
                 "(keyFile/sendKeyFile/sendX509/x509)");
 
 #ifndef _WIN32
+    // TODO: mongocryptd filter this out - not allowed
     options
         ->addOptionChaining(
             "nounixsocket", "nounixsocket", moe::Switch, "disable listening on unix sockets")
         .setSources(moe::SourceAllLegacy);
 
+    // TODO: mongocryptd filter this out - not allowed
     options
         ->addOptionChaining(
             "net.unixDomainSocket.enabled", "", moe::Bool, "disable listening on unix sockets")

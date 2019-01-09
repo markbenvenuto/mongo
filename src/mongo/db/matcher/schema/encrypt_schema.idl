@@ -142,21 +142,27 @@ structs:
         description: "Encrypt Schema placeholder"
         strict: true
         fields:
-          type:
-            description: "foo"
-            type: string
-          algorithm:
+          # t:
+          #   description: "foo"
+          #   type: string
+          #   cpp_name: type
+          a:
             description: "foo"
             type: FLEAlgorithm
-          initializationVector:
+            cpp_name: algorithm
+          iv:
             description: "foo"
             type: bindata_generic
-          keyId:
+            cpp_name: initializationVector
+          k:
             description: "foo"
             type: normalizedKeyId
-          keyVaultURI:
+            cpp_name: keyId
+          u:
             description: "foo"
             type: string
-          value:
+            cpp_name: keyVaultURI
+          v:
             description: "value to encrypt"
             type: any_basic_type
+            cpp_name: value

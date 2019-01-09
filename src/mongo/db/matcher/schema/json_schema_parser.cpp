@@ -1268,11 +1268,12 @@ Status translateEncryptionKeywords(StringMap<BSONElement>& keywordMap,
 
         // TODO - merge stuff here
         // TODO - validate iv
+        std::vector<char> v1;
         EncryptionInfoNormalized norm;
-        norm.setAlgorithm(ei.getAlgorithm().get());
-        norm.setInitializationVector(ei.getInitializationVector().get());
-        norm.setKeyId(ei.getKeyId().get());
-        norm.setKeyVaultURI(ei.getKeyVaultURI().get());
+        norm.setAlgorithm(ei.getAlgorithm().value_or(FLEAlgorithmEnum::random));
+        norm.setInitializationVector(ei.getInitializationVector().value_or(ConstDataRange(v1.data(), v1.size())));
+        norm.setKeyId(ei.getKeyId().value_or(KeyId("unknown_default")));
+        norm.setKeyVaultURI(ei.getKeyVaultURI().value_or("admin.datakeys"));
 
         //// TODO - gather encryption information here
         paths->addEncryptionInformation(norm);
