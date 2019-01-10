@@ -7703,6 +7703,16 @@ tasks:
       resmoke_jobs_max: 1
 
 - <<: *task_template
+  name: fle
+  commands:
+  - func: "do setup"
+  - func: "run tests"
+    vars:
+      resmoke_args: --suites=fle --storageEngine=wiredTiger
+      # TODO - can we run them concurrently?
+      resmoke_jobs_max: 1
+
+- <<: *task_template
   name: jsonSchema
   commands:
   - func: "do setup"
@@ -10543,6 +10553,7 @@ buildvariants:
   - name: external_auth
     distros:
     - windows-64-2016
+  - name: fle
   - name: jsCore
   - name: jsCore_ese
   - name: jsCore_decimal
@@ -11962,6 +11973,7 @@ buildvariants:
   - name: ese
   - name: failpoints
   - name: failpoints_auth
+  - name: fle
   - name: gle_auth
   - name: gle_auth_basics_passthrough
   - name: gle_auth_basics_passthrough_write_cmd
