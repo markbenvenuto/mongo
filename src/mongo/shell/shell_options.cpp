@@ -241,6 +241,8 @@ Status storeMongoShellOptions(const moe::Environment& params,
             return Status(ErrorCodes::BadValue, sb.str());
         }
         shellGlobalParams.jsHeapLimitMB = jsHeapLimitMB;
+    } else {
+        shellGlobalParams.jsHeapLimitMB = 4096;
     }
 
     if (shellGlobalParams.url == "*") {
