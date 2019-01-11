@@ -244,7 +244,7 @@ bool MozJSImplScope::_interruptCallback(JSContext* cx) {
     auto scope = getScope(cx);
 
     JS_DisableInterruptCallback(scope->_context);
-    auto guard = makeGuard([&]() { JS_ResetInterruptCallback(scope->_context, true); });
+    auto guard = makeGuard([&]() { JS_ResetInterruptCallback(scope->_context, false); });
 
     if (scope->_pendingGC.load() || closeToMaxMemory()) {
         scope->_pendingGC.store(false);
