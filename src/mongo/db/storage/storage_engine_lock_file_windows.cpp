@@ -48,8 +48,6 @@ namespace mongo {
 
 namespace {
 
-const std::string kLockFileBasename = "mongod.lock";
-
 Status _truncateFile(HANDLE handle) {
     invariant(handle != INVALID_HANDLE_VALUE);
 
@@ -86,9 +84,9 @@ public:
     HANDLE _handle;
 };
 
-StorageEngineLockFile::StorageEngineLockFile(const std::string& dbpath)
+StorageEngineLockFile::StorageEngineLockFile(const std::string& dbpath, StringData fileName)
     : _dbpath(dbpath),
-      _filespec((boost::filesystem::path(_dbpath) / kLockFileBasename).string()),
+      _filespec((boost::filesystem::path(_dbpath) / fileName.toString()).string()),
       _uncleanShutdown(boost::filesystem::exists(_filespec) &&
                        boost::filesystem::file_size(_filespec) > 0),
       _lockFileHandle(new LockFileHandle()) {}
