@@ -64,4 +64,4 @@ public:
     DbResponse handleRequest(OperationContext* opCtx, const Message& request) final;
 };
 
-} // namespace mongo
+}  // namespace mongo

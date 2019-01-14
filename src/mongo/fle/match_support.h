@@ -13,7 +13,10 @@ public:
         _paths.push_back(std::tuple<std::string, OrdinalPath>(name.toString(), path));
     }
 
-    const std::vector<std::tuple<std::string, OrdinalPath>>& paths() const { return _paths; }
+    const std::vector<std::tuple<std::string, OrdinalPath>>& paths() const {
+        return _paths;
+    }
+
 private:
     std::vector<std::tuple<std::string, OrdinalPath>> _paths;
 };

@@ -41,8 +41,8 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/db/service_context.h"
 #include "mongo/fle/mongofle_commands.h"
-#include "mongo/fle/mongofle_options.h"
 #include "mongo/fle/mongofle_entry_point.h"
+#include "mongo/fle/mongofle_options.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/platform/random.h"
 #include "mongo/rpc/factory.h"
@@ -159,4 +159,4 @@ DbResponse ServiceEntryPointFLE::handleRequest(OperationContext* opCtx, const Me
     auto response = replyBuilder->done();
     return DbResponse{std::move(response)};
 }
-} //namespace mongo
+}  // namespace mongo

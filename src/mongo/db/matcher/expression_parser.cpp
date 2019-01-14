@@ -389,7 +389,7 @@ StatusWithMatchExpression parse(const BSONObj& obj,
                                                                  extensionsCallback,
                                                                  allowedFeatures,
                                                                  currentLevel,
-                EncryptionFrameContext(&frame));
+                                                                 EncryptionFrameContext(&frame));
             ;
 
             if (!parsedExpression.isOK()) {

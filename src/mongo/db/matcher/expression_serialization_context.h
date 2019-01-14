@@ -9,7 +9,8 @@
 namespace mongo {
 class ExpressionSerializationContext {
 public:
-    virtual boost::optional<std::vector<char>> generatePlaceHolder(ElementPath path, BSONElement element) = 0;
+    virtual boost::optional<std::vector<char>> generatePlaceHolder(ElementPath path,
+                                                                   BSONElement element) = 0;
 };
 
 }  // namespace mongo

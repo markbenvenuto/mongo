@@ -38,9 +38,9 @@
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/idl/idl_parser.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/uuid.h"
-#include "mongo/idl/idl_parser.h"
 
 namespace mongo {
 
@@ -55,8 +55,7 @@ public:
     };
 
     KeyId() = default;
-    KeyId(StringData key) : _strKeyId(key), _type(Type::kJSONPointer)
-    {}
+    KeyId(StringData key) : _strKeyId(key), _type(Type::kJSONPointer) {}
 
     static KeyId parseFromBSON(const BSONElement& element) {
         KeyId keyid;
@@ -76,16 +75,16 @@ public:
                 Status status = parseNumberFromString(arrayFieldName, &fieldNumber);
                 if (status.isOK()) {
                     if (fieldNumber != expectedFieldNumber) {
-                        arrayCtxt.throwBadArrayFieldNumberSequence(fieldNumber, expectedFieldNumber);
+                        arrayCtxt.throwBadArrayFieldNumberSequence(fieldNumber,
+                                                                   expectedFieldNumber);
                     }
 
                     if (arrayCtxt.checkAndAssertBinDataType(arrayElement, bdtUUID)) {
                         IDLParserErrorContext tempContext("key"_sd, &arrayCtxt);
                         const auto localObject = arrayElement.Obj();
-                        keyid._uuids.emplace_back( UUID::parse(localObject));
+                        keyid._uuids.emplace_back(UUID::parse(localObject));
                     }
-                }
-                else {
+                } else {
                     arrayCtxt.throwBadArrayFieldNumberValue(arrayFieldName);
                 }
                 ++expectedFieldNumber;
@@ -137,7 +136,7 @@ public:
     NormalizedKeyId() : _uuid(UUID::gen()) {}
 
     NormalizedKeyId(UUID uuid) : _uuid(uuid), _type(Type::kUUID) {}
-    NormalizedKeyId(BSONElement value) : _value(value), _uuid(UUID::gen()),  _type(Type::kValue) {}
+    NormalizedKeyId(BSONElement value) : _value(value), _uuid(UUID::gen()), _type(Type::kValue) {}
 
     static NormalizedKeyId parseFromBSON(const BSONElement& element) {
         // Not supported - DO NOT CALL

@@ -2089,8 +2089,7 @@ TEST(JSONSchemaParserTest, TopLevelEnumWithZeroObjectsTranslatesCorrectly) {
 }
 
 TEST(JSONSchemaParserTest, EncryptTranslatesCorrectly) {
-    BSONObj schema =
-        fromjson(R"({properties: {foo: {bsonType: 'binData',encrypt : {
+    BSONObj schema = fromjson(R"({properties: {foo: {bsonType: 'binData',encrypt : {
 		type: "int",
 		algorithm: "TBD_Deterministic",
 		initializationVector: { "$binary" : "YWJj", "$type" : "00" },

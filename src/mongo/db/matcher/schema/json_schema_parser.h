@@ -38,8 +38,8 @@
 #include "mongo/db/matcher/expression.h"
 #include "mongo/db/matcher/expression_tree.h"
 #include "mongo/db/matcher/expression_type.h"
-#include "mongo/util/mongoutils/str.h"
 #include "mongo/db/matcher/schema/encrypt_schema_gen.h"
+#include "mongo/util/mongoutils/str.h"
 
 namespace mongo {
 struct EncryptionPath {
@@ -96,7 +96,8 @@ std::string vectorToString2(const std::vector<T>& list) {
 //     std::string keyId;
 
 //     std::string toString() const {
-//         std::string s1 = str::stream() << "name: " << name << ", path: " << vectorToString2(path) << ", algo: " << algo
+//         std::string s1 = str::stream() << "name: " << name << ", path: " << vectorToString2(path)
+//         << ", algo: " << algo
 //                                        << ", deterministic: " << deterministic << ", keyVault: "
 //                                        << keyVault << ", keyId: " << keyId;
 
@@ -133,7 +134,9 @@ public:
         return _map;
     };
 
-    std::vector<std::string> paths() const {  return _paths; }
+    std::vector<std::string> paths() const {
+        return _paths;
+    }
 
 private:
     std::vector<std::string> _paths;

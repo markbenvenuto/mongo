@@ -15,7 +15,8 @@ try:
     printers = pp[0]
     path = os.path.dirname(os.path.dirname(os.path.dirname(printers)))
     sys.path.insert(0, path)
-    from libstdcxx.v6.printers import *
+    from libstdcxx.v6 import register_libstdcxx_printers
+    register_libstdcxx_printers(gdb.current_objfile())
     print("Loaded libstdc++ pretty printers from '%s'" % printers)
 except Exception as e:
     print("Failed to load the libstdc++ pretty printers: " + str(e))

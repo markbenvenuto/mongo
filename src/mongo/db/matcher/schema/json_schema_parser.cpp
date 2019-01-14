@@ -1072,7 +1072,8 @@ Status parseItemsAndAdditionalItems(StringMap<BSONElement>& keywordMap,
 Status translateLogicalKeywords(StringMap<BSONElement>& keywordMap,
                                 StringData path,
                                 AndMatchExpression* andExpr,
-                                bool ignoreUnknownKeywords, JSONSchemaContext* paths) {
+                                bool ignoreUnknownKeywords,
+                                JSONSchemaContext* paths) {
     if (auto allOfElt = keywordMap[kSchemaAllOfKeyword]) {
         auto allOfExpr =
             parseLogicalKeyword<AndMatchExpression>(path, allOfElt, ignoreUnknownKeywords, paths);
@@ -1271,7 +1272,8 @@ Status translateEncryptionKeywords(StringMap<BSONElement>& keywordMap,
         std::vector<char> v1;
         EncryptionInfoNormalized norm;
         norm.setAlgorithm(ei.getAlgorithm().value_or(FLEAlgorithmEnum::random));
-        norm.setInitializationVector(ei.getInitializationVector().value_or(ConstDataRange(v1.data(), v1.size())));
+        norm.setInitializationVector(
+            ei.getInitializationVector().value_or(ConstDataRange(v1.data(), v1.size())));
         norm.setKeyId(ei.getKeyId().value_or(KeyId("unknown_default")));
         norm.setKeyVaultURI(ei.getKeyVaultURI().value_or("admin.datakeys"));
 
@@ -1302,7 +1304,8 @@ Status translateArrayKeywords(StringMap<BSONElement>& keywordMap,
                               StringData path,
                               bool ignoreUnknownKeywords,
                               InternalSchemaTypeExpression* typeExpr,
-                            AndMatchExpression* andExpr, JSONSchemaContext* paths) {
+                              AndMatchExpression* andExpr,
+                              JSONSchemaContext* paths) {
 
     if (auto minItemsElt = keywordMap[kSchemaMinItemsKeyword]) {
         auto minItemsExpr = parseLength<InternalSchemaMinItemsMatchExpression>(
@@ -1418,7 +1421,8 @@ Status translateObjectKeywords(StringMap<BSONElement>& keywordMap,
     }
 
     if (auto dependenciesElt = keywordMap[kSchemaDependenciesKeyword]) {
-        auto dependenciesExpr = parseDependencies(path, dependenciesElt, ignoreUnknownKeywords, paths);
+        auto dependenciesExpr =
+            parseDependencies(path, dependenciesElt, ignoreUnknownKeywords, paths);
         if (!dependenciesExpr.isOK()) {
             return dependenciesExpr.getStatus();
         }

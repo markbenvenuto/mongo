@@ -486,8 +486,8 @@ def build_pretty_printer():
     pp.add('Status', 'mongo::Status', False, StatusPrinter)
     pp.add('StatusWith', 'mongo::StatusWith', True, StatusWithPrinter)
     pp.add('StringData', 'mongo::StringData', False, StringDataPrinter)
-    pp.add('UnorderedFastKeyTable', 'mongo::UnorderedFastKeyTable', True,
-           UnorderedFastKeyTablePrinter)
+    # pp.add('UnorderedFastKeyTable', 'mongo::UnorderedFastKeyTable', True,
+    #        UnorderedFastKeyTablePrinter)
     pp.add('UUID', 'mongo::UUID', False, UUIDPrinter)
     pp.add('__wt_cursor', '__wt_cursor', False, WtCursorPrinter)
     pp.add('__wt_session_impl', '__wt_session_impl', False, WtSessionImplPrinter)

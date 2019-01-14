@@ -31,9 +31,9 @@
 #pragma once
 
 #include <cstring>
-#include <vector>
 #include <tuple>
 #include <type_traits>
+#include <vector>
 
 #include "mongo/base/data_type.h"
 #include "mongo/base/error_codes.h"
@@ -62,7 +62,9 @@ public:
         : ConstDataRange(begin, begin + length, debug_offset) {}
 
     ConstDataRange(const std::vector<uint8_t>& vec, std::ptrdiff_t debug_offset = 0)
-        : ConstDataRange(reinterpret_cast<const char*>(vec.data()), reinterpret_cast<const char*>(vec.data()) + vec.size(), debug_offset) {}
+        : ConstDataRange(reinterpret_cast<const char*>(vec.data()),
+                         reinterpret_cast<const char*>(vec.data()) + vec.size(),
+                         debug_offset) {}
 
     const char* data() const {
         return _begin;
