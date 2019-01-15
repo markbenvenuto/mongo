@@ -883,6 +883,7 @@ int _main(int argc, char* argv[], char** envp) {
 
     mongo::ScriptEngine::setConnectCallback(mongo::shell_utils::onConnect);
     mongo::ScriptEngine::setup();
+    // TODO fix the jsHeapLimitMB setting correctly
     fprintf(stderr, "jsHeapLimitMB %d\n", shellGlobalParams.jsHeapLimitMB);
     mongo::getGlobalScriptEngine()->setJSHeapLimitMB(shellGlobalParams.jsHeapLimitMB);
     mongo::getGlobalScriptEngine()->setScopeInitCallback(mongo::shell_utils::initScope);
