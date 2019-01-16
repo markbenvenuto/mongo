@@ -891,9 +891,8 @@ bool MozJSImplScope::_checkErrorState(bool success, bool reportError, bool asser
                 ss << "[" << fnameStr << ":" << lineNum << ":" << colNum << "] ";
             }
             ss << ValueWriter(_context, excn).toString();
-            auto status =
-                jsExceptionToStatus(_context, excn, ErrorCodes::JSInterpreterFailure, ss);
-                _status = Status(JSExceptionInfo(std::move(stackStr), status), status.reason());
+            auto status = jsExceptionToStatus(_context, excn, ErrorCodes::JSInterpreterFailure, ss);
+            _status = Status(JSExceptionInfo(std::move(stackStr), status), status.reason());
         } else {
             _status = Status(ErrorCodes::UnknownError, "Unknown Failure from JSInterpreter");
         }
