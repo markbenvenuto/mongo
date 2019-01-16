@@ -368,6 +368,7 @@ MozJSImplScope::MozRuntime::MozRuntime(const MozJSScriptEngine* engine) {
 
         // The memory limit is in megabytes
         JS_SetGCParametersBasedOnAvailableMemory(_context.get(), engine->getJSHeapLimitMB());
+        // TODO apply the mozilla patch to stop overriding JSGC_MAX_BYTES
         JS_SetGCParameter(_context.get(), JSGC_MAX_BYTES, 0xffffffff);
     }
 }
