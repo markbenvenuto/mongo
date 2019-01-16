@@ -125,6 +125,7 @@ void MozJSImplScope::_reportError(JSContext* cx, JSErrorReport* report) {
     auto scope = getScope(cx);
     auto message = report->message().c_str();
 
+
     // If we are recursively calling _reportError because of ReportOverRecursed, lets just quit now
     if (scope->_inReportError) {
         return;
@@ -665,7 +666,7 @@ BSONObj MozJSImplScope::callThreadArgs(const BSONObj& args) {
 
     for (int i = 0; i < argc; ++i) {
         ValueReader(_context, &value).fromBSONElement(*it, args, true);
-        _checkErrorState(argv.append(value));
+        invariant(argv.append(value));
         it.next();
     }
 
@@ -732,7 +733,7 @@ int MozJSImplScope::invoke(ScriptingFunction func,
                 JS::RootedValue value(_context);
                 ValueReader(_context, &value).fromBSONElement(next, *argsObject, readOnlyArgs);
 
-                _checkErrorState(args.append(value));
+                invariant(args.append(value));
             }
         }
 
@@ -948,9 +949,9 @@ bool MozJSImplScope::_checkErrorState(bool success, bool reportError, bool asser
                 ss << "[" << fnameStr << ":" << lineNum << ":" << colNum << "] ";
             }
             ss << ValueWriter(_context, excn).toString();
-            _status = {
-                JSExceptionInfo(std::move(stackStr), Status(ErrorCodes::JSInterpreterFailure, ss)),
-                ss};
+            auto status =
+                jsExceptionToStatus(_context, excn, ErrorCodes::JSInterpreterFailure, ss);
+                _status = Status(JSExceptionInfo(std::move(stackStr), status), status.reason());
         } else {
             _status = Status(ErrorCodes::UnknownError, "Unknown Failure from JSInterpreter");
         }
