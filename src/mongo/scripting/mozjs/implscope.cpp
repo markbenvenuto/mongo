@@ -121,65 +121,6 @@ struct MozJSImplScope::MozJSEntry {
     MozJSImplScope* _scope;
 };
 
-void MozJSImplScope::_reportError(JSContext* cx, JSErrorReport* report) {
-    auto scope = getScope(cx);
-    auto message = report->message().c_str();
-
-
-    // If we are recursively calling _reportError because of ReportOverRecursed, lets just quit now
-    if (scope->_inReportError) {
-        return;
-    }
-
-    scope->_inReportError = true;
-    const auto guard = makeGuard([&] { scope->_inReportError = false; });
-
-    if (!JSREPORT_IS_WARNING(report->flags)) {
-
-        std::string exceptionMsg;
-
-        try {
-            // TODO: something far more elaborate that mimics the stack printing from v8
-            JS::RootedValue excn(cx);
-            if (JS_GetPendingException(cx, &excn) && excn.isObject()) {
-                JS::RootedValue stack(cx);
-
-                JS::RootedObject obj(cx, excn.toObjectOrNull());
-                ObjectWrapper o(cx, obj);
-                o.getValue("stack", &stack);
-
-                auto stackStr = ValueWriter(cx, stack).toString();
-
-                if (stackStr.empty()) {
-                    // The JavaScript Error objects resulting from C++ exceptions may not always
-                    // have a non-empty "stack" property. We instead use the line and column
-                    // numbers of where in the JavaScript code the C++ function was called from.
-                    str::stream ss;
-                    ss << "@" << report->filename << ":" << report->lineno << ":" << report->column
-                       << "\n";
-                    stackStr = ss;
-                }
-
-                auto status =
-                    jsExceptionToStatus(cx, excn, ErrorCodes::JSInterpreterFailure, message)
-                        .withReason(message);
-                scope->_status = {JSExceptionInfo(std::move(stackStr), std::move(status)), message};
-
-                return;
-            }
-
-            exceptionMsg = message;
-        } catch (const DBException& dbe) {
-            exceptionMsg = "Unknown error occured while processing exception";
-            log() << exceptionMsg << ":" << dbe.toString() << ":" << message;
-        }
-
-        scope->_status =
-            JSErrorReportToStatus(cx, report, ErrorCodes::JSInterpreterFailure, message)
-                .withReason(exceptionMsg);
-    }
-}
-
 std::string MozJSImplScope::getError() {
     return "";
 }
@@ -490,8 +431,6 @@ MozJSImplScope::MozJSImplScope(MozJSScriptEngine* engine)
     JS_SetContextPrivate(_context, this);
     JSAutoRequest ar(_context);
 
-    JS::SetWarningReporter(_context, _reportError);
-
     JSAutoCompartment ac(_context, _global);
 
     _checkErrorState(JS_InitStandardClasses(_context, _global));
@@ -666,6 +605,7 @@ BSONObj MozJSImplScope::callThreadArgs(const BSONObj& args) {
 
     for (int i = 0; i < argc; ++i) {
         ValueReader(_context, &value).fromBSONElement(*it, args, true);
+        // TODO, who should we actually handle append failing
         invariant(argv.append(value));
         it.next();
     }
@@ -733,6 +673,7 @@ int MozJSImplScope::invoke(ScriptingFunction func,
                 JS::RootedValue value(_context);
                 ValueReader(_context, &value).fromBSONElement(next, *argsObject, readOnlyArgs);
 
+                // TODO, who should we actually handle append failing
                 invariant(args.append(value));
             }
         }
