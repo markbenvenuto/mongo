@@ -605,7 +605,7 @@ BSONObj MozJSImplScope::callThreadArgs(const BSONObj& args) {
 
     for (int i = 0; i < argc; ++i) {
         ValueReader(_context, &value).fromBSONElement(*it, args, true);
-        // TODO, who should we actually handle append failing
+        // TODO, how should we actually handle append failing
         invariant(argv.append(value));
         it.next();
     }
@@ -673,7 +673,7 @@ int MozJSImplScope::invoke(ScriptingFunction func,
                 JS::RootedValue value(_context);
                 ValueReader(_context, &value).fromBSONElement(next, *argsObject, readOnlyArgs);
 
-                // TODO, who should we actually handle append failing
+                // TODO, how should we actually handle append failing
                 invariant(args.append(value));
             }
         }
