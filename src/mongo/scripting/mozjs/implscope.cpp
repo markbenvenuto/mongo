@@ -871,26 +871,9 @@ bool MozJSImplScope::_checkErrorState(bool success, bool reportError, bool asser
     if (_status.isOK()) {
         JS::RootedValue excn(_context);
         if (JS_GetPendingException(_context, &excn) && excn.isObject()) {
-            str::stream ss;
 
+            auto ss = ValueWriter(_context, excn).toString();
             auto stackStr = ObjectWrapper(_context, excn).getString(InternedString::stack);
-            auto fnameStr = ObjectWrapper(_context, excn).getString(InternedString::fileName);
-            auto lineNum = ObjectWrapper(_context, excn).getNumberInt(InternedString::lineNumber);
-            auto colNum = ObjectWrapper(_context, excn).getNumberInt(InternedString::columnNumber);
-
-            if (stackStr.empty()) {
-                // The JavaScript Error objects resulting from C++ exceptions may not always have a
-                // non-empty "stack" property. We instead use the line and column numbers of where
-                // in the JavaScript code the C++ function was called from.
-                str::stream ss;
-                ss << "@" << fnameStr << ":" << lineNum << ":" << colNum << "\n";
-                stackStr = ss;
-            }
-
-            if (fnameStr != "") {
-                ss << "[" << fnameStr << ":" << lineNum << ":" << colNum << "] ";
-            }
-            ss << ValueWriter(_context, excn).toString();
             auto status = jsExceptionToStatus(_context, excn, ErrorCodes::JSInterpreterFailure, ss);
             _status = Status(JSExceptionInfo(std::move(stackStr), status), ss);
         } else {
