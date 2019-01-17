@@ -19,10 +19,7 @@
 #include "mongo/platform/basic.h"
 
 #include <array>
-#include <errno.h>
 #include <js/Utility.h>
-#include <sys/time.h>
-#include <time.h>
 #include <vm/PosixNSPR.h>
 
 #include "mongo/stdx/chrono.h"
