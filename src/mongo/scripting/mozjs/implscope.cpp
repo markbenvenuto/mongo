@@ -892,7 +892,7 @@ bool MozJSImplScope::_checkErrorState(bool success, bool reportError, bool asser
             }
             ss << ValueWriter(_context, excn).toString();
             auto status = jsExceptionToStatus(_context, excn, ErrorCodes::JSInterpreterFailure, ss);
-            _status = Status(JSExceptionInfo(std::move(stackStr), status), status.reason());
+            _status = Status(JSExceptionInfo(std::move(stackStr), status), ss);
         } else {
             _status = Status(ErrorCodes::UnknownError, "Unknown Failure from JSInterpreter");
         }
