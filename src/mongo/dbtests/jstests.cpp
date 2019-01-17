@@ -1292,7 +1292,7 @@ public:
         {
             bool threwException = false;
             try {
-                s->invoke("UUID(1,2,3,4,5);", 0, 0);
+                s->invoke("\"use strict\"; x = 10;", 0, 0);
             } catch (...) {
                 threwException = true;
 
@@ -1307,7 +1307,7 @@ public:
         {
             bool threwException = false;
             try {
-                s->invoke("\"use strict\"; x = 10;", 0, 0);
+                s->invoke("UUID(1,2,3,4,5);", 0, 0);
             } catch (...) {
                 threwException = true;
 
