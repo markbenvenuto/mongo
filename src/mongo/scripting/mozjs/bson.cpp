@@ -168,7 +168,8 @@ void BSONInfo::enumerate(JSContext* cx,
     }
 }
 
-bool BSONInfo::setProperty(JSContext* cx,
+void BSONInfo::setProperty(JSContext* cx,
+
                            JS::HandleObject obj,
                            JS::HandleId id,
                            JS::HandleValue vp,
@@ -180,7 +181,6 @@ bool BSONInfo::setProperty(JSContext* cx,
     if (holder) {
         if (holder->_readOnly) {
             uasserted(ErrorCodes::BadValue, "Read only object");
-            return false;
         }
 
         auto iter = holder->_removed.find(IdWrapper(cx, id).toString());
@@ -193,7 +193,7 @@ bool BSONInfo::setProperty(JSContext* cx,
     }
 
     ObjectWrapper(cx, obj).defineProperty(id, vp, JSPROP_ENUMERATE);
-    return result.succeed();
+    result.succeed();
 }
 
 void BSONInfo::delProperty(JSContext* cx,

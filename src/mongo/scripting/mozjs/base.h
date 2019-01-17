@@ -75,7 +75,7 @@ struct BaseInfo {
                           JS::AutoIdVector& properties,
                           bool enumerableOnly);
     static void finalize(js::FreeOp* fop, JSObject* obj);
-    static bool getProperty(JSContext* cx,
+    static void getProperty(JSContext* cx,
                             JS::HandleObject obj,
                             JS::HandleId id,
                             JS::HandleValue receiver,
@@ -87,7 +87,7 @@ struct BaseInfo {
     static bool mayResolve(const JSAtomState& names, jsid id, JSObject* maybeObj);
     static void postInstall(JSContext* cx, JS::HandleObject global, JS::HandleObject proto);
     static void resolve(JSContext* cx, JS::HandleObject obj, JS::HandleId id, bool* resolvedp);
-    static bool setProperty(JSContext* cx,
+    static void setProperty(JSContext* cx,
                             JS::HandleObject obj,
                             JS::HandleId id,
                             JS::HandleValue v,

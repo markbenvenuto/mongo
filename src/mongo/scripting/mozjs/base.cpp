@@ -55,13 +55,11 @@ void BaseInfo::enumerate(JSContext* cx,
                          JS::AutoIdVector& properties,
                          bool enumerableOnly) {}
 void BaseInfo::finalize(js::FreeOp* fop, JSObject* obj) {}
-bool BaseInfo::getProperty(JSContext* cx,
+void BaseInfo::getProperty(JSContext* cx,
                            JS::HandleObject obj,
                            JS::HandleId id,
                            JS::HandleValue receiver,
-                           JS::MutableHandleValue vp) {
-    return false;
-}
+                           JS::MutableHandleValue vp) {}
 void BaseInfo::hasInstance(JSContext* cx,
                            JS::HandleObject obj,
                            JS::MutableHandleValue vp,
@@ -71,14 +69,12 @@ bool BaseInfo::mayResolve(const JSAtomState& names, jsid id, JSObject* maybeObj)
 }
 void BaseInfo::postInstall(JSContext* cx, JS::HandleObject global, JS::HandleObject proto) {}
 void BaseInfo::resolve(JSContext* cx, JS::HandleObject obj, JS::HandleId id, bool* resolvedp) {}
-bool BaseInfo::setProperty(JSContext* cx,
+void BaseInfo::setProperty(JSContext* cx,
                            JS::HandleObject obj,
                            JS::HandleId id,
                            JS::HandleValue v,
                            JS::HandleValue receiver,
-                           JS::ObjectOpResult& result) {
-    return false;
-}
+                           JS::ObjectOpResult& result) {}
 
 }  // namespace mozjs
 }  // namespace mongo
