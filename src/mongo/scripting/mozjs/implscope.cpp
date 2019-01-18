@@ -606,7 +606,7 @@ BSONObj MozJSImplScope::callThreadArgs(const BSONObj& args) {
 
     for (int i = 0; i < argc; ++i) {
         ValueReader(_context, &value).fromBSONElement(*it, args, true);
-        if(!argv.append(value))
+        if (!argv.append(value))
             uasserted(ErrorCodes::JSInterpreterFailure, "Failed to append property");
         it.next();
     }
@@ -674,7 +674,7 @@ int MozJSImplScope::invoke(ScriptingFunction func,
                 JS::RootedValue value(_context);
                 ValueReader(_context, &value).fromBSONElement(next, *argsObject, readOnlyArgs);
 
-                if(!args.append(value))
+                if (!args.append(value))
                     uasserted(ErrorCodes::JSInterpreterFailure, "Failed to append property");
             }
         }
