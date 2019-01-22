@@ -96,9 +96,8 @@ rm -rf \
 rm -rf \
     extract/mfbt/decimal \
     extract/mfbt/tests \
-    extract/js/src/vm/make_unicode.py
-#    extract/js/src/vm/make_unicode.py \
-#    extract/js/src/vtune
+    extract/js/src/util/make_unicode.py \
+    extract/js/src/vtune
 
 # this is all of the EXPORTS files from the moz.build
 mkdir -p include
@@ -139,10 +138,3 @@ cp mozilla-release/mozglue/misc/*.cpp extract/mozglue/misc
 
 mkdir -p include/vtune
 touch include/vtune/VTuneWrapper.h
-
-## # Apply a local patch
-## git apply \
-##     mongo_patches/SERVER-23358.patch \
-##     mongo_patches/SERVER-24400.patch \
-##     mongo_patches/SERVER-22927-x86_64.patch \
-##     mongo_patches/SERVER-28400-Solaris_MAP_NORESERVE.patch
