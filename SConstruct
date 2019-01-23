@@ -1646,6 +1646,11 @@ elif env.TargetOSIs('windows'):
     env.Append( CCFLAGS=["/wd4355", "/wd4800", "/wd4267", "/wd4244",
                          "/wd4290", "/wd4068", "/wd4351", "/wd4373"] )
 
+
+    # mozilla
+    env.Append( CCFLAGS=["/wd4291"] )
+
+
     # some warnings we should treat as errors:
     # c4013
     #  'function' undefined; assuming extern returning int
@@ -1673,7 +1678,7 @@ elif env.TargetOSIs('windows'):
     #env.Append( CCFLAGS=['/Yu"pch.h"'] )
 
     # Don't send error reports in case of internal compiler error
-    env.Append( CCFLAGS= ["/errorReport:none"] ) 
+    env.Append( CCFLAGS= ["/errorReport:none"] )
 
     # Select debugging format. /Zi gives faster links but seem to use more memory
     if get_option('msvc-debugging-format') == "codeview":
@@ -1848,7 +1853,7 @@ if env.TargetOSIs('posix'):
 
     if optBuild and not optBuildForSize:
         env.Append( CCFLAGS=["-O2"] )
-    elif optBuild and optBuildForSize: 
+    elif optBuild and optBuildForSize:
         env.Append( CCFLAGS=["-Os"] )
     else:
         env.Append( CCFLAGS=["-O0"] )
@@ -3402,7 +3407,7 @@ def doConfigure(myenv):
         if conf.CheckExtendedAlignment(size):
             conf.env.SetConfigHeaderDefine("MONGO_CONFIG_MAX_EXTENDED_ALIGNMENT", size)
             break
- 
+
     def CheckMongoCMinVersion(context):
         compile_test_body = textwrap.dedent("""
         #include <mongoc/mongoc.h>
@@ -3418,7 +3423,7 @@ def doConfigure(myenv):
         return result
 
     conf.AddTest('CheckMongoCMinVersion', CheckMongoCMinVersion)
-    
+
     if env.TargetOSIs('darwin'):
         def CheckMongoCFramework(context):
             context.Message("Checking for mongoc_get_major_version() in darwin framework mongoc...")
@@ -3438,7 +3443,7 @@ def doConfigure(myenv):
             context.Result(result)
             context.env['FRAMEWORKS'] = lastFRAMEWORKS
             return result
-        
+
         conf.AddTest('CheckMongoCFramework', CheckMongoCFramework)
 
     mongoc_mode = get_option('use-system-mongo-c')
@@ -3450,7 +3455,7 @@ def doConfigure(myenv):
                 "C",
                 "mongoc_get_major_version();",
                 autoadd=False ):
-            conf.env['MONGO_HAVE_LIBMONGOC'] = "library" 
+            conf.env['MONGO_HAVE_LIBMONGOC'] = "library"
         if not conf.env['MONGO_HAVE_LIBMONGOC'] and env.TargetOSIs('darwin') and conf.CheckMongoCFramework():
             conf.env['MONGO_HAVE_LIBMONGOC'] = "framework"
         if not conf.env['MONGO_HAVE_LIBMONGOC'] and mongoc_mode == 'on':

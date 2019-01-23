@@ -240,7 +240,7 @@ public:
                     JS_NULL_CLASS_SPEC,
                     JS_NULL_CLASS_EXT,
                     &_jsoOps}),
-          _jsclassOps{T::addProperty != BaseInfo::addProperty ? smUtils::addProperty<T> : nullptr,
+          _jsclassOps({T::addProperty != BaseInfo::addProperty ? smUtils::addProperty<T> : nullptr,
                       T::delProperty != BaseInfo::delProperty ? smUtils::delProperty<T> : nullptr,
                       nullptr,  // enumerate
                       T::enumerate != BaseInfo::enumerate ? smUtils::enumerate<T> : nullptr,
@@ -251,8 +251,8 @@ public:
                       T::call != BaseInfo::call ? smUtils::call<T> : nullptr,
                       T::hasInstance != BaseInfo::hasInstance ? smUtils::hasInstance<T> : nullptr,
                       T::construct != BaseInfo::construct ? smUtils::construct<T> : nullptr,
-                      nullptr},  // trace
-          _jsoOps{
+                      nullptr}),  // trace
+          _jsoOps({
               nullptr,  // lookupProperty
               nullptr,  // defineProperty
               nullptr,  // hasProperty
@@ -264,7 +264,7 @@ public:
               nullptr,  // deleteProperty
               nullptr,  // getElements
               nullptr   // funToString
-          } {
+          }) {
 
         // The global object is different.  We need it for basic setup
         // before the other types are installed.  Might as well just do it
