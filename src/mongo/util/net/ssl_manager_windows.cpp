@@ -801,7 +801,9 @@ StatusWith<UniqueCertificateWithPrivateKey> readCertPEMFile(StringData fileName,
         // Generate a unique name for our key container
         // Use the the log file if possible
         if (!serverGlobalParams.logpath.empty()) {
-            wstr = toNativeString(serverGlobalParams.logpath.c_str());
+            static int counter = 0;
+            std::string keyContainerName = str::stream() << serverGlobalParams.logpath.c_str() << counter++;
+            wstr = toNativeString(keyContainerName.c_str());
         } else {
             auto us = UUID::gen().toString();
             wstr = toNativeString(us.c_str());
