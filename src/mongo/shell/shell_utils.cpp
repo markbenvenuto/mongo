@@ -86,12 +86,11 @@ void RecordMyLocation(const char* _argv0) {
 
 namespace {
 EnterpriseInitCallback* _enterpriseCallback{nullptr};
-} // namespace
+}  // namespace
 
 void registerEnterpriseInit(EnterpriseInitCallback* callback) {
     _enterpriseCallback = callback;
 }
-
 
 
 // helpers
@@ -336,7 +335,7 @@ void installShellUtils(Scope& scope) {
 }
 
 void initEnterpriseShell(Scope& scope) {
-    if(_enterpriseCallback) {
+    if (_enterpriseCallback) {
         _enterpriseCallback(scope);
     }
 }
@@ -497,5 +496,5 @@ bool fileExists(const std::string& file) {
 
 
 stdx::mutex& mongoProgramOutputMutex(*(new stdx::mutex()));
-} // namespace shell_utils
+}  // namespace shell_utils
 }  // namespace mongo

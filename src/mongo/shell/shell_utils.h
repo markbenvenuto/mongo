@@ -90,5 +90,5 @@ bool fileExists(const std::string& file);
 using EnterpriseInitCallback = void(Scope&);
 
 void registerEnterpriseInit(EnterpriseInitCallback* callback);
-} // namespace shell_utils
-} // namespace mongo
+}  // namespace shell_utils
+}  // namespace mongo
