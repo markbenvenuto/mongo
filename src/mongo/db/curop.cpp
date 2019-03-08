@@ -596,9 +596,6 @@ string OpDebug::report(Client* client,
         auto appName = clientMetadata.get().getApplicationName();
         if (!appName.empty()) {
             s << " appName: \"" << escape(appName) << '\"';
-        } else {
-            error() << "CLIENT METADATA MISSING : " << clientMetadata.get().getDocument();
-            invariant(false);
         }
     }
 
@@ -695,6 +692,25 @@ string OpDebug::report(Client* client,
     }
 
     s << " " << (executionTimeMicros / 1000) << "ms";
+
+    if (clientMetadata) {
+        auto appName = clientMetadata.get().getApplicationName();
+        if (appName.empty()) {
+            // error() << "CLIENT METADATA MISSING : " << clientMetadata.get().getDocument();
+            // error() << "COMMAND: " << s.str();
+            // invariant(false);
+                auto clientMetadataDoc = clientMetadata->getDocument();
+                auto driverName = clientMetadataDoc.getObjectField("driver"_sd)
+                                      .getField("name"_sd)
+                                      .checkAndGetStringData();
+                if (driverName == "MongoDB Internal Client") {
+            error() << "CLIENT METADATA MISSING : " << clientMetadata.get().getDocument();
+            error() << "COMMAND: " << s.str();
+            invariant(false);
+                }
+        }
+    }
+
 
     return s.str();
 }
