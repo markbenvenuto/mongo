@@ -596,6 +596,9 @@ string OpDebug::report(Client* client,
         auto appName = clientMetadata.get().getApplicationName();
         if (!appName.empty()) {
             s << " appName: \"" << escape(appName) << '\"';
+        } else {
+            error() << "CLIENT METADATA MISSING : " << clientMetadata.get().getDocument();
+            invariant(false);
         }
     }
 
