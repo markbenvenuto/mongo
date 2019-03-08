@@ -54,6 +54,8 @@
 #include "mongo/util/log.h"
 #include "mongo/util/string_map.h"
 #include "mongo/util/timer.h"
+#include "mongo/rpc/metadata/client_metadata.h"
+#include "mongo/rpc/metadata/client_metadata_ismaster.h"
 
 namespace mongo {
 
@@ -200,6 +202,8 @@ void ReplicaSetMonitor::init() {
     }
     stdx::lock_guard<stdx::mutex> lk(_state->mutex);
     _scheduleRefresh(_state->now(), lk);
+
+
 }
 
 ReplicaSetMonitor::~ReplicaSetMonitor() {
@@ -531,10 +535,23 @@ void Refresher::scheduleIsMaster(const HostAndPort& host, WithLock withLock) {
         return;
     }
 
+    if (!haveClient())
+        Client::initThread("mcb2");
+
+    Client* client = &cc();
+
+    auto opCtx = client->makeOperationContext();
+    
+    BSONObjBuilder bob;
+    uassertStatusOK(ClientMetadata::serialize(
+                    "MongoDB Internal Client", "unknown", "mcb", &bob));
+    auto cmd = ClientMetadata::parse(bob.obj().firstElement());
+    ClientMetadataIsMasterState::setClientMetadata(client, std::move(cmd.getValue()), false);
+
     auto request = executor::RemoteCommandRequest(host,
                                                   "admin",
                                                   BSON("isMaster" << 1),
-                                                  nullptr,
+                                                  opCtx.get(),
                                                   Milliseconds(int64_t(socketTimeoutSecs * 1000)));
     request.sslMode = _set->setUri.getSSLMode();
 

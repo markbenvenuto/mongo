@@ -75,7 +75,7 @@ public:
      * is scheduled but before it completes, this method will return Status::OK(),
      * just as it does when it runs successfully to completion.
      */
-    Status run();
+    Status run(OperationContext* opCtx);
 
     /**
      * On success, returns an event handle that will be signaled when the runner has
@@ -84,7 +84,7 @@ public:
      *
      * The returned event will eventually be signaled.
      */
-    StatusWith<executor::TaskExecutor::EventHandle> start();
+    StatusWith<executor::TaskExecutor::EventHandle> start(OperationContext* opCtx);
 
     /**
      * Informs the runner to cancel further processing.
@@ -108,7 +108,7 @@ private:
          *
          * The returned event will eventually be signaled.
          */
-        StatusWith<executor::TaskExecutor::EventHandle> start(
+        StatusWith<executor::TaskExecutor::EventHandle> start(OperationContext* opCtx,
             const executor::TaskExecutor::RemoteCommandCallbackFn cb);
 
         /**

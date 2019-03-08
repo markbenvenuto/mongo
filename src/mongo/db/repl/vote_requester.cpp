@@ -78,7 +78,7 @@ VoteRequester::Algorithm::Algorithm(const ReplSetConfig& rsConfig,
 
 VoteRequester::Algorithm::~Algorithm() {}
 
-std::vector<RemoteCommandRequest> VoteRequester::Algorithm::getRequests() const {
+std::vector<RemoteCommandRequest> VoteRequester::Algorithm::getRequests(OperationContext* opCtx) const {
     BSONObjBuilder requestVotesCmdBuilder;
     requestVotesCmdBuilder.append("replSetRequestVotes", 1);
     requestVotesCmdBuilder.append("setName", _rsConfig.getReplSetName());
@@ -97,7 +97,7 @@ std::vector<RemoteCommandRequest> VoteRequester::Algorithm::getRequests() const 
             target,
             "admin",
             requestVotesCmd,
-            nullptr,
+            opCtx,
             std::min(_rsConfig.getElectionTimeoutPeriod(), maximumVoteRequestTimeoutMS)));
     }
 
@@ -179,7 +179,7 @@ stdx::unordered_set<HostAndPort> VoteRequester::Algorithm::getResponders() const
 VoteRequester::VoteRequester() : _isCanceled(false) {}
 VoteRequester::~VoteRequester() {}
 
-StatusWith<executor::TaskExecutor::EventHandle> VoteRequester::start(
+StatusWith<executor::TaskExecutor::EventHandle> VoteRequester::start(OperationContext* opCtx,
     executor::TaskExecutor* executor,
     const ReplSetConfig& rsConfig,
     long long candidateIndex,
@@ -190,7 +190,7 @@ StatusWith<executor::TaskExecutor::EventHandle> VoteRequester::start(
     _algorithm = std::make_shared<Algorithm>(
         rsConfig, candidateIndex, term, dryRun, lastDurableOpTime, primaryIndex);
     _runner = stdx::make_unique<ScatterGatherRunner>(_algorithm, executor, "vote request");
-    return _runner->start();
+    return _runner->start(opCtx);
 }
 
 void VoteRequester::cancel() {

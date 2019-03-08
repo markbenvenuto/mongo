@@ -44,6 +44,8 @@
 #include "mongo/rpc/metadata/repl_set_metadata.h"
 #include "mongo/util/log.h"
 #include "mongo/util/mongoutils/str.h"
+#include "mongo/rpc/metadata/client_metadata.h"
+#include "mongo/rpc/metadata/client_metadata_ismaster.h"
 
 namespace mongo {
 namespace repl {
@@ -75,7 +77,7 @@ QuorumChecker::QuorumChecker(const ReplSetConfig* rsConfig, int myIndex, long lo
 
 QuorumChecker::~QuorumChecker() {}
 
-std::vector<RemoteCommandRequest> QuorumChecker::getRequests() const {
+std::vector<RemoteCommandRequest> QuorumChecker::getRequests(OperationContext* opCtx) const {
     const bool isInitialConfig = _rsConfig->getConfigVersion() == 1;
     const MemberConfig& myConfig = _rsConfig->getMemberAt(_myIndex);
 
@@ -98,6 +100,19 @@ std::vector<RemoteCommandRequest> QuorumChecker::getRequests() const {
     hbArgs.setTerm(_term);
     hbRequest = hbArgs.toBSON();
 
+    // if (!haveClient())
+    //     Client::initThread("mcb2");
+
+    // Client* client = &cc();
+
+    // auto opCtx = client->makeOperationContext();
+    
+    // BSONObjBuilder bob;
+    // uassertStatusOK(ClientMetadata::serialize(
+    //                 "MongoDB Internal Client", "unknown", "mcb2", &bob));
+    // auto cmd = ClientMetadata::parse(bob.obj().firstElement());
+    // ClientMetadataIsMasterState::setClientMetadata(client, std::move(cmd.getValue()), false);
+
     // Send a bunch of heartbeat requests.
     // Schedule an operation when a "sufficient" number of them have completed, and use that
     // to compute the quorum check results.
@@ -111,7 +126,7 @@ std::vector<RemoteCommandRequest> QuorumChecker::getRequests() const {
                                                 "admin",
                                                 hbRequest,
                                                 BSON(rpc::kReplSetMetadataFieldName << 1),
-                                                nullptr,
+                                                opCtx,
                                                 _rsConfig->getHeartbeatTimeoutPeriodMillis()));
     }
 
