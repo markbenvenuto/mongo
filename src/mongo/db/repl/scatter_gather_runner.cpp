@@ -58,8 +58,8 @@ ScatterGatherRunner::ScatterGatherRunner(std::shared_ptr<ScatterGatherAlgorithm>
     : _executor(executor),
       _impl(std::make_shared<RunnerImpl>(std::move(algorithm), executor, std::move(logMessage))) {}
 
-Status ScatterGatherRunner::run(OperationContext* opCtx) {
-    auto finishEvh = start(opCtx);
+Status ScatterGatherRunner::run() {
+    auto finishEvh = start();
     if (!finishEvh.isOK()) {
         return finishEvh.getStatus();
     }
@@ -67,7 +67,7 @@ Status ScatterGatherRunner::run(OperationContext* opCtx) {
     return Status::OK();
 }
 
-StatusWith<EventHandle> ScatterGatherRunner::start(OperationContext* opCtx) {
+StatusWith<EventHandle> ScatterGatherRunner::start() {
     // Callback has a shared pointer to the RunnerImpl, so it's always safe to
     // access the RunnerImpl.
     // Note: this creates a cycle of shared_ptr:
@@ -75,7 +75,7 @@ StatusWith<EventHandle> ScatterGatherRunner::start(OperationContext* opCtx) {
     // We must remove callbacks after using them, to break this cycle.
     std::shared_ptr<RunnerImpl>& impl = _impl;
     auto cb = [impl](const RemoteCommandCallbackArgs& cbData) { impl->processResponse(cbData); };
-    return _impl->start(opCtx, cb);
+    return _impl->start(cb);
 }
 
 void ScatterGatherRunner::cancel() {
@@ -90,7 +90,7 @@ ScatterGatherRunner::RunnerImpl::RunnerImpl(std::shared_ptr<ScatterGatherAlgorit
                                             std::string logMessage)
     : _executor(executor), _algorithm(std::move(algorithm)), _logMessage(std::move(logMessage)) {}
 
-StatusWith<EventHandle> ScatterGatherRunner::RunnerImpl::start(OperationContext* opCtx,
+StatusWith<EventHandle> ScatterGatherRunner::RunnerImpl::start(
     const RemoteCommandCallbackFn processResponseCB) {
     LockGuard lk(_mutex);
 
@@ -103,7 +103,7 @@ StatusWith<EventHandle> ScatterGatherRunner::RunnerImpl::start(OperationContext*
     _sufficientResponsesReceived = evh.getValue();
     auto earlyReturnGuard = makeGuard([this] { _signalSufficientResponsesReceived(); });
 
-    std::vector<RemoteCommandRequest> requests = _algorithm->getRequests(opCtx);
+    std::vector<RemoteCommandRequest> requests = _algorithm->getRequests();
     for (size_t i = 0; i < requests.size(); ++i) {
         log() << "Scheduling remote command request for " << _logMessage << ": "
               << requests[i].toString();

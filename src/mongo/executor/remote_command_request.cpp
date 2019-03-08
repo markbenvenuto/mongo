@@ -65,7 +65,9 @@ RemoteCommandRequest::RemoteCommandRequest(RequestId requestId,
       metadata(metadataObj),
       cmdObj(theCmdObj),
       opCtx(opCtx),
-      timeout(timeoutMillis) {invariant(opCtx); }
+      timeout(timeoutMillis) {
+          //invariant(opCtx); 
+          }
 
 RemoteCommandRequest::RemoteCommandRequest(const HostAndPort& theTarget,
                                            const std::string& theDbName,
@@ -79,7 +81,9 @@ RemoteCommandRequest::RemoteCommandRequest(const HostAndPort& theTarget,
                            theCmdObj,
                            metadataObj,
                            opCtx,
-                           timeoutMillis) {invariant(opCtx);}
+                           timeoutMillis) {
+                            //    invariant(opCtx);
+                               }
 
 std::string RemoteCommandRequest::toString() const {
     str::stream out;

@@ -31,7 +31,6 @@
 
 #include <vector>
 
-#include "mongo/db/operation_context.h"
 #include "mongo/executor/remote_command_request.h"
 #include "mongo/executor/remote_command_response.h"
 
@@ -57,7 +56,7 @@ public:
     /**
      * Returns the list of requests that should be sent.
      */
-    virtual std::vector<executor::RemoteCommandRequest> getRequests(OperationContext *ctx) const = 0;
+    virtual std::vector<executor::RemoteCommandRequest> getRequests() const = 0;
 
     /**
      * Method to call once for each received response.

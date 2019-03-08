@@ -69,6 +69,7 @@ struct RemoteCommandRequest {
                          const BSONObj& theCmdObj,
                          const BSONObj& metadataObj,
                          OperationContext* opCtx,
+//                         Milliseconds timeoutMillis = kNoTimeout) __attribute__((nonnull));
                          Milliseconds timeoutMillis = kNoTimeout);
 
     RemoteCommandRequest(const HostAndPort& theTarget,
@@ -76,6 +77,7 @@ struct RemoteCommandRequest {
                          const BSONObj& theCmdObj,
                          OperationContext* opCtx,
                          Milliseconds timeoutMillis = kNoTimeout)
+//                         Milliseconds timeoutMillis = kNoTimeout)  __attribute__((nonnull ))
         : RemoteCommandRequest(
               theTarget, theDbName, theCmdObj, rpc::makeEmptyMetadata(), opCtx, timeoutMillis) {}
 

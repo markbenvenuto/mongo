@@ -61,7 +61,7 @@ public:
     QuorumChecker(const ReplSetConfig* rsConfig, int myIndex, long long term);
     virtual ~QuorumChecker();
 
-    virtual std::vector<executor::RemoteCommandRequest> getRequests(OperationContext* opCtx) const;
+    virtual std::vector<executor::RemoteCommandRequest> getRequests() const;
     virtual void processResponse(const executor::RemoteCommandRequest& request,
                                  const executor::RemoteCommandResponse& response);
 

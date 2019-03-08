@@ -63,7 +63,7 @@ public:
                   OpTime lastDurableOpTime,
                   int primaryIndex);
         virtual ~Algorithm();
-        virtual std::vector<executor::RemoteCommandRequest> getRequests(OperationContext* opCtx) const;
+        virtual std::vector<executor::RemoteCommandRequest> getRequests() const;
         virtual void processResponse(const executor::RemoteCommandRequest& request,
                                      const executor::RemoteCommandResponse& response);
         virtual bool hasReceivedSufficientResponses() const;
@@ -109,7 +109,7 @@ public:
      * evh can be used to schedule a callback when the process is complete.
      * If this function returns Status::OK(), evh is then guaranteed to be signaled.
      **/
-    StatusWith<executor::TaskExecutor::EventHandle> start(OperationContext* opCtx, executor::TaskExecutor* executor,
+    StatusWith<executor::TaskExecutor::EventHandle> start(executor::TaskExecutor* executor,
                                                           const ReplSetConfig& rsConfig,
                                                           long long candidateIndex,
                                                           long long term,
