@@ -875,7 +875,7 @@ void MongoExternalInfo::Functions::_forgetReplSet::call(JSContext* cx, JS::CallA
 }
 
 void MongoBase::Functions::decrypt::call(JSContext* cx, JS::CallArgs args) {
-   auto conn = getConnection(args);
+//   auto conn = getConnection(args);
 
     if (args.length() != 1) {
         uasserted(ErrorCodes::BadValue, "decrypt takes 1 arg");
