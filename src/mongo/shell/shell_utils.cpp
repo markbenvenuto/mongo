@@ -83,6 +83,17 @@ void RecordMyLocation(const char* _argv0) {
     argv0 = _argv0;
 }
 
+
+namespace {
+EnterpriseInitCallback* _enterpriseCallback{nullptr};
+} // namespace
+
+void registerEnterpriseInit(EnterpriseInitCallback* callback) {
+    _enterpriseCallback = callback;
+}
+
+
+
 // helpers
 
 BSONObj makeUndefined() {
@@ -324,6 +335,12 @@ void installShellUtils(Scope& scope) {
 #endif
 }
 
+void initEnterpriseShell(Scope& scope) {
+    if(_enterpriseCallback) {
+        _enterpriseCallback(scope);
+    }
+}
+
 void initScope(Scope& scope) {
     // Need to define this method before JSFiles::utils is executed.
     scope.injectNative("_useWriteCommandsDefault", useWriteCommandsDefault);
@@ -347,6 +364,8 @@ void initScope(Scope& scope) {
     if (!_dbConnect.empty()) {
         uassert(12513, "connect failed", scope.exec(_dbConnect, "(connect)", false, true, false));
     }
+
+    initEnterpriseShell(scope);
 }
 
 Prompter::Prompter(const string& prompt) : _prompt(prompt), _confirmed() {}
@@ -478,5 +497,5 @@ bool fileExists(const std::string& file) {
 
 
 stdx::mutex& mongoProgramOutputMutex(*(new stdx::mutex()));
-}
+} // namespace shell_utils
 }  // namespace mongo
