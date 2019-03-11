@@ -675,6 +675,13 @@ public:
     // This is only for DBClientCursor.
     static void (*withConnection_do_not_use)(std::string host, std::function<void(DBClientBase*)>);
 
+    virtual BSONObj generateDataKey() { invariant(false); return BSONObj(); }
+
+    // TODO - make better
+    virtual std::vector<std::byte> encrypt(ConstDataRange cdr, StringData keyId) { invariant(false); return std::vector<std::byte>();}
+
+    virtual std::vector<std::byte> decrypt(ConstDataRange cdr) { invariant(false); return std::vector<std::byte>(); }
+
 protected:
     /** if the result of a command is ok*/
     bool isOk(const BSONObj&);

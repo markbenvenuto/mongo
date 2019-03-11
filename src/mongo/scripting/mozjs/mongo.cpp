@@ -29,6 +29,8 @@
 
 #include "mongo/platform/basic.h"
 
+#include <iostream>
+
 #include "mongo/scripting/mozjs/mongo.h"
 
 #include "mongo/bson/simple_bsonelement_comparator.h"
@@ -66,7 +68,10 @@ const JSFunctionSpec MongoBase::methods[] = {
     MONGO_ATTACH_JS_CONSTRAINED_METHOD_NO_PROTO(copyDatabaseWithSCRAM, MongoExternalInfo),
     MONGO_ATTACH_JS_CONSTRAINED_METHOD_NO_PROTO(cursorFromId, MongoExternalInfo),
     MONGO_ATTACH_JS_CONSTRAINED_METHOD_NO_PROTO(cursorHandleFromId, MongoExternalInfo),
+    MONGO_ATTACH_JS_CONSTRAINED_METHOD_NO_PROTO(decrypt, MongoExternalInfo),
+    MONGO_ATTACH_JS_CONSTRAINED_METHOD_NO_PROTO(encrypt, MongoExternalInfo),
     MONGO_ATTACH_JS_CONSTRAINED_METHOD_NO_PROTO(find, MongoExternalInfo),
+    MONGO_ATTACH_JS_CONSTRAINED_METHOD_NO_PROTO(generateDataKey, MongoExternalInfo),
     MONGO_ATTACH_JS_CONSTRAINED_METHOD_NO_PROTO(getClientRPCProtocols, MongoExternalInfo),
     MONGO_ATTACH_JS_CONSTRAINED_METHOD_NO_PROTO(getServerRPCProtocols, MongoExternalInfo),
     MONGO_ATTACH_JS_CONSTRAINED_METHOD_NO_PROTO(insert, MongoExternalInfo),
@@ -747,14 +752,22 @@ void MongoBase::Functions::_markNodeAsFailed::call(JSContext* cx, JS::CallArgs a
     args.rval().setUndefined();
 }
 
+std::unique_ptr<DBClientBase> wrapConnection(std::unique_ptr<DBClientBase> conn,const BSONObj& config);
+
 void MongoExternalInfo::construct(JSContext* cx, JS::CallArgs args) {
     auto scope = getScope(cx);
 
     std::string host("127.0.0.1");
+    BSONObj config;
 
     if (args.length() > 0 && args.get(0).isString()) {
         host = ValueWriter(cx, args.get(0)).toString();
     }
+
+    if (args.length() > 1 && args.get(1).isObject()) {
+        config = ValueWriter(cx, args.get(1)).toBSON();
+    }
+
 
     auto cs = uassertStatusOK(MongoURI::parse(host));
 
@@ -765,6 +778,8 @@ void MongoExternalInfo::construct(JSContext* cx, JS::CallArgs args) {
     if (!conn.get()) {
         uasserted(ErrorCodes::InternalError, errmsg);
     }
+
+	conn = wrapConnection(std::move(conn), config);
 
     ScriptEngine::runConnectCallback(*conn);
 
@@ -858,6 +873,45 @@ void MongoExternalInfo::Functions::_forgetReplSet::call(JSContext* cx, JS::CallA
 
     args.rval().setUndefined();
 }
+
+void MongoBase::Functions::decrypt::call(JSContext* cx, JS::CallArgs args) {
+   auto conn = getConnection(args);
+
+    if (args.length() != 1) {
+        uasserted(ErrorCodes::BadValue, "decrypt takes 1 arg");
+    }
+
+//    ValueWriter writer(cx, args.get(0));
+
+//     ObjectWrapper o(_context, args.get(0));
+
+//     BSONObjBuilder builder;
+
+// WriteFieldRecursionFrames frames;
+//      x.writeThis(&builder, "ignore", o);
+
+    BSONObj cmdObj = ValueWriter(cx, args.get(0)).toBSON();
+
+    std::cout << "CMD =============== :: " << cmdObj;
+
+    args.rval().setUndefined();
+
+}
+void MongoBase::Functions::encrypt::call(JSContext* cx, JS::CallArgs args) {
+    args.rval().setUndefined();
+}
+void MongoBase::Functions::generateDataKey::call(JSContext* cx, JS::CallArgs args) {
+
+    if (args.length() != 0)
+        uasserted(ErrorCodes::BadValue, "generateDataKey takes no args");
+
+    auto conn = getConnection(args);
+
+    auto obj = conn->generateDataKey();
+
+    ValueReader(cx, args.rval()).fromBSON(obj, nullptr, true);
+}
+
 
 }  // namespace mozjs
 }  // namespace mongo
