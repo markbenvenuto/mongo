@@ -2384,20 +2384,37 @@ TEST(IDLCommand, TestKnownFieldDuplicate) {
     ASSERT_EQUALS(28, testStruct.getField1());
     ASSERT_EQUALS(42, testStruct.getMaxTimeMS());
 
-    auto expectedDoc = BSON("KnownFieldCommand"
-                            << "coll1"
+    // OpMsg request serialize $db out because it is part of the OP_MSG request
+    auto expectedOpMsgDoc = BSON("KnownFieldCommand"
+                                 << "coll1"
 
-                            << "field1"
-                            << 28
-                            << "maxTimeMS"
-                            << 42
-                            << "$db"
-                            << "db"
+                                 << "field1"
+                                 << 28
+                                 << "maxTimeMS"
+                                 << 42
+                                 << "$db"
+                                 << "db"
 
-                            << "$client"
-                            << "foo");
+                                 << "$client"
+                                 << "foo");
 
-    ASSERT_BSONOBJ_EQ(expectedDoc, testStruct.serialize(testPassthrough).body);
+    ASSERT_BSONOBJ_EQ(expectedOpMsgDoc, testStruct.serialize(testPassthrough).body);
+
+    // BSON serialize does not serialize out $db so it can be pass throughed
+    auto expectedBSONDoc = BSON("KnownFieldCommand"
+                                << "coll1"
+
+                                << "field1"
+                                << 28
+                                << "maxTimeMS"
+                                << 42
+                                << "$db"
+                                << "foo"
+
+                                << "$client"
+                                << "foo");
+
+    ASSERT_BSONOBJ_EQ(expectedBSONDoc, testStruct.toBSON(testPassthrough));
 }
 
 
