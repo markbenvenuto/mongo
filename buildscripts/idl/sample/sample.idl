@@ -116,3 +116,10 @@ structs:
                 type: bindata_uuid
                 description: "A binData of uuid subtype"
 
+commands:
+    BasicConcatenateWithDbOrUUIDCommand:
+         description: UnitTest for a basic concatenate_with_db_or_uuid command
+         namespace: concatenate_with_db
+         fields:
+             field1: int
+             field2: string
