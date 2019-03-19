@@ -259,10 +259,10 @@ const std::vector<StringData> BasicConcatenateWithDbOrUUIDCommand::_knownOP_MSGF
     BasicConcatenateWithDbOrUUIDCommand::kCommandName,
 };
 
-BasicConcatenateWithDbOrUUIDCommand::BasicConcatenateWithDbOrUUIDCommand(const NamespaceString nss) : _nss(std::move(nss)), _field1(-1), _dbName(nss.db().toString()), _hasField1(false), _hasField2(false), _hasDbName(true) {
+BasicConcatenateWithDbOrUUIDCommand::BasicConcatenateWithDbOrUUIDCommand(const NamespaceStringOrUUID nssOrUUID) : _nssOrUUID(std::move(nssOrUUID)), _field1(-1), _dbName(nssOrUUID.uuid() ? nssOrUUID.dbname() : nssOrUUID.nss().get().db().toString()), _hasField1(false), _hasField2(false), _hasDbName(true) {
     // Used for initialization only
 }
-BasicConcatenateWithDbOrUUIDCommand::BasicConcatenateWithDbOrUUIDCommand(const NamespaceString nss, std::int32_t field1, std::string field2) : _nss(std::move(nss)), _field1(std::move(field1)), _field2(std::move(field2)), _dbName(nss.db().toString()), _hasField1(true), _hasField2(true), _hasDbName(true) {
+BasicConcatenateWithDbOrUUIDCommand::BasicConcatenateWithDbOrUUIDCommand(const NamespaceStringOrUUID nssOrUUID, std::int32_t field1, std::string field2) : _nssOrUUID(std::move(nssOrUUID)), _field1(std::move(field1)), _field2(std::move(field2)), _dbName(nssOrUUID.uuid() ? nssOrUUID.dbname() : nssOrUUID.nss().get().db().toString()), _hasField1(true), _hasField2(true), _hasDbName(true) {
     // Used for initialization only
 }
 
@@ -345,8 +345,8 @@ void BasicConcatenateWithDbOrUUIDCommand::parseProtected(const IDLParserErrorCon
         }
     }
 
-    invariant(_nss.isEmpty());
-    _nss = ctxt.parseNSCollectionRequired(_dbName, commandElement);
+    invariant(_nssOrUUID.nss() || _nssOrUUID.uuid());
+    _nssOrUUID = ctxt.parseNsOrUUID(_dbName, commandElement);
 }
 
 BasicConcatenateWithDbOrUUIDCommand BasicConcatenateWithDbOrUUIDCommand::parse(const IDLParserErrorContext& ctxt, const OpMsgRequest& request) {
@@ -427,15 +427,20 @@ void BasicConcatenateWithDbOrUUIDCommand::parseProtected(const IDLParserErrorCon
         }
     }
 
-    invariant(_nss.isEmpty());
-    _nss = ctxt.parseNSCollectionRequired(_dbName, commandElement);
+    invariant(_nssOrUUID.nss() || _nssOrUUID.uuid());
+    _nssOrUUID = ctxt.parseNsOrUUID(_dbName, commandElement);
 }
 
 void BasicConcatenateWithDbOrUUIDCommand::serialize(const BSONObj& commandPassthroughFields, BSONObjBuilder* builder) const {
     invariant(_hasField1 && _hasField2 && _hasDbName);
 
-    invariant(!_nss.isEmpty());
-    builder->append("BasicConcatenateWithDbOrUUIDCommand"_sd, _nss.coll());
+    invariant(_nssOrUUID.nss() || _nssOrUUID.uuid());
+    if( _nssOrUUID.uuid() ) {
+        _nssOrUUID.uuid().get().appendToBuilder(builder, "BasicConcatenateWithDbOrUUIDCommand"_sd);
+    }
+    else {
+        builder->append("BasicConcatenateWithDbOrUUIDCommand"_sd, _nssOrUUID.nss().get().coll());
+    }
 
     builder->append(kField1FieldName, _field1);
 
@@ -451,8 +456,13 @@ OpMsgRequest BasicConcatenateWithDbOrUUIDCommand::serialize(const BSONObj& comma
         BSONObjBuilder* builder = &localBuilder;
         invariant(_hasField1 && _hasField2 && _hasDbName);
 
-        invariant(!_nss.isEmpty());
-        builder->append("BasicConcatenateWithDbOrUUIDCommand"_sd, _nss.coll());
+        invariant(_nssOrUUID.nss() || _nssOrUUID.uuid());
+        if( _nssOrUUID.uuid() ) {
+            _nssOrUUID.uuid().get().appendToBuilder(builder, "BasicConcatenateWithDbOrUUIDCommand"_sd);
+        }
+        else {
+            builder->append("BasicConcatenateWithDbOrUUIDCommand"_sd, _nssOrUUID.nss().get().coll());
+        }
 
         builder->append(kField1FieldName, _field1);
 

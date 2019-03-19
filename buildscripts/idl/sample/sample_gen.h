@@ -133,8 +133,8 @@ public:
     static constexpr auto kField2FieldName = "field2"_sd;
     static constexpr auto kCommandName = "BasicConcatenateWithDbOrUUIDCommand"_sd;
 
-    explicit BasicConcatenateWithDbOrUUIDCommand(const NamespaceString nss);
-    BasicConcatenateWithDbOrUUIDCommand(const NamespaceString nss, std::int32_t field1, std::string field2);
+    explicit BasicConcatenateWithDbOrUUIDCommand(const NamespaceStringOrUUID nssOrUUID);
+    BasicConcatenateWithDbOrUUIDCommand(const NamespaceStringOrUUID nssOrUUID, std::int32_t field1, std::string field2);
 
     static BasicConcatenateWithDbOrUUIDCommand parse(const IDLParserErrorContext& ctxt, const BSONObj& bsonObject);
     static BasicConcatenateWithDbOrUUIDCommand parse(const IDLParserErrorContext& ctxt, const OpMsgRequest& request);
@@ -142,7 +142,7 @@ public:
     OpMsgRequest serialize(const BSONObj& commandPassthroughFields) const;
     BSONObj toBSON(const BSONObj& commandPassthroughFields) const;
 
-    const NamespaceString& getNamespace() const { return _nss; }
+    const NamespaceStringOrUUID& getNamespaceOrUUID() const { return _nssOrUUID; }
 
     std::int32_t getField1() const { return _field1; }
     void setField1(std::int32_t value) & {  _field1 = std::move(value); _hasField1 = true; }
@@ -164,7 +164,7 @@ private:
     static const std::vector<StringData> _knownOP_MSGFields;
 
 
-    NamespaceString _nss;
+    NamespaceStringOrUUID _nssOrUUID;
 
     std::int32_t _field1;
     std::string _field2;
