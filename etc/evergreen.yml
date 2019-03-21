@@ -422,6 +422,10 @@ variables:
   - enterprise-windows-64-2k8-nopush-template
   - enterprise-windows-64-2k8-openssl
   - enterprise-windows-64-2k8-wtdevelop
+  - ubuntu1604-debug-asan
+  - ubuntu1604-debug-ubsan
+  - ubuntu1604-debug-aubsan-lite
+  - ubuntu1604-debug-aubsan-async
 
 #######################################
 #            Functions                #
