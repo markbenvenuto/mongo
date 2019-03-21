@@ -29,11 +29,8 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 import argparse
-import logging
 import sys
-import io
 import yaml
-from yaml import nodes
 
 # Name of map to search for in the variables map in evergreen.yml
 MONGOCRYPTD_VARIANTS = "mongocryptd_variants"
@@ -57,16 +54,18 @@ def main():
 
     variables = nodes["variables"]
 
-    for v in variables:
-        if MONGOCRYPTD_VARIANTS in v:
-            expected_variants = v[MONGOCRYPTD_VARIANTS]
+    for var in variables:
+        if MONGOCRYPTD_VARIANTS in var:
+            expected_variants = var[MONGOCRYPTD_VARIANTS]
             break
     else:
-        print("ERROR: Could not find node %s in file '%s'" % (MONGOCRYPTD_VARIANTS, args.file), file=sys.stderr)
+        print("ERROR: Could not find node %s in file '%s'" % (MONGOCRYPTD_VARIANTS, args.file),
+              file=sys.stderr)
         sys.exit(1)
 
     if not args.variant in expected_variants:
-        print("ERROR: Expected to find variant %s in list %s" % (args.variant, expected_variants), file=sys.stderr)
+        print("ERROR: Expected to find variant %s in list %s" % (args.variant, expected_variants),
+              file=sys.stderr)
         print("ERROR:  Please add the build variant %s to the %s list in '%s'" %
               (args.variant, MONGOCRYPTD_VARIANTS, args.file), file=sys.stderr)
         sys.exit(1)
