@@ -15,13 +15,15 @@ class Scheduler(sched.scheduler):
         # We use a recursive lock because sched.scheduler.enter() calls sched.scheduler.enterabs().
         self._queue_lock = threading.RLock()
 
-    def enterabs(self, time, priority, action, argument):
+    def enterabs(self, time, priority, action, argument=(), kwargs=object()):
         """Enterabs."""
+        # pylint: disable=too-many-arguments
         with self._queue_lock:
             return sched.scheduler.enterabs(self, time, priority, action, argument)
 
-    def enter(self, delay, priority, action, argument):
+    def enter(self, delay, priority, action, argument=(), kwargs=object()):
         """Enter."""
+        # pylint: disable=too-many-arguments
         with self._queue_lock:
             return sched.scheduler.enter(self, delay, priority, action, argument)
 
@@ -36,7 +38,7 @@ class Scheduler(sched.scheduler):
             return sched.scheduler.empty(self)
 
     # The implementation for the run() method was adapted from sched.scheduler.run() in Python 3.6.
-    def run(self):
+    def run(self, blocking=True):
         """Run."""
         while True:
             with self._queue_lock:

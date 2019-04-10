@@ -15,7 +15,7 @@ def parallel_process(items, func):
     except NotImplementedError:
         cpus = 1
 
-    task_queue = queue.Queue()  # type: Queue.Queue
+    task_queue = queue.Queue()  # type: queue.Queue
 
     # Use a list so that worker function will capture this variable
     pp_event = threading.Event()
@@ -44,8 +44,8 @@ def parallel_process(items, func):
                 with pp_lock:
                     pp_result[0] = False
 
-                pp_event.set()
-                return
+                # pp_event.set()
+                # return
 
     # Enqueue all the work we want to process
     for item in items:

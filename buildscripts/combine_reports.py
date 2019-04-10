@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 """Combine JSON report files used in Evergreen."""
 
-
-
-
 import errno
 import json
 import os
