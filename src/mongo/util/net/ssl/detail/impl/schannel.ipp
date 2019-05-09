@@ -34,6 +34,7 @@
 #include <cstddef>
 #include <memory>
 
+#include "mongo/platform/shared_library.h"
 #include "asio/detail/assert.hpp"
 #include "mongo/util/assert_util.h"
 
@@ -292,6 +293,12 @@ ssl_want SSLHandshakeManager::doServerHandshake(asio::error_code& ec,
     inputBufferDesc.cBuffers = inputBuffers.size();
     inputBufferDesc.pBuffers = inputBuffers.data();
 
+	auto sc = std::move(mongo::SharedLibrary::create("Schannel.dll").getValue());
+
+	SslGetServerIdentityFn foo =
+        sc->getFunctionAs < SslGetServerIdentityFn>("SslGetServerIdentity").getValue();
+
+
     ULONG attribs = getServerFlags();
     ULONG retAttribs = 0;
 
@@ -322,6 +329,16 @@ ssl_want SSLHandshakeManager::doServerHandshake(asio::error_code& ec,
 
         return ssl_want::want_nothing;
     }
+
+	BYTE buf1[20000];
+    PBYTE p1 = &buf1[0];
+    DWORD sp1 = _pInBuffer->size() + 1;
+
+	DWORD s1 = _pInBuffer->size();
+
+    SECURITY_STATUS s2 = foo(_pInBuffer->data(), s1, &p1, &sp1, 0);
+    invariant(s2 == 0);
+
 
     // ASC_RET_EXTENDED_ERROR is not support on Windows 7/Windows 2008 R2.
     // ASC_RET_MUTUAL_AUTH is not set since we do our own certificate validation later.
