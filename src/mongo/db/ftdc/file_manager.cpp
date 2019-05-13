@@ -102,7 +102,10 @@ StatusWith<std::unique_ptr<FTDCFileManager>> FTDCFileManager::create(
     }
 
     // Rotate as needed after we appended interim data to the archive file
-    mgr->trimDirectory(files);
+    s = mgr->trimDirectory(files);
+    if (!s.isOK()) {
+        return s;
+    }
 
     return {std::move(mgr)};
 }
@@ -206,7 +209,7 @@ Status FTDCFileManager::openArchiveFile(
     return Status::OK();
 }
 
-void FTDCFileManager::trimDirectory(std::vector<boost::filesystem::path>& files) {
+Status FTDCFileManager::trimDirectory(std::vector<boost::filesystem::path>& files) {
     std::uint64_t maxSize = _config->maxDirectorySizeBytes;
     std::uint64_t size = 0;
 
@@ -219,9 +222,18 @@ void FTDCFileManager::trimDirectory(std::vector<boost::filesystem::path>& files)
         if (size >= maxSize) {
             LOG(1) << "Cleaning file over full-time diagnostic data capture quota, file: "
                    << (*it).generic_string() << " with size " << fileSize;
-            boost::filesystem::remove(*it);
+
+            boost::system::error_code ec;
+            boost::filesystem::remove(*it, ec);
+            if (ec) {
+                return {ErrorCodes::NonExistentPath,
+                        str::stream() << "\'" << (*it).generic_string() << "\' could not be removed: "
+                                        << ec.message()};
+            }
         }
     }
+
+    return Status::OK();
 }
 
 std::vector<std::tuple<FTDCBSONUtil::FTDCType, BSONObj, Date_t>>
@@ -281,7 +293,10 @@ Status FTDCFileManager::rotate(Client* client) {
     auto files = scanDirectory();
 
     // Rotate as needed
-    trimDirectory(files);
+    s = trimDirectory(files);
+    if (!s.isOK()) {
+        return s;
+    }
 
     auto swFile = generateArchiveFileName(_path, terseUTCCurrentTime());
     if (!swFile.isOK()) {

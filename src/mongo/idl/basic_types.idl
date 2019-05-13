@@ -54,7 +54,7 @@ types:
                                 - double
         description: "Accepts any numerical type within int32 range"
         cpp_type: std::int32_t
-        deserializer: "mongo::BSONElement::numberInt"
+        deserializer: "mongo::BSONElement::safeNumberInt"
 
     safeInt64:
         bson_serialization_type:
@@ -64,7 +64,7 @@ types:
                                 - double
         description: "Accepts any numerical type within int64 range"
         cpp_type: std::int64_t
-        deserializer: "mongo::BSONElement::numberLong"
+        deserializer: "mongo::BSONElement::safeNumberLong"
 
     long:
         bson_serialization_type: long

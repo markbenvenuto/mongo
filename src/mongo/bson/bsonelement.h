@@ -342,6 +342,14 @@ public:
 
     /** Retrieve int value for the element safely.  Zero returned if not a number. */
     int numberInt() const;
+
+    /** Like numberInt() but with well-defined behavior for doubles that
+     *  are NaNs, or too large/small to be represented as int.
+     *  NaNs -> 0
+     *  very large doubles -> INT_MAX
+     *  very small doubles -> INT_MIN  */
+    long long safeNumberInt() const;
+
     /** Retrieve long value for the element safely.  Zero returned if not a number.
      *  Behavior is not defined for double values that are NaNs, or too large/small
      *  to be represented by long longs */
@@ -758,6 +766,8 @@ public:
      */
     static const double kLongLongMaxPlusOneAsDouble;
 
+    static const double kIntMaxPlusOneAsDouble;
+
 private:
     const char* data;
     int fieldNameSize_;  // internal size includes null terminator
@@ -877,6 +887,44 @@ inline long long BSONElement::numberLong() const {
             return _numberDecimal().toLong();
         default:
             return 0;
+    }
+}
+
+/** Like numberInt() but with well-defined behavior for doubles and decimals that
+ *  are NaNs, or too large/small to be represented as long longs.
+ *  NaNs -> 0
+ *  very large values -> LLONG_MAX
+ *  very small values -> LLONG_MIN  */
+inline long long BSONElement::safeNumberInt() const {
+    switch (type()) {
+        case NumberDouble: {
+            double d = numberDouble();
+            if (std::isnan(d)) {
+                return 0;
+            }
+            if (!(d < kIntMaxPlusOneAsDouble)) {
+                return std::numeric_limits<int>::max();
+            }
+            if (d < std::numeric_limits<int>::min()) {
+                return std::numeric_limits<int>::min();
+            }
+            return numberInt();
+        }
+        case NumberDecimal: {
+            Decimal128 d = numberDecimal();
+            if (d.isNaN()) {
+                return 0;
+            }
+            if (d.isGreater(Decimal128(std::numeric_limits<int>::max()))) {
+                return static_cast<int>(std::numeric_limits<int>::max());
+            }
+            if (d.isLess(Decimal128(std::numeric_limits<int>::min()))) {
+                return static_cast<int>(std::numeric_limits<int>::min());
+            }
+            return numberInt();
+        }
+        default:
+            return numberInt();
     }
 }
 
