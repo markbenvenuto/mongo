@@ -193,9 +193,7 @@ Status StorageEngineLockFile::writePid() {
     ss << pid << std::endl;
     std::string pidStr = ss.str();
 
-    writeString(pidStr);
-
-    return Status::OK();
+    return writeString(pidStr);
 }
 
 Status StorageEngineLockFile::writeString(StringData str) {
@@ -235,7 +233,7 @@ Status StorageEngineLockFile::writeString(StringData str) {
     if (::fsync(_lockFileHandle->_fd)) {
         int errorcode = errno;
         return Status(ErrorCodes::FileStreamFailed,
-                      str::stream() << "Unable to write process id " << pid.toString()
+                      str::stream() << "Unable to write process id " << str.toString()
                                     << " to file (fsync failed): "
                                     << _filespec
                                     << ' '

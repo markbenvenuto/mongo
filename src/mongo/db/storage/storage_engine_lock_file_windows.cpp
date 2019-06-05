@@ -157,9 +157,7 @@ Status StorageEngineLockFile::writePid() {
     ss << pid << std::endl;
     std::string pidStr = ss.str();
 
-    writeString(pidStr);
-
-    return Status::OK();
+    return writeString(pidStr);
 }
 
 Status StorageEngineLockFile::writeString(StringData str) {

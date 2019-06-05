@@ -4,10 +4,13 @@ import os.path
 import threading
 import sys
 import socket
+import platform
 
 from pymongo import MongoClient
 
-MONGOCRYPTD_PATH=r"d:\m2\mongo\mongocryptd.exe"
+MONGOCRYPTD_PATH="./mongocryptd"
+if platform.system() == "Windows":
+    MONGOCRYPTD_PATH += "exe"
 
 def read_pid(pid_file):
     with open(pid_file, 'r', encoding='utf-8') as fh:
@@ -63,9 +66,14 @@ def start(pid_file, port):
             port = sock.getsockname()[1]
 
         # Since the pid file was not found or we did not find a valid port, start mongocryptd
-        cmd_str = "{} --port={} --pidfilepath={}".format(MONGOCRYPTD_PATH, port, pid_file)
-        print("Starting mongocryptd: " + cmd_str)
-        subprocess.Popen(cmd_str, creationflags=subprocess.CREATE_NEW_CONSOLE, close_fds=True)
+        cmd_str = [MONGOCRYPTD_PATH, "--port=" + str(port), "--pidfilepath="+pid_file]
+        print("Starting mongocryptd: " + str(cmd_str))
+
+        flags = 0
+        if platform.system() == "Windows":
+            flags = subprocess.CREATE_NEW_CONSOLE;
+
+        subprocess.Popen(cmd_str, creationflags=flags, close_fds=True)
     else:
         print("Found mongocryptd running on port {}".format(running_port))
         port = running_port
@@ -84,9 +92,9 @@ def main():
     # type: () -> None
     """Execute Main Entry point."""
 
-    #start("foo.pid", 1234)
+    start("foo.pid", 1234)
 
-    start("foo.pid", 0)
+    #start("foo.pid", 0)
 
 if __name__ == '__main__':
     main()
