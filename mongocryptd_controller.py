@@ -5,6 +5,7 @@ import threading
 import sys
 import socket
 import platform
+import time
 
 from pymongo import MongoClient
 
@@ -44,15 +45,15 @@ def get_port(pid_file):
         if not pid_str:
             return -1
 
-        # When mongocryptd starts up, it first writes a single integer to the pid file
-        # So if we hit this small timing window, keep trying until it is no longer an int
-        try:
-            while True:
-                pid_str = read_pid(pid_file)
-                pid_number = int(pid_str)
-                threading.sleep(10)
-        except:
-            pass
+        # # When mongocryptd starts up, it first writes a single integer to the pid file
+        # # So if we hit this small timing window, keep trying until it is no longer an int
+        # try:
+        #     while True:
+        #         pid_str = read_pid(pid_file)
+        #         pid_number = int(pid_str)
+        #         time.sleep(10)
+        # except:
+        #     pass
 
         # Check if we have a valid json pid file
         try:
@@ -76,7 +77,7 @@ def start(pid_file, port):
 
     running_port = get_port(pid_file)
 
-    if running_port == -1:
+    while running_port == -1:
         if port == 0:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -92,9 +93,14 @@ def start(pid_file, port):
             flags = subprocess.CREATE_NEW_CONSOLE;
 
         subprocess.Popen(cmd_str, creationflags=flags, close_fds=True)
-    else:
-        print("Found mongocryptd running on port {}".format(running_port))
-        port = running_port
+
+        time.sleep(10)
+
+        running_port = get_port(pid_file)
+
+
+    print("Found mongocryptd running on port {}".format(running_port))
+    port = running_port
 
 
     client = MongoClient('localhost:{}'.format(port))
