@@ -188,30 +188,37 @@ void StorageEngineLockFile::close() {
 }
 
 Status StorageEngineLockFile::writePid() {
+    ProcessId pid = ProcessId::getCurrent();
+    std::stringstream ss;
+    ss << pid << std::endl;
+    std::string pidStr = ss.str();
+
+    writeString(pidStr);
+
+    return Status::OK();
+}
+
+Status StorageEngineLockFile::writeString(StringData str) {
     if (!_lockFileHandle->isValid()) {
         return Status(ErrorCodes::FileNotOpen,
-                      str::stream() << "Unable to write process ID to " << _filespec
+                      str::stream() << "Unable to write string to " << _filespec
                                     << " because file has not been opened.");
     }
 
     if (::ftruncate(_lockFileHandle->_fd, 0)) {
         int errorcode = errno;
         return Status(ErrorCodes::FileStreamFailed,
-                      str::stream() << "Unable to write process id to file (ftruncate failed): "
+                      str::stream() << "Unable to write string to file (ftruncate failed): "
                                     << _filespec
                                     << ' '
                                     << errnoWithDescription(errorcode));
     }
 
-    ProcessId pid = ProcessId::getCurrent();
-    std::stringstream ss;
-    ss << pid << std::endl;
-    std::string pidStr = ss.str();
-    int bytesWritten = ::write(_lockFileHandle->_fd, pidStr.c_str(), pidStr.size());
+    int bytesWritten = ::write(_lockFileHandle->_fd, str.rawData(), str.size());
     if (bytesWritten < 0) {
         int errorcode = errno;
         return Status(ErrorCodes::FileStreamFailed,
-                      str::stream() << "Unable to write process id " << pid.toString()
+                      str::stream() << "Unable to write string " << str.toString()
                                     << " to file: "
                                     << _filespec
                                     << ' '
@@ -219,7 +226,7 @@ Status StorageEngineLockFile::writePid() {
 
     } else if (bytesWritten == 0) {
         return Status(ErrorCodes::FileStreamFailed,
-                      str::stream() << "Unable to write process id " << pid.toString()
+                      str::stream() << "Unable to write string " << str.toString()
                                     << " to file: "
                                     << _filespec
                                     << " no data written.");

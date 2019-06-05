@@ -152,9 +152,20 @@ void StorageEngineLockFile::close() {
 }
 
 Status StorageEngineLockFile::writePid() {
+    ProcessId pid = ProcessId::getCurrent();
+    std::stringstream ss;
+    ss << pid << std::endl;
+    std::string pidStr = ss.str();
+
+    writeString(pidStr);
+
+    return Status::OK();
+}
+
+Status StorageEngineLockFile::writeString(StringData str) {
     if (!_lockFileHandle->isValid()) {
         return Status(ErrorCodes::FileNotOpen,
-                      str::stream() << "Unable to write process ID to " << _filespec
+                      str::stream() << "Unable to write string to " << _filespec
                                     << " because file has not been opened.");
     }
 
@@ -163,26 +174,22 @@ Status StorageEngineLockFile::writePid() {
         return status;
     }
 
-    ProcessId pid = ProcessId::getCurrent();
-    std::stringstream ss;
-    ss << pid << std::endl;
-    std::string pidStr = ss.str();
     DWORD bytesWritten = 0;
     if (::WriteFile(_lockFileHandle->_handle,
-                    static_cast<LPCVOID>(pidStr.c_str()),
-                    static_cast<DWORD>(pidStr.size()),
+                    static_cast<LPCVOID>(str.rawData()),
+                    static_cast<DWORD>(str.size()),
                     &bytesWritten,
                     NULL) == FALSE) {
         int errorcode = GetLastError();
         return Status(ErrorCodes::FileStreamFailed,
-                      str::stream() << "Unable to write process id " << pid.toString()
+                      str::stream() << "Unable to write string " << str.toString()
                                     << " to file: "
                                     << _filespec
                                     << ' '
                                     << errnoWithDescription(errorcode));
     } else if (bytesWritten == 0) {
         return Status(ErrorCodes::FileStreamFailed,
-                      str::stream() << "Unable to write process id " << pid.toString()
+                      str::stream() << "Unable to write string " << str.toString()
                                     << " to file: "
                                     << _filespec
                                     << " no data written.");
