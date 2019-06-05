@@ -10,14 +10,32 @@ from pymongo import MongoClient
 
 MONGOCRYPTD_PATH="./mongocryptd"
 if platform.system() == "Windows":
-    MONGOCRYPTD_PATH += "exe"
+    MONGOCRYPTD_PATH += ".exe"
 
 def read_pid(pid_file):
+    """Read the pid file from disk."""
     with open(pid_file, 'r', encoding='utf-8') as fh:
         return fh.read()
 
 def get_port(pid_file):
+    """
+    Get the port by reading the pid file.
 
+    The pid file has 3 different formats:
+
+    1. empty
+    - the pid file is empty when mongocryptd is not running
+    2. single integer
+    - the pid file contains a single integer for a short period on startup
+    3. a json file
+    - the pid file is a json file when mongocryptd is running
+    {
+        port : <int>
+        pid : <int>
+    }
+    port - is the port that mongocryptd is running on
+    pid - is the process number of mongocryptd
+    """
     # Check if one is already running
     if os.path.exists(pid_file):
         pid_str = read_pid(pid_file)
@@ -92,8 +110,10 @@ def main():
     # type: () -> None
     """Execute Main Entry point."""
 
+    # Start with a fix port
     start("foo.pid", 1234)
 
+    # Start with dynamically port
     #start("foo.pid", 0)
 
 if __name__ == '__main__':
