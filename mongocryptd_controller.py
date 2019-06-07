@@ -37,6 +37,7 @@ def get_port(pid_file):
     }
     port - is the port that mongocryptd is running on
     pid - is the process number of mongocryptd
+    domainSocket - path to unix domain socket, not present on Windows
     """
     # Check if one is already running
     if os.path.exists(pid_file):
@@ -110,7 +111,7 @@ def main():
     # Start with a fix port
     start("foo.pid", 1234)
 
-    # Start with dynamically port
+    # Start with dynamically allocated port
     #start("foo.pid", 0)
 
 if __name__ == '__main__':
