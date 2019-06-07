@@ -22,16 +22,17 @@ def get_port(pid_file):
     """
     Get the port by reading the pid file.
 
-    The pid file has 3 different formats:
+    The pid file has 3 possible formats:
 
-    1. empty
-    - the pid file is empty when mongocryptd is not running
-    2. single integer
-    - the pid file contains a single integer for a short period on startup
+    1. missing
+    - the pid file does not exist if mongocryptd was never started
+    2. empty
+    - the pid file is empty when mongocryptd ran at least once but is not running now
     3. a json file
     - the pid file is a json file when mongocryptd is running
     {
         port : <int>
+        domainSocket: <string> # Not present on Windows
         pid : <int>
     }
     port - is the port that mongocryptd is running on
@@ -44,16 +45,6 @@ def get_port(pid_file):
         # Pid file exists but mongocrypt cleanly shutdown
         if not pid_str:
             return -1
-
-        # # When mongocryptd starts up, it first writes a single integer to the pid file
-        # # So if we hit this small timing window, keep trying until it is no longer an int
-        # try:
-        #     while True:
-        #         pid_str = read_pid(pid_file)
-        #         pid_number = int(pid_str)
-        #         time.sleep(10)
-        # except:
-        #     pass
 
         # Check if we have a valid json pid file
         try:
@@ -94,14 +85,14 @@ def start(pid_file, port):
 
         subprocess.Popen(cmd_str, creationflags=flags, close_fds=True)
 
-        time.sleep(10)
+        # Sleep for a little bit to give mongocryptd a chance to start
+        time.sleep(0.1)
 
         running_port = get_port(pid_file)
 
 
     print("Found mongocryptd running on port {}".format(running_port))
     port = running_port
-
 
     client = MongoClient('localhost:{}'.format(port))
 
