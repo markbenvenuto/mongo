@@ -213,6 +213,42 @@ assert = (function() {
         }
     };
 
+    /**
+     * Throws if the two arrays do not have the same members, in any order. By default, nested
+     * arrays must have the same order to be considered equal.
+     *
+     * Optionally accepts a compareFn to compare values instead of using docEq.
+     */
+     assert.sameMembers = function(aArr, bArr, msg, compareFn = _isDocEq) {
+        _validateAssertionMessage(msg);
+
+        const failAssertion = function() {
+            doassert(_buildAssertionMessage(msg, tojson(aArr) + " != " + tojson(bArr)));
+        };
+
+        if (aArr.length !== bArr.length) {
+            failAssertion();
+        }
+
+        // Keep a set of which indices we've already used to avoid double counting values.
+        const matchedIndicesInRight = new Set();
+        for (let a of aArr) {
+            let foundMatch = false;
+            for (let i = 0; i < bArr.length; ++i) {
+                // Sort both inputs in case either is a document. Note: by default this does not
+                // sort any nested arrays.
+                if (!matchedIndicesInRight.has(i) && compareFn(a, bArr[i])) {
+                    matchedIndicesInRight.add(i);
+                    foundMatch = true;
+                    break;
+                }
+            }
+            if (!foundMatch) {
+                failAssertion();
+            }
+        }
+    };
+
     assert.eq.automsg = function(a, b) {
         assert.eq(eval(a), eval(b), "[" + a + "] != [" + b + "]");
     };
