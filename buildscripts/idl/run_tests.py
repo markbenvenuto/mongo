@@ -46,7 +46,7 @@ def run_tests():
     # my-py type information.
     all_tests = unittest.defaultTestLoader.discover(start_dir="tests")  # type: ignore
 
-    runner = XMLTestRunner(verbosity=2, failfast=False, output='results')
+    runner = XMLTestRunner(verbosity=2, output='results')
     result = runner.run(all_tests)
 
     sys.exit(not result.wasSuccessful())
