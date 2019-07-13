@@ -133,7 +133,8 @@ def get_clang_format_from_linux_cache(dest_file):
 class ClangFormat(object):
     """ClangFormat class."""
 
-    def __init__(self, path, cache_dir):  # pylint: disable=too-many-branches
+    def __init__(self, path, cache_dir):
+        # pylint: disable=too-many-branches,too-many-statements
         """Initialize ClangFormat."""
         self.path = None
         clang_format_progname_ext = ""
@@ -294,7 +295,7 @@ class ClangFormat(object):
                     (file_name if not file_name.endswith(".h") else file_name + "pp"),
                     "--style=file"
                 ], stdin=source_stream)
-            except CalledProcessError:
+            except subprocess.CalledProcessError:
                 formatted = False
 
         if formatted:
