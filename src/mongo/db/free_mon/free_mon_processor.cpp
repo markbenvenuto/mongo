@@ -35,6 +35,7 @@
 
 #include <functional>
 #include <numeric>
+#include <random>
 #include <snappy.h>
 #include <tuple>
 #include <utility>
@@ -132,7 +133,9 @@ FreeMonProcessor::FreeMonProcessor(FreeMonCollectorCollection& registration,
       _registrationRetry(RegistrationRetryCounter(_random)),
       _metricsRetry(MetricsRetryCounter(_random)),
       _metricsGatherInterval(metricsGatherInterval),
-      _queue(useCrankForTest) {
+      _queue(useCrankForTest),
+      _rng(_dev()),
+      _dist10(1, 10) {
     _registrationRetry->reset();
     _metricsRetry->reset();
 }
@@ -167,6 +170,20 @@ void FreeMonProcessor::run() {
             }
 
             auto msg = item.get();
+
+            int sleep_chance = _dist10(_rng);
+            if (sleep_chance == 1) {
+                log() << "SLEEPING for 1 sec, message " << static_cast<int>(msg->getType());
+                sleepsecs(1);
+            } else if (sleep_chance == 2) {
+                log() << "SLEEPING for 2 sec, message " << static_cast<int>(msg->getType());
+                sleepsecs(2);
+            } else if (sleep_chance == 3) {
+                log() << "SLEEPING for 3 sec, message " << static_cast<int>(msg->getType());
+                sleepsecs(3);
+            }
+
+            log() << "PROCESSING message " << static_cast<int>(msg->getType());
 
             // Do work here
             switch (msg->getType()) {
@@ -926,6 +943,8 @@ void FreeMonProcessor::doNotifyOnUpsert(
     try {
         const BSONObj& doc = msg->getPayload();
         auto newState = FreeMonStorageState::parse(IDLParserErrorContext("free_mon_storage"), doc);
+
+        log() << "UPSERT: " << doc;
 
         // Likely, the update changed something
         if (newState != _state) {
