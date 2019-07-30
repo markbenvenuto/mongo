@@ -29,21 +29,24 @@ WaitForRegistration(rst.getSecondary());
 
 const qs1 = mock_web.queryStats();
 
+jsTestLog("Breaking Free Monitoring");
+
 // For kicks, delete the free monitoring storage state to knock free mon offline
 // and make sure the node does not crash
 rst.getPrimary().getDB("admin").system.version.remove({_id: "free_monitoring"});
 
+jsTestLog("Sleeping for 20s");
 sleep(20 * 1000);
 
 const qs2 = mock_web.queryStats();
 
-// Verify free monitoring stops but tolerate one additional collection
-assert.gte(qs1.metrics + 2, qs2.metrics);
-assert.eq(qs1.registers, qs2.registers);
-
 // Make sure we are back to the initial state.
 WaitForFreeMonServerStatusState(rst.getPrimary(), 'undecided');
 WaitForFreeMonServerStatusState(rst.getSecondary(), 'undecided');
+
+// Verify free monitoring stops but tolerate one additional collection
+assert.gte(qs1.metrics + 2, qs2.metrics);
+assert.eq(qs1.registers, qs2.regis ters);
 
 // Enable it again to be sure we can resume
 assert.commandWorked(rst.getPrimary().adminCommand({setFreeMonitoring: 1, action: "enable"}));

@@ -24,7 +24,7 @@ mock_web.waitMetrics(4);
 assert.soon(
     function() {
         const reg = FreeMonGetRegistration(conn);
-        return reg === undefined,
+        return reg === undefined;
     },
     "Failed to wait for free mon document to be removed: " + FreeMonGetRegistration(conn),
     20 * 1000);
