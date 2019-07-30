@@ -42,8 +42,8 @@ assert.gte(qs1.metrics + 2, qs2.metrics);
 assert.eq(qs1.registers, qs2.registers);
 
 // Make sure we are back to the initial state.
-assert.eq(FreeMonGetServerStatus(rst.getPrimary()).state, 'undecided');
-assert.eq(FreeMonGetServerStatus(rst.getSecondary()).state, 'undecided');
+WaitForFreeMonServerStatusState(rst.getPrimary(), 'undecided');
+WaitForFreeMonServerStatusState(rst.getSecondary(), 'undecided');
 
 // Enable it again to be sure we can resume
 assert.commandWorked(rst.getPrimary().adminCommand({setFreeMonitoring: 1, action: "enable"}));

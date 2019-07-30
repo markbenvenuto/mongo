@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <deque>
 #include <memory>
+#include <random>
 #include <ratio>
 #include <string>
 #include <vector>
@@ -518,6 +519,10 @@ private:
 
     // Message queue
     FreeMonMessageQueue _queue;
+
+    std::random_device _dev;
+    std::mt19937 _rng;
+    std::uniform_int_distribution<std::mt19937::result_type> _dist10;
 };
 
 }  // namespace mongo
