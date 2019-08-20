@@ -744,7 +744,27 @@ static SingleWriteResult performSingleUpdateOpWithDupKeyRetry(OperationContext* 
     MONGO_UNREACHABLE;
 }
 
-WriteResult performUpdates(OperationContext* opCtx, const write_ops::Update& wholeOp) {
+void traceRequest(OpMsgRequest* request) {
+    if(request == nullptr)
+        return;
+
+            StringBuilder sequences;
+        for(auto& a : request->sequences) {
+            sequences << "(name=" << a.name << ",obj=";
+        for(auto& o : a.objs) {
+            sequences << o << ";;";
+        }
+            sequences << ")<=>";
+
+        }
+
+        error() << "assertion BADDDDD while executing command '" << request->getCommandName() << "' "
+               << "on database '" << request->getDatabase() << "' "
+               << "with arguments '"
+               << request->body << " and sequences " << sequences.str();
+}
+
+WriteResult performUpdates(OperationContext* opCtx, const write_ops::Update& wholeOp, OpMsgRequest* request) {
     // Update performs its own retries, so we should not be in a WriteUnitOfWork unless run in a
     // transaction.
     auto txnParticipant = TransactionParticipant::get(opCtx);
@@ -799,8 +819,10 @@ WriteResult performUpdates(OperationContext* opCtx, const write_ops::Update& who
         } catch (const DBException& ex) {
             const bool canContinue =
                 handleError(opCtx, ex, wholeOp.getNamespace(), wholeOp.getWriteCommandBase(), &out);
-            if (!canContinue)
+            if (!canContinue) {
+                traceRequest(request);
                 break;
+            }
         }
     }
 
@@ -895,7 +917,7 @@ static SingleWriteResult performSingleDeleteOp(OperationContext* opCtx,
     return result;
 }
 
-WriteResult performDeletes(OperationContext* opCtx, const write_ops::Delete& wholeOp) {
+WriteResult performDeletes(OperationContext* opCtx, const write_ops::Delete& wholeOp, OpMsgRequest* request) {
     // Delete performs its own retries, so we should not be in a WriteUnitOfWork unless we are in a
     // transaction.
     auto txnParticipant = TransactionParticipant::get(opCtx);
@@ -954,8 +976,10 @@ WriteResult performDeletes(OperationContext* opCtx, const write_ops::Delete& who
         } catch (const DBException& ex) {
             const bool canContinue =
                 handleError(opCtx, ex, wholeOp.getNamespace(), wholeOp.getWriteCommandBase(), &out);
-            if (!canContinue)
+            if (!canContinue) {
+                traceRequest(request);
                 break;
+            }
         }
     }
 

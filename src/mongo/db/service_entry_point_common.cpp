@@ -925,6 +925,22 @@ void execCommandDatabase(OperationContext* opCtx,
                << redact(ServiceEntryPointCommon::getRedactedCopyForLogging(command, request.body))
                << "': " << redact(e.toString());
 
+        StringBuilder sequences;
+        for(auto& a : request.sequences) {
+            sequences << "(name=" << a.name << ",obj=";
+        for(auto& o : a.objs) {
+            sequences << o << ";;";
+        }
+            sequences << ")<=>";
+
+        }
+
+        error() << "assertion BADDDDD while executing command '" << request.getCommandName() << "' "
+               << "on database '" << request.getDatabase() << "' "
+               << "with arguments '"
+               << request.body << " and sequences " << sequences.str()
+               << "': " << redact(e.toString());
+
         generateErrorResponse(opCtx, replyBuilder, e, metadataBob.obj(), extraFieldsBuilder.obj());
     }
 }
@@ -1139,7 +1155,7 @@ void receivedUpdate(OperationContext* opCtx, const NamespaceString& nsString, co
                                status.code());
     uassertStatusOK(status);
 
-    performUpdates(opCtx, updateOp);
+    performUpdates(opCtx, updateOp, nullptr);
 }
 
 void receivedDelete(OperationContext* opCtx, const NamespaceString& nsString, const Message& m) {
@@ -1152,7 +1168,7 @@ void receivedDelete(OperationContext* opCtx, const NamespaceString& nsString, co
     audit::logDeleteAuthzCheck(opCtx->getClient(), nsString, singleDelete.getQ(), status.code());
     uassertStatusOK(status);
 
-    performDeletes(opCtx, deleteOp);
+    performDeletes(opCtx, deleteOp, nullptr);
 }
 
 DbResponse receivedGetMore(OperationContext* opCtx,

@@ -67,7 +67,7 @@ struct WriteResult {
 WriteResult performInserts(OperationContext* opCtx,
                            const write_ops::Insert& op,
                            bool fromMigrate = false);
-WriteResult performUpdates(OperationContext* opCtx, const write_ops::Update& op);
-WriteResult performDeletes(OperationContext* opCtx, const write_ops::Delete& op);
+WriteResult performUpdates(OperationContext* opCtx, const write_ops::Update& op, OpMsgRequest* request);
+WriteResult performDeletes(OperationContext* opCtx, const write_ops::Delete& op, OpMsgRequest* request);
 
 }  // namespace mongo

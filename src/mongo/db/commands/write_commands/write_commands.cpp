@@ -228,13 +228,13 @@ private:
     virtual void doCheckAuthorizationImpl(AuthorizationSession* authzSession) const = 0;
 
     // Customization point for 'run'.
-    virtual void runImpl(OperationContext* opCtx, BSONObjBuilder& result) const = 0;
+    virtual void runImpl(OperationContext* opCtx, BSONObjBuilder& result, OpMsgRequest* request) const = 0;
 
     void run(OperationContext* opCtx, rpc::ReplyBuilderInterface* result) final {
         try {
             _transactionChecks(opCtx);
             BSONObjBuilder bob = result->getBodyBuilder();
-            runImpl(opCtx, bob);
+            runImpl(opCtx, bob, const_cast<OpMsgRequest*>(_request));
             CommandHelpers::extractOrAppendOk(bob);
         } catch (const DBException& ex) {
             LastError::get(opCtx->getClient()).setLastError(ex.code(), ex.reason());
@@ -296,7 +296,7 @@ private:
             auth::checkAuthForInsertCommand(authzSession, getBypass(), _batch);
         }
 
-        void runImpl(OperationContext* opCtx, BSONObjBuilder& result) const override {
+        void runImpl(OperationContext* opCtx, BSONObjBuilder& result, OpMsgRequest* request) const override {
             auto reply = performInserts(opCtx, _batch);
             serializeReply(opCtx,
                            ReplyStyle::kNotUpdate,
@@ -342,8 +342,8 @@ private:
             auth::checkAuthForUpdateCommand(authzSession, getBypass(), _batch);
         }
 
-        void runImpl(OperationContext* opCtx, BSONObjBuilder& result) const override {
-            auto reply = performUpdates(opCtx, _batch);
+        void runImpl(OperationContext* opCtx, BSONObjBuilder& result, OpMsgRequest* request) const override {
+            auto reply = performUpdates(opCtx, _batch, request);
             serializeReply(opCtx,
                            ReplyStyle::kUpdate,
                            !_batch.getWriteCommandBase().getOrdered(),
@@ -424,8 +424,8 @@ private:
             auth::checkAuthForDeleteCommand(authzSession, getBypass(), _batch);
         }
 
-        void runImpl(OperationContext* opCtx, BSONObjBuilder& result) const override {
-            auto reply = performDeletes(opCtx, _batch);
+        void runImpl(OperationContext* opCtx, BSONObjBuilder& result, OpMsgRequest* request) const override {
+            auto reply = performDeletes(opCtx, _batch, request);
             serializeReply(opCtx,
                            ReplyStyle::kNotUpdate,
                            !_batch.getWriteCommandBase().getOrdered(),

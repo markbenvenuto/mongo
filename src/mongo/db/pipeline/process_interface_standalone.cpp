@@ -235,7 +235,7 @@ StatusWith<MongoProcessInterface::UpdateResult> MongoInterfaceStandalone::update
     bool multi,
     boost::optional<OID> targetEpoch) {
     auto writeResults =
-        performUpdates(expCtx->opCtx, buildUpdateOp(expCtx, ns, std::move(batch), upsert, multi));
+        performUpdates(expCtx->opCtx, buildUpdateOp(expCtx, ns, std::move(batch), upsert, multi), nullptr);
 
     // Need to check each result in the batch since the writes are unordered.
     UpdateResult updateResult;
