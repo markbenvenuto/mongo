@@ -287,6 +287,8 @@ private:
     }
 
     DataBuilder doRequest(CURL* handle, StringData url) const {
+        warning() << "HTTP Request: " << url;
+
         const auto urlString = url.toString();
         curl_easy_setopt(handle, CURLOPT_URL, urlString.c_str());
         curl_easy_setopt(handle, CURLOPT_SHARE, curlLibraryManager.getShareHandle());

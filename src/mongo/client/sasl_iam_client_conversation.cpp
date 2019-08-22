@@ -99,7 +99,7 @@ StatusWith<bool> SaslIAMClientConversation::_getEc2Credentials() {
     getRoleRequest->allowInsecureHTTP(true);
 
     DataBuilder getRoleResult =
-        getRoleRequest->get("http://169.254.169.254/latest/meta-data/iam/security-credentials");
+        getRoleRequest->get("http://169.254.169.254/latest/meta-data/iam/security-credentials/");
 
     ConstDataRange cdrRole = getRoleResult.getCursor();
     StringData getRoleOutput;
