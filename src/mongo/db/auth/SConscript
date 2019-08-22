@@ -291,6 +291,7 @@ env.Library(
 env.Library(
     target='saslauth',
     source=[
+        'sasl_iam_server_conversation.cpp',
         'sasl_mechanism_registry.cpp',
         'sasl_plain_server_conversation.cpp',
         'sasl_scram_server_conversation.cpp',

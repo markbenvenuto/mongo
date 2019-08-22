@@ -40,6 +40,7 @@
 #include "mongo/bson/bsonmisc.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/util/base64.h"
+#include "mongo/util/hex.h"
 #include "mongo/util/secure_compare_memory.h"
 
 namespace mongo {
@@ -200,6 +201,10 @@ public:
      */
     std::string toString() const {
         return base64::encode(reinterpret_cast<const char*>(_hash.data()), _hash.size());
+    }
+
+    std::string toHexString() const {
+        return toHexLower(reinterpret_cast<const char*>(_hash.data()), _hash.size());
     }
 
     bool operator==(const HashBlock& other) const {

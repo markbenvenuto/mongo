@@ -35,7 +35,7 @@
 namespace mongo {
 
 const std::vector<std::string> SASLGlobalParams::kDefaultAuthenticationMechanisms =
-    std::vector<std::string>{"MONGODB-X509", "SCRAM-SHA-1", "SCRAM-SHA-256"};
+    std::vector<std::string>{"MONGODB-X509", "SCRAM-SHA-1", "SCRAM-SHA-256", "MONGODB-IAM"};
 SASLGlobalParams saslGlobalParams;
 
 SASLGlobalParams::SASLGlobalParams() {

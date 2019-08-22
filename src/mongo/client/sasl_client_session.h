@@ -69,6 +69,8 @@ public:
         parameterMechanism,
         parameterUser,
         parameterPassword,
+        parameterIamAccessKey,
+        parameterIamSecretKey,
         numParameters  // Must be last
     };
 

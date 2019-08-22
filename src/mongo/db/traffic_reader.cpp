@@ -201,6 +201,35 @@ void addOpType(TrafficReaderPacket& packet, BSONObjBuilder* builder) {
     }
 }
 
+void addBody(TrafficReaderPacket& packet, BSONObjBuilder* builder) {
+    if (packet.message.getNetworkOp() == dbMsg) {
+        Message message;
+        message.setData(dbMsg, packet.message.data(), packet.message.dataLen());
+        // Some header fields like requestId are missing, so the checksum won't match.
+        OpMsg::removeChecksum(&message);
+        auto opMsg = rpc::opMsgRequestFromAnyProtocol(message);
+        builder->append("rawBody", opMsg.body);
+
+        BSONObjBuilder sequences(builder->subobjStart("sequences"));
+        for(auto& a : opMsg.sequences) {
+            BSONArrayBuilder sequence(sequences.subarrayStart(a.name));
+            for(auto& o : a.objs) {
+                sequence.append(o);
+            }
+        }
+
+    } else {
+        // Message message;
+        // message.setData(dbMsg, packet.message.data(), packet.message.dataLen());
+        // // Some header fields like requestId are missing, so the checksum won't match.
+        // OpMsg::removeChecksum(&message);
+        // auto opMsg = rpc::opMsgRequestFromAnyProtocol(message);
+        // builder->append("rawBody", opMsg.body);
+        builder->append("rawBody", "legacy");
+    }
+}
+
+
 }  // namespace
 
 BSONArray trafficRecordingFileToBSONArr(const std::string& inputFile) {
@@ -229,6 +258,19 @@ BSONArray trafficRecordingFileToBSONArr(const std::string& inputFile) {
     return builder.arr();
 }
 
+// BSONArray trafficRecordingFileToBSONSequence(int inputFd, std::ostream& outputStream) {
+//     BSONArrayBuilder builder{};
+
+//     auto buf = SharedBuffer::allocate(MaxMessageSizeBytes);
+//     while (auto packet = readPacket(buf.get(), inputFd)) {
+//         BSONObjBuilder bob(builder.subobjStart());
+//         getBSONObjFromPacket(*packet, &bob);
+//         addOpType(*packet, &bob);
+//     }
+
+//     return builder.arr();
+// }
+
 void trafficRecordingFileToMongoReplayFile(int inputFd, std::ostream& outputStream) {
     // Document expected by mongoreplay
     BSONObjBuilder opts{};
@@ -242,6 +284,7 @@ void trafficRecordingFileToMongoReplayFile(int inputFd, std::ostream& outputStre
 
     while (auto packet = readPacket(buf.get(), inputFd)) {
         getBSONObjFromPacket(*packet, &bob);
+        addBody(*packet, &bob);
 
         auto obj = bob.asTempObj();
         outputStream.write(obj.objdata(), obj.objsize());

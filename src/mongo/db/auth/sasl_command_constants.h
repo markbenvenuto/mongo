@@ -89,4 +89,10 @@ constexpr auto saslDefaultServiceName = "mongodb"_sd;
 // be digested.
 constexpr auto saslCommandDigestPasswordFieldName = "digestPassword"_sd;
 
+/// Field containing accessKey information for MONGODB-IAM sasl mechanism.
+constexpr auto saslCommandIamAccessKey = "iamAccessKey"_sd;
+
+/// Field containing accessKey information for MONGODB-IAM sasl mechanism.
+constexpr auto saslCommandIamSecretKey = "iamSecretKey"_sd;
+
 }  // namespace mongo

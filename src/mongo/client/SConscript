@@ -41,6 +41,7 @@ saslClientSource = [
     'sasl_client_authenticate_impl.cpp',
     'sasl_client_conversation.cpp',
     'sasl_client_session.cpp',
+    'sasl_iam_client_conversation.cpp',
     'sasl_plain_client_conversation.cpp',
     'sasl_scram_client_conversation.cpp',
 ]
