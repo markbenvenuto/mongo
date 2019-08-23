@@ -50,6 +50,11 @@
 
 namespace mongo {
 
+std::string getDefaultHost() {
+    return "http://localhost:8000";
+    //return "http://169.254.169.254";
+}
+
 SaslIAMClientConversation::SaslIAMClientConversation(SaslClientSession* saslClientSession)
     : SaslClientConversation(saslClientSession) {}
 
@@ -99,7 +104,7 @@ StatusWith<bool> SaslIAMClientConversation::_getEc2Credentials() {
     getRoleRequest->allowInsecureHTTP(true);
 
     DataBuilder getRoleResult =
-        getRoleRequest->get("http://169.254.169.254/latest/meta-data/iam/security-credentials/");
+        getRoleRequest->get(getDefaultHost() + "/latest/meta-data/iam/security-credentials/");
 
     ConstDataRange cdrRole = getRoleResult.getCursor();
     StringData getRoleOutput;
@@ -118,7 +123,7 @@ StatusWith<bool> SaslIAMClientConversation::_getEc2Credentials() {
     getRoleCredentialsRequest->allowInsecureHTTP(true);
 
     DataBuilder getRoleCredentialsResult = getRoleCredentialsRequest->get(
-        str::stream() << "http://169.254.169.254/latest/meta-data/iam/security-credentials/"
+        str::stream() << getDefaultHost() + "/latest/meta-data/iam/security-credentials/"
                       << role);
 
     ConstDataRange cdrCredentials = getRoleCredentialsResult.getCursor();
@@ -253,7 +258,7 @@ StatusWith<bool> SaslIAMClientConversation::_secondStep(StringData inputData,
         }
     }
 
-    auto now = Date_t::now();
+    // auto now = Date_t::now();
 
     constexpr auto timestampFormat = "%Y%m%dT%H%M%SZ"_sd;
     constexpr auto dateFormat = "%Y%m%d"_sd;
@@ -265,8 +270,8 @@ StatusWith<bool> SaslIAMClientConversation::_secondStep(StringData inputData,
 
     /* -- Task 1: Create a canonical request -- */
 
-    constexpr auto canonicalUri = "/"_sd;
-    constexpr auto canonicalQuery = ""_sd;
+    // constexpr auto canonicalUri = "/"_sd;
+    // constexpr auto canonicalQuery = ""_sd;
 
     StringBuilder canonicalHeadersBuilder;
     StringBuilder signedHeadersBuilder;

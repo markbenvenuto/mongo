@@ -457,6 +457,29 @@ kms_request_get_canonical (kms_request_t *request)
 }
 
 char *
+kms_request_get_canonical_header (kms_request_t *request, const char* header)
+{
+   kms_kv_list_t *lst;
+   const kms_kv_t *value;
+
+   if (request->failed) {
+      return NULL;
+   }
+
+   if (!finalize (request)) {
+      return NULL;
+   }
+
+   value = kms_kv_list_find (request->header_fields, header);
+   if (!value) {
+      return NULL;
+   }
+
+   return value->value->str;
+}
+
+
+char *
 kms_request_get_string_to_sign (kms_request_t *request)
 {
    bool success = false;

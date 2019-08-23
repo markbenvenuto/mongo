@@ -303,6 +303,7 @@ env.Library(
         'user',
         '$BUILD_DIR/mongo/base',
         '$BUILD_DIR/mongo/base/secure_allocator',
+        '$BUILD_DIR/mongo/client/sasl_iam',
         '$BUILD_DIR/mongo/crypto/sha_block_${MONGO_CRYPTO}',
         '$BUILD_DIR/mongo/db/commands/test_commands_enabled',
         '$BUILD_DIR/mongo/util/icu',

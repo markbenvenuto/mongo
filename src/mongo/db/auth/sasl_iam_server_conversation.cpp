@@ -82,17 +82,17 @@ StatusWith<std::tuple<bool, std::string>> SaslIAMServerMechanism::_getUserId(Str
     std::string getAssumedRole = str::stream() << arnService << "sts::" << account << role;
     std::string getUser = str::stream() << arnService << "iam::" << account << user;
 
-    StringData userId;
+    std::string userId;
     if (arn.find(getAssumedRole) == 0) {
         size_t endIdx = arn.find("/", getAssumedRole.size()) + 1;
         userId = str::stream() << arn.substr(0, endIdx) << "*";
     } else if (arn.find(getUser) == 0) {
-        userId = arn.substr(0);
+        userId = arn.substr(0).toString();
     } else {
         return Status(ErrorCodes::BadValue, str::stream() << "Could not retrieve user id");
     }
 
-    return std::make_tuple(true, userId.toString());
+    return std::make_tuple(true, userId);
 }
 
 StatusWith<std::tuple<bool, std::string>> SaslIAMServerMechanism::_generateSalt() {
@@ -136,6 +136,8 @@ StatusWith<std::tuple<bool, std::string>> SaslIAMServerMechanism::stepImpl(Opera
  */
 StatusWith<std::tuple<bool, std::string>> SaslIAMServerMechanism::_firstStep(
     OperationContext* opCtx, StringData inputData) {
+    warning() << "SASL INPUT: " << inputData;
+
     const auto badCount = [](int got) {
         return Status(ErrorCodes::BadValue,
                       str::stream()
@@ -195,8 +197,6 @@ StatusWith<std::tuple<bool, std::string>> SaslIAMServerMechanism::_firstStep(
                       str::stream() << "Incorrect IAM client nonce: " << input_args[4]);
     }
 
-    const auto clientNonce = StringData(input_args[0]).substr(2);
-
     _nonce = StringData(input_args[0]).substr(2).toString();
     auto ret = _generateSalt();
 
@@ -219,6 +219,9 @@ StatusWith<std::tuple<bool, std::string>> SaslIAMServerMechanism::_firstStep(
  */
 StatusWith<std::tuple<bool, std::string>> SaslIAMServerMechanism::_secondStep(
     OperationContext* opCtx, StringData inputData) {
+
+    warning() << "SASL INPUT: " << inputData;
+
     /* Retrieve arguments */
     constexpr auto requestUrl = "https://sts.amazonaws.com/"_sd;
     constexpr auto requestBody = "Action=GetCallerIdentity&Version=2011-06-15"_sd;
@@ -270,8 +273,10 @@ StatusWith<std::tuple<bool, std::string>> SaslIAMServerMechanism::_secondStep(
     DataBuilder result;
     std::unique_ptr<HttpClient> request = HttpClient::create();
 
+    log() << "HEADERS: " << requestHeader << std::endl;
     auto header = StringSplitter::split(requestHeader.toString(), ",");
     header.push_back(requestAuthHeader.toString());
+    log() << "HEADERS2: " << requestAuthHeader << std::endl;
 
     ConstDataRange body(requestBody.rawData(), requestBody.size());
     request->setHeaders(header);
@@ -291,8 +296,10 @@ StatusWith<std::tuple<bool, std::string>> SaslIAMServerMechanism::_secondStep(
         return Status(ErrorCodes::BadValue, str::stream() << "Authentication failed");
     }
 
+    log() << "Response from AWS STS: " << output;
+
     // Need to confirm identity
-    constexpr auto securityTokenArg = "X-Amz-Security-Token:"_sd;
+    // TODO - constexpr auto securityTokenArg = "X-Amz-Security-Token:"_sd;
     constexpr auto saltArg = "X-Mongodb-Server-Salt:"_sd;
 
     const size_t startIndexSalt = requestHeader.find(saltArg);
@@ -301,6 +308,8 @@ StatusWith<std::tuple<bool, std::string>> SaslIAMServerMechanism::_secondStep(
         requestHeader.substr(startIndexSalt + saltArg.size()) != _salt) {
         return Status(ErrorCodes::BadValue, str::stream() << "Invalid salt");
     }
+
+    // TODO - validate "X-Mongodb-Server-Salt:" is in SignedHeaders
 
     auto ret = _getUserId(output);
 
