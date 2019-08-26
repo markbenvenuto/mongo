@@ -47,7 +47,6 @@ public:
 
 private:
     StatusWith<std::tuple<bool, std::string>> _getUserId(StringData request);
-    StatusWith<std::tuple<bool, std::string>> _generateSalt();
 
     /**
      * Provide salt and nonce to client

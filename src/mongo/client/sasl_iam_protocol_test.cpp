@@ -9,14 +9,13 @@ namespace mongo {
 
 TEST(SaslIamProtocol, Basic) {
 
-    SaslIAMProtocol::init();
-
     auto clientFirst = SaslIAMProtocol::generateClientFirst();
 
 
     auto serverFirst = SaslIAMProtocol::generateServerFirst(clientFirst);
 
-    auto clientSecond = SaslIAMProtocol::generateClientSecond(serverFirst, "FAKEFAKEFAKEFAKEFAKE", "FAKEFAKEFAKEFAKEFAKEfakefakefakefakefake", boost::none);
+    boost::optional<std::string> token;
+    auto clientSecond = SaslIAMProtocol::generateClientSecond(serverFirst, "FAKEFAKEFAKEFAKEFAKE", "FAKEFAKEFAKEFAKEFAKEfakefakefakefakefake", token);
 }
 
     }

@@ -47,6 +47,8 @@
 #include "mongo/util/log.h"
 #include "mongo/util/net/http_client.h"
 #include "mongo/util/text.h"
+#include "mongo/client/sasl_iam_protocol.h"
+#include "mongo/client/sasl_iam_gen.h"
 
 namespace mongo {
 
@@ -95,22 +97,6 @@ StatusWith<std::tuple<bool, std::string>> SaslIAMServerMechanism::_getUserId(Str
     return std::make_tuple(true, userId);
 }
 
-StatusWith<std::tuple<bool, std::string>> SaslIAMServerMechanism::_generateSalt() {
-    constexpr size_t saltLength = 4;
-    DataBuilder binarySalt(saltLength);
-    std::unique_ptr<SecureRandom> sr(SecureRandom::create());
-
-    while (binarySalt.size() < saltLength) {
-        if (!binarySalt.writeAndAdvance(sr->nextInt64()).isOK()) {
-            return Status(ErrorCodes::BadValue, str::stream() << "Could not generate salt");
-        }
-    }
-
-    const auto binarySaltCursor = binarySalt.getCursor();
-    return std::make_tuple(
-        true, base64::encode(binarySaltCursor.data<char>(), binarySaltCursor.length()));
-}
-
 StatusWith<std::tuple<bool, std::string>> SaslIAMServerMechanism::stepImpl(OperationContext* opCtx,
                                                                            StringData inputData) {
     _step++;
@@ -138,77 +124,7 @@ StatusWith<std::tuple<bool, std::string>> SaslIAMServerMechanism::_firstStep(
     OperationContext* opCtx, StringData inputData) {
     warning() << "SASL INPUT: " << inputData;
 
-    const auto badCount = [](int got) {
-        return Status(ErrorCodes::BadValue,
-                      str::stream()
-                          << "Incorrect number of arguments for first SCRAM client message, got "
-                          << got << " expected at least 3");
-    };
-
-    /**
-     * gs2-cbind-flag := ("p=" cb-name) / 'y' / 'n'
-     * gs2-header := gs2-cbind-flag ',' [ authzid ] ','
-     * reserved-mext := "m=" 1*(value-char)
-     * client-first-message-bare := [reserved-mext  ','] username ',' nonce [',' extensions]
-     * client-first-message := gs2-header client-first-message-bare
-     */
-    const auto gs2_cbind_comma = inputData.find(',');
-    if (gs2_cbind_comma == std::string::npos) {
-        return badCount(1);
-    }
-    const auto gs2_cbind_flag = inputData.substr(0, gs2_cbind_comma);
-    if (gs2_cbind_flag.startsWith("p=")) {
-        return Status(ErrorCodes::BadValue, "Server does not support channel binding");
-    }
-
-    if ((gs2_cbind_flag != "y") && (gs2_cbind_flag != "n")) {
-        return Status(ErrorCodes::BadValue,
-                      str::stream() << "Incorrect IAM client message prefix: " << gs2_cbind_flag);
-    }
-
-    const auto gs2_header_comma = inputData.find(',', gs2_cbind_comma + 1);
-    if (gs2_header_comma == std::string::npos) {
-        return badCount(2);
-    }
-
-    auto authzId = inputData.substr(gs2_cbind_comma + 1, gs2_header_comma - (gs2_cbind_comma + 1));
-    if (authzId.size()) {
-        if (authzId.startsWith("a=")) {
-            authzId = authzId.substr(2);
-        } else {
-            return Status(ErrorCodes::BadValue,
-                          str::stream() << "Incorrect IAM authzid: " << authzId);
-        }
-    }
-
-    const auto client_first_message_bare = inputData.substr(gs2_header_comma + 1);
-    if (client_first_message_bare.startsWith("m=")) {
-        return Status(ErrorCodes::BadValue, "IAM mandatory extensions are not supported");
-    }
-
-    const auto input_args = StringSplitter::split(client_first_message_bare.toString(), ",");
-
-    if (input_args.size() < 1) {
-        return badCount(input_args.size() + 2);
-    }
-
-    if (!str::startsWith(input_args[0], "r=") || input_args[0].size() < 3) {
-        return Status(ErrorCodes::BadValue,
-                      str::stream() << "Incorrect IAM client nonce: " << input_args[4]);
-    }
-
-    _nonce = StringData(input_args[0]).substr(2).toString();
-    auto ret = _generateSalt();
-
-    if (!ret.isOK()) {
-        return ret.getStatus();
-    }
-
-    _salt = std::get<1>(ret.getValue());
-
-    StringBuilder sb;
-    sb << "r=" << _nonce << ",s=" << _salt;
-    std::string outputData = sb.str();
+    std::string outputData = SaslIAMProtocol::generateServerFirst(inputData);
 
     return std::make_tuple(false, std::move(outputData));
 }
@@ -226,57 +142,35 @@ StatusWith<std::tuple<bool, std::string>> SaslIAMServerMechanism::_secondStep(
     constexpr auto requestUrl = "https://sts.amazonaws.com/"_sd;
     constexpr auto requestBody = "Action=GetCallerIdentity&Version=2011-06-15"_sd;
 
-    const auto input_args = StringSplitter::split(inputData.toString(), " | ");
-
-    if (input_args.size() < 4) {
-        return Status(ErrorCodes::BadValue,
-                      str::stream()
-                          << "Incorrect number of arguments for second IAM client message, got "
-                          << input_args.size() << " expected at least 4");
-    }
-
-    if (!str::startsWith(input_args[0], "c=") || input_args[0].size() < 3) {
-        return Status(ErrorCodes::BadValue,
-                      str::stream() << "Incorrect IAM channel binding: " << input_args[0]);
-    }
-    const auto cbind = input_args[0].substr(2);
-
-    if (!str::startsWith(input_args[1], "h=") || input_args[1].size() < 3) {
-        return Status(ErrorCodes::BadValue,
-                      str::stream() << "Incorrect IAM header: " << input_args[1]);
-    }
-
-    const auto requestHeader = StringData(input_args[1]).substr(2);
-
-    if (!str::startsWith(input_args[2], "a=") || input_args[2].size() < 3) {
-        return Status(ErrorCodes::BadValue,
-                      str::stream() << "Incorrect IAM auth header: " << input_args[2]);
-    }
-
-    const auto requestAuthHeader = StringData(input_args[2]).substr(2);
-
-    if (!str::startsWith(input_args[3], "r=") || input_args[3].size() < 3) {
-        return Status(ErrorCodes::BadValue,
-                      str::stream() << "Incorrect IAM client|server nonce: " << input_args[3]);
-    }
-
-    const auto nonce = StringData(input_args[3]).substr(2);
-    if (nonce != _nonce) {
-        return Status(ErrorCodes::BadValue,
-                      str::stream()
-                          << "Unmatched IAM nonce received from client in second step, expected "
-                          << _nonce << " but received " << nonce);
-    }
+    // const auto nonce = StringData(input_args[3]).substr(2);
+    // if (nonce != _nonce) {
+    //     return Status(ErrorCodes::BadValue,
+    //                   str::stream()
+    //                       << "Unmatched IAM nonce received from client in second step, expected "
+    //                       << _nonce << " but received " << nonce);
+    // }
 
     /* Send request */
+    auto clientSecond = SaslIAMProtocol::parseClientSecond(inputData);
 
     DataBuilder result;
     std::unique_ptr<HttpClient> request = HttpClient::create();
 
-    log() << "HEADERS: " << requestHeader << std::endl;
-    auto header = StringSplitter::split(requestHeader.toString(), ",");
-    header.push_back(requestAuthHeader.toString());
-    log() << "HEADERS2: " << requestAuthHeader << std::endl;
+    std::vector<std::string> header;
+    header.push_back("Content-Length:" + clientSecond.getHeaders().getContentLength());
+    header.push_back("Content-Type:" + clientSecond.getHeaders().getContentType());
+    header.push_back("Host:" + clientSecond.getHeaders().getHost());
+    header.push_back("X-Amz-Date:" + clientSecond.getHeaders().getXAmzDate());
+    if  (clientSecond.getHeaders().getXAmzSecurityToken()) {
+        header.push_back("X-Amz-Security-Token:" + clientSecond.getHeaders().getXAmzSecurityToken().get());
+    }
+    header.push_back("X-Mongodb-Server-Salt:" + clientSecond.getHeaders().getXMongodbServerSalt());
+
+    header.push_back("Authorization:" + clientSecond.getRequestAuthHeader());
+
+    for(const auto& head:header ) {
+        warning() << "HEADER1:" << head;
+    }
 
     ConstDataRange body(requestBody.rawData(), requestBody.size());
     request->setHeaders(header);
@@ -300,14 +194,15 @@ StatusWith<std::tuple<bool, std::string>> SaslIAMServerMechanism::_secondStep(
 
     // Need to confirm identity
     // TODO - constexpr auto securityTokenArg = "X-Amz-Security-Token:"_sd;
-    constexpr auto saltArg = "X-Mongodb-Server-Salt:"_sd;
+    // constexpr auto saltArg = "X-Mongodb-Server-Salt:"_sd;
 
-    const size_t startIndexSalt = requestHeader.find(saltArg);
+    // TOdOD _ vaildate salt is same
+    // const size_t startIndexSalt = requestHeader.find(saltArg);
 
-    if (startIndexSalt == std::string::npos ||
-        requestHeader.substr(startIndexSalt + saltArg.size()) != _salt) {
-        return Status(ErrorCodes::BadValue, str::stream() << "Invalid salt");
-    }
+    // if (startIndexSalt == std::string::npos ||
+    //     requestHeader.substr(startIndexSalt + saltArg.size()) != _salt) {
+    //     return Status(ErrorCodes::BadValue, str::stream() << "Invalid salt");
+    // }
 
     // TODO - validate "X-Mongodb-Server-Salt:" is in SignedHeaders
 

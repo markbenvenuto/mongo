@@ -56,8 +56,6 @@ public:
     StatusWith<bool> step(StringData inputData, std::string* outputData) override;
 
 private:
-    SHA256Block _getSignatureKey(std::string datestamp, StringData region, StringData service);
-
     void _getUserCredentials();
     StatusWith<bool> _getEc2Credentials();
 
@@ -71,7 +69,7 @@ private:
 
     std::string _accessKey;
     std::string _secretKey;
-    std::string _securityToken;
+    boost::optional<std::string> _securityToken;
 };
 
 }  // namespace mongo

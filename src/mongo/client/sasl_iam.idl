@@ -89,3 +89,19 @@ structs:
             type: string
             cpp_name: requestAuthHeader
 
+
+    Ec2SecurityCredentials:
+      description : "foo"
+      # Don't fail if AWS expands this
+      strict: false
+      fields:
+          Code: string
+          LastUpdated: string
+          Type: string
+          AccessKeyId: string
+          SecretAccessKey: string
+          Token:
+            type: string
+            optional: true
+          Expiration: string
+

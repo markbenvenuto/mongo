@@ -47,6 +47,8 @@
 #include "mongo/util/net/http_client.h"
 #include "mongo/util/str.h"
 #include "mongo/util/text.h"
+#include "mongo/client/sasl_iam_protocol.h"
+#include "mongo/client/sasl_iam_gen.h"
 
 namespace mongo {
 
@@ -57,34 +59,6 @@ std::string getDefaultHost() {
 
 SaslIAMClientConversation::SaslIAMClientConversation(SaslClientSession* saslClientSession)
     : SaslClientConversation(saslClientSession) {}
-
-SHA256Block SaslIAMClientConversation::_getSignatureKey(std::string datestamp,
-                                                        StringData region,
-                                                        StringData service) {
-    std::string key = "AWS4" + _secretKey;
-    constexpr auto request = "aws4_request"_sd;
-    SHA256Block kDateBlock =
-        SHA256Block::computeHmac(reinterpret_cast<const uint8_t*>(key.c_str()),
-                                 key.length(),
-                                 reinterpret_cast<const uint8_t*>(datestamp.c_str()),
-                                 datestamp.length());
-    SHA256Block kRegionBlock =
-        SHA256Block::computeHmac(kDateBlock.data(),
-                                 kDateBlock.size(),
-                                 reinterpret_cast<const uint8_t*>(region.rawData()),
-                                 region.size());
-    SHA256Block kServiceBlock =
-        SHA256Block::computeHmac(kRegionBlock.data(),
-                                 kRegionBlock.size(),
-                                 reinterpret_cast<const uint8_t*>(service.rawData()),
-                                 service.size());
-    SHA256Block kSigningBlock =
-        SHA256Block::computeHmac(kServiceBlock.data(),
-                                 kServiceBlock.size(),
-                                 reinterpret_cast<const uint8_t*>(request.rawData()),
-                                 request.size());
-    return kSigningBlock;
-}
 
 void SaslIAMClientConversation::_getUserCredentials() {
     _accessKey =
@@ -139,11 +113,12 @@ StatusWith<bool> SaslIAMClientConversation::_getEc2Credentials() {
 
     BSONObj obj = fromjson(getRoleCredentialsOutput.toString());
 
-    if (!bsonExtractStringField(obj, "AccessKeyId", &_accessKey).isOK() ||
-        !bsonExtractStringField(obj, "SecretAccessKey", &_secretKey).isOK() ||
-        bsonExtractStringField(obj, "Token", &_securityToken).isOK()) {
-        return false;
-    }
+    auto creds = Ec2SecurityCredentials::parse(IDLParserErrorContext("security-credentials"), obj);
+
+    _accessKey = creds.getAccessKeyId().toString();
+    _secretKey = creds.getSecretAccessKey().toString();
+    _securityToken = creds.getToken().has_value() ? boost::optional<std::string>(creds.getToken()->toString()) : boost::none;
+
     return true;
 }
 
@@ -166,21 +141,8 @@ StatusWith<bool> SaslIAMClientConversation::step(StringData inputData, std::stri
  * n,a=authzid,r=client-nonce
  */
 StatusWith<bool> SaslIAMClientConversation::_firstStep(std::string* outputData) {
-    // Create text-based nonce as base64 encoding of a binary blob of length multiple of 3
-    const int nonceLenQWords = 3;
-    uint64_t binaryNonce[nonceLenQWords];
 
-    std::unique_ptr<SecureRandom> sr(SecureRandom::create());
-
-    binaryNonce[0] = sr->nextInt64();
-    binaryNonce[1] = sr->nextInt64();
-    binaryNonce[2] = sr->nextInt64();
-
-    _clientNonce = base64::encode(reinterpret_cast<char*>(binaryNonce), sizeof(binaryNonce));
-
-    StringBuilder sb;
-    sb << "n,,r=" << _clientNonce;
-    *outputData = sb.str();
+    *outputData = SaslIAMProtocol::generateClientFirst();
 
     return false;
 }
@@ -204,49 +166,18 @@ StatusWith<bool> SaslIAMClientConversation::_firstStep(std::string* outputData) 
  */
 StatusWith<bool> SaslIAMClientConversation::_secondStep(StringData inputData,
                                                         std::string* outputData) {
-    if (inputData.startsWith("m=")) {
-        return Status(ErrorCodes::BadValue, "IAM required extensions not supported");
-    }
-
-    /* Retrieve arguments */
-    const auto input_args = StringSplitter::split(inputData.toString(), ",");
-
-    if (input_args.size() < 2) {
-        return Status(ErrorCodes::BadValue,
-                      str::stream()
-                          << "Incorrect number of arguments for first IAM server message, got "
-                          << input_args.size() << " expected at least 2");
-    }
-
-    if (!str::startsWith(input_args[0], "r=") || input_args[0].size() < 3) {
-        return Status(ErrorCodes::BadValue,
-                      str::stream() << "Incorrect IAM client|server nonce: " << input_args[0]);
-    }
-
-    const auto nonce = input_args[0].substr(2);
-    if (nonce != _clientNonce) {
-        return Status(ErrorCodes::BadValue,
-                      str::stream() << "Server IAM nonce does not match client nonce: " << nonce);
-    }
-
-    if (!str::startsWith(input_args[1], "s=") || input_args[1].size() < 3) {
-        return Status(ErrorCodes::BadValue,
-                      str::stream() << "Incorrect IAM salt: " << input_args[1]);
-    }
-
-    const auto salt = input_args[1].substr(2);
 
     /* Generate client-second-message */
 
-    using namespace fmt::literals;
-    constexpr auto method = "POST"_sd;
+    // using namespace fmt::literals;
+    // constexpr auto method = "POST"_sd;
 
-    constexpr auto service = "sts"_sd;
-    constexpr auto region = "us-east-1"_sd;  // Need to locate region
-    auto host = "{}.amazonaws.com"_format(service);
+    // constexpr auto service = "sts"_sd;
+    // constexpr auto region = "us-east-1"_sd;  // Need to locate region
+    //auto host = "{}.amazonaws.com"_format(service);
 
-    constexpr auto contentType = "application/x-www-form-urlencoded; charset=utf-8"_sd;
-    constexpr auto body = "Action=GetCallerIdentity&Version=2011-06-15"_sd;
+    // constexpr auto contentType = "application/x-www-form-urlencoded; charset=utf-8"_sd;
+    // constexpr auto body = "Action=GetCallerIdentity&Version=2011-06-15"_sd;
 
     if (_saslClientSession->hasParameter(SaslClientSession::parameterIamAccessKey) &&
         _saslClientSession->hasParameter(SaslClientSession::parameterIamSecretKey)) {
@@ -258,92 +189,12 @@ StatusWith<bool> SaslIAMClientConversation::_secondStep(StringData inputData,
         }
     }
 
-    // auto now = Date_t::now();
+try {
 
-    constexpr auto timestampFormat = "%Y%m%dT%H%M%SZ"_sd;
-    constexpr auto dateFormat = "%Y%m%d"_sd;
-
-    std::string timestamp =
-        mongo::TimeZoneDatabase::utcZone().formatDate(timestampFormat, Date_t::now());
-    std::string datestamp =
-        mongo::TimeZoneDatabase::utcZone().formatDate(dateFormat, Date_t::now());
-
-    /* -- Task 1: Create a canonical request -- */
-
-    // constexpr auto canonicalUri = "/"_sd;
-    // constexpr auto canonicalQuery = ""_sd;
-
-    StringBuilder canonicalHeadersBuilder;
-    StringBuilder signedHeadersBuilder;
-
-    canonicalHeadersBuilder << "content-type:{}\nhost:{}\nx-amz-date:{}\n"_format(
-        contentType, host, timestamp);
-    signedHeadersBuilder << "content-type;host;x-amz-date";
-
-    if (!_securityToken.empty()) {
-        canonicalHeadersBuilder << "x-amz-security-token:{}\n"_format(_securityToken);
-        signedHeadersBuilder << ";x-amz-security-token";
-    }
-
-    canonicalHeadersBuilder << "x-mongodb-server-salt:{}\n"_format(salt);
-    signedHeadersBuilder << ";x-mongodb-server-salt";
-
-    std::string canonicalHeaders = canonicalHeadersBuilder.str();
-    std::string signedHeaders = signedHeadersBuilder.str();
-
-    std::string payloadHash =
-        SHA256Block::computeHash(reinterpret_cast<const uint8_t*>(body.rawData()), body.size())
-            .toHexString();
-
-    std::string canonicalRequest = "{}\n{}\n{}\n{}\n{}\n{}"_format(
-        method, "/", "", canonicalHeaders, signedHeaders, payloadHash);
-
-    /* -- Task 2: Create the string to sign -- */
-
-    std::string algorithm = "AWS4-HMAC-SHA256";
-    std::string credentialScope = "{}/{}/{}/aws4_request"_format(datestamp, region, service);
-
-    std::string stringToSign = "{}\n{}\n{}\n{}"_format(
-        algorithm,
-        timestamp,
-        credentialScope,
-        SHA256Block::computeHash(reinterpret_cast<const uint8_t*>(canonicalRequest.c_str()),
-                                 canonicalRequest.length())
-            .toHexString());
-
-    /* -- Task 3: Calculate the signature -- */
-
-    SHA256Block signingKey = _getSignatureKey(datestamp, region, service);
-
-    std::string signature =
-        SHA256Block::computeHmac(signingKey.data(),
-                                 signingKey.size(),
-                                 reinterpret_cast<const uint8_t*>(stringToSign.c_str()),
-                                 stringToSign.length())
-            .toHexString();
-
-    /* -- Task 4: Add signing information to the request -- */
-
-    std::string authorizationHeader = "{} Credential={}/{}, SignedHeaders={}, Signature={}"_format(
-        algorithm, _accessKey, credentialScope, signedHeaders, signature);
-
-    std::string authorization = "Authorization:{}"_format(authorizationHeader);
-
-    StringBuilder headerBuilder;
-    headerBuilder << "Content-Length:{},Content-Type:{},X-Amz-Date:{}"_format(
-        std::to_string(body.size()), contentType, timestamp);
-
-    if (!_securityToken.empty()) {
-        headerBuilder << ",X-Amz-Security-Token:{}"_format(_securityToken);
-    }
-
-    headerBuilder << ",X-Mongodb-Server-Salt:{}"_format(salt);
-
-    std::string header = headerBuilder.str();
-
-    StringBuilder sb;
-    sb << "c=biws | h=" << header << " | a=" << authorization << " | r=" << nonce;
-    *outputData = sb.str();
+    *outputData = SaslIAMProtocol::generateClientSecond(inputData, _accessKey, _secretKey, _securityToken);
+} catch (DBException& dbe) {
+    return exceptionToStatus();
+}
 
     return true;
 }

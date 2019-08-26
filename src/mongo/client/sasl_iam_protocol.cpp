@@ -5,6 +5,7 @@
 #include "/home/mark/src/mongo/src/third_party/kms-message/src/kms_message/kms_message.h"
 
 #include "mongo/bson/bsonobj.h"
+#include "mongo/base/init.h"
 #include "/home/mark/src/mongo/build/ice_local_clang/mongo/client/sasl_iam_gen.h"
 //#include "mongo/client/sasl_iam_gen.h"
 #include "mongo/util/base64.h"
@@ -164,9 +165,11 @@ void uassertKmsRequestInternal(kms_request_t* request, bool ok) {
 #define uassertKmsRequest(X) uassertKmsRequestInternal(request.get(), (X));
 
 
-std::string SaslIAMProtocol::generateClientSecond(StringData serverFirstBase64, StringData awsKey, StringData secretKey, boost::optional<StringData> securityToken)
+std::string SaslIAMProtocol::generateClientSecond(StringData serverFirstBase64, StringData awsKey, StringData secretKey, boost::optional<std::string>& securityToken)
 {
     auto serverFirst = decode<IamServerFirst>(serverFirstBase64);
+
+    // TODO - check nonce
 
     auto request =
         UniqueKmsRequest(kms_caller_identity_request_new(
@@ -176,10 +179,11 @@ std::string SaslIAMProtocol::generateClientSecond(StringData serverFirstBase64, 
     // use current time
     uassertKmsRequest(kms_request_set_date(request.get(), nullptr));
 
-    //uassertKmsRequest(kms_request_set_region(request.get(), region.toString().c_str()));
+    // Region does not matter for sts requests since sts is global
+    uassertKmsRequest(kms_request_set_region(request.get(), "us-east-1"));
 
     // kms is always the name of the service
-    //uassertKmsRequest(kms_request_set_service(request.get(), "kms"));
+    uassertKmsRequest(kms_request_set_service(request.get(), "sts"));
     uassertKmsRequest(kms_request_add_header_field(
              request.get(), "Host", "sts.amazonaws.com"));
     uassertKmsRequest(kms_request_add_header_field(
@@ -188,12 +192,14 @@ std::string SaslIAMProtocol::generateClientSecond(StringData serverFirstBase64, 
     uassertKmsRequest(kms_request_set_access_key_id(request.get(), awsKey.toString().c_str()));
     uassertKmsRequest(kms_request_set_secret_key(request.get(), secretKey.toString().c_str()));
 
+
+
     // TODO
-    // if (!_config.sessionToken.value_or("").empty()) {
-    //     // TODO: move this into kms-message
-    //     uassertKmsRequest(kms_request_add_header_field(
-    //         request.get(), "X-Amz-Security-Token", _config.sessionToken.get().c_str()));
-    // }
+    if (securityToken) {
+        // TODO: move this into kms-message
+        uassertKmsRequest(kms_request_add_header_field(
+            request.get(), "X-Amz-Security-Token", securityToken.get().c_str()));
+    }
 
     auto buffer2 = UniqueKmsCharBuffer(kms_request_get_signature(request.get()));
 
@@ -221,11 +227,25 @@ std::string SaslIAMProtocol::generateClientSecond(StringData serverFirstBase64, 
     headers.setXAmzDate(kms_request_get_canonical_header(request.get(), "X-Amz-Date"));
 
     // TODO - token
+    const char* token = kms_request_get_canonical_header(request.get(), "X-Amz-Security-Token");
+    if(token) {
+        headers.setXAmzSecurityToken(boost::optional<StringData>(token));
+
+    }
+
     headers.setXMongodbServerSalt(kms_request_get_canonical_header(request.get(), "X-Mongodb-Server-Salt"));
 
     second.setHeaders(headers);
 
     return encode(second);
+}
+IamClientSecond SaslIAMProtocol::parseClientSecond(StringData clientSecond) {
+    return decode<IamClientSecond>(clientSecond);
+}
+
+MONGO_INITIALIZER(SasLIamInit)(::mongo::InitializerContext* context) {
+    SaslIAMProtocol::init();
+    return Status::OK();
 }
 
 

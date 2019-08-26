@@ -316,6 +316,8 @@ private:
                               << curl_easy_strerror(result),
                 result == CURLE_OK);
 
+        warning() << "HTTP DaTa:" << dataBuilder.getCursor().data();
+
         uassert(ErrorCodes::OperationFailed,
                 str::stream() << "Unexpected http status code from server: " << statusCode,
                 statusCode == 200);
