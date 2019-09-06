@@ -782,7 +782,7 @@ string OpDebug::report(Client* client,
 
     s << " " << (executionTimeMicros / 1000) << "ms";
 
-    if (clientMetadata) {
+    if (clientMetadata && !client->isInDirectClient()) {
         auto appName = clientMetadata.get().getApplicationName();
         if (appName.empty() && requiresClientMD) {
             // error() << "CLIENT METADATA MISSING : " << clientMetadata.get().getDocument();
