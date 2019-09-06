@@ -671,6 +671,8 @@ string OpDebug::report(Client* client,
         }
     }
 
+    bool requiresClientMD = false;
+
     auto query = curop.opDescription();
     if (!query.isEmpty()) {
         s << " command: ";
@@ -681,6 +683,13 @@ string OpDebug::report(Client* client,
                 curCommand->snipForLogging(&cmdToLog);
                 s << curCommand->getName() << " ";
                 s << redact(cmdToLog.getObject());
+                if(curCommand->getName() == "find" ||
+                curCommand->getName() == "update" ||
+                curCommand->getName() == "delete" ||
+                curCommand->getName() == "insert") {
+            requiresClientMD = true;
+
+                }
             } else {
                 // Should not happen but we need to handle curCommand == NULL gracefully.
                 // We don't know what the request payload is intended to be, so it might be
@@ -689,6 +698,7 @@ string OpDebug::report(Client* client,
                 s << "unrecognized";
             }
         } else {
+            requiresClientMD = true;
             s << redact(query);
         }
     }
@@ -774,10 +784,12 @@ string OpDebug::report(Client* client,
 
     if (clientMetadata) {
         auto appName = clientMetadata.get().getApplicationName();
-        if (appName.empty()) {
+        if (appName.empty() && requiresClientMD) {
             // error() << "CLIENT METADATA MISSING : " << clientMetadata.get().getDocument();
             // error() << "COMMAND: " << s.str();
             // invariant(false);
+
+
                 auto clientMetadataDoc = clientMetadata->getDocument();
                 auto driverName = clientMetadataDoc.getObjectField("driver"_sd)
                                       .getField("name"_sd)
