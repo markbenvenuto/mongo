@@ -150,6 +150,7 @@ assert.commandWorked(session.commitTransaction_forTesting());
 // Verify there is no in-progress transaction on Shard1.
 res = assert.commandFailedWithCode(st.rs1.getPrimary().getDB(dbName).runCommand({
     find: collName,
+    filter: {_id: 42},
     lsid: session.getSessionId(),
     txnNumber: NumberLong(session.getTxnNumber_forTesting()),
     autocommit: false,
@@ -172,7 +173,7 @@ expectChunks(st, ns, [0, 1, 1]);
 session.startTransaction();
 
 // Targets all shards, two of which are stale.
-assert.commandWorked(sessionDB.runCommand({find: collName}));
+assert.commandWorked(sessionDB.runCommand({find: collName,     filter: {_id: 43},}));
 
 assert.commandWorked(session.commitTransaction_forTesting());
 
@@ -236,7 +237,7 @@ assert.commandWorked(sessionDB.runCommand({find: collName, filter: {_id: 5}}));
 
 // Targets all shards. Shard0 is stale and won't refresh its metadata, so mongos should exhaust
 // its retries and implicitly abort the transaction.
-res = assert.commandFailedWithCode(sessionDB.runCommand({find: collName}), ErrorCodes.StaleConfig);
+res = assert.commandFailedWithCode(sessionDB.runCommand({find: collName, filter : {_id: 456 }}), ErrorCodes.StaleConfig);
 assert.eq(res.errorLabels, ["TransientTransactionError"]);
 
 // Verify the shards that did not return an error were also aborted.

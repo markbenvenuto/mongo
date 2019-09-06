@@ -39,26 +39,26 @@ jsTest.log('Sending an authorized query that should be ok');
 assert.commandWorked(testColl.insert({x: 1}, {writeConcern: {w: nodeCount}}));
 
 conn.setSlaveOk(true);
-doc = testColl.findOne();
+doc = testColl.findOne({$or : [{ x : 1}, {x:22}] });
 assert(doc != null);
 
-doc = testColl.find().readPref('secondary').next();
+doc = testColl.find({$or : [{ x : 1}, {x:33}] }).readPref('secondary').next();
 assert(doc != null);
 
 conn.setSlaveOk(false);
-doc = testColl.findOne();
+doc = testColl.findOne({$or : [{ x : 1}, {x:44}] });
 assert(doc != null);
 
 var queryToPriShouldFail = function() {
     conn.setSlaveOk(false);
 
     assert.throws(function() {
-        testColl.findOne();
+        testColl.findOne({$or : [{ x : 1}, {x:55}] });
     });
 
     // should still not work even after retrying
     assert.throws(function() {
-        testColl.findOne();
+        testColl.findOne({$or : [{ x : 1}, {x:66}] });
     });
 };
 
@@ -66,22 +66,22 @@ var queryToSecShouldFail = function() {
     conn.setSlaveOk(true);
 
     assert.throws(function() {
-        testColl.findOne();
+        testColl.findOne({$or : [{ x : 1}, {x:77}] });
     });
 
     // should still not work even after retrying
     assert.throws(function() {
-        testColl.findOne();
+        testColl.findOne({$or : [{ x : 1}, {x:88}] });
     });
 
     // Query to secondary using readPref
     assert.throws(function() {
-        testColl.find().readPref('secondary').next();
+        testColl.find({$or : [{ x : 1}, {x:2233}] }).readPref('secondary').next();
     });
 
     // should still not work even after retrying
     assert.throws(function() {
-        testColl.find().readPref('secondary').next();
+        testColl.find({$or : [{ x : 1}, {x:2244}] }).readPref('secondary').next();
     });
 };
 
@@ -105,7 +105,7 @@ assert.eq(1, testDB.auth('a', 'a'));
 
 // Find out the current cached secondary in the repl connection
 conn.setSlaveOk(true);
-var serverInfo = testColl.find().readPref('secondary').explain().serverInfo;
+var serverInfo = testColl.find({$or : [{ x : 1}, {x:2211}] }).readPref('secondary').explain().serverInfo;
 var secNodeIdx = -1;
 var secPortStr = serverInfo.port.toString();
 

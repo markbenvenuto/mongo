@@ -448,37 +448,45 @@ bool CurOp::completeAndLogOperation(OperationContext* opCtx,
     const bool shouldSample =
         client->getPrng().nextCanonicalDouble() < serverGlobalParams.sampleRate;
 
-    if (shouldLogOp || (shouldSample && _debug.executionTimeMicros > slowMs * 1000LL)) {
-        auto lockerInfo = opCtx->lockState()->getLockerInfo(_lockStatsBase);
-        if (_debug.storageStats == nullptr && opCtx->lockState()->wasGlobalLockTaken() &&
-            opCtx->getServiceContext()->getStorageEngine()) {
-            // Do not fetch operation statistics again if we have already got them (for instance,
-            // as a part of stashing the transaction).
-            // Take a lock before calling into the storage engine to prevent racing against a
-            // shutdown. Any operation that used a storage engine would have at-least held a
-            // global lock at one point, hence we limit our lock acquisition to such operations.
-            // We can get here and our lock acquisition be timed out or interrupted, log a
-            // message if that happens.
-            try {
-                Lock::GlobalLock lk(opCtx,
-                                    MODE_IS,
-                                    Date_t::now() + Milliseconds(500),
-                                    Lock::InterruptBehavior::kLeaveUnlocked);
-                if (lk.isLocked()) {
-                    _debug.storageStats = opCtx->recoveryUnit()->getOperationStatistics();
-                } else {
-                    warning(component) << "Unable to gather storage statistics for a slow "
-                                          "operation due to lock aquire timeout";
-                }
-            } catch (const ExceptionForCat<ErrorCategory::Interruption>&) {
+    bool needLog = (shouldLogOp || (shouldSample && _debug.executionTimeMicros > slowMs * 1000LL));
+
+    auto lockerInfo = opCtx->lockState()->getLockerInfo(_lockStatsBase);
+    if (_debug.storageStats == nullptr && opCtx->lockState()->wasGlobalLockTaken() &&
+        opCtx->getServiceContext()->getStorageEngine()) {
+        // Do not fetch operation statistics again if we have already got them (for instance,
+        // as a part of stashing the transaction).
+        // Take a lock before calling into the storage engine to prevent racing against a
+        // shutdown. Any operation that used a storage engine would have at-least held a
+        // global lock at one point, hence we limit our lock acquisition to such operations.
+        // We can get here and our lock acquisition be timed out or interrupted, log a
+        // message if that happens.
+        try {
+            Lock::GlobalLock lk(opCtx,
+                                MODE_IS,
+                                Date_t::now() + Milliseconds(500),
+                                Lock::InterruptBehavior::kLeaveUnlocked);
+            if (lk.isLocked()) {
+                _debug.storageStats = opCtx->recoveryUnit()->getOperationStatistics();
+            } else {
                 warning(component) << "Unable to gather storage statistics for a slow "
-                                      "operation due to interrupt";
+                                        "operation due to lock aquire timeout";
             }
+        } catch (const ExceptionForCat<ErrorCategory::Interruption>&) {
+            warning(component) << "Unable to gather storage statistics for a slow "
+                                    "operation due to interrupt";
         }
+    }
+    if(needLog) {
         log(component) << _debug.report(client,
+                                    *this,
+                                    (lockerInfo ? &lockerInfo->stats : nullptr),
+                                    opCtx->lockState()->getFlowControlStats());
+    } else {
+        std::string ignore_me =  _debug.report(client,
                                         *this,
                                         (lockerInfo ? &lockerInfo->stats : nullptr),
                                         opCtx->lockState()->getFlowControlStats());
+
     }
 
     // Return 'true' if this operation should also be added to the profiler.
@@ -684,11 +692,14 @@ string OpDebug::report(Client* client,
                 s << curCommand->getName() << " ";
                 s << redact(cmdToLog.getObject());
                 if(curCommand->getName() == "find" ||
-                curCommand->getName() == "update" ||
-                curCommand->getName() == "delete" ||
-                curCommand->getName() == "insert") {
-            requiresClientMD = true;
-
+                    curCommand->getName() == "update" ||
+                    curCommand->getName() == "delete" ||
+                    curCommand->getName() == "insert") {
+                        auto a = curop.getNS();
+                    StringData nssd = a;
+                    if (!nssd.startsWith("admin") && !nssd.startsWith("config") ) {
+                        requiresClientMD = true;
+                    }
                 }
             } else {
                 // Should not happen but we need to handle curCommand == NULL gracefully.
@@ -785,20 +796,18 @@ string OpDebug::report(Client* client,
     if (clientMetadata && !client->isInDirectClient()) {
         auto appName = clientMetadata.get().getApplicationName();
         if (appName.empty() && requiresClientMD) {
-            // error() << "CLIENT METADATA MISSING : " << clientMetadata.get().getDocument();
-            // error() << "COMMAND: " << s.str();
-            // invariant(false);
-
-
+                // error() << "CLIENT METADATA MISSING : " << clientMetadata.get().getDocument();
+                // error() << "COMMAND: " << s.str();
+                // invariant(false);
                 auto clientMetadataDoc = clientMetadata->getDocument();
                 auto driverName = clientMetadataDoc.getObjectField("driver"_sd)
                                       .getField("name"_sd)
                                       .checkAndGetStringData();
                 if (driverName == "MongoDB Internal Client") {
-            error() << "CLIENT METADATA MISSING : " << clientMetadata.get().getDocument();
-            error() << "COMMAND: " << s.str();
-            invariant(false);
-                }
+                    error() << "CLIENT METADATA MISSING : " << clientMetadata.get().getDocument() << " with " <<
+                     "COMMAND: " << s.str();
+                    invariant(false);
+            }
         }
     }
 
