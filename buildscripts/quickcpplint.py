@@ -23,6 +23,7 @@ from buildscripts.linter import simplecpplint  # pylint: disable=wrong-import-po
 
 FILES_RE = re.compile('\\.(h|cpp)$')
 
+
 def is_interesting_file(file_name):
     # type: (str) -> bool
     """Return true if this file should be checked."""
@@ -43,7 +44,7 @@ def _lint_files(file_names):
     for linter in linter_instances:
         # run_lint1 = lambda param1: lint_runner.run_lint(linter, param1)  # pylint: disable=cell-var-from-loop
         # lint_clean = parallel.parallel_process([os.path.abspath(f) for f in file_names], run_lint1)
-        run_lint2 = lambda param2 : simplecpplint.lint_file(param2) == 0
+        run_lint2 = lambda param2: simplecpplint.lint_file(param2) == 0
         lint_clean = parallel.parallel_process([os.path.abspath(f) for f in file_names], run_lint2)
 
         if not lint_clean:

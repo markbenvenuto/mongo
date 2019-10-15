@@ -34,7 +34,6 @@ import logging
 import sys
 import io
 import re
-import textwrap
 
 # try:
 #     import regex as re
@@ -83,8 +82,13 @@ def _make_polyfill_regex():
   qualified_names_regex = '|'.join(qualified_names)
   return re.compile(qualified_names_regex)
 
-_RE_PATTERN_MONGO_POLYFILL = _make_polyfill_regex()
+_RE_LINT = re.compile("//.*NOLINT")
+_RE_COMMENT_STRIP = re.compile("//.*")
 
+_RE_PATTERN_MONGO_POLYFILL = _make_polyfill_regex()
+_RE_VOLATILE = re.compile('[^_]volatile')
+_RE_MUTEX = re.compile('[ ({,]stdx?::mutex[ ({]')
+_RE_ASSERT = re.compile(r'\bassert\s*\(')
 
 class Linter:
 
@@ -100,14 +104,20 @@ class Linter:
         # 2. Check for NOLINT and Strip multi line comments
         # 3. Run per line checks
 
+        # The license header is 28 lines and we are 0 indexed
+        start_line = 27
         if "enterprise" not in self.file_name:
-            self.CheckForServerSidePublicLicense(3)
+            if not self.CheckForServerSidePublicLicense(3):
+                start_line = 0
 
         self._check_and_strip_comments()
 
         # print("self.nolint_supression: %s" %(self.nolint_supression))
 
-        for linenum in range(len(self.clean_lines)):
+        for linenum in range(start_line, len(self.clean_lines)):
+            if len(self.clean_lines[linenum]) == 0:
+                continue
+            
             self.CheckForMongoVolatile(linenum)
             self.CheckForMongoPolyfill(linenum)
             self.CheckForMongoAtomic(linenum)
@@ -120,17 +130,14 @@ class Linter:
         self.clean_lines = []
         in_multi_line_comment = False
 
-        # Users can write NOLINT different ways
-        # // NOLINT
-        # // Some explanation NOLINT
-        # so we need a regular expression
-        re_nolint = re.compile("//.*NOLINT")
-        re_comment_strip = re.compile("//.*")
-
         for linenum in range(len(self.raw_lines)):
             clean_line = self.raw_lines[linenum]
 
-            if re_nolint.search(clean_line):
+            # Users can write NOLINT different ways
+            # // NOLINT
+            # // Some explanation NOLINT
+            # so we need a regular expression
+            if _RE_LINT.search(clean_line):
                 self.nolint_supression.append(linenum)
 
             if not in_multi_line_comment:
@@ -143,7 +150,7 @@ class Linter:
                 # i.e. it will think URLs are also comments but this should be good enough to find
                 # violators of the coding convention
                 if "//" in clean_line:
-                    clean_line = re_comment_strip.sub("", clean_line)
+                    clean_line = _RE_COMMENT_STRIP.sub("", clean_line)
             else:
                 if "*/" in clean_line:
                     in_multi_line_comment = False
@@ -155,14 +162,14 @@ class Linter:
 
     def CheckForMongoVolatile(self,linenum):
         line = self.clean_lines[linenum]
-        if re.search('[^_]volatile', line) and not "__asm__" in line:
+        if _RE_VOLATILE.search(line) and not "__asm__" in line:
             self.error(linenum, 'mongodb/volatile',
                 'Illegal use of the volatile storage keyword, use AtomicWord instead '
                 'from "mongo/platform/atomic_word.h"')
 
     def CheckForMongoPolyfill(self, linenum):
         line = self.clean_lines[linenum]
-        if re.search(_RE_PATTERN_MONGO_POLYFILL, line):
+        if _RE_PATTERN_MONGO_POLYFILL.search(line):
             self.error(linenum, 'mongodb/polyfill',
                 'Illegal use of banned name from std::/boost::, use mongo::stdx:: variant instead')
 
@@ -175,14 +182,14 @@ class Linter:
 
     def CheckForMongoMutex(self, linenum):
         line = self.clean_lines[linenum] 
-        if re.search('[ ({,]stdx?::mutex[ ({]', line):
+        if _RE_MUTEX.search(line):
             self.error(linenum, 'mongodb/stdxmutex',
                     'Illegal use of prohibited stdx::mutex, '
                     'use mongo::Mutex from mongo/platform/mutex.h instead.')
 
     def CheckForNonMongoAssert(self, linenum):
         line = self.clean_lines[linenum]
-        if re.search(r'\bassert\s*\(', line):
+        if _RE_ASSERT.search(line):
             self.error(linenum, 'mongodb/assert',
                     'Illegal use of the bare assert function, use a function from assert_utils.h instead.')
 
@@ -216,26 +223,24 @@ class Linter:
 
         # We expect the first line of the license header to follow shortly after the
         # "Copyright" message.
-        for line in range(copyright_offset, min(len(self.raw_lines), copyright_offset + 3)):
-            if re.search(r'This program is free software', self.raw_lines[line]):
-                license_header_start_line = line
-                for i in range(len(license_header)):
-                    line = i + license_header_start_line
-                    if line >= len(self.raw_lines) or self.raw_lines[line] != license_header[i]:
-                        #print("foo: |%s|" % (self.raw_lines[line]))
-                        self.error(0, 'legal/license',
-                                'Incorrect license header found.  '
-                                'Expected "' + license_header[i] + '".  '
-                                'See https://github.com/mongodb/mongo/wiki/Server-Code-Style')
-                        # We break here to stop reporting legal/license errors for this file.
-                        break
-
-                # We break here to indicate that we found some license header.
-                break
+        if r'This program is free software' in self.raw_lines[copyright_offset]:
+            license_header_start_line = copyright_offset
+            for i in range(len(license_header)):
+                line = i + license_header_start_line
+                if line >= len(self.raw_lines) or self.raw_lines[line] != license_header[i]:
+                    self.error(0, 'legal/license',
+                            'Incorrect license header found.  '
+                            'Expected "' + license_header[i] + '".  '
+                            'See https://github.com/mongodb/mongo/wiki/Server-Code-Style')
+                    # We break here to stop reporting legal/license errors for this file.
+                    return False
         else:
-          self.error(0, 'legal/license',
+            self.error(0, 'legal/license',
                 'No license header found.  '
                 'See https://github.com/mongodb/mongo/wiki/Server-Code-Style')
+            return False
+        
+        return True
 
     def error(self, linenum, category, message):
         if linenum in self.nolint_supression:
@@ -271,9 +276,8 @@ def lint_file(file_name):
         raw_lines = file_stream.readlines()
 
     # Strip trailing '\n'
+    # TODO - stop stripping
     raw_lines = [line.rstrip() for line in raw_lines]
-
-    # print(raw_lines)
 
     linter = Linter(file_name, raw_lines)
     return linter.lint()
