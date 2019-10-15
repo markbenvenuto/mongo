@@ -166,10 +166,6 @@ class LintRunner(object):
         """Run the specified linter for the file."""
         # pylint: disable=too-many-locals
 
-        # print("file; " + str(file_name))
-        # print("linter: " + str(linter))
-        # print("linter: " + str(linter.linter))
-
         linter_args = linter.linter.get_lint_cmd_args(file_name)
         if not linter_args:
             # If args is empty it means we didn't get a valid command

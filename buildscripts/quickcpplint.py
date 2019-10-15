@@ -12,11 +12,8 @@ import threading
 if __name__ == "__main__" and __package__ is None:
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(os.path.realpath(__file__)))))
 
-from buildscripts.linter import base  # pylint: disable=wrong-import-position
 from buildscripts.linter import git  # pylint: disable=wrong-import-position
 from buildscripts.linter import parallel  # pylint: disable=wrong-import-position
-from buildscripts.linter import runner  # pylint: disable=wrong-import-position
-from buildscripts.linter import simplecpplinter  # pylint: disable=wrong-import-position
 from buildscripts.linter import simplecpplint  # pylint: disable=wrong-import-position
 
 FILES_RE = re.compile('\\.(h|cpp)$')
