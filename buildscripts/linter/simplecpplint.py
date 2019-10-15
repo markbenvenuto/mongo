@@ -237,8 +237,9 @@ class Linter:
                 'src/mongo/util/scopeguard.h',
             ])
 
+            norm_file_name = self.file_name.replace('\\', '/')
             for file_to_ignore in files_to_ignore:
-                if file_to_ignore in self.file_name:
+                if file_to_ignore in norm_file_name:
                     return
 
         # We count internally from 0 but users count from 1 for line numbers

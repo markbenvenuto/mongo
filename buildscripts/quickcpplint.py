@@ -63,6 +63,16 @@ def lint_all(file_names):
     _lint_files(all_file_names)
 
 
+def lint_my(origin_branch):
+    # type: (str, Dict[str, str], List[str]) -> None
+    # pylint: disable=unused-argument
+    """Lint files command based on local changes."""
+    files = git.get_my_files_to_check(is_interesting_file, origin_branch)
+    files = [f for f in files if os.path.exists(f)]
+
+    _lint_files(files)
+
+
 def main():
     # type: () -> None
     """Execute Main entry point."""
@@ -84,6 +94,10 @@ def main():
     parser_lint_patch = sub.add_parser('lint-patch', help='Lint the files in a patch')
     parser_lint_patch.add_argument("file_names", nargs="*", help="Globs of files to check")
     parser_lint_patch.set_defaults(func=lint_patch)
+
+    parser_lint_my = sub.add_parser('lint-my', help='Lint my files')
+    parser_lint_my.add_argument("--branch", dest="file_names", default="origin/master", help="Branch to compare against")
+    parser_lint_my.set_defaults(func=lint_my)
 
     args = parser.parse_args()
 
