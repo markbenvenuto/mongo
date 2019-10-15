@@ -420,7 +420,7 @@ private:
     unsigned int _opId;        // op id for this scope
     OperationContext* _opCtx;  // Op context for DbEval
     std::size_t _inOp;
-    std::atomic<bool> _pendingGC;
+    std::atomic<bool> _pendingGC;  // NOLINT
     ConnectState _connectState;
     Status _status;
     std::string _parentStack;

@@ -40,12 +40,12 @@ def parallel_process(items, func):
                 task_queue.task_done()
 
             # Return early if we fail, and signal we are done
-            if not ret:
-                with pp_lock:
-                    pp_result[0] = False
+            # if not ret:
+            #     with pp_lock:
+            #         pp_result[0] = False
 
-                pp_event.set()
-                return
+            #     pp_event.set()
+            #     return
 
     # Enqueue all the work we want to process
     for item in items:
