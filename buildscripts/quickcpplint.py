@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Extensible script to run one or more Simple C++ Linters across a subset of files in parallel."""
+"""Extensible script to run one or more simple C++ Linters across a subset of files in parallel."""
 
 import argparse
 import logging

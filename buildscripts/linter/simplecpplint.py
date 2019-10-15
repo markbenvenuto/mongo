@@ -7,13 +7,6 @@ import logging
 import re
 import sys
 
-# try:
-#     import regex as re
-# except ImportError:
-#     print("*** Run 'pip3 install --user regex' to speed up error code checking")
-#     import re  # type: ignore
-
-
 def _make_polyfill_regex():
     polyfill_required_names = [
         '_',
