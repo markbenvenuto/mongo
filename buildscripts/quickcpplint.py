@@ -7,8 +7,6 @@ import os
 import re
 import sys
 import threading
-from abc import ABCMeta, abstractmethod
-from typing import Any, Dict, List
 
 # Get relative imports to work when the package is not installed on the PYTHONPATH.
 if __name__ == "__main__" and __package__ is None:
@@ -35,22 +33,8 @@ def is_interesting_file(file_name):
 def _lint_files(file_names):
     # type: (str, Dict[str, str], List[str]) -> None
     """Lint a list of files with clang-format."""
-    lint_runner = runner.LintRunner()
-
-    linter_instances = [base.LinterInstance(simplecpplinter.SimpleCppLinter(), [sys.executable])]
-
-    failed_lint = False
-
-    for linter in linter_instances:
-        # run_lint1 = lambda param1: lint_runner.run_lint(linter, param1)  # pylint: disable=cell-var-from-loop
-        # lint_clean = parallel.parallel_process([os.path.abspath(f) for f in file_names], run_lint1)
-        run_lint2 = lambda param2: simplecpplint.lint_file(param2) == 0
-        lint_clean = parallel.parallel_process([os.path.abspath(f) for f in file_names], run_lint2)
-
-        if not lint_clean:
-            failed_lint = True
-
-    if failed_lint:
+    run_lint1 = lambda param1: simplecpplint.lint_file(param1) == 0
+    if not parallel.parallel_process([os.path.abspath(f) for f in file_names], run_lint1):
         print("ERROR: Code Style does not match coding style")
         sys.exit(1)
 
