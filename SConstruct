@@ -814,7 +814,7 @@ different configurations, for instance:
 
     scons --sanitize=asan --ninja NINJA_SUFFIX=asan ninja-install-all-meta
     scons --sanitize=tsan --ninja NINJA_SUFFIX=tsan ninja-install-all-meta
-          
+
 Will generate the files (respectively):
 
     install-all-meta.build.ninja.asan
@@ -3928,8 +3928,8 @@ def doLint( env , target , source ):
 
 run_lint = env.Command(
     target="#run_lint",
-    source=["buildscripts/lint.py", "src/mongo"],
-    action="$PYTHON ${SOURCES[0]} ${SOURCES[1]}",
+    source=["buildscripts/quickcpplint.py"],
+    action="$PYTHON ${SOURCES[0]} lint",
 )
 
 env.Alias( "lint" , [ run_lint ] , [ doLint ] )
@@ -4213,8 +4213,8 @@ if get_option('install-mode') == 'hygienic':
         env.Alias("archive-dist", "tar-dist")
         env.Alias("archive-dist-debug", "tar-dist-debug")
 
-# We don't want installing files to cause them to flow into the cache,	
-# since presumably we can re-install them from the origin if needed.	
+# We don't want installing files to cause them to flow into the cache,
+# since presumably we can re-install them from the origin if needed.
 env.NoCache(env.FindInstalledFiles())
 
 # Substitute environment variables in any build targets so that we can
