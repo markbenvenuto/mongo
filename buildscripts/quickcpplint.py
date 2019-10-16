@@ -96,7 +96,8 @@ def main():
     parser_lint_patch.set_defaults(func=lint_patch)
 
     parser_lint_my = sub.add_parser('lint-my', help='Lint my files')
-    parser_lint_my.add_argument("--branch", dest="file_names", default="origin/master", help="Branch to compare against")
+    parser_lint_my.add_argument("--branch", dest="file_names", default="origin/master",
+                                help="Branch to compare against")
     parser_lint_my.set_defaults(func=lint_my)
 
     args = parser.parse_args()

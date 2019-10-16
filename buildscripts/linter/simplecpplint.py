@@ -7,6 +7,7 @@ import logging
 import re
 import sys
 
+
 def _make_polyfill_regex():
     polyfill_required_names = [
         '_',
