@@ -429,42 +429,47 @@ bool CurOp::completeAndLogOperation(OperationContext* opCtx,
     const bool shouldSample =
         client->getPrng().nextCanonicalDouble() < serverGlobalParams.sampleRate;
 
-    if (shouldLogOp || (shouldSample && _debug.executionTimeMicros > slowMs * 1000LL)) {
-        auto lockerInfo = opCtx->lockState()->getLockerInfo(_lockStatsBase);
-        if (_debug.storageStats == nullptr && opCtx->lockState()->wasGlobalLockTaken() &&
-            opCtx->getServiceContext()->getStorageEngine()) {
-            // Do not fetch operation statistics again if we have already got them (for instance,
-            // as a part of stashing the transaction).
-            // Take a lock before calling into the storage engine to prevent racing against a
-            // shutdown. Any operation that used a storage engine would have at-least held a
-            // global lock at one point, hence we limit our lock acquisition to such operations.
-            // We can get here and our lock acquisition be timed out or interrupted, log a
-            // message if that happens.
-            try {
-                Lock::GlobalLock lk(opCtx,
-                                    MODE_IS,
-                                    Date_t::now() + Milliseconds(500),
-                                    Lock::InterruptBehavior::kLeaveUnlocked);
-                if (lk.isLocked()) {
-                    _debug.storageStats = opCtx->recoveryUnit()->getOperationStatistics();
-                } else {
-                    warning(component) << "Unable to gather storage statistics for a slow "
-                                          "operation due to lock aquire timeout";
-                }
-            } catch (const ExceptionForCat<ErrorCategory::Interruption>&) {
+    bool needLog = (shouldLogOp || (shouldSample && _debug.executionTimeMicros > slowMs * 1000LL));
+
+    auto lockerInfo = opCtx->lockState()->getLockerInfo(_lockStatsBase);
+    if (_debug.storageStats == nullptr && opCtx->lockState()->wasGlobalLockTaken() &&
+        opCtx->getServiceContext()->getStorageEngine()) {
+        // Do not fetch operation statistics again if we have already got them (for instance,
+        // as a part of stashing the transaction).
+        // Take a lock before calling into the storage engine to prevent racing against a
+        // shutdown. Any operation that used a storage engine would have at-least held a
+        // global lock at one point, hence we limit our lock acquisition to such operations.
+        // We can get here and our lock acquisition be timed out or interrupted, log a
+        // message if that happens.
+        try {
+            Lock::GlobalLock lk(opCtx,
+                                MODE_IS,
+                                Date_t::now() + Milliseconds(500),
+                                Lock::InterruptBehavior::kLeaveUnlocked);
+            if (lk.isLocked()) {
+                _debug.storageStats = opCtx->recoveryUnit()->getOperationStatistics();
+            } else {
                 warning(component) << "Unable to gather storage statistics for a slow "
-                                      "operation due to interrupt";
+                                        "operation due to lock aquire timeout";
             }
+        } catch (const ExceptionForCat<ErrorCategory::Interruption>&) {
+            warning(component) << "Unable to gather storage statistics for a slow "
+                                    "operation due to interrupt";
         }
-
-        // Gets the time spent blocked on prepare conflicts.
-        auto prepareConflictDurationMicros =
-            PrepareConflictTracker::get(opCtx).getPrepareConflictDuration();
-        _debug.prepareConflictDurationMillis =
-            duration_cast<Milliseconds>(prepareConflictDurationMicros);
-
-        log(component) << _debug.report(opCtx, (lockerInfo ? &lockerInfo->stats : nullptr));
     }
+
+    // Gets the time spent blocked on prepare conflicts.
+    auto prepareConflictDurationMicros =
+        PrepareConflictTracker::get(opCtx).getPrepareConflictDuration();
+    _debug.prepareConflictDurationMillis =
+        duration_cast<Milliseconds>(prepareConflictDurationMicros);
+
+   if (needLog) {
+        log(component) << _debug.report(opCtx, (lockerInfo ? &lockerInfo->stats : nullptr));
+    } else {
+        std::string ignore_me = _debug.report(opCtx,
+                                              (lockerInfo ? &lockerInfo->stats : nullptr));
+     }
 
     // Return 'true' if this operation should also be added to the profiler.
     return shouldDBProfile(shouldSample);
@@ -663,6 +668,9 @@ string OpDebug::report(OperationContext* opCtx, const SingleThreadedLockStats* l
         }
     }
 
+    // Do we think this query requires client metadata?
+    bool requiresClientMD = false;
+
     auto query = appendCommentField(opCtx, curop.opDescription());
     if (!query.isEmpty()) {
         s << " command: ";
@@ -673,6 +681,24 @@ string OpDebug::report(OperationContext* opCtx, const SingleThreadedLockStats* l
                 curCommand->snipForLogging(&cmdToLog);
                 s << curCommand->getName() << " ";
                 s << redact(cmdToLog.getObject());
+                if (curCommand->getName() == "find" || curCommand->getName() == "update" ||
+                    curCommand->getName() == "delete" || curCommand->getName() == "insert") {
+                    auto a = curop.getNS();
+                    StringData nssd = a;
+                    // Ignore internal queries to system collections
+                    if (!nssd.startsWith("admin") && !nssd.startsWith("config") &&
+                        nssd != "local.oplog.rs"_sd) {
+                        requiresClientMD = true;
+                    }
+
+                    if (curCommand->getName() == "find") {
+                        // No cursor timeout only appears to be generated internally and not by users
+                        auto noCursorTimeout = query["noCursorTimeout"];
+                        if (!noCursorTimeout.eoo() && noCursorTimeout.trueValue()) {
+                            requiresClientMD = false;
+                        }
+                    }
+                }
             } else {
                 // Should not happen but we need to handle curCommand == NULL gracefully.
                 // We don't know what the request payload is intended to be, so it might be
@@ -681,6 +707,13 @@ string OpDebug::report(OperationContext* opCtx, const SingleThreadedLockStats* l
                 s << "unrecognized";
             }
         } else {
+            auto a = curop.getNS();
+            StringData nssd = a;
+            if (!nssd.startsWith("admin") && !nssd.startsWith("config") &&
+                nssd != "local.oplog.rs"_sd) {
+                requiresClientMD = true;
+            }
+
             s << redact(query);
         }
     }
@@ -775,6 +808,24 @@ string OpDebug::report(OperationContext* opCtx, const SingleThreadedLockStats* l
     }
 
     s << " " << (executionTimeMicros / 1000) << "ms";
+
+    if (clientMetadata && !client->isInDirectClient()) {
+        auto appName = clientMetadata.get().getApplicationName();
+        if (appName.empty() && requiresClientMD) {
+            auto clientMetadataDoc = clientMetadata->getDocument();
+            auto driverName = clientMetadataDoc.getObjectField("driver"_sd)
+                                  .getField("name"_sd)
+                                  .checkAndGetStringData();
+            if (driverName == "MongoDB Internal Client") {
+                error() << "CLIENT METADATA MISSING : " << clientMetadata.get().getDocument()
+                        << " with "
+                        << "COMMAND: " << s.str();
+                invariant(false);
+            }
+        }
+    }
+
+
 
     return s.str();
 }
