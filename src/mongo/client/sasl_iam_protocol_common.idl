@@ -27,32 +27,56 @@
 #
 
 global:
-    cpp_namespace: "mongo::unittest"
-    configs:
-        source: cli
-        initializer:
-            register: addUnitTestOptions
+    cpp_namespace: "mongo"
 
-configs:
-    list:
-        description: 'List all test suites in this unit test.'
-        arg_vartype: Switch
-        default: false
-    suite:
-        description: 'Test suite name. Specify --suite more than once to run multiple suites.'
-        arg_vartype: StringVector
-    filter:
-        description: 'Test case name filter. Specify the substring of the test names.'
-        arg_vartype: String
-    fileNameFilter:
-        description: 'Filter test cases by source file name.'
-        arg_vartype: String
-    repeat:
-        description: 'Specifies the number of runs for each test.'
-        arg_vartype: Int
-        default: 1
-    verbose:
-        description: "Log more verbose output.  Specify one or more 'v's to increase verbosity."
-        arg_vartype: String
-        implicit: v
+imports:
+    - "mongo/idl/basic_types.idl"
 
+structs:
+    iamClientFirst:
+        description: "SASL IAM Client First message"
+        fields:
+          # Must be 32 bytes
+          r:
+            type: bindata_generic
+            cpp_name: nonce
+          p:
+            type: int
+            cpp_name: gs2_cb_flag
+
+    iamServerFirst:
+        description: "SASL IAM Server First message"
+        fields:
+          # Must be 64 bytes
+          s:
+            type: bindata_generic
+            cpp_name: ServerNonce
+          h:
+            type: string
+            cpp_name: StsHost
+
+    iamClientSecond:
+        description: "SASL IAM Client Second message"
+        fields:
+          a:
+            type: string
+            cpp_name: AuthHeader
+          d:
+            type: string
+            cpp_name: XAmzDate
+          t:
+            type: string
+            optional: true
+            cpp_name: XAmzSecurityToken
+          p:
+            type: string
+            optional: true
+            cpp_name: ChannelBindingPrefix
+          c:
+            type: string
+            optional: true
+            cpp_name: ChannelBindingData
+          o:
+            type: object
+            optional: true
+            cpp_name: Object

@@ -279,17 +279,25 @@ int64_t Test::countLogLinesContaining(const std::string& needle) {
 
 Suite::Suite(ConstructorEnable, std::string name) : _name(std::move(name)) {}
 
-void Suite::add(std::string name, std::function<void()> testFn) {
-    _tests.push_back({std::move(name), std::move(testFn)});
+void Suite::add(std::string name, const std::string fileName, std::function<void()> testFn) {
+    _tests.push_back({std::move(name), std::move(fileName), std::move(testFn)});
 }
 
-std::unique_ptr<Result> Suite::run(const std::string& filter, int runsPerTest) {
+std::unique_ptr<Result> Suite::run(const std::string& filter,
+                                   const std::string& fileNameFilter,
+                                   int runsPerTest) {
     Timer timer;
     auto r = std::make_unique<Result>(_name);
 
     for (const auto& tc : _tests) {
         if (filter.size() && tc.name.find(filter) == std::string::npos) {
             LOG(1) << "\t skipping test: " << tc.name << " because doesn't match filter"
+                   << std::endl;
+            continue;
+        }
+
+        if (fileNameFilter.size() && tc.fileName.find(fileNameFilter) == std::string::npos) {
+            LOG(1) << "\t skipping test: " << tc.fileName << " because doesn't match file filter"
                    << std::endl;
             continue;
         }
@@ -342,7 +350,10 @@ std::unique_ptr<Result> Suite::run(const std::string& filter, int runsPerTest) {
     return r;
 }
 
-int Suite::run(const std::vector<std::string>& suites, const std::string& filter, int runsPerTest) {
+int Suite::run(const std::vector<std::string>& suites,
+               const std::string& filter,
+               const std::string& fileNameFilter,
+               int runsPerTest) {
     if (suitesMap().empty()) {
         log() << "error: no suites registered.";
         return EXIT_FAILURE;
@@ -371,7 +382,7 @@ int Suite::run(const std::vector<std::string>& suites, const std::string& filter
         fassert(16145, s != nullptr);
 
         log() << "going to run suite: " << name << std::endl;
-        results.push_back(s->run(filter, runsPerTest));
+        results.push_back(s->run(filter, fileNameFilter, runsPerTest));
     }
 
     log() << "**************************************************" << std::endl;

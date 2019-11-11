@@ -122,14 +122,14 @@ string base64::encode(const char* data, int size) {
     return ss.str();
 }
 
-string base64::encode(const string& s) {
-    return encode(s.c_str(), s.size());
+string base64::encode(StringData s) {
+    return encode(s.rawData(), s.size());
 }
 
 
-void base64::decode(stringstream& ss, const string& s) {
+void base64::decode(stringstream& ss, StringData s) {
     uassert(10270, "invalid base64", s.size() % 4 == 0);
-    auto const data = reinterpret_cast<const unsigned char*>(s.c_str());
+    auto const data = reinterpret_cast<const unsigned char*>(s.rawData());
     auto const size = s.size();
     bool done = false;
 
@@ -151,7 +151,7 @@ void base64::decode(stringstream& ss, const string& s) {
     }
 }
 
-string base64::decode(const string& s) {
+string base64::decode(StringData s) {
     stringstream ss;
     decode(ss, s);
     return ss.str();

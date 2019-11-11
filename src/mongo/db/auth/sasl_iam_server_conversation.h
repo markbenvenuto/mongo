@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2019-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -29,30 +29,48 @@
 
 #pragma once
 
-#include <sstream>
-#include <string>
-
-#include "mongo/base/string_data.h"
+#include "mongo/db/auth/sasl_mechanism_policies.h"
+#include "mongo/db/auth/sasl_mechanism_registry.h"
 
 namespace mongo {
-namespace base64 {
 
-void encode(std::stringstream& ss, const char* data, int size);
-std::string encode(const char* data, int size);
-std::string encode(StringData s);
+class SaslIAMServerMechanism : public MakeServerMechanism<IAMPolicy> {
+public:
+    explicit SaslIAMServerMechanism(std::string authenticationDatabase)
+        : MakeServerMechanism<IAMPolicy>(std::move(authenticationDatabase)) {}
 
-void decode(std::stringstream& ss, StringData s);
-std::string decode(StringData s);
+    ~SaslIAMServerMechanism() final = default;
 
-bool validate(StringData);
+    StatusWith<std::tuple<bool, std::string>> stepImpl(OperationContext* opCtx,
+                                                       StringData inputData);
 
-/**
- * Calculate how large a given input would expand to.
- * Effectively: ceil(inLen * 4 / 3)
- */
-constexpr size_t encodedLength(size_t inLen) {
-    return static_cast<size_t>((inLen + 2.5) / 3) * 4;
-}
+private:
+    /**
+     * Provide salt and nonce to client
+     **/
+    StatusWith<std::tuple<bool, std::string>> _firstStep(OperationContext* opCtx, StringData input);
 
-}  // namespace base64
+    /**
+     * Verify credentials
+     **/
+    StatusWith<std::tuple<bool, std::string>> _secondStep(OperationContext* opCtx,
+                                                          StringData input);
+
+private:
+    int _step{0};
+
+    // Server generated nonce
+    std::vector<char> _serverNonce;
+};
+
+class IAMServerFactory : public MakeServerFactory<SaslIAMServerMechanism> {
+public:
+    using MakeServerFactory<SaslIAMServerMechanism>::MakeServerFactory;
+    static constexpr bool isInternal = false;
+    bool canMakeMechanismForUser(const User* user) const final {
+        auto credentials = user->getCredentials();
+        return credentials.isExternal;
+    }
+};
+
 }  // namespace mongo

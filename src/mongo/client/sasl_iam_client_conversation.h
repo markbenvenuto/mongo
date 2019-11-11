@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2019-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -29,30 +29,61 @@
 
 #pragma once
 
-#include <sstream>
 #include <string>
+#include <vector>
 
+#include "mongo/base/status.h"
 #include "mongo/base/string_data.h"
+#include "mongo/client/sasl_client_conversation.h"
+#include "mongo/client/sasl_client_session.h"
+#include "mongo/client/sasl_iam_protocol_common.h"
 
 namespace mongo {
-namespace base64 {
-
-void encode(std::stringstream& ss, const char* data, int size);
-std::string encode(const char* data, int size);
-std::string encode(StringData s);
-
-void decode(std::stringstream& ss, StringData s);
-std::string decode(StringData s);
-
-bool validate(StringData);
 
 /**
- * Calculate how large a given input would expand to.
- * Effectively: ceil(inLen * 4 / 3)
+ *  Client side authentication session for MONGODB-IAM SASL.
  */
-constexpr size_t encodedLength(size_t inLen) {
-    return static_cast<size_t>((inLen + 2.5) / 3) * 4;
-}
+class SaslIAMClientConversation : public SaslClientConversation {
+    SaslIAMClientConversation(const SaslIAMClientConversation&) = delete;
+    SaslIAMClientConversation& operator=(const SaslIAMClientConversation&) = delete;
 
-}  // namespace base64
+public:
+    explicit SaslIAMClientConversation(SaslClientSession* saslClientSession);
+
+    virtual ~SaslIAMClientConversation() = default;
+
+    StatusWith<bool> step(StringData inputData, std::string* outputData) override;
+
+private:
+    /**
+     * Get AWS credentials either from the SASL session or a local HTTP server.
+     */
+    AWSCredentials _getCredentials() const;
+
+    /**
+     * Get AWS credentials from SASL session.
+     */
+    AWSCredentials _getUserCredentials() const;
+
+    /**
+     * Get AWS credentials from local HTTP server.
+     */
+    AWSCredentials _getLocalAWSCredentials() const;
+
+    /**
+     * Get AWS credentials from EC2 Instance metadata HTTP server.
+     */
+    AWSCredentials _getEc2Credentials() const;
+
+    StatusWith<bool> _firstStep(std::string* outputData);
+    StatusWith<bool> _secondStep(StringData inputData, std::string* outputData);
+
+private:
+    // Step of protocol - either 1 or 2
+    int _step{0};
+
+    // Client nonce
+    std::vector<char> _clientNonce;
+};
+
 }  // namespace mongo

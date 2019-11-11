@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2019-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -29,30 +29,15 @@
 
 #pragma once
 
-#include <sstream>
 #include <string>
 
-#include "mongo/base/string_data.h"
-
 namespace mongo {
-namespace base64 {
 
-void encode(std::stringstream& ss, const char* data, int size);
-std::string encode(const char* data, int size);
-std::string encode(StringData s);
+struct SASLIamClientGlobalParams;
+extern SASLIamClientGlobalParams saslIamClientGlobalParams;
 
-void decode(std::stringstream& ss, StringData s);
-std::string decode(StringData s);
+struct SASLIamClientGlobalParams {
+    std::string awsEC2Url;
+};
 
-bool validate(StringData);
-
-/**
- * Calculate how large a given input would expand to.
- * Effectively: ceil(inLen * 4 / 3)
- */
-constexpr size_t encodedLength(size_t inLen) {
-    return static_cast<size_t>((inLen + 2.5) / 3) * 4;
-}
-
-}  // namespace base64
 }  // namespace mongo

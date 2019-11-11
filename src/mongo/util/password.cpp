@@ -88,23 +88,35 @@ std::string askPassword() {
         return std::string();
     }
 
+    bool makeInvisible = true;
     DWORD old;
     if (!GetConsoleMode(stdinh, &old)) {
-        std::cerr << "Cannot get console mode " << GetLastError() << "\n";
-        return std::string();
+        DWORD gle = GetLastError();
+        if (gle == ERROR_INVALID_HANDLE) {
+            // We are attached to a file or pipe, not a console
+            // Do not use the console api as a result
+            makeInvisible = false;
+        } else {
+            std::cerr << "Cannot get console mode " << GetLastError() << "\n";
+            return std::string();
+        }
     }
 
-    DWORD noecho = ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT;
-    if (!SetConsoleMode(stdinh, noecho)) {
-        std::cerr << "Cannot set console mode " << GetLastError() << "\n";
-        return std::string();
+    if (makeInvisible) {
+        DWORD noecho = ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT;
+        if (!SetConsoleMode(stdinh, noecho)) {
+            std::cerr << "Cannot set console mode " << GetLastError() << "\n";
+            return std::string();
+        }
     }
 
     getline(std::cin, password);
 
-    if (!SetConsoleMode(stdinh, old)) {
-        std::cerr << "Cannot set console mode " << GetLastError() << "\n";
-        return std::string();
+    if (makeInvisible) {
+        if (!SetConsoleMode(stdinh, old)) {
+            std::cerr << "Cannot set console mode " << GetLastError() << "\n";
+            return std::string();
+        }
     }
 #endif
     std::cerr << "\n";

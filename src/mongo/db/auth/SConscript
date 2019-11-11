@@ -291,6 +291,7 @@ env.Library(
 env.Library(
     target='saslauth',
     source=[
+        'sasl_iam_server_conversation.cpp',
         'sasl_mechanism_registry.cpp',
         'sasl_plain_server_conversation.cpp',
         'sasl_scram_server_conversation.cpp',
@@ -302,10 +303,12 @@ env.Library(
         'user',
         '$BUILD_DIR/mongo/base',
         '$BUILD_DIR/mongo/base/secure_allocator',
+        '$BUILD_DIR/mongo/client/sasl_iam_server',
         '$BUILD_DIR/mongo/crypto/sha_block_${MONGO_CRYPTO}',
         '$BUILD_DIR/mongo/db/commands/test_commands_enabled',
         '$BUILD_DIR/mongo/util/icu',
         '$BUILD_DIR/mongo/util/md5',
+        '$BUILD_DIR/mongo/util/net/http_client',
         '$BUILD_DIR/mongo/util/net/network',
     ],
 )

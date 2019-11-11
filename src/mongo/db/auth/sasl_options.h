@@ -57,6 +57,9 @@ struct SASLGlobalParams {
     AtomicWord<int> scramSHA1IterationCount;
     AtomicWord<int> scramSHA256IterationCount;
     AtomicWord<int> authFailedDelay;
+    std::string awsSTSUrl;
+    // Derived from STS URL
+    std::string awsSTSHost;
 
     SASLGlobalParams();
 
@@ -98,5 +101,8 @@ struct SASLGlobalParams {
 Status addSASLOptions(moe::OptionSection* options);
 
 Status storeSASLOptions(const moe::Environment& params);
+
+Status validateSaslSTSUrl(const std::string&);
+
 
 }  // namespace mongo

@@ -72,6 +72,13 @@ server_parameters:
     cpp_varname: "saslGlobalParams.scramSHA256IterationCount"
     default: 15000
     validator: {gte: 5000}
+  awsSTSUrl:
+    description: "Test parameter to override AWS STS HTTP Url"
+    set_at: startup
+    default: "https://sts.amazonaws.com"
+    cpp_varname: "saslGlobalParams.awsSTSUrl"
+    validator:
+        callback: validateSaslSTSUrl
 
 configs:
   "security.authenticationMechanisms":

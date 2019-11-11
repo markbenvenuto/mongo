@@ -287,6 +287,8 @@ private:
     }
 
     DataBuilder doRequest(CURL* handle, StringData url) const {
+        // warning() << "HTTP Request: " << url;
+
         const auto urlString = url.toString();
         curl_easy_setopt(handle, CURLOPT_URL, urlString.c_str());
         curl_easy_setopt(handle, CURLOPT_SHARE, curlLibraryManager.getShareHandle());
@@ -313,6 +315,8 @@ private:
                 str::stream() << "Unexpected error retrieving response: "
                               << curl_easy_strerror(result),
                 result == CURLE_OK);
+
+        // warning() << "HTTP DaTa:" << dataBuilder.getCursor().data();
 
         uassert(ErrorCodes::OperationFailed,
                 str::stream() << "Unexpected http status code from server: " << statusCode,

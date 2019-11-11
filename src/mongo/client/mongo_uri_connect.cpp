@@ -105,7 +105,7 @@ boost::optional<BSONObj> MongoURI::_makeAuthObjFromOptions(
     it = _options.find("authMechanism");
     if (it != _options.end()) {
         bob.append(saslCommandMechanismFieldName, it->second);
-        if (it->second == auth::kMechanismMongoX509) {
+        if (it->second == auth::kMechanismMongoX509 || it->second == auth::kMechanismMongoIAM) {
             usernameRequired = false;
         }
     } else if (!saslMechsForAuth.empty()) {

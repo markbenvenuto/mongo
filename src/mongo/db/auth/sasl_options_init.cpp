@@ -88,6 +88,48 @@ Status storeSASLOptions(const moe::Environment& params) {
         boost::trim(mechanism);
     }
 
+    if (params.count("security.sasl.hostName") && !saslGlobalParams.haveHostName) {
+        saslGlobalParams.hostName = params["security.sasl.hostName"].as<std::string>();
+    }
+
+    return Status::OK();
+}
+
+StatusWith<std::string> getHostFromURL(StringData str) {
+    // Remove https:// prefix, trim port
+    std::string host;
+    if (str.startsWith("https://")) {
+        host = str.substr(8).toString();
+    } else {
+        invariant(false);
+    }
+
+    size_t colon = host.find(':');
+    if (colon != std::string::npos) {
+        return host.substr(0, colon);
+    }
+
+    size_t trailingSlash = host.find('/');
+    if (trailingSlash != std::string::npos) {
+        return host.substr(0, trailingSlash);
+    }
+
+    return host;
+}
+
+Status validateSaslSTSUrl(const std::string& url) {
+    StringData str(url);
+    if (!str.empty() && !str.startsWith("https://")) {
+        return Status(ErrorCodes::BadValue, "STS URL must start with https://");
+    }
+
+    auto swHost = getHostFromURL(url);
+    if (!swHost.isOK()) {
+        return swHost.getStatus();
+    }
+
+    saslGlobalParams.awsSTSHost = swHost.getValue();
+
     return Status::OK();
 }
 

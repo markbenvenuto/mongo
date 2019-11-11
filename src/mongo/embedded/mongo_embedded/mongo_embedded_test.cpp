@@ -788,7 +788,8 @@ int main(const int argc, const char* const* const argv) {
         return EXIT_FAILURE;
     }
 
-    const auto result = ::mongo::unittest::Suite::run(std::vector<std::string>(), "", 1);
+    const auto result =
+        ::mongo::unittest::Suite::run(std::vector<std::string>(), "", std::string(), 1);
 
     globalTempDir.reset();
     mongo::quickExit(result);
