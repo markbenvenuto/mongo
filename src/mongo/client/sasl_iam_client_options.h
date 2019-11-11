@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2019-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,23 +27,22 @@
  *    it in the license file.
  */
 
-#include "mongo/db/auth/sasl_options.h"
-#include "mongo/db/auth/sasl_options_gen.h"
+#pragma once
 
-#include "mongo/util/text.h"
+#include <string>
 
 namespace mongo {
 
-const std::vector<std::string> SASLGlobalParams::kDefaultAuthenticationMechanisms =
-    std::vector<std::string>{"MONGODB-X509", "SCRAM-SHA-1", "SCRAM-SHA-256", "MONGODB-IAM"};
-SASLGlobalParams saslGlobalParams;
+/**
+ * SASL IAM Client parameters
+ */
+struct SASLIamClientGlobalParams {
+    /**
+     * EC2 Instance metadata endpoint.
+     */
+    std::string awsEC2Url;
+};
 
-SASLGlobalParams::SASLGlobalParams() {
-    scramSHA1IterationCount.store(kScramIterationCountDefault);
-    scramSHA256IterationCount.store(kScramSHA256IterationCountDefault);
-    authenticationMechanisms = kDefaultAuthenticationMechanisms;
+extern SASLIamClientGlobalParams saslIamClientGlobalParams;
 
-    // Default value for auth failed delay
-    authFailedDelay.store(0);
-}
 }  // namespace mongo

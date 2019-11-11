@@ -91,6 +91,7 @@ Status storeSASLOptions(const moe::Environment& params) {
     return Status::OK();
 }
 
+
 MONGO_INITIALIZER_GENERAL(StoreSASLOptions, ("CoreOptions_Store"), ("EndStartupOptionStorage"))
 (InitializerContext* const context) {
     return storeSASLOptions(moe::startupOptionsParsed);

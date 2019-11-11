@@ -33,6 +33,7 @@
 
 #include "mongo/base/init.h"
 #include "mongo/client/sasl_client_conversation.h"
+#include "mongo/client/sasl_iam_client_conversation.h"
 #include "mongo/client/sasl_plain_client_conversation.h"
 #include "mongo/client/sasl_scram_client_conversation.h"
 #include "mongo/client/scram_client_cache.h"
@@ -77,6 +78,8 @@ Status NativeSaslClientSession::initialize() {
     } else if (mechanism == "SCRAM-SHA-256") {
         _saslConversation.reset(
             new SaslSCRAMClientConversationImpl<SHA256Block>(this, scramsha256ClientCache));
+    } else if (mechanism == "MONGODB-IAM") {
+        _saslConversation.reset(new SaslIAMClientConversation(this));
     } else {
         return Status(ErrorCodes::BadValue,
                       str::stream() << "SASL mechanism " << mechanism << " is not supported");

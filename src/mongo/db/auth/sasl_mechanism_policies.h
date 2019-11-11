@@ -35,6 +35,21 @@
 
 namespace mongo {
 
+struct IAMPolicy {
+    static constexpr StringData getName() {
+        return "MONGODB-IAM"_sd;
+    }
+    static SecurityPropertySet getProperties() {
+        return SecurityPropertySet{SecurityProperty::kNoPlainText};
+    }
+    static int securityLevel() {
+        return 3;
+    }
+    static constexpr bool isInternalAuthMech() {
+        return false;
+    }
+};
+
 struct PLAINPolicy {
     static constexpr StringData getName() {
         return "PLAIN"_sd;
