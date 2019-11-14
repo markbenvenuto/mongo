@@ -185,18 +185,17 @@ void FTDCController::stop() {
     }
 }
 
-void FTDCController::doLoop() {
+void FTDCController::doLoop() noexcept {
     // Note: All exceptions thrown in this loop are considered process fatal. The default terminate
     // is used to provide a good stack trace of the issue.
+    Client::initThread("ftdc");
+    Client* client = &cc();
 
     // Update config
     {
         stdx::lock_guard<Latch> lock(_mutex);
         _config = _configTemp;
     }
-
-    Client::initThread("ftdc");
-    Client* client = &cc();
 
     while (true) {
         // Compute the next interval to run regardless of how we were woken up
