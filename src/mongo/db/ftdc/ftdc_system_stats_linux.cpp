@@ -86,6 +86,7 @@ public:
     }
 
     void collect(OperationContext* opCtx, BSONObjBuilder& builder) override {
+        uassert(2, "Foo", false);
         {
             BSONObjBuilder subObjBuilder(builder.subobjStart("cpu"_sd));
 
