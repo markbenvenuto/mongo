@@ -15,6 +15,12 @@ configs:
         cpp_varname: saslIamClientGlobalParams.awsEC2InstanceMetadataUrl
         default: "http://169.254.169.254"
 
+    awsECSInstanceMetadataUrl:
+        description: "Test parameter to override the URL for AWS ECS Instance Metadata"
+        arg_vartype: String
+        cpp_varname: saslIamClientGlobalParams.awsECSInstanceMetadataUrl
+        default: "http://169.254.170.2"
+
     awsIamSessionToken:
         description: "AWS Session Token for temporary credentials"
         arg_vartype: String
