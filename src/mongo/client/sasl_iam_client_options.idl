@@ -9,6 +9,12 @@ global:
         - mongo/client/sasl_iam_client_options.h
 
 configs:
+    awsEC2InstanceMetadataUrl:
+        description: "Test parameter to override the URL for AWS EC2 Instance Metadata"
+        arg_vartype: String
+        cpp_varname: saslIamClientGlobalParams.awsEC2InstanceMetadataUrl
+        default: "http://169.254.169.254"
+
     awsIamSessionToken:
         description: "AWS Session Token for temporary credentials"
         arg_vartype: String
