@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Script for testing mongodb in containers."""
+"""
+Script for testing mongodb in containers.
+
+Requires ssh, scp, and sh on local and remote hosts.
+Assumes remote host is Linux
+"""
 
 import argparse
 import logging
@@ -7,9 +12,10 @@ import os
 import re
 import sys
 import threading
-import boto3
 import subprocess
 from typing import List
+
+import boto3
 
 LOGGER = logging.getLogger(__name__)
 
@@ -61,7 +67,7 @@ class GitCommandResult(object):
 #     return _run_process(cmd, params)
 
 def _run_process(params, cwd=None):
-    LOGGER.info("RUNNING COMMAND: %s" % (params))
+    LOGGER.info("RUNNING COMMAND: %s", params)
     process = subprocess.Popen(params, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
     (stdout, stderr) = process.communicate()
     if process.returncode:
@@ -71,42 +77,47 @@ def _run_process(params, cwd=None):
             LOGGER.error("Error output of '%s': %s", " ".join(params), stderr)
     return GitCommandResult(params, process.returncode, stdout=stdout, stderr=stderr)
 
-def userandhostandport(endpoint):
-    userAndHost = endpoint.find("@")
-    if userAndHost == -1:
+def _userandhostandport(endpoint):
+    user_and_host = endpoint.find("@")
+    if user_and_host == -1:
         raise ValueError("Invalid endpoint, Endpoint must be user@host:port")
-    (user, host) = (endpoint[:userAndHost], endpoint[userAndHost + 1:])
+    (user, host) = (endpoint[:user_and_host], endpoint[user_and_host + 1:])
 
     colon = host.find(":")
     if colon == -1:
         return (user, host, "22")
     return (user, host[:colon], host[colon + 1:])
 
-def scp(endpoint, src, dest):
-    (user, host, port) = userandhostandport(endpoint)
+def _scp(endpoint, src, dest):
+    (user, host, port) = _userandhostandport(endpoint)
     cmd = ["scp", "-P", port, src, "%s@%s:%s" % (user, host, dest) ]
     _run_process(cmd)
 
-def ssh(endpoint, cmd):
-    (user, host, port) = userandhostandport(endpoint)
+def _ssh(endpoint, cmd):
+    (user, host, port) = _userandhostandport(endpoint)
     cmd = ["ssh", "-p", port, "%s@%s" % (user, host), cmd ]
     ret = _run_process(cmd)
     print(ret.stdout.decode('utf-8'))
+    LOGGER.info("RETURN CODE: %s", ret.returncode)
+    return ret.returncode
 
-def run_test_args(args):
+def _run_test_args(args):
     run_test(args.endpoint, args.script, args.files)
 
 def run_test(endpoint, script, files):
-    LOGGER.info("Copying files to %s" % (endpoint))
+    LOGGER.info("Copying files to %s", endpoint)
 
     for file in files:
         colon = file.find(":")
         (src, dest) = (file[:colon], file[colon + 1:])
-        scp(endpoint, src, dest)
+        _scp(endpoint, src, dest)
 
-    LOGGER.info("Copying script to %s" % (endpoint))
-    scp(endpoint, script, "/tmp/test.sh")
-    ssh(endpoint, "/bin/sh -x /tmp/test.sh")
+    LOGGER.info("Copying script to %s", endpoint)
+    _scp(endpoint, script, "/tmp/test.sh")
+    return_code = _ssh(endpoint, "/bin/sh -x /tmp/test.sh")
+    if return_code != 0:
+        LOGGER.error("FAILED: %s", return_code)
+        raise ValueError(f"test failed with {return_code}")
 
 
 
@@ -119,11 +130,11 @@ def main() -> None:
 
     sub = parser.add_subparsers(title="Linter subcommands", help="sub-command help")
 
-    parser_lint = sub.add_parser('run_test', help='Run Test')
-    parser_lint.add_argument("--endpoint", required=True, type=str, help="User and Host and port, ie user@host:port")
-    parser_lint.add_argument("--script", required=True, type=str, help="script to run")
-    parser_lint.add_argument("--files", type=str, nargs="*", help="Files to copy, each string must be a pair of src:dest joined by a colon")
-    parser_lint.set_defaults(func=run_test_args)
+    run_test_cmd = sub.add_parser('run_test', help='Run Test')
+    run_test_cmd.add_argument("--endpoint", required=True, type=str, help="User and Host and port, ie user@host:port")
+    run_test_cmd.add_argument("--script", required=True, type=str, help="script to run")
+    run_test_cmd.add_argument("--files", type=str, nargs="*", help="Files to copy, each string must be a pair of src:dest joined by a colon")
+    run_test_cmd.set_defaults(func=_run_test_args)
 
     args = parser.parse_args()
 
