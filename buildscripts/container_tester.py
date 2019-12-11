@@ -33,6 +33,11 @@ LOGGER = logging.getLogger(__name__)
 #   2 - Get SSH Interface
 #   3 - Automate teardown of Podman
 
+# TODO
+# 1. Add tags to services/tags
+# 2. Add way to garbage collect all tasks older then X?
+#    - May not need tags if all confined to one cluster
+
 ############################################################################
 # Local configuration settings for testing against the local docker/podman
 #
@@ -51,8 +56,8 @@ CONTAINER_DEFAULT_NAME = "container_tester_test1"
 #
 
 # These settings depend on a cluster, task subnet, and security group already setup
-ECS_DEFAULT_CLUSTER = "arn:aws:ecs:us-east-2:579766882180:cluster/mcb-sample2"
-ECS_DEFAULT_TASK_DEFINITION = "arn:aws:ecs:us-east-2:579766882180:task-definition/sshd:1"
+ECS_DEFAULT_CLUSTER = "arn:aws:ecs:us-east-2:579766882180:cluster/tf-mcb-ecs-cluster"
+ECS_DEFAULT_TASK_DEFINITION = "arn:aws:ecs:us-east-2:579766882180:task-definition/tf-app:1"
 ECS_DEFAULT_SUBNET = 'subnet-a5e114cc'
 # Must allow ssh from 0.0.0.0
 ECS_DEFAULT_SECURITY_GROUP = 'sg-051a91d96332f8f3a'
@@ -302,11 +307,10 @@ def _run_e2e_test(script, files):
 
     endpoint = _remote_get_endpoint_str(ECS_DEFAULT_CLUSTER, DEFAULT_SERVICE_NAME)
 
-    run_test(endpoint, script, files)
-
-    _remote_stop_container(ECS_DEFAULT_CLUSTER, DEFAULT_SERVICE_NAME)
-
-
+    try:
+        run_test(endpoint, script, files)
+    finally:
+        _remote_stop_container(ECS_DEFAULT_CLUSTER, DEFAULT_SERVICE_NAME)
 
 def main() -> None:
     """Execute Main entry point."""
