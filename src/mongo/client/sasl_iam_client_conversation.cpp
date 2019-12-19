@@ -83,6 +83,13 @@ iam::AWSCredentials SaslIAMClientConversation::_getLocalAWSCredentials() const {
     return _getEc2Credentials();
 }
 
+StringData toString(DataBuilder& builder) {
+    ConstDataRange cdr = builder.getCursor();
+    StringData str;
+    cdr.readInto<StringData>(&str);
+    return str;
+}
+
 iam::AWSCredentials SaslIAMClientConversation::_getEc2Credentials() const {
     try {
 
@@ -91,13 +98,24 @@ iam::AWSCredentials SaslIAMClientConversation::_getEc2Credentials() const {
         // The local web server is just a normal HTTP server
         httpClient->allowInsecureHTTP(true);
 
+        // Get the token for authenticating with Instance Metadata Version 2
+        // Set a lifetime of 30 seconds since we are only going to use this token for one set of requests.
+        std::vector<std::string> headers{"X-aws-ec2-metadata-token-ttl-seconds: 30"};
+        httpClient->setHeaders(headers);
+        DataBuilder getToken =
+            httpClient->put(getDefaultHost() + "/latest/api/token", ConstDataRange());
+
+        StringData token = toString(getToken);
+
+        headers.clear();
+        headers.push_back("X-aws-ec2-metadata-token: " + token);
+        httpClient->setHeaders(headers);
+
         // Retrieve the role attached to the EC2 instance
         DataBuilder getRoleResult =
             httpClient->get(getDefaultHost() + "/latest/meta-data/iam/security-credentials/");
 
-        ConstDataRange cdrRole = getRoleResult.getCursor();
-        StringData getRoleOutput;
-        cdrRole.readInto<StringData>(&getRoleOutput);
+        StringData getRoleOutput = toString(getRoleResult);
 
         std::string role = iam::parseRoleFromEC2IamSecurityCredentials(getRoleOutput);
 
@@ -106,9 +124,7 @@ iam::AWSCredentials SaslIAMClientConversation::_getEc2Credentials() const {
             str::stream() << getDefaultHost() + "/latest/meta-data/iam/security-credentials/"
                           << role);
 
-        ConstDataRange cdrCredentials = getRoleCredentialsResult.getCursor();
-        StringData getRoleCredentialsOutput;
-        cdrCredentials.readInto<StringData>(&getRoleCredentialsOutput);
+        StringData getRoleCredentialsOutput = toString(getRoleCredentialsResult);
 
         return iam::parseCredentialsFromEC2IamSecurityCredentials(getRoleCredentialsOutput);
     } catch (const DBException& e) {
