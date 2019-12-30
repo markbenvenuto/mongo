@@ -5819,6 +5819,25 @@ tasks:
   - func: "do setup"
   - command: shell.exec
     params:
+      working_dir: src
+      silent: true
+      shell: bash
+      script: |
+        set -o errexit
+        cat <<EOF > aws_e2e_setup.json
+        {
+            "iam_auth_ecs_account" : "${iam_auth_ecs_account}",
+            "iam_auth_ecs_secret_access_key" : "${iam_auth_ecs_secret_access_key}",
+            "iam_auth_ecs_account_arn": "arn:aws:iam::557821124784:user/authtest_fargate_user",
+            "iam_auth_ecs_cluster": "${iam_auth_ecs_cluster}",
+            "iam_auth_ecs_task_definition": "${iam_auth_ecs_task_definition}",
+            "iam_auth_ecs_subnet_a": "${iam_auth_ecs_subnet_a}",
+            "iam_auth_ecs_subnet_b": "${iam_auth_ecs_subnet_b}",
+            "iam_auth_ecs_security_group": "${iam_auth_ecs_security_group}"
+        }
+        EOF
+  - command: shell.exec
+    params:
       shell: bash
       script: |
         set -o errexit
@@ -8570,6 +8589,7 @@ buildvariants:
   - name: audit
   - name: causally_consistent_jscore_txns_passthrough
   - name: .encrypt !.aggregation !.replica_sets !.sharding !.jscore
+  - name: external_auth
   - name: .jscore .common !.compat !.decimal !.sharding
   - name: jsCore_auth
   - name: .jstestfuzz .common
