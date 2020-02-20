@@ -111,10 +111,6 @@ configs:
         arg_vartype: String
         default: synchronous
         hidden: true
-    'processManagement.pidFilePath':
-        description: 'Full path to pidfile (if not set, no pidfile is created)'
-        short_name: pidfilepath
-        arg_vartype: String
     'processManagement.timeZoneInfo':
         description: 'Full path to time zone info directory, e.g. /usr/share/zoneinfo'
         short_name: timeZoneInfo
