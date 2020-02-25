@@ -1334,85 +1334,91 @@ BSONObj TransactionRouter::Router::_commitWithRecoveryToken(OperationContext* op
 
 void TransactionRouter::Router::_logSlowTransaction(OperationContext* opCtx,
                                                     TerminationCause terminationCause) const {
-    logv2::DynamicAttributes attrs;
-    BSONObjBuilder parametersBuilder;
+    if (logV2IsJson(serverGlobalParams.logFormat)) {
 
-    BSONObjBuilder lsidBuilder(parametersBuilder.subobjStart("lsid"));
-    _sessionId().serialize(&lsidBuilder);
-    lsidBuilder.doneFast();
+        logv2::DynamicAttributes attrs;
+        BSONObjBuilder parametersBuilder;
 
-    parametersBuilder.append("txnNumber", o().txnNumber);
-    parametersBuilder.append("autocommit", false);
+        BSONObjBuilder lsidBuilder(parametersBuilder.subobjStart("lsid"));
+        _sessionId().serialize(&lsidBuilder);
+        lsidBuilder.doneFast();
 
-    if (!o().readConcernArgs.isEmpty()) {
-        o().readConcernArgs.appendInfo(&parametersBuilder);
-    }
+        parametersBuilder.append("txnNumber", o().txnNumber);
+        parametersBuilder.append("autocommit", false);
 
-    attrs.add("parameters", parametersBuilder.obj());
+        if (!o().readConcernArgs.isEmpty()) {
+            o().readConcernArgs.appendInfo(&parametersBuilder);
+        }
+
+        attrs.add("parameters", parametersBuilder.obj());
 
 
-    std::string globalReadTimestampTemp;
-    if (_atClusterTimeHasBeenSet()) {
-        globalReadTimestampTemp = o().atClusterTime->getTime().toString();
-        attrs.add("globalReadTimestamp", globalReadTimestampTemp);
-    }
+        std::string globalReadTimestampTemp;
+        if (_atClusterTimeHasBeenSet()) {
+            globalReadTimestampTemp = o().atClusterTime->getTime().toString();
+            attrs.add("globalReadTimestamp", globalReadTimestampTemp);
+        }
 
-    if (o().commitType != CommitType::kRecoverWithToken) {
-        // We don't know the participants if we're recovering the commit.
-        attrs.add("numParticipants", o().participants.size());
-    }
+        if (o().commitType != CommitType::kRecoverWithToken) {
+            // We don't know the participants if we're recovering the commit.
+            attrs.add("numParticipants", o().participants.size());
+        }
 
-    if (o().commitType == CommitType::kTwoPhaseCommit) {
-        dassert(o().coordinatorId);
-        attrs.add("coordinator", *o().coordinatorId);
-    }
+        if (o().commitType == CommitType::kTwoPhaseCommit) {
+            dassert(o().coordinatorId);
+            attrs.add("coordinator", *o().coordinatorId);
+        }
 
-    auto tickSource = opCtx->getServiceContext()->getTickSource();
-    auto curTicks = tickSource->getTicks();
+        auto tickSource = opCtx->getServiceContext()->getTickSource();
+        auto curTicks = tickSource->getTicks();
 
-    if (terminationCause == TerminationCause::kCommitted) {
-        attrs.add("terminationCause", "committed");
+        if (terminationCause == TerminationCause::kCommitted) {
+            attrs.add("terminationCause", "committed");
 
-        dassert(o().metricsTracker->commitHasStarted());
-        dassert(o().commitType != CommitType::kNotInitiated);
-        dassert(o().abortCause.empty());
+            dassert(o().metricsTracker->commitHasStarted());
+            dassert(o().commitType != CommitType::kNotInitiated);
+            dassert(o().abortCause.empty());
+        } else {
+            attrs.add("terminationCause", "aborted");
+
+            dassert(!o().abortCause.empty());
+            attrs.add("abortCause", o().abortCause);
+        }
+
+        const auto& timingStats = o().metricsTracker->getTimingStats();
+
+        std::string commitTypeTemp;
+        if (o().metricsTracker->commitHasStarted()) {
+            dassert(o().commitType != CommitType::kNotInitiated);
+            commitTypeTemp = commitTypeToString(o().commitType);
+            attrs.add("commitType", commitTypeTemp);
+
+            attrs.add(
+                "commitDuration",
+                durationCount<Microseconds>(timingStats.getCommitDuration(tickSource, curTicks)));
+        }
+
+        attrs.add(
+            "timeActive",
+            durationCount<Microseconds>(timingStats.getTimeActiveMicros(tickSource, curTicks)));
+
+        attrs.add(
+            "timeInactive",
+            durationCount<Microseconds>(timingStats.getTimeInactiveMicros(tickSource, curTicks)));
+
+        // Total duration of the transaction. Logged at the end of the line for consistency with
+        // slow command logging.
+        attrs.add("duration",
+                  duration_cast<Milliseconds>(timingStats.getDuration(tickSource, curTicks)));
+
+        LOGV2(51805, "transaction", attrs);
+
     } else {
-        attrs.add("terminationCause", "aborted");
-
-        dassert(!o().abortCause.empty());
-        attrs.add("abortCause", o().abortCause);
+        LOGV2(22899,
+              "transaction {transactionInfoForLog_opCtx_terminationCause}",
+              "transactionInfoForLog_opCtx_terminationCause"_attr =
+                  _transactionInfoForLog(opCtx, terminationCause));
     }
-
-    const auto& timingStats = o().metricsTracker->getTimingStats();
-
-    std::string commitTypeTemp;
-    if (o().metricsTracker->commitHasStarted()) {
-        dassert(o().commitType != CommitType::kNotInitiated);
-        commitTypeTemp = commitTypeToString(o().commitType);
-        attrs.add("commitType", commitTypeTemp);
-
-        attrs.add("commitDuration",
-                  durationCount<Microseconds>(timingStats.getCommitDuration(tickSource, curTicks)));
-    }
-
-    attrs.add("timeActive",
-              durationCount<Microseconds>(timingStats.getTimeActiveMicros(tickSource, curTicks)));
-
-    attrs.add("timeInactive",
-              durationCount<Microseconds>(timingStats.getTimeInactiveMicros(tickSource, curTicks)));
-
-    // Total duration of the transaction. Logged at the end of the line for consistency with
-    // slow command logging.
-    attrs.add("duration",
-              duration_cast<Milliseconds>(timingStats.getDuration(tickSource, curTicks)));
-
-    LOGV2(51805, "transaction", attrs);
-
-    // TODO SERVER-46219: Log also with old log system to not break unit tests
-    LOGV2(22899,
-          "transaction {transactionInfoForLog_opCtx_terminationCause}",
-          "transactionInfoForLog_opCtx_terminationCause"_attr =
-              _transactionInfoForLog(opCtx, terminationCause));
 }
 
 std::string TransactionRouter::Router::_transactionInfoForLog(

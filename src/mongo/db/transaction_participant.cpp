@@ -2004,305 +2004,310 @@ void TransactionParticipant::Participant::_logSlowTransaction(
                                         opDuration,
                                         Milliseconds(serverGlobalParams.slowMS))
                 .first) {
-            {
-                logv2::DynamicAttributes attr;
-                _transactionInfoForLog(opCtx, lockStats, terminationCause, readConcernArgs, &attr);
-                LOGV2_OPTIONS(51802, {logv2::LogComponent::kTransaction}, "transaction", attr);
-            }
-            // TODO SERVER-46219: Log also with old log system to not break unit tests
-            {
-                LOGV2_OPTIONS(
-                    22523,
-                    {logComponentV1toV2(logger::LogComponent::kTransaction)},
-                    "transaction "
-                    "{transactionInfoForLog_opCtx_lockStats_terminationCause_readConcernArgs}",
-                    "transactionInfoForLog_opCtx_lockStats_terminationCause_readConcernArgs"_attr =
-                        _transactionInfoForLog(
-                            opCtx, lockStats, terminationCause, readConcernArgs));
-            }
-        }
-    }
-}
+            if (logV2IsJson(serverGlobalParams.logFormat)) {
 
-void TransactionParticipant::Participant::_setNewTxnNumber(OperationContext* opCtx,
-                                                           const TxnNumber& txnNumber) {
-    uassert(ErrorCodes::PreparedTransactionInProgress,
-            "Cannot change transaction number while the session has a prepared transaction",
-            !o().txnState.isInSet(TransactionState::kPrepared));
-
-    LOG_FOR_TRANSACTION(4) << "New transaction started with txnNumber: " << txnNumber
-                           << " on session with lsid " << _sessionId().getId();
-
-    // Abort the existing transaction if it's not prepared, committed, or aborted.
-    if (o().txnState.isInProgress()) {
-        _abortTransactionOnSession(opCtx);
-    }
-
-    stdx::lock_guard<Client> lk(*opCtx->getClient());
-    o(lk).activeTxnNumber = txnNumber;
-    o(lk).lastWriteOpTime = repl::OpTime();
-
-    // Reset the retryable writes state
-    _resetRetryableWriteState();
-
-    // Reset the transactional state
-    _resetTransactionState(lk, TransactionState::kNone);
-
-    // Reset the transactions metrics
-    o(lk).transactionMetricsObserver.resetSingleTransactionStats(txnNumber);
-}
-
-void TransactionParticipant::Participant::refreshFromStorageIfNeeded(OperationContext* opCtx) {
-    invariant(!opCtx->getClient()->isInDirectClient());
-    invariant(!opCtx->lockState()->isLocked());
-
-    if (p().isValid)
-        return;
-
-    auto activeTxnHistory = fetchActiveTransactionHistory(opCtx, _sessionId());
-    const auto& lastTxnRecord = activeTxnHistory.lastTxnRecord;
-    if (lastTxnRecord) {
-        stdx::lock_guard<Client> lg(*opCtx->getClient());
-        o(lg).activeTxnNumber = lastTxnRecord->getTxnNum();
-        o(lg).lastWriteOpTime = lastTxnRecord->getLastWriteOpTime();
-        p().activeTxnCommittedStatements = std::move(activeTxnHistory.committedStatements);
-        p().hasIncompleteHistory = activeTxnHistory.hasIncompleteHistory;
-
-        if (!lastTxnRecord->getState()) {
-            o(lg).txnState.transitionTo(
-                TransactionState::kExecutedRetryableWrite,
-                TransactionState::TransitionValidation::kRelaxTransitionValidation);
-        } else {
-            switch (*lastTxnRecord->getState()) {
-                case DurableTxnStateEnum::kCommitted:
-                    o(lg).txnState.transitionTo(
-                        TransactionState::kCommitted,
-                        TransactionState::TransitionValidation::kRelaxTransitionValidation);
-                    break;
-                case DurableTxnStateEnum::kAborted:
-                    o(lg).txnState.transitionTo(
-                        TransactionState::kAbortedWithPrepare,
-                        TransactionState::TransitionValidation::kRelaxTransitionValidation);
-                    break;
-                // We should never be refreshing a prepared or in-progress transaction from storage
-                // since it should already be in a valid state after replication recovery.
-                case DurableTxnStateEnum::kPrepared:
-                case DurableTxnStateEnum::kInProgress:
-                    MONGO_UNREACHABLE;
+                {
+                    logv2::DynamicAttributes attr;
+                    _transactionInfoForLog(
+                        opCtx, lockStats, terminationCause, readConcernArgs, &attr);
+                    LOGV2_OPTIONS(51802, {logv2::LogComponent::kTransaction}, "transaction", attr);
+                }
+                else {
+                    LOGV2_OPTIONS(
+                        22523,
+                        {logComponentV1toV2(logger::LogComponent::kTransaction)},
+                        "transaction "
+                        "{transactionInfoForLog_opCtx_lockStats_terminationCause_readConcernArgs}",
+                        "transactionInfoForLog_opCtx_lockStats_terminationCause_readConcernArgs"_attr =
+                            _transactionInfoForLog(
+                                opCtx, lockStats, terminationCause, readConcernArgs));
+                }
             }
         }
     }
 
-    p().isValid = true;
-}
+    void TransactionParticipant::Participant::_setNewTxnNumber(OperationContext * opCtx,
+                                                               const TxnNumber& txnNumber) {
+        uassert(ErrorCodes::PreparedTransactionInProgress,
+                "Cannot change transaction number while the session has a prepared transaction",
+                !o().txnState.isInSet(TransactionState::kPrepared));
 
-void TransactionParticipant::Participant::onWriteOpCompletedOnPrimary(
-    OperationContext* opCtx,
-    std::vector<StmtId> stmtIdsWritten,
-    const SessionTxnRecord& sessionTxnRecord) {
-    invariant(opCtx->lockState()->inAWriteUnitOfWork());
-    invariant(sessionTxnRecord.getSessionId() == _sessionId());
-    invariant(sessionTxnRecord.getTxnNum() == o().activeTxnNumber);
+        LOG_FOR_TRANSACTION(4) << "New transaction started with txnNumber: " << txnNumber
+                               << " on session with lsid " << _sessionId().getId();
 
-    // Sanity check that we don't double-execute statements
-    for (const auto stmtId : stmtIdsWritten) {
-        const auto stmtOpTime = _checkStatementExecuted(stmtId);
-        if (stmtOpTime) {
-            fassertOnRepeatedExecution(_sessionId(),
-                                       sessionTxnRecord.getTxnNum(),
-                                       stmtId,
-                                       *stmtOpTime,
-                                       sessionTxnRecord.getLastWriteOpTime());
+        // Abort the existing transaction if it's not prepared, committed, or aborted.
+        if (o().txnState.isInProgress()) {
+            _abortTransactionOnSession(opCtx);
         }
+
+        stdx::lock_guard<Client> lk(*opCtx->getClient());
+        o(lk).activeTxnNumber = txnNumber;
+        o(lk).lastWriteOpTime = repl::OpTime();
+
+        // Reset the retryable writes state
+        _resetRetryableWriteState();
+
+        // Reset the transactional state
+        _resetTransactionState(lk, TransactionState::kNone);
+
+        // Reset the transactions metrics
+        o(lk).transactionMetricsObserver.resetSingleTransactionStats(txnNumber);
     }
 
-    const auto updateRequest = _makeUpdateRequest(sessionTxnRecord);
+    void TransactionParticipant::Participant::refreshFromStorageIfNeeded(OperationContext * opCtx) {
+        invariant(!opCtx->getClient()->isInDirectClient());
+        invariant(!opCtx->lockState()->isLocked());
 
-    repl::UnreplicatedWritesBlock doNotReplicateWrites(opCtx);
+        if (p().isValid)
+            return;
 
-    updateSessionEntry(opCtx, updateRequest);
-    _registerUpdateCacheOnCommit(
-        opCtx, std::move(stmtIdsWritten), sessionTxnRecord.getLastWriteOpTime());
-}
+        auto activeTxnHistory = fetchActiveTransactionHistory(opCtx, _sessionId());
+        const auto& lastTxnRecord = activeTxnHistory.lastTxnRecord;
+        if (lastTxnRecord) {
+            stdx::lock_guard<Client> lg(*opCtx->getClient());
+            o(lg).activeTxnNumber = lastTxnRecord->getTxnNum();
+            o(lg).lastWriteOpTime = lastTxnRecord->getLastWriteOpTime();
+            p().activeTxnCommittedStatements = std::move(activeTxnHistory.committedStatements);
+            p().hasIncompleteHistory = activeTxnHistory.hasIncompleteHistory;
 
-void TransactionParticipant::Participant::onMigrateCompletedOnPrimary(
-    OperationContext* opCtx,
-    std::vector<StmtId> stmtIdsWritten,
-    const SessionTxnRecord& sessionTxnRecord) {
-    invariant(opCtx->lockState()->inAWriteUnitOfWork());
-    invariant(sessionTxnRecord.getSessionId() == _sessionId());
-    invariant(sessionTxnRecord.getTxnNum() == o().activeTxnNumber);
+            if (!lastTxnRecord->getState()) {
+                o(lg).txnState.transitionTo(
+                    TransactionState::kExecutedRetryableWrite,
+                    TransactionState::TransitionValidation::kRelaxTransitionValidation);
+            } else {
+                switch (*lastTxnRecord->getState()) {
+                    case DurableTxnStateEnum::kCommitted:
+                        o(lg).txnState.transitionTo(
+                            TransactionState::kCommitted,
+                            TransactionState::TransitionValidation::kRelaxTransitionValidation);
+                        break;
+                    case DurableTxnStateEnum::kAborted:
+                        o(lg).txnState.transitionTo(
+                            TransactionState::kAbortedWithPrepare,
+                            TransactionState::TransitionValidation::kRelaxTransitionValidation);
+                        break;
+                    // We should never be refreshing a prepared or in-progress transaction from
+                    // storage since it should already be in a valid state after replication
+                    // recovery.
+                    case DurableTxnStateEnum::kPrepared:
+                    case DurableTxnStateEnum::kInProgress:
+                        MONGO_UNREACHABLE;
+                }
+            }
+        }
 
-    const auto updateRequest = _makeUpdateRequest(sessionTxnRecord);
-
-    repl::UnreplicatedWritesBlock doNotReplicateWrites(opCtx);
-
-    updateSessionEntry(opCtx, updateRequest);
-    _registerUpdateCacheOnCommit(
-        opCtx, std::move(stmtIdsWritten), sessionTxnRecord.getLastWriteOpTime());
-}
-
-void TransactionParticipant::Participant::_invalidate(WithLock wl) {
-    p().isValid = false;
-    o(wl).activeTxnNumber = kUninitializedTxnNumber;
-    o(wl).lastWriteOpTime = repl::OpTime();
-
-    // Reset the transactions metrics.
-    o(wl).transactionMetricsObserver.resetSingleTransactionStats(o().activeTxnNumber);
-}
-
-void TransactionParticipant::Participant::_resetRetryableWriteState() {
-    p().activeTxnCommittedStatements.clear();
-    p().hasIncompleteHistory = false;
-}
-
-void TransactionParticipant::Participant::_resetTransactionState(
-    WithLock wl, TransactionState::StateFlag state) {
-    // If we are transitioning to kNone, we are either starting a new transaction or aborting a
-    // prepared transaction for rollback. In the latter case, we will need to relax the invariant
-    // that prevents transitioning from kPrepared to kNone.
-    if (o().txnState.isPrepared() && state == TransactionState::kNone) {
-        o(wl).txnState.transitionTo(
-            state, TransactionState::TransitionValidation::kRelaxTransitionValidation);
-    } else {
-        o(wl).txnState.transitionTo(state);
+        p().isValid = true;
     }
 
-    p().transactionOperationBytes = 0;
-    p().transactionOperations.clear();
-    o(wl).prepareOpTime = repl::OpTime();
-    o(wl).recoveryPrepareOpTime = repl::OpTime();
-    p().autoCommit = boost::none;
-    p().needToWriteAbortEntry = false;
+    void TransactionParticipant::Participant::onWriteOpCompletedOnPrimary(
+        OperationContext * opCtx,
+        std::vector<StmtId> stmtIdsWritten,
+        const SessionTxnRecord& sessionTxnRecord) {
+        invariant(opCtx->lockState()->inAWriteUnitOfWork());
+        invariant(sessionTxnRecord.getSessionId() == _sessionId());
+        invariant(sessionTxnRecord.getTxnNum() == o().activeTxnNumber);
 
-    // Release any locks held by this participant and abort the storage transaction.
-    o(wl).txnResourceStash = boost::none;
-}
-
-void TransactionParticipant::Participant::invalidate(OperationContext* opCtx) {
-    stdx::lock_guard<Client> lg(*opCtx->getClient());
-
-    uassert(ErrorCodes::PreparedTransactionInProgress,
-            "Cannot invalidate prepared transaction",
-            !o().txnState.isInSet(TransactionState::kPrepared));
-
-    // Invalidate the session and clear both the retryable writes and transactional states on
-    // this participant.
-    _invalidate(lg);
-    _resetRetryableWriteState();
-    _resetTransactionState(lg, TransactionState::kNone);
-}
-
-boost::optional<repl::OplogEntry> TransactionParticipant::Participant::checkStatementExecuted(
-    OperationContext* opCtx, StmtId stmtId) const {
-    const auto stmtTimestamp = _checkStatementExecuted(stmtId);
-
-    if (!stmtTimestamp)
-        return boost::none;
-
-    TransactionHistoryIterator txnIter(*stmtTimestamp);
-    while (txnIter.hasNext()) {
-        const auto entry = txnIter.next(opCtx);
-        invariant(entry.getStatementId());
-        if (*entry.getStatementId() == stmtId)
-            return entry;
-    }
-
-    MONGO_UNREACHABLE;
-}
-
-bool TransactionParticipant::Participant::checkStatementExecutedNoOplogEntryFetch(
-    StmtId stmtId) const {
-    return bool(_checkStatementExecuted(stmtId));
-}
-
-boost::optional<repl::OpTime> TransactionParticipant::Participant::_checkStatementExecuted(
-    StmtId stmtId) const {
-    invariant(p().isValid);
-
-    const auto it = p().activeTxnCommittedStatements.find(stmtId);
-    if (it == p().activeTxnCommittedStatements.end()) {
-        uassert(ErrorCodes::IncompleteTransactionHistory,
-                str::stream() << "Incomplete history detected for transaction "
-                              << o().activeTxnNumber << " on session " << _sessionId(),
-                !p().hasIncompleteHistory);
-
-        return boost::none;
-    }
-
-    return it->second;
-}
-
-UpdateRequest TransactionParticipant::Participant::_makeUpdateRequest(
-    const SessionTxnRecord& sessionTxnRecord) const {
-    UpdateRequest updateRequest(NamespaceString::kSessionTransactionsTableNamespace);
-
-    updateRequest.setUpdateModification(sessionTxnRecord.toBSON());
-    updateRequest.setQuery(BSON(SessionTxnRecord::kSessionIdFieldName << _sessionId().toBSON()));
-    updateRequest.setUpsert(true);
-
-    return updateRequest;
-}
-
-void TransactionParticipant::Participant::_registerUpdateCacheOnCommit(
-    OperationContext* opCtx,
-    std::vector<StmtId> stmtIdsWritten,
-    const repl::OpTime& lastStmtIdWriteOpTime) {
-    opCtx->recoveryUnit()->onCommit([opCtx,
-                                     stmtIdsWritten = std::move(stmtIdsWritten),
-                                     lastStmtIdWriteOpTime](boost::optional<Timestamp>) {
-        TransactionParticipant::Participant participant(opCtx);
-        invariant(participant.p().isValid);
-
-        RetryableWritesStats::get(opCtx->getServiceContext())
-            ->incrementTransactionsCollectionWriteCount();
-
-        stdx::lock_guard<Client> lg(*opCtx->getClient());
-
-        // The cache of the last written record must always be advanced after a write so that
-        // subsequent writes have the correct point to start from.
-        participant.o(lg).lastWriteOpTime = lastStmtIdWriteOpTime;
-
+        // Sanity check that we don't double-execute statements
         for (const auto stmtId : stmtIdsWritten) {
-            if (stmtId == kIncompleteHistoryStmtId) {
-                participant.p().hasIncompleteHistory = true;
-                continue;
-            }
-
-            const auto insertRes =
-                participant.p().activeTxnCommittedStatements.emplace(stmtId, lastStmtIdWriteOpTime);
-            if (!insertRes.second) {
-                const auto& existingOpTime = insertRes.first->second;
-                fassertOnRepeatedExecution(participant._sessionId(),
-                                           participant.o().activeTxnNumber,
+            const auto stmtOpTime = _checkStatementExecuted(stmtId);
+            if (stmtOpTime) {
+                fassertOnRepeatedExecution(_sessionId(),
+                                           sessionTxnRecord.getTxnNum(),
                                            stmtId,
-                                           existingOpTime,
-                                           lastStmtIdWriteOpTime);
+                                           *stmtOpTime,
+                                           sessionTxnRecord.getLastWriteOpTime());
             }
         }
 
-        // If this is the first time executing a retryable write, we should indicate that to
-        // the transaction participant.
-        if (participant.o(lg).txnState.isNone()) {
-            participant.o(lg).txnState.transitionTo(TransactionState::kExecutedRetryableWrite);
-        }
-    });
+        const auto updateRequest = _makeUpdateRequest(sessionTxnRecord);
 
-    onPrimaryTransactionalWrite.execute([&](const BSONObj& data) {
-        const auto closeConnectionElem = data["closeConnection"];
-        if (closeConnectionElem.eoo() || closeConnectionElem.Bool()) {
-            opCtx->getClient()->session()->end();
+        repl::UnreplicatedWritesBlock doNotReplicateWrites(opCtx);
+
+        updateSessionEntry(opCtx, updateRequest);
+        _registerUpdateCacheOnCommit(
+            opCtx, std::move(stmtIdsWritten), sessionTxnRecord.getLastWriteOpTime());
+    }
+
+    void TransactionParticipant::Participant::onMigrateCompletedOnPrimary(
+        OperationContext * opCtx,
+        std::vector<StmtId> stmtIdsWritten,
+        const SessionTxnRecord& sessionTxnRecord) {
+        invariant(opCtx->lockState()->inAWriteUnitOfWork());
+        invariant(sessionTxnRecord.getSessionId() == _sessionId());
+        invariant(sessionTxnRecord.getTxnNum() == o().activeTxnNumber);
+
+        const auto updateRequest = _makeUpdateRequest(sessionTxnRecord);
+
+        repl::UnreplicatedWritesBlock doNotReplicateWrites(opCtx);
+
+        updateSessionEntry(opCtx, updateRequest);
+        _registerUpdateCacheOnCommit(
+            opCtx, std::move(stmtIdsWritten), sessionTxnRecord.getLastWriteOpTime());
+    }
+
+    void TransactionParticipant::Participant::_invalidate(WithLock wl) {
+        p().isValid = false;
+        o(wl).activeTxnNumber = kUninitializedTxnNumber;
+        o(wl).lastWriteOpTime = repl::OpTime();
+
+        // Reset the transactions metrics.
+        o(wl).transactionMetricsObserver.resetSingleTransactionStats(o().activeTxnNumber);
+    }
+
+    void TransactionParticipant::Participant::_resetRetryableWriteState() {
+        p().activeTxnCommittedStatements.clear();
+        p().hasIncompleteHistory = false;
+    }
+
+    void TransactionParticipant::Participant::_resetTransactionState(
+        WithLock wl, TransactionState::StateFlag state) {
+        // If we are transitioning to kNone, we are either starting a new transaction or aborting a
+        // prepared transaction for rollback. In the latter case, we will need to relax the
+        // invariant that prevents transitioning from kPrepared to kNone.
+        if (o().txnState.isPrepared() && state == TransactionState::kNone) {
+            o(wl).txnState.transitionTo(
+                state, TransactionState::TransitionValidation::kRelaxTransitionValidation);
+        } else {
+            o(wl).txnState.transitionTo(state);
         }
 
-        const auto failBeforeCommitExceptionElem = data["failBeforeCommitExceptionCode"];
-        if (!failBeforeCommitExceptionElem.eoo()) {
-            const auto failureCode = ErrorCodes::Error(int(failBeforeCommitExceptionElem.Number()));
-            uasserted(failureCode,
-                      str::stream()
-                          << "Failing write for " << _sessionId() << ":" << o().activeTxnNumber
-                          << " due to failpoint. The write must not be reflected.");
+        p().transactionOperationBytes = 0;
+        p().transactionOperations.clear();
+        o(wl).prepareOpTime = repl::OpTime();
+        o(wl).recoveryPrepareOpTime = repl::OpTime();
+        p().autoCommit = boost::none;
+        p().needToWriteAbortEntry = false;
+
+        // Release any locks held by this participant and abort the storage transaction.
+        o(wl).txnResourceStash = boost::none;
+    }
+
+    void TransactionParticipant::Participant::invalidate(OperationContext * opCtx) {
+        stdx::lock_guard<Client> lg(*opCtx->getClient());
+
+        uassert(ErrorCodes::PreparedTransactionInProgress,
+                "Cannot invalidate prepared transaction",
+                !o().txnState.isInSet(TransactionState::kPrepared));
+
+        // Invalidate the session and clear both the retryable writes and transactional states on
+        // this participant.
+        _invalidate(lg);
+        _resetRetryableWriteState();
+        _resetTransactionState(lg, TransactionState::kNone);
+    }
+
+    boost::optional<repl::OplogEntry> TransactionParticipant::Participant::checkStatementExecuted(
+        OperationContext * opCtx, StmtId stmtId) const {
+        const auto stmtTimestamp = _checkStatementExecuted(stmtId);
+
+        if (!stmtTimestamp)
+            return boost::none;
+
+        TransactionHistoryIterator txnIter(*stmtTimestamp);
+        while (txnIter.hasNext()) {
+            const auto entry = txnIter.next(opCtx);
+            invariant(entry.getStatementId());
+            if (*entry.getStatementId() == stmtId)
+                return entry;
         }
-    });
-}
+
+        MONGO_UNREACHABLE;
+    }
+
+    bool TransactionParticipant::Participant::checkStatementExecutedNoOplogEntryFetch(StmtId stmtId)
+        const {
+        return bool(_checkStatementExecuted(stmtId));
+    }
+
+    boost::optional<repl::OpTime> TransactionParticipant::Participant::_checkStatementExecuted(
+        StmtId stmtId) const {
+        invariant(p().isValid);
+
+        const auto it = p().activeTxnCommittedStatements.find(stmtId);
+        if (it == p().activeTxnCommittedStatements.end()) {
+            uassert(ErrorCodes::IncompleteTransactionHistory,
+                    str::stream() << "Incomplete history detected for transaction "
+                                  << o().activeTxnNumber << " on session " << _sessionId(),
+                    !p().hasIncompleteHistory);
+
+            return boost::none;
+        }
+
+        return it->second;
+    }
+
+    UpdateRequest TransactionParticipant::Participant::_makeUpdateRequest(
+        const SessionTxnRecord& sessionTxnRecord) const {
+        UpdateRequest updateRequest(NamespaceString::kSessionTransactionsTableNamespace);
+
+        updateRequest.setUpdateModification(sessionTxnRecord.toBSON());
+        updateRequest.setQuery(
+            BSON(SessionTxnRecord::kSessionIdFieldName << _sessionId().toBSON()));
+        updateRequest.setUpsert(true);
+
+        return updateRequest;
+    }
+
+    void TransactionParticipant::Participant::_registerUpdateCacheOnCommit(
+        OperationContext * opCtx,
+        std::vector<StmtId> stmtIdsWritten,
+        const repl::OpTime& lastStmtIdWriteOpTime) {
+        opCtx->recoveryUnit()->onCommit([opCtx,
+                                         stmtIdsWritten = std::move(stmtIdsWritten),
+                                         lastStmtIdWriteOpTime](boost::optional<Timestamp>) {
+            TransactionParticipant::Participant participant(opCtx);
+            invariant(participant.p().isValid);
+
+            RetryableWritesStats::get(opCtx->getServiceContext())
+                ->incrementTransactionsCollectionWriteCount();
+
+            stdx::lock_guard<Client> lg(*opCtx->getClient());
+
+            // The cache of the last written record must always be advanced after a write so that
+            // subsequent writes have the correct point to start from.
+            participant.o(lg).lastWriteOpTime = lastStmtIdWriteOpTime;
+
+            for (const auto stmtId : stmtIdsWritten) {
+                if (stmtId == kIncompleteHistoryStmtId) {
+                    participant.p().hasIncompleteHistory = true;
+                    continue;
+                }
+
+                const auto insertRes = participant.p().activeTxnCommittedStatements.emplace(
+                    stmtId, lastStmtIdWriteOpTime);
+                if (!insertRes.second) {
+                    const auto& existingOpTime = insertRes.first->second;
+                    fassertOnRepeatedExecution(participant._sessionId(),
+                                               participant.o().activeTxnNumber,
+                                               stmtId,
+                                               existingOpTime,
+                                               lastStmtIdWriteOpTime);
+                }
+            }
+
+            // If this is the first time executing a retryable write, we should indicate that to
+            // the transaction participant.
+            if (participant.o(lg).txnState.isNone()) {
+                participant.o(lg).txnState.transitionTo(TransactionState::kExecutedRetryableWrite);
+            }
+        });
+
+        onPrimaryTransactionalWrite.execute([&](const BSONObj& data) {
+            const auto closeConnectionElem = data["closeConnection"];
+            if (closeConnectionElem.eoo() || closeConnectionElem.Bool()) {
+                opCtx->getClient()->session()->end();
+            }
+
+            const auto failBeforeCommitExceptionElem = data["failBeforeCommitExceptionCode"];
+            if (!failBeforeCommitExceptionElem.eoo()) {
+                const auto failureCode =
+                    ErrorCodes::Error(int(failBeforeCommitExceptionElem.Number()));
+                uasserted(failureCode,
+                          str::stream()
+                              << "Failing write for " << _sessionId() << ":" << o().activeTxnNumber
+                              << " due to failpoint. The write must not be reflected.");
+            }
+        });
+    }
 
 }  // namespace mongo

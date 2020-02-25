@@ -493,13 +493,14 @@ bool CurOp::completeAndLogOperation(OperationContext* opCtx,
         _debug.prepareConflictDurationMillis =
             duration_cast<Milliseconds>(prepareConflictDurationMicros);
 
-        logv2::DynamicAttributes attr;
-        _debug.report(opCtx, (lockerInfo ? &lockerInfo->stats : nullptr), &attr);
-        LOGV2(51803, "slow query", attr);
-
-        // TODO SERVER-46219: Log also with old log system to not break unit tests
-        log(logComponentV2toV1(component))
-            << _debug.report(opCtx, (lockerInfo ? &lockerInfo->stats : nullptr));
+        if (logV2IsJson(serverGlobalParams.logFormat)) {
+            logv2::DynamicAttributes attr;
+            _debug.report(opCtx, (lockerInfo ? &lockerInfo->stats : nullptr), &attr);
+            LOGV2(51803, "slow query", attr);
+        } else {
+            log(logComponentV2toV1(component))
+                << _debug.report(opCtx, (lockerInfo ? &lockerInfo->stats : nullptr));
+        }
     }
 
     // Return 'true' if this operation should also be added to the profiler.
