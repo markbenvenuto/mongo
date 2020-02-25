@@ -2005,8 +2005,6 @@ void TransactionParticipant::Participant::_logSlowTransaction(
                                         Milliseconds(serverGlobalParams.slowMS))
                 .first) {
             if (logV2IsJson(serverGlobalParams.logFormat)) {
-
-                {
                     logv2::DynamicAttributes attr;
                     _transactionInfoForLog(
                         opCtx, lockStats, terminationCause, readConcernArgs, &attr);
