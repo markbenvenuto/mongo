@@ -31,9 +31,8 @@
 
 #include <utility>
 
-#include "mongo/logger/log_component.h"
-#include "mongo/logger/logger.h"
 #include "mongo/logv2/log_component.h"
+#include "mongo/logv2/log_severity.h"
 
 namespace mongo {
 
@@ -47,7 +46,7 @@ inline std::pair<bool, bool> shouldLogSlowOpWithSampling(OperationContext* opCtx
                                                          Milliseconds slowMS) {
     // Log the operation if log message verbosity for operation component is >= 1.
     const bool componentHasTargetLogVerbosity =
-        shouldLog(logComponentV2toV1(logComponent), logger::LogSeverity::Debug(1));
+        shouldLog(logComponent, logv2::LogSeverity::Debug(1));
 
     const auto client = opCtx->getClient();
     const bool shouldSample =
