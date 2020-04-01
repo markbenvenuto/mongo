@@ -1826,7 +1826,10 @@ Status validatePeerCertificate(const std::string& remoteHost,
                               "SSL peer certificate validation failed ({errorCode}): {error}",
                               "errorCode"_attr = integerToHex(certChainPolicyStatus.dwError),
                               "error"_attr = errnoWithDescription(certChainPolicyStatus.dwError));
-                LOGV2_WARNING(23275, "{msg}", "msg"_attr = msg.ss.str());
+                // When the server has a CN mismatch, tell them all CNs we know
+                if (certChainPolicyStatus.dwError == CERT_E_CN_NO_MATCH) {
+                    LOGV2_WARNING(23275, "{msg}", "msg"_attr = msg.ss.str());
+                }
                 *peerSubjectName = SSLX509Name();
                 return Status::OK();
             } else if (allowInvalidHostnames) {
