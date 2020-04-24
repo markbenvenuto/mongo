@@ -3392,7 +3392,7 @@ functions:
       working_dir: "src"
       script: |
         # Find all core files and move to src
-        core_files=$(/usr/bin/find -H .. \( -name "*.core" -o -name "*.mdmp" \) 2> /dev/null)
+        core_files=$(/usr/bin/find -H .. \( -name "*.core" -o -name "*.mdmp" -o -name "*.etl" -o -name "*.cab" \) 2> /dev/null)
         for core_file in $core_files
         do
           base_name=$(echo $core_file | sed "s/.*\///")
@@ -3408,6 +3408,8 @@ functions:
       target: "mongo-coredumps.tgz"
       source_dir: "src"
       include:
+        - "./**.etl"
+        - "./**.cab"
         - "./**.core"
         - "./**.mdmp" # Windows: minidumps
 

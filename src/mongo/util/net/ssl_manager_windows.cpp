@@ -65,6 +65,7 @@
 #include "mongo/util/str.h"
 #include "mongo/util/text.h"
 #include "mongo/util/uuid.h"
+#include "mongo/util/net/api_trace.h"
 
 namespace mongo {
 
@@ -515,6 +516,25 @@ int SSLManagerWindows::SSL_read(SSLConnectionInterface* connInterface, void* buf
                 conn->_engine.put_input(asio::const_buffer(conn->_tempBuffer.data(), ret));
 
                 continue;
+            }
+            case asio::ssl::detail::engine::want_output: {
+                // ASIO wants us to send data out if we read a TLS alert for close_notify/
+                // This means that the remote side has initiated shutdown (i.e. SSL_Shutdown)
+                // 1. get data from ASIO
+                // 2. give it to the network
+
+                asio::mutable_buffer outBuf = conn->_engine.get_output(
+                    asio::mutable_buffer(conn->_tempBuffer.data(), conn->_tempBuffer.size()));
+
+                int ret = send(conn->socket->rawFD(),
+                               reinterpret_cast<const char*>(outBuf.data()),
+                               outBuf.size(),
+                               portSendFlags);
+                if (ret == SOCKET_ERROR) {
+                    conn->socket->handleSendError(ret, "");
+                }
+
+                 return 0;
             }
             case asio::ssl::detail::engine::want_nothing: {
                 // ASIO wants nothing, return to caller with anything transfered.
@@ -1709,14 +1729,14 @@ Status validatePeerCertificate(const std::string& remoteHost,
     }
 
     PCCERT_CHAIN_CONTEXT chainContext;
-    BOOL ret = CertGetCertificateChain(certChainEngine,
+    BOOL ret = TRACE_API_CALL(CertGetCertificateChain(certChainEngine,
                                        cert,
                                        NULL,
                                        cert->hCertStore,
                                        &certChainPara,
                                        CERT_CHAIN_REVOCATION_CHECK_CHAIN_EXCLUDE_ROOT,
                                        NULL,
-                                       &chainContext);
+                                       &chainContext));
     if (!ret) {
         DWORD gle = GetLastError();
         return Status(ErrorCodes::InvalidSSLConfiguration,
@@ -1751,8 +1771,8 @@ Status validatePeerCertificate(const std::string& remoteHost,
     memset(&certChainPolicyStatus, 0, sizeof(certChainPolicyStatus));
     certChainPolicyStatus.cbSize = sizeof(certChainPolicyStatus);
 
-    ret = CertVerifyCertificateChainPolicy(
-        CERT_CHAIN_POLICY_SSL, certChainHolder.get(), &chain_policy_para, &certChainPolicyStatus);
+    ret = TRACE_API_CALL(CertVerifyCertificateChainPolicy(
+        CERT_CHAIN_POLICY_SSL, certChainHolder.get(), &chain_policy_para, &certChainPolicyStatus));
 
     // This means something really went wrong, this should not happen.
     if (!ret) {
@@ -1797,10 +1817,10 @@ Status validatePeerCertificate(const std::string& remoteHost,
             // We know the CNs do not match, are there any other issues?
             sslCertChainPolicy.fdwChecks = SECURITY_FLAG_IGNORE_CERT_CN_INVALID;
 
-            ret = CertVerifyCertificateChainPolicy(CERT_CHAIN_POLICY_SSL,
+            ret = TRACE_API_CALL(CertVerifyCertificateChainPolicy(CERT_CHAIN_POLICY_SSL,
                                                    certChainHolder.get(),
                                                    &chain_policy_para,
-                                                   &certChainPolicyStatus);
+                                                   &certChainPolicyStatus));
 
             // This means something really went wrong, this should not happen.
             if (!ret) {
@@ -1909,7 +1929,7 @@ Status validatePeerCertificate(const std::string& remoteHost,
 StatusWith<TLSVersion> mapTLSVersion(PCtxtHandle ssl) {
     SecPkgContext_ConnectionInfo connInfo;
 
-    SECURITY_STATUS ss = QueryContextAttributes(ssl, SECPKG_ATTR_CONNECTION_INFO, &connInfo);
+    SECURITY_STATUS ss = TRACE_API_CALL(QueryContextAttributes(ssl, SECPKG_ATTR_CONNECTION_INFO, &connInfo));
 
     if (ss != SEC_E_OK) {
         return Status(ErrorCodes::SSLHandshakeFailed,
@@ -1956,7 +1976,7 @@ Future<SSLPeerInfo> SSLManagerWindows::parseAndValidatePeerCertificate(
     if (!_sslConfiguration.hasCA && isSSLServer)
         return Future<SSLPeerInfo>::makeReady(SSLPeerInfo(sni));
 
-    SECURITY_STATUS ss = QueryContextAttributes(ssl, SECPKG_ATTR_REMOTE_CERT_CONTEXT, &cert);
+    SECURITY_STATUS ss = TRACE_API_CALL(QueryContextAttributes(ssl, SECPKG_ATTR_REMOTE_CERT_CONTEXT, &cert));
 
     if (ss == SEC_E_NO_CREDENTIALS) {  // no certificate presented by peer
         if (_weakValidation) {
@@ -1988,23 +2008,23 @@ Future<SSLPeerInfo> SSLManagerWindows::parseAndValidatePeerCertificate(
     auto* engine = remoteHost.empty() ? &_serverEngine : &_clientEngine;
 
     // Validate against the local machine store first since it is easier to manage programmatically.
-    Status validateCertMachine = validatePeerCertificate(remoteHost,
+    Status validateCertMachine = TRACE_API_CALL(validatePeerCertificate(remoteHost,
                                                          certHolder.get(),
                                                          engine->machine,
                                                          _allowInvalidCertificates,
                                                          _allowInvalidHostnames,
                                                          engine->hasCRL,
-                                                         &peerSubjectName);
+                                                         &peerSubjectName));
     if (!validateCertMachine.isOK()) {
         // Validate against the current user store since this is easier for unprivileged users to
         // manage.
-        Status validateCertUser = validatePeerCertificate(remoteHost,
+        Status validateCertUser = TRACE_API_CALL(validatePeerCertificate(remoteHost,
                                                           certHolder.get(),
                                                           engine->user,
                                                           _allowInvalidCertificates,
                                                           _allowInvalidHostnames,
                                                           engine->hasCRL,
-                                                          &peerSubjectName);
+                                                          &peerSubjectName));
         if (!validateCertUser.isOK()) {
             // Return the local machine status
             return validateCertMachine;

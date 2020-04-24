@@ -29,14 +29,17 @@
  */
 
 #pragma once
+#define MONGO_LOG_DEFAULT_COMPONENT ::mongo::logger::LogComponent::kNetwork
 
 #include <algorithm>
 #include <cstddef>
 #include <memory>
 
+#include "mongo/logv2/log.h"
 #include "asio/detail/assert.hpp"
 #include "mongo/base/init.h"
 #include "mongo/util/assert_util.h"
+#include "mongo/util/net/api_trace.h"
 
 namespace asio {
 namespace ssl {
@@ -255,7 +258,6 @@ ssl_want SSLHandshakeManager::startShutdown(asio::error_code& ec) {
         _pOutBuffer->append(outputBuffers[0].pvBuffer, outputBuffers[0].cbBuffer);
 
         if (SEC_E_OK == ss && outputBuffers[0].cbBuffer != 0) {
-            ec = asio::error::eof;
             return ssl_want::want_output;
         } else {
             return ssl_want::want_nothing;
@@ -452,7 +454,7 @@ ssl_want SSLHandshakeManager::doClientHandshake(asio::error_code& ec) {
         inputBufferDesc.cBuffers = inputBuffers.size();
         inputBufferDesc.pBuffers = inputBuffers.data();
 
-        ss = InitializeSecurityContextW(_phcred,
+        ss = TRACE_API_CALL(InitializeSecurityContextW(_phcred,
                                         _phctxt,
                                         const_cast<SEC_WCHAR*>(_serverName.c_str()),
                                         sspiFlags,
@@ -463,9 +465,9 @@ ssl_want SSLHandshakeManager::doClientHandshake(asio::error_code& ec) {
                                         _phctxt,
                                         &outputBufferDesc,
                                         &retAttribs,
-                                        &lifetime);
+                                        &lifetime));
     } else {
-        ss = InitializeSecurityContextW(_phcred,
+        ss = TRACE_API_CALL(InitializeSecurityContextW(_phcred,
                                         NULL,
                                         const_cast<SEC_WCHAR*>(_serverName.c_str()),
                                         sspiFlags,
@@ -476,7 +478,7 @@ ssl_want SSLHandshakeManager::doClientHandshake(asio::error_code& ec) {
                                         _phctxt,
                                         &outputBufferDesc,
                                         &retAttribs,
-                                        &lifetime);
+                                        &lifetime));
     }
 
     if (ss < SEC_E_OK) {
@@ -629,7 +631,7 @@ ssl_want SSLReadManager::decryptBuffer(asio::error_code& ec, DecryptState* pDecr
         bufferDesc.cBuffers = securityBuffers.size();
         bufferDesc.pBuffers = securityBuffers.data();
 
-        SECURITY_STATUS ss = DecryptMessage(_phctxt, &bufferDesc, 0, NULL);
+        SECURITY_STATUS ss = TRACE_API_CALL(DecryptMessage(_phctxt, &bufferDesc, 0, NULL));
 
         if (ss < SEC_E_OK) {
             if (ss == SEC_E_INCOMPLETE_MESSAGE) {
@@ -793,7 +795,7 @@ ssl_want SSLWriteManager::encryptMessage(const void* pMessage,
     bufferDesc.cBuffers = securityBuffers.size();
     bufferDesc.pBuffers = securityBuffers.data();
 
-    SECURITY_STATUS ss = EncryptMessage(_phctxt, 0, &bufferDesc, 0);
+    SECURITY_STATUS ss = TRACE_API_CALL(EncryptMessage(_phctxt, 0, &bufferDesc, 0));
 
     if (ss < SEC_E_OK) {
         ec = asio::error_code(ss, asio::error::get_ssl_category());
