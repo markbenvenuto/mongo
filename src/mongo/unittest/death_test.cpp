@@ -118,11 +118,20 @@ void DeathTestBase::_doTest() {
                 line = line.substr(0, line.size() - 1);
             if (line.empty())
                 continue;
-            int parsedLen;
-            auto parsedChildLog = fromjson(lineBuf, &parsedLen);
-            if (static_cast<size_t>(parsedLen) == line.size()) {
-                LOGV2(20165, "child", "json"_attr = parsedChildLog);
-            } else {
+
+            bool logText = false;
+            try {
+                int parsedLen;
+                auto parsedChildLog = fromjson(lineBuf, &parsedLen);
+                if (static_cast<size_t>(parsedLen) == line.size()) {
+                    LOGV2(20165, "child", "json"_attr = parsedChildLog);
+                }
+            } catch(DBException&) {
+                // ignore json parsing errors and dump the log line as text
+                logText = true;
+            }
+
+            if( logText ) {
                 LOGV2(20169, "child", "text"_attr = line);
             }
             os.write(lineBuf, bytesRead);
