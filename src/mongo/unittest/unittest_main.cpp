@@ -37,6 +37,7 @@
 #include "mongo/logger/logger.h"
 #include "mongo/logv2/log_domain_global.h"
 #include "mongo/logv2/log_manager.h"
+#include "mongo/stdx/unordered_set.h"
 #include "mongo/unittest/log_test.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/unittest/unittest_options_gen.h"
@@ -45,6 +46,7 @@
 #include "mongo/util/options_parser/options_parser.h"
 #include "mongo/util/signal_handlers_synchronous.h"
 #include "mongo/util/testing_proctor.h"
+#include "mongo/util/string_map.h"
 
 using mongo::Status;
 
@@ -59,6 +61,36 @@ int main(int argc, char** argv) {
     ::mongo::TestingProctor::instance().setEnabled(true);
     ::mongo::runGlobalInitializersOrDie(argVec);
     ::mongo::setTestCommandsEnabled(true);
+
+    std::string s1("hello world");
+
+    mongo::stdx::unordered_set<std::string> strings;
+
+    strings.insert("hello");
+    strings.insert("world");
+    strings.insert("goodbye");
+
+
+    mongo::stdx::unordered_set<int> ints;
+
+    ints.insert(13);
+    ints.insert(42);
+    ints.insert(67);
+
+
+    mongo::stdx::unordered_map<std::string, std::string> map1;
+
+    map1.insert({"hello", "hola"});
+    map1.insert({"world", "mundo"});
+    map1.insert({"goodbye", "adios"});
+
+    mongo::StringMap<std::string> smap;
+
+    smap.insert({"hello", "hola"});
+    smap.insert({"world", "mundo"});
+    smap.insert({"goodbye", "adios"});
+
+    std::pair<std::string, std::string> p1("aaa", "bbbbb");
 
     moe::OptionSection options;
 
