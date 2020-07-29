@@ -1318,6 +1318,8 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
     LatchAnalyzer::get(serviceContext).dump();
 #endif
 
+    SessionKiller::shutdown(serviceContext);
+
     // TODO - find the right place for this
     FlowControl::shutdown(serviceContext);
 

@@ -42,7 +42,7 @@ auto registryDecoration = ServiceContext::declareDecoration<ReplicaSetAwareServi
 }  // namespace
 
 ReplicaSetAwareServiceRegistry::~ReplicaSetAwareServiceRegistry() {
-    invariant(_services.empty());
+    //invariant(_services.empty());
 }
 
 ReplicaSetAwareServiceRegistry& ReplicaSetAwareServiceRegistry::get(
