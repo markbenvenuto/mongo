@@ -116,7 +116,7 @@ ServiceContext::~ServiceContext() {
                     "client"_attr = client->desc(),
                     "serviceContext"_attr = reinterpret_cast<uint64_t>(this));
     }
-    invariant(_clients.empty());
+    //invariant(_clients.empty());
 }
 
 namespace {

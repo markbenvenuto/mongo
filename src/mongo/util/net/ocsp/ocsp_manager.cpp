@@ -27,16 +27,20 @@
  *    it in the license file.
  */
 
+#include "mongo/db/service_context_fwd.h"
 #include "mongo/platform/basic.h"
 
 #include "mongo/db/client.h"
 #include "mongo/executor/network_interface_factory.h"
 #include "mongo/util/net/ocsp/ocsp_manager.h"
 #include "mongo/util/net/ssl_parameters_gen.h"
+#include <memory>
 
 namespace mongo {
 
 namespace {
+
+const auto getOCSPManager = ServiceContext::declareDecoration<std::unique_ptr<OCSPManager>>();
 
 auto makeTaskExecutor() {
     ThreadPool::Options tpOptions;
@@ -49,6 +53,31 @@ auto makeTaskExecutor() {
 }
 
 }  // namespace
+
+// ServiceContext::ConstructorActionRegisterer OCSPCacheRegisterer("CreateOCSPManager",
+//                                                                 [](ServiceContext* context) {
+//                                                                     getOCSPManager(context) = std::make_unique<OCSPManager>();
+//                                                                 },
+//                                                                 [](ServiceContext* context) {
+//                                                                     OCSPManager::shutdown(context);
+//                                                                 });
+
+OCSPManager* OCSPManager::get(ServiceContext* service) {
+    return getOCSPManager(service).get();
+}
+
+void OCSPManager::start(ServiceContext* service) {
+    auto manager = std::make_unique<OCSPManager>();
+
+    manager->startThreadPool();
+
+    getOCSPManager(service) = std::move(manager);
+}
+
+void OCSPManager::shutdown(ServiceContext* service) {
+    get(service)->_pool->shutdown();
+    getOCSPManager(service).reset();
+}
 
 OCSPManager::OCSPManager() {
     _pool = makeTaskExecutor();

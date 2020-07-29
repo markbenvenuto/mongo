@@ -730,7 +730,7 @@ int mongo_main(int argc, char* argv[]) {
         // TODO This should use a TransportLayerManager or TransportLayerFactory
         auto serviceContext = getGlobalServiceContext();
 
-        OCSPManager::get()->startThreadPool();
+        OCSPManager::start(serviceContext);
 
         transport::TransportLayerASIO::Options opts;
         opts.enableIPv6 = shellGlobalParams.enableIPv6;

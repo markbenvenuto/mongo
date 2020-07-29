@@ -27,6 +27,7 @@
  *    it in the license file.
  */
 
+#include "mongo/db/service_context.h"
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kNetwork
 
 #include "mongo/platform/basic.h"
@@ -722,7 +723,7 @@ Future<UniqueOCSPResponse> retrieveOCSPResponse(const std::string& host,
     }
 
     // Query the OCSP responder
-    return OCSPManager::get()
+    return OCSPManager::get(getGlobalServiceContext())
         ->requestStatus(buffer, host, purpose)
         .then([](std::vector<uint8_t> responseData) mutable -> StatusWith<UniqueOCSPResponse> {
             const uint8_t* respDataPtr = responseData.data();

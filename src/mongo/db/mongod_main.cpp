@@ -342,7 +342,7 @@ ExitCode _initAndListen(ServiceContext* serviceContext, int listenPort) {
     auto runner = makePeriodicRunner(serviceContext);
     serviceContext->setPeriodicRunner(std::move(runner));
 
-    OCSPManager::get()->startThreadPool();
+    OCSPManager::start(serviceContext);
 
     if (!storageGlobalParams.repair) {
         auto tl =
@@ -1317,6 +1317,18 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
 #ifndef MONGO_CONFIG_USE_RAW_LATCHES
     LatchAnalyzer::get(serviceContext).dump();
 #endif
+
+    // TODO - find the right place for this
+    FlowControl::shutdown(serviceContext);
+
+    // TODO - find the right place for this
+    OCSPManager::shutdown(serviceContext);
+
+    Status status = mongo::runGlobalDeinitializers();
+    uassertStatusOKWithContext(status, "Global deinitilization failed");
+
+    setGlobalServiceContext(nullptr);
+
 }
 
 }  // namespace

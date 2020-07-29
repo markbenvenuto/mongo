@@ -69,6 +69,8 @@ public:
 
     static void set(ServiceContext* service, std::unique_ptr<FlowControl> flowControl);
 
+    static void shutdown(ServiceContext* service);
+
     /*
      * Typical API call.
      *

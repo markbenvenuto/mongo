@@ -671,7 +671,7 @@ ExitCode runMongosServer(ServiceContext* serviceContext) {
         serviceContext->setPeriodicRunner(std::move(runner));
     }
 
-    OCSPManager::get()->startThreadPool();
+    OCSPManager::start(serviceContext);
 
     serviceContext->setServiceEntryPoint(std::make_unique<ServiceEntryPointMongos>(serviceContext));
 

@@ -169,6 +169,13 @@ void FlowControl::set(ServiceContext* service, std::unique_ptr<FlowControl> flow
     globalFlow = std::move(flowControl);
 }
 
+void FlowControl::shutdown(ServiceContext* service) {
+    auto& globalFlow = getFlowControl(service);
+    globalFlow->_jobAnchor.stop();
+    getFlowControl(service).reset();
+}
+
+
 /**
  * Returns -1.0 if there are not enough samples.
  */
