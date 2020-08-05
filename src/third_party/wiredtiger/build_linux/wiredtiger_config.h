@@ -104,7 +104,7 @@
 #define HAVE_STRING_H 1
 
 /* Define to 1 if you have the `strtouq' function. */
-#define HAVE_STRTOUQ 1
+/* #define HAVE_STRTOUQ 1 */
 
 /* Define to 1 if you have the `sync_file_range' function. */
 /* #undef HAVE_SYNC_FILE_RANGE */

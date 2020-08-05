@@ -28,6 +28,8 @@
 #if defined(_WIN32)
 #include <basetsd.h>
 typedef SSIZE_T ssize_t;
+#else
+#include <sys/types.h>
 #endif // _WIN32
 
 typedef struct {

@@ -46,7 +46,7 @@
 #include <android/api-level.h>
 #elif __UCLIBC__
 #include <features.h>
-#else
+#elif defined(__GLIBC__)
 #include <gnu/libc-version.h>
 #endif
 
@@ -617,8 +617,10 @@ void ProcessInfo::SystemInfo::collectSystemInfo() {
     std::stringstream ss;
     ss << "uClibc-" << __UCLIBC_MAJOR__ << "." << __UCLIBC_MINOR__ << "." << __UCLIBC_SUBLEVEL__;
     bExtra.append("libcVersion", ss.str());
-#else
+#elif defined(__GLIBC__)
     bExtra.append("libcVersion", gnu_get_libc_version());
+#else
+    bExtra.append("libcVersion", "unknown");
 #endif
     if (!verSig.empty())
         // optional
