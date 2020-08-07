@@ -609,12 +609,6 @@ private:
     bool _exhaust = false;
 };
 
-// Gets a TimeZoneDatabase pointer from the ServiceContext.
-inline const TimeZoneDatabase* getTimeZoneDatabase(OperationContext* opCtx) {
-    return opCtx && opCtx->getServiceContext() ? TimeZoneDatabase::get(opCtx->getServiceContext())
-                                               : nullptr;
-}
-
 namespace repl {
 /**
  * RAII-style class to turn off replicated writes. Writes do not create oplog entries while the

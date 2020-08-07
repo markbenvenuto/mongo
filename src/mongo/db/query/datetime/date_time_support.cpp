@@ -40,6 +40,7 @@
 #include "mongo/base/init.h"
 #include "mongo/bson/util/builder.h"
 #include "mongo/db/service_context.h"
+#include "mongo/db/operation_context.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/duration.h"
 #include "mongo/util/str.h"
@@ -133,6 +134,11 @@ void validateFormat(StringData format,
 
 const TimeZoneDatabase* TimeZoneDatabase::get(ServiceContext* serviceContext) {
     return getTimeZoneDatabase(serviceContext).get();
+}
+
+const TimeZoneDatabase* TimeZoneDatabase::get(OperationContext* opCtx) {
+    return opCtx && opCtx->getServiceContext() ? TimeZoneDatabase::get(opCtx->getServiceContext())
+                                               : nullptr;
 }
 
 void TimeZoneDatabase::set(ServiceContext* serviceContext,

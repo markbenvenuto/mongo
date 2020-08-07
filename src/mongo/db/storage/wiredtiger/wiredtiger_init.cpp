@@ -54,6 +54,10 @@
 #include "mongo/logv2/log.h"
 #include "mongo/util/processinfo.h"
 
+#if !defined(__has_feature)
+#define __has_feature(x) 0
+#endif
+
 #if __has_feature(address_sanitizer)
 #include <sanitizer/lsan_interface.h>
 #endif

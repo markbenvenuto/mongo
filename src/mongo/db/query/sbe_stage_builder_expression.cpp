@@ -1657,7 +1657,7 @@ generateExpression(OperationContext* opCtx,
     auto tempRelevantSlots = sbe::makeSV(rootSlot);
     relevantSlots = relevantSlots ? relevantSlots : &tempRelevantSlots;
 
-    auto timeZoneDB = getTimeZoneDatabase(opCtx);
+    auto timeZoneDB = TimeZoneDatabase::get(opCtx);
 
     ExpressionVisitorContext context(
         std::move(stage), slotIdGenerator, frameIdGenerator, rootSlot, relevantSlots, timeZoneDB);

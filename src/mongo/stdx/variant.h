@@ -29,6 +29,38 @@
 
 #pragma once
 
+#ifdef _MSC_VER
+
+#include <variant>
+
+namespace mongo::stdx {
+
+using ::std::get;
+using ::std::get_if;
+using ::std::holds_alternative;
+using ::std::variant;
+using ::std::visit;
+
+using ::std::variant_alternative;
+using ::std::variant_alternative_t;
+using ::std::variant_size;
+using ::std::variant_size_v;
+
+constexpr auto variant_npos = ::std::variant_npos;
+
+using ::std::operator==;
+using ::std::operator!=;
+using ::std::operator<;
+using ::std::operator>;
+using ::std::operator<=;
+using ::std::operator>=;
+
+using ::std::bad_variant_access;
+using ::std::monostate;
+
+#else 
+
+// std::variant is only supported on macOS 10.14+
 #include "mpark/variant.hpp"
 
 namespace mongo::stdx {
@@ -55,5 +87,7 @@ using ::mpark::operator>=;
 
 using ::mpark::bad_variant_access;
 using ::mpark::monostate;
+
+#endif
 
 }  // namespace mongo::stdx

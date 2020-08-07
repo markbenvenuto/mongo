@@ -35,6 +35,7 @@
 
 #include "mongo/base/status.h"
 #include "mongo/db/service_context.h"
+#include "mongo/db/operation_context.h"
 #include "mongo/util/string_map.h"
 #include "mongo/util/time_support.h"
 
@@ -384,6 +385,7 @@ public:
      */
     static const TimeZoneDatabase* get(ServiceContext* serviceContext);
 
+    static const TimeZoneDatabase* get(OperationContext* opCtx);
     /**
      * Sets the TimeZoneDatabase object associated with the specified service context.
      */

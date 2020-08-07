@@ -39,6 +39,10 @@
 #include "mongo/db/storage/storage_engine_lock_file.h"
 #include "mongo/db/storage/storage_options.h"
 
+#if !defined(__has_feature)
+#define __has_feature(x) 0
+#endif
+
 #if __has_feature(address_sanitizer)
 #include <sanitizer/lsan_interface.h>
 #endif
