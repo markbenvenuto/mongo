@@ -16,6 +16,7 @@ gperftoolsSuffix = '-2.5'
 timelibSuffix = '-2017.05'
 tomcryptSuffix = '-1.18.1'
 benchmarkSuffix = '-1.3.0'
+jemallocSuffix = '-4.3.1'
 
 thirdPartyIncludePathList = [
     ('s2', '#/src/third_party/s2'),
@@ -26,6 +27,10 @@ thirdPartyIncludePathList = [
 if not use_system_version_of_library('tcmalloc'):
     thirdPartyIncludePathList.append(
         ('gperftools', '#/src/third_party/gperftools' + gperftoolsSuffix + '/src'))
+
+if not use_system_version_of_library('jemalloc'):
+    thirdPartyIncludePathList.append(
+        ('jemalloc', '#/src/third_party/jemalloc' + jemallocSuffix + '/include'))
 
 if not use_system_version_of_library('pcre'):
     thirdPartyIncludePathList.append(
@@ -292,6 +297,29 @@ gperftoolsEnv.Library(
         "shim_allocator.cpp",
     ])
 
+
+jemallocEnv = env
+if (jemallocEnv['MONGO_ALLOCATOR'] == "jemalloc"):
+    if use_system_version_of_library("jemalloc"):
+        jemallocEnv = env.Clone(
+            SYSLIBDEPS=[
+                env['LIBDEPS_JEMALLOC_SYSLIBDEP'],
+            ])
+    else:
+        jemallocEnv = env.Clone()
+        jemallocEnv.InjectThirdPartyIncludePaths(libraries=['jemalloc'])
+        jemallocEnv.InjectMongoIncludePaths()
+        jemallocEnv.SConscript('jemalloc' + jemallocSuffix + '/SConscript', exports={ 'env' : jemallocEnv })
+        jemallocEnv = jemallocEnv.Clone(
+            LIBDEPS=[
+                'jemalloc' + jemallocSuffix + '/jemalloc',
+            ])
+
+jemallocEnv.Library(
+    target="shim_jemalloc",
+    source=[
+        "shim_jemalloc.cpp",
+    ])
 
 if use_system_version_of_library("stemmer"):
     stemmerEnv = env.Clone(

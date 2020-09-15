@@ -322,6 +322,35 @@ env.CppUnitTest(
     ],
 )
 
+if env['MONGO_ALLOCATOR'] == 'jemalloc':
+    tcmspEnv = env.Clone()
+
+    if not use_system_version_of_library('jemalloc'):
+
+        # Add in the include path for our vendored jemalloc.
+        tcmspEnv.InjectThirdPartyIncludePaths('jemalloc')
+
+    tcmspEnv.Library(
+        target='jemalloc_set_parameter',
+        source=[
+            'jemalloc_server_status_section.cpp',
+            'jemalloc_set_parameter.cpp',
+        ],
+        LIBDEPS=[
+            # TODO: This is needless, the definition of
+            # ServerStatusSection should live in its own library, as
+            # it doesn't require all of the other commands.
+            '$BUILD_DIR/mongo/db/commands/core',
+            '$BUILD_DIR/mongo/db/server_parameters',
+            '$BUILD_DIR/mongo/util/net/network',
+            "$BUILD_DIR/third_party/shim_jemalloc",
+        ],
+        PROGDEPS_DEPENDENTS=[
+            '$BUILD_DIR/mongo/mongod',
+            '$BUILD_DIR/mongo/mongos',
+        ],
+    )
+
 if env['MONGO_ALLOCATOR'] == 'tcmalloc':
     tcmspEnv = env.Clone()
 
@@ -335,6 +364,7 @@ if env['MONGO_ALLOCATOR'] == 'tcmalloc':
         tcmspEnv.Append(
             CPPDEFINES=[
                 'MONGO_HAVE_GPERFTOOLS_GET_THREAD_CACHE_SIZE',
+                'MONGO_HAVE_GPERFTOOLS_MARK_THREAD_TEMPORARILY_IDLE',
                 'MONGO_HAVE_GPERFTOOLS_SIZE_CLASS_STATS'
             ]
         )

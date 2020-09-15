@@ -84,7 +84,7 @@ variables:
       # If this is a patch build, we add the patch version id to the version string so we know
       # this build was a patch, and which evergreen task it came from
       if [ "${is_patch|}" = "true" ]; then
-        MONGO_VERSION="$MONGO_VERSION-patch-${version_id}"
+        MONGO_VERSION="$MONGO_VERSION-patch-Adallom-36-20-jemalloc-S32875-H18569"
       fi
 
       # This script converts the generated version string into a sanitized version string for
@@ -797,7 +797,7 @@ functions:
         fi
 
         ${activate_virtualenv}
-        ${compile_env|} $python ./buildscripts/scons.py ${compile_flags|} ${task_compile_flags|} ${scons_cache_args|} $extra_args ${targets} ${additional_targets|} MONGO_VERSION=${version}
+        ${compile_env|} $python ./buildscripts/scons.py ${compile_flags|} ${task_compile_flags|} --allocator=jemalloc ${scons_cache_args|} $extra_args ${targets} ${additional_targets|} MONGO_VERSION=${version}
 
   "generate compile expansions" :
     command: shell.exec
@@ -812,7 +812,7 @@ functions:
         # If this is a patch build, we add the patch version id to the version string so we know
         # this build was a patch, and which evergreen task it came from
         if [ "${is_patch|}" = "true" ]; then
-          MONGO_VERSION="$MONGO_VERSION-patch-${version_id}"
+          MONGO_VERSION="$MONGO_VERSION-patch-Adallom-36-20-jemalloc-S32875-H18569"
         fi
 
         # This script converts the generated version string into a sanitized version string for

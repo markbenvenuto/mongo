@@ -1,0 +1,66 @@
+# -*- mode: python -*-
+
+Import("env")
+Import("debugBuild")
+
+env = env.Clone()
+files = [
+    'src/arena.c',
+    'src/atomic.c',
+    'src/base.c',
+    'src/bitmap.c',
+    'src/chunk.c',
+    'src/chunk_dss.c',
+    'src/chunk_mmap.c',
+    'src/ckh.c',
+    'src/ctl.c',
+    'src/extent.c',
+    'src/hash.c',
+    'src/huge.c',
+    'src/jemalloc.c',
+    'src/mb.c',
+    'src/mutex.c',
+    'src/nstime.c',
+    'src/pages.c',
+    'src/prng.c',
+    'src/prof.c',
+    'src/quarantine.c',
+    'src/rtree.c',
+    'src/spin.c',
+    'src/stats.c',
+    'src/tcache.c',
+    'src/ticker.c',
+    'src/tsd.c',
+    'src/util.c',
+    'src/witness.c'
+    ]
+
+if env.TargetOSIs('osx'):
+    files += [
+        'src/zone.c'
+    ]
+elif env.TargetOSIs('linux'):
+    env.Append(CPPDEFINES=["_GNU_SOURCE"])
+
+if debugBuild:
+    env.Append( CPPDEFINES=["JEMALLOC_DEBUG"] )
+
+# Stolen from gperftools SConscript file.
+env.Prepend( CPPPATH=["include/"] )
+
+def removeIfPresent(lst, item):
+    try:
+        lst.remove(item)
+    except ValueError:
+        pass
+
+# JEMalloc uses the 'asm' symbol which isn't defined in c99
+for to_remove in ['-std=c99']:
+    removeIfPresent(env['CFLAGS'], to_remove)
+
+env['CFLAGS'].append('-std=gnu99')
+
+env.Library(
+    target='jemalloc',
+    source=files,
+)
