@@ -7,12 +7,19 @@ import logging
 import sys
 import datetime
 from json import JSONEncoder
+import yaml
 
 from blackduck.HubRestApi import HubInstance
 #import blackduck
 
 PROJECT = "mongodb/mongo"
 VERSION = "master"
+
+THIRD_PARTY_DIRECTORIES = [
+    'src/third_party/wiredtiger/test/3rdparty',
+    'src/third_party',
+]
+
 
 #https://github.com/blackducksoftware/hub-rest-api-python/blob/master/examples/get_bom_component_policy_violations.py
 # logging.basicConfig(format='%(asctime)s%(levelname)s:%(message)s', stream=sys.stderr, level=logging.DEBUG)
@@ -421,16 +428,69 @@ def do_report():
 
 #do_report()
 
-def do_report2():
-    mgr = ReportManager(LocalReportLogger())
+def get_third_party_directories():
+    third_party = []
+    for tp in THIRD_PARTY_DIRECTORIES:
+        for entry in os.scandir(tp):
+            if entry.name not in ["scripts"] and entry.is_dir():
+                third_party.append(entry.path)
 
-    mgr.write_report("bd1_pass", "pass", "Test Report 1")
-    mgr.write_report("bd2_fail", "pass", "Test Report 2")
+    print(third_party)
+
+    return sorted(third_party)
+
+get_third_party_directories()
+
+class ThirdPartyComponent:
+
+    def __init__(self, name, homepage_url, local_path, team_owner):
+        # Required fields
+        self.name = name
+        self.homepage_url = homepage_url
+        self.local_path = local_path
+        self.team_owner = team_owner
+
+        # optional fields
+        self.upgrade_suppression = None
+        self.vulnerability_suppression = None
 
 
-    mgr.finish("reports.json")
+def _get_field(name, ymap, field:str) :
+    if field not in ymap:
+        raise ValueError("Missing field %s for component %s" % (field, name))
 
-do_report2()
+    return ymap[field]
+
+def read_third_party_components():
+    
+    FILE = "etc/third_party_components.yml";
+    with open(FILE) as rfh:
+        yaml_file = yaml.load(rfh.read())
+
+    print(yaml_file)
+
+    third_party = []
+    components = yaml_file["components"]
+    for comp in components:
+        cmap = components[comp]
+
+        tp = ThirdPartyComponent(comp, _get_field(comp, cmap, 'homepage_url'),  _get_field(comp, cmap, 'local_directory_path'),  _get_field(comp, cmap, 'team_owner'))
+        third_party.append(tp)
+
+    return third_party
+
+read_third_party_components()
+
+# def do_report2():
+#     mgr = ReportManager(LocalReportLogger())
+
+#     mgr.write_report("bd1_pass", "pass", "Test Report 1")
+#     mgr.write_report("bd2_fail", "pass", "Test Report 2")
+
+
+#     mgr.finish("reports.json")
+
+# do_report2()
 
 
 # component_name:
