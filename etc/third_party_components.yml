@@ -31,84 +31,86 @@
 components:
   abseil/abseil-cpp:
     homepage_url: https://abseil.io
+    open_hub_url: N/A
+    release_monitoring_id: 115295
     local_directory_path: src/third_party/abseil-cpp-master
     team_owner: service-architecture
 
   asio-master:
-    homepage_url: https://www.example.com
-    open_hub_url: https://www.openhub.net/p/example
-    release_monitoring_id: -1
+    homepage_url: http://think-async.com/Asio/
+    open_hub_url: N/A
+    release_monitoring_id: 117
     local_directory_path: src/third_party/asio-master
     team_owner: service-architecture
 
   benchmark:
-    homepage_url: https://www.example.com
-    open_hub_url: https://www.openhub.net/p/example
-    release_monitoring_id: -1
+    homepage_url: https://github.com/google/benchmark
+    open_hub_url: https://www.openhub.net/p/benchmark
+    release_monitoring_id: 18299
     local_directory_path: src/third_party/benchmark
     team_owner: service-architecture
 
-  boost-1.70.0:
-    homepage_url: https://www.example.com
-    open_hub_url: https://www.openhub.net/p/example
-    release_monitoring_id: -1
+  boost:
+    homepage_url: https://www.boost.org/
+    open_hub_url: https://www.openhub.net/p/boost
+    release_monitoring_id: 6845
     local_directory_path: src/third_party/boost-1.70.0
     team_owner: service-architecture
 
   fmt:
-    homepage_url: https://www.example.com
-    open_hub_url: https://www.openhub.net/p/example
-    release_monitoring_id: -1
+    homepage_url: https://fmt.dev
+    open_hub_url: https://www.openhub.net/p/fmtlib_fmt
+    release_monitoring_id: 11526
     local_directory_path: src/third_party/fmt
     team_owner: service-architecture
 
   gperftools:
-    homepage_url: https://www.example.com
-    open_hub_url: https://www.openhub.net/p/example
-    release_monitoring_id: -1
+    homepage_url: https://github.com/gperftools/gperftools
+    open_hub_url: https://www.openhub.net/p/google-perftools
+    release_monitoring_id: 1238
     local_directory_path: src/third_party/gperftools
     team_owner: service-architecture
 
-  icu4c-57.1:
-    homepage_url: https://www.example.com
-    open_hub_url: https://www.openhub.net/p/example
-    release_monitoring_id: -1
+  icu4c:
+    homepage_url: http://site.icu-project.org/
+    open_hub_url: https://www.openhub.net/p/icu4c
+    release_monitoring_id: 16134
     local_directory_path: src/third_party/icu4c-57.1
     team_owner: service-architecture
 
-  IntelRDFPMathLib20U1:
-    homepage_url: https://www.example.com
-    open_hub_url: https://www.openhub.net/p/example
+  IntelRDFPMathLib:
+    homepage_url: https://software.intel.com/content/www/us/en/develop/articles/intel-decimal-floating-point-math-library.html
+    open_hub_url: N/A
     release_monitoring_id: -1
     local_directory_path: src/third_party/IntelRDFPMathLib20U1
     team_owner: service-architecture
 
-  jemalloc-5.0.1:
-    homepage_url: https://www.example.com
-    open_hub_url: https://www.openhub.net/p/example
-    release_monitoring_id: -1
-    local_directory_path: src/third_party/jemalloc-5.0.1
-    team_owner: service-architecture
-
   JSON-Schema-Test-Suite:
-    homepage_url: https://www.example.com
-    open_hub_url: https://www.openhub.net/p/example
+    homepage_url: https://github.com/json-schema-org/JSON-Schema-Test-Suite
+    open_hub_url: https://www.openhub.net/p/json-schema-test-suite
     release_monitoring_id: -1
     local_directory_path: src/third_party/JSON-Schema-Test-Suite
     team_owner: service-architecture
 
   kms-message:
-    homepage_url: https://www.example.com
-    open_hub_url: https://www.openhub.net/p/example
+    homepage_url: https://github.com/mongodb/libmongocrypt
+    open_hub_url: N/A
     release_monitoring_id: -1
     local_directory_path: src/third_party/kms-message
     team_owner: service-architecture
 
-  libstemmer_c:
-    homepage_url: https://www.example.com
-    open_hub_url: https://www.openhub.net/p/example
-    release_monitoring_id: -1
+  libstemmer:
+    homepage_url: https://snowballstem.org/
+    open_hub_url: https://www.openhub.net/p/Snowball_Stemming_Algorithms
+    release_monitoring_id: 7853
     local_directory_path: src/third_party/libstemmer_c
+    team_owner: service-architecture
+
+  linenoise:
+    homepage_url: https://github.com/antirez/linenoise
+    open_hub_url: https://www.openhub.net/p/linenoise
+    release_monitoring_id: 5691
+    local_directory_path: src/mongo/shell/linenoise.*
     team_owner: service-architecture
 
   mock_ocsp_responder:
@@ -118,91 +120,77 @@ components:
     local_directory_path: src/third_party/mock_ocsp_responder
     team_owner: service-architecture
 
-  mozjs-52:
-    homepage_url: https://www.example.com
-    open_hub_url: https://www.openhub.net/p/example
-    release_monitoring_id: -1
-    local_directory_path: src/third_party/mozjs-52
-    team_owner: service-architecture
-
-  mozjs-60:
-    homepage_url: https://www.example.com
-    open_hub_url: https://www.openhub.net/p/example
-    release_monitoring_id: -1
+  mozjs:
+    homepage_url: https://www.mozilla.org/en-US/firefox/organizations/ 
+    open_hub_url: https://www.openhub.net/p/firefox
+    release_monitoring_id: 16838
     local_directory_path: src/third_party/mozjs-60
     team_owner: service-architecture
 
   murmurhash3:
-    homepage_url: https://www.example.com
-    open_hub_url: https://www.openhub.net/p/example
+    homepage_url: https://github.com/aappleby/smhasher
+    open_hub_url: https://www.openhub.net/p/smhasher
     release_monitoring_id: -1
     local_directory_path: src/third_party/murmurhash3
     team_owner: service-architecture
 
-  pcre-8.41:
-    homepage_url: https://www.example.com
-    open_hub_url: https://www.openhub.net/p/example
-    release_monitoring_id: -1
-    local_directory_path: src/third_party/pcre-8.41
-    team_owner: service-architecture
-
-  pcre-8.42:
-    homepage_url: https://www.example.com
-    open_hub_url: https://www.openhub.net/p/example
-    release_monitoring_id: -1
+  pcre:
+    homepage_url: https://www.pcre.org/
+    open_hub_url: https://www.openhub.net/p/pcre
+    release_monitoring_id: 2610
     local_directory_path: src/third_party/pcre-8.42
     team_owner: service-architecture
 
   peglib:
-    homepage_url: https://www.example.com
-    open_hub_url: https://www.openhub.net/p/example
+    homepage_url: https://github.com/yhirose/cpp-peglib
+    open_hub_url: N/A
     release_monitoring_id: -1
     local_directory_path: src/third_party/peglib
     team_owner: service-architecture
 
   s2:
-    homepage_url: https://www.example.com
-    open_hub_url: https://www.openhub.net/p/example
+    homepage_url: https://github.com/google/s2geometry
+    open_hub_url: N/A
     release_monitoring_id: -1
     local_directory_path: src/third_party/s2
     team_owner: service-architecture
 
   SafeInt:
-    homepage_url: https://www.example.com
-    open_hub_url: https://www.openhub.net/p/example
+    homepage_url: https://github.com/dcleblanc/SafeInt
+    open_hub_url: https://www.openhub.net/p/SafeInt
     release_monitoring_id: -1
     local_directory_path: src/third_party/SafeInt
     team_owner: service-architecture
 
-  scons-3.1.2:
+  scons:
     homepage_url: https://www.scons.org/ 
     open_hub_url: https://www.openhub.net/p/scons
     release_monitoring_id: 4770
     local_directory_path: src/third_party/scons-3.1.2
     team_owner: service-architecture
 
-  snappy-1.1.7:
+  snappy:
     homepage_url: https://google.github.io/snappy/
     open_hub_url: N/A
     release_monitoring_id: 4844
     local_directory_path: src/third_party/snappy-1.1.7
     team_owner: service-architecture
 
-  timelib-2018.01:
+  timelib:
     homepage_url: https://github.com/derickr/timelib
     open_hub_url: N/A
     release_monitoring_id: -1
     local_directory_path: src/third_party/timelib-2018.01
     team_owner: service-architecture
 
-  tomcrypt-1.18.2:
+  tomcrypt:
     homepage_url: https://www.libtom.net/
     open_hub_url: https://www.openhub.net/p/libtomcrypt
     release_monitoring_id: 15563
     local_directory_path: src/third_party/tomcrypt-1.18.2
     team_owner: service-architecture
 
-  unicode-8.0.0:
+  unicode:
     homepage_url: http://www.unicode.org
     open_hub_url: N/A
     release_monitoring_id: 5045
@@ -216,14 +204,14 @@ components:
     local_directory_path: src/third_party/unwind
     team_owner: service-architecture
 
-  valgrind-3.14.0:
+  valgrind:
     homepage_url: https://valgrind.org/
     open_hub_url: https://www.openhub.net/p/valgrind
     release_monitoring_id: 13639
     local_directory_path: src/third_party/valgrind-3.14.0
     team_owner: service-architecture
 
-  variant-1.4.0:
+  variant:
     homepage_url: https://github.com/mpark/variant
     open_hub_url: N/A
     release_monitoring_id: 18301
@@ -272,21 +260,21 @@ components:
     local_directory_path: src/third_party/wiredtiger/test/3rdparty/testtools-0.9.34
     team_owner: service-architecture
 
-  yaml-cpp-0.6.2:
+  yaml-cpp:
     homepage_url: https://github.com/jbeder/yaml-cpp
     open_hub_url: https://www.openhub.net/p/jbeder_yaml-cpp
     release_monitoring_id: 5284
     local_directory_path: src/third_party/yaml-cpp-0.6.2
     team_owner: service-architecture
 
-  zlib-1.2.11:
+  zlib:
     homepage_url: https://www.zlib.net/
     open_hub_url: https://www.openhub.net/p/zlib
     release_monitoring_id: 5303
     local_directory_path: src/third_party/zlib-1.2.11
     team_owner: service-architecture
 
-  zstandard-1.4.4:
+  zstandard:
     homepage_url: http://www.zstd.net/ 
     open_hub_url: https://www.openhub.net/p/zstd
     release_monitoring_id: 12083
