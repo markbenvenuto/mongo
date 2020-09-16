@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"strings"
+
+	"github.com/youmark/pkcs8"
 )
 
 // TLSConfig contains options for configuring an SSL connection to the server.
@@ -71,7 +73,15 @@ func (c *TLSConfig) AddClientCertFromFile(clientFile, password string) (string, 
 	}
 
 	if strings.Contains(keyPEM.Type, "ENCRYPTED") {
-		return "", fmt.Errorf("PKCS#8 encrypted private keys are not supported")
+		decrypted, err := pkcs8.ParsePKCS8PrivateKey(keyPEM.Bytes, []byte(password))
+		if err != nil {
+			return "", err
+		}
+		bytes, err := x509.MarshalPKCS8PrivateKey(decrypted)
+		if err != nil {
+			return "", err
+		}
+		keyPEM = &pem.Block{Bytes: bytes, Type: keyPEM.Type}
 	}
 
 	cert, err := tls.X509KeyPair(pem.EncodeToMemory(certPEM), pem.EncodeToMemory(keyPEM))
