@@ -318,28 +318,80 @@ def query_blackduck():
     bom_components = hub.get_version_components(version)
 
     components = [Component.parse(hub, c) for c in bom_components["items"]]
-    for c in components:
 
+    return components
+
+class TestResult:
+    def __init__(self, name, status):
+        # This matches the report.json schema
+        # See https://github.com/evergreen-ci/evergreen/blob/789bee107d3ffb9f0f82ae344d72502945bdc914/model/task/task.go#L264-L284
+        # TODO log file
+        self.test_file = name
+        self.status = status
+        self.exit_code = 1
+
+        if status == "pass":
+            self.exit_code = 0
+
+class ReportLogger():
+
+    def __init__():
+        self.foo = 1
+        self.results = []
+
+    def write_report(self, name, status, content):
+        """
+            status is a string of "pass" or "fail"
+        """
+        name = name.replace(" ", "_")
+
+        # TODO - write out to logger
+
+        self.results.append( TestResult(name, status))
+
+
+
+def write_policy_report(c):
+
+    for p in c.policies:
+        pass
+
+
+def write_security_report(c):
+    pass
+
+def do_report():
+    components = query_blackduck()
+
+    print("Component List")
+    for c in components:
         print("%s - %s - %s - %s - %s" % (c.name, c.version, c.licenses, c.policy_status, c.security_risk))
 
-#query_blackduck()
+    for c in components:
+        write_security_report(c)
+
+        write_policy_report(c)
+
+do_report()
 
 
-server = BuildloggerServer("fake", "oass", "123", "a_builder" , "456", "http://localhost:8080")
 
-build_id = server.new_build_id("789")
 
-test_file = """
-Here is a sample test file
-You can find more details here at ...
-asd
-as
-da
-sd
-asd
-asda;klsfjhas'fhk'
-"""
+# server = BuildloggerServer("fake", "oass", "123", "a_builder" , "456", "http://localhost:8080")
 
-server.post_new_file(build_id, "sample_test", test_file.split("\n"))
+# build_id = server.new_build_id("789")
 
-server.post_new_file(build_id, "sample_test2", test_file.split("\n"))
+# test_file = """
+# Here is a sample test file
+# You can find more details here at ...
+# asd
+# as
+# da
+# sd
+# asd
+# asda;klsfjhas'fhk'
+# """
+
+# server.post_new_file(build_id, "sample_test", test_file.split("\n"))
+
+# server.post_new_file(build_id, "sample_test2", test_file.split("\n"))
