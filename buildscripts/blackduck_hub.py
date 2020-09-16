@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 
 import argparse
+import os
 import json
 import logging
 import sys
 import datetime
+from json import JSONEncoder
+
 from blackduck.HubRestApi import HubInstance
 #import blackduck
 
-PROJECT="mongodb/mongo"
-VERSION="master"
+PROJECT = "mongodb/mongo"
+VERSION = "master"
 
 #https://github.com/blackducksoftware/hub-rest-api-python/blob/master/examples/get_bom_component_policy_violations.py
 # logging.basicConfig(format='%(asctime)s%(levelname)s:%(message)s', stream=sys.stderr, level=logging.DEBUG)
@@ -321,11 +324,17 @@ def query_blackduck():
 
     return components
 
+class TestResultEncoder(JSONEncoder):
+        def default(self, obj):
+            return obj.__dict__
+
 class TestResult:
     def __init__(self, name, status):
         # This matches the report.json schema
         # See https://github.com/evergreen-ci/evergreen/blob/789bee107d3ffb9f0f82ae344d72502945bdc914/model/task/task.go#L264-L284
         # TODO log file
+        assert status in ["pass", "fail"]
+
         self.test_file = name
         self.status = status
         self.exit_code = 1
@@ -333,13 +342,42 @@ class TestResult:
         if status == "pass":
             self.exit_code = 0
 
-class ReportLogger():
+from abc import ABCMeta, abstractmethod
+from typing import Dict, List, Optional
 
-    def __init__():
-        self.foo = 1
+
+class ReportLogger(object, metaclass=ABCMeta):
+    """Base Class for all report loggers."""
+
+    @abstractmethod
+    def log_report(self, name : str, content : str):
+        """Get the command to run a linter."""
+        pass
+
+
+REPORTS_DIR = "bd_reports"
+
+class LocalReportLogger(ReportLogger):
+
+    def __init__(self):
+        if not os.path.exists(REPORTS_DIR):
+            os.mkdir(REPORTS_DIR)
+
+    def log_report(self, name : str, content: str) :
+        file_name = os.path.join(REPORTS_DIR, name + ".log")
+
+        with open( file_name, "w") as wfh:
+            wfh.write(content)
+
+        
+
+class ReportManager:
+
+    def __init__(self, logger: ReportLogger):
+        self.logger = logger
         self.results = []
 
-    def write_report(self, name, status, content):
+    def write_report(self, name :str, status : str, content : str):
         """
             status is a string of "pass" or "fail"
         """
@@ -349,6 +387,15 @@ class ReportLogger():
 
         self.results.append( TestResult(name, status))
 
+        self.logger.log_report(name, content)
+
+    
+    def finish(self, reports_file : str):
+
+        with open( reports_file, "w") as wfh:
+            wfh.write(json.dumps(self.results, cls = TestResultEncoder))
+
+        # self.logger.finish()
 
 
 def write_policy_report(c):
@@ -372,9 +419,26 @@ def do_report():
 
         write_policy_report(c)
 
-do_report()
+#do_report()
+
+def do_report2():
+    mgr = ReportManager(LocalReportLogger())
+
+    mgr.write_report("bd1_pass", "pass", "Test Report 1")
+    mgr.write_report("bd2_fail", "pass", "Test Report 2")
 
 
+    mgr.finish("reports.json")
+
+do_report2()
+
+
+# component_name:
+# 	homepage_url:
+# 	local_directory_path:
+# 	upgrade_suppression: SERVER-12345
+# 	vulnerability_suppression: SERVER-12345
+# 	team_owner:
 
 
 # server = BuildloggerServer("fake", "oass", "123", "a_builder" , "456", "http://localhost:8080")

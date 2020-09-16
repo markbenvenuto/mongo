@@ -1,0 +1,22 @@
+# List of Third Party Components in MongoDB source code
+#
+# This file is consumed by buildscripts/blackduck_hub.py
+
+# Sample
+# component_name: Sample Example Compnent             
+# 	homepage_url: http://www.example.com
+# 	local_directory_path: src/third_party/example
+# 	upgrade_suppression: SERVER-12345
+# 	vulnerability_suppression: SERVER-12345
+# 	team_owner: example
+
+# Description
+# component_name - string - required - Name of component in Black Duck Hub
+# homepage_url - URL - required - website where to find third party component
+# local_directory_path - path - required - relative path to directory containing code
+# upgrade_suppression - string - optional - SERVER- ticket in JIRA, if present upgrade issues are ignored
+# vulnerability_suppression - string - optional - SERVER- ticket in JIRA, if present vulnerability issues are ignored
+# team_owner - string - required - server team that is responsible for maintaining library
+
+
+
