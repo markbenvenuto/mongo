@@ -520,7 +520,7 @@ def _parse_command(ctxt, spec, name, node):
 
     _generic_parser(
         ctxt, node, "command", command, {
-        "description": _RuleDesc('scalar', _RuleDesc.REQUIRED),
+            "description": _RuleDesc('scalar', _RuleDesc.REQUIRED),
             "chained_types": _RuleDesc('mapping', mapping_parser_func=_parse_chained_types),
             "chained_structs": _RuleDesc('mapping', mapping_parser_func=_parse_chained_structs),
             "fields": _RuleDesc('mapping', mapping_parser_func=_parse_fields),
