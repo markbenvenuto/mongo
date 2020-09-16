@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 
+import subprocess
 import argparse
 import os
 import json
 import logging
 import sys
 import datetime
+import tempfile
 from json import JSONEncoder
 import yaml
 
@@ -317,6 +319,44 @@ class Policy:
 # </BODY>
 # </HTML>"""
 # nameSpace = {'title': 'Hello World Example', 'contents': 'Hello World!'}
+RESTCONFIG = ".restconfig.json"
+
+class BlackDuckConfig:
+    def __init__(self):
+        if not os.path.exists(RESTCONFIG):
+            raise ValueError("Cannot find %s for blackduck configuration" % (RESTCONFIG))
+
+        with open(RESTCONFIG, "r") as rfh:
+            rc = json.loads(rfh.read())
+
+        self.url = rc["baseurl"]
+        self.username = rc["username"]
+        self.password = rc["password"]
+
+BLACKDUCK_TIMEOUT_SECS=600
+
+def run_scan():
+    # Get user name and password from .restconfig.json
+    bdc = BlackDuckConfig()
+
+#    os.system(f"bash <(curl --retry 5 -s -L https://detect.synopsys.com/detect.sh) --blackduck.url={bdc.url} --blackduck.username={bdc.username} --blackduck.password={bdc.password} --detect.report.timeout=600 --detect.wait.for.results=true")
+
+    # TODO - set JAVA_HOME on machines?
+    with tempfile.NamedTemporaryFile() as fp:
+        fp.write(f"""#/!bin/sh
+curl --retry 5 -s -L https://detect.synopsys.com/detect.sh  | bash -s -- --blackduck.username={bdc.username} --blackduck.password={bdc.password} --detect.report.timeout={BLACKDUCK_TIMEOUT_SECS} --detect.wait.for.results=true
+""".encode())
+        fp.flush()
+
+        # subprocess.call(["ls", "-l", fp.name])
+        # subprocess.call(["cat", fp.name])
+        
+        subprocess.call(["/bin/sh", fp.name])
+
+#    subprocess.call(["/bin/sh", "-c", f"bash <(curl --retry 5 -s -L https://detect.synopsys.com/detect.sh) --blackduck.username={bdc.username} --blackduck.password={bdc.password} --detect.report.timeout={BLACKDUCK_TIMEOUT_SECS} --detect.wait.for.results=true"])
+
+
+run_scan()
 
 def query_blackduck():
 
@@ -332,8 +372,8 @@ def query_blackduck():
     return components
 
 class TestResultEncoder(JSONEncoder):
-        def default(self, obj):
-            return obj.__dict__
+    def default(self, o):
+        return o.__dict__
 
 class TestResult:
     def __init__(self, name, status):
