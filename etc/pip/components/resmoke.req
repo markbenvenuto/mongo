@@ -10,3 +10,10 @@ ocspbuilder == 0.10.2
 #grpcio == 1.28.1; platform_machine != "x86_64"
 #grpcio-tools == 1.28.1; platform_machine != "x86_64"
 #googleapis-common-protos == 1.51.0; platform_machine != "x86_64"
+blackduck=0.0.51
+# TODO - pin 
+# Requirement already satisfied: requests in /home/mark/.local/lib/python3.7/site-packages (from blackduck) (2.22.0)
+# Requirement already satisfied: certifi>=2017.4.17 in /home/mark/.local/lib/python3.7/site-packages (from requests->blackduck) (2019.6.16)
+# Requirement already satisfied: chardet<3.1.0,>=3.0.2 in /usr/lib/python3.7/site-packages (from requests->blackduck) (3.0.4)
+# Requirement already satisfied: urllib3!=1.25.0,!=1.25.1,<1.26,>=1.21.1 in /usr/lib/python3.7/site-packages (from requests->blackduck) (1.25.7)
+# Requirement already satisfied: idna<2.9,>=2.5 in /usr/lib/python3.7/site-packages (from requests->blackduck) (2.8)

@@ -1,0 +1,15 @@
+
+{
+    "results":[
+    {
+        "status":"pass",
+        "test_file":"boost_policy_newversion",
+        "exit_code":0
+    },
+    {
+        "status":"fail",
+        "test_file":"boost_policy_security",
+        "exit_code":1
+    }
+]
+}
