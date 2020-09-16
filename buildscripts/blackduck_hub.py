@@ -277,7 +277,7 @@ class Component:
 
     def parse(hub, component):
         name = component["componentName"]
-        cversion = component["componentVersionName"]
+        cversion = component.get("componentVersionName", "unknown_version")
         licenses = ",".join([a.get("spdxId", a["licenseDisplay"])        for a in component["licenses"]])
 
         policy_status =  component["policyStatus"]
@@ -560,6 +560,8 @@ class Analyzer:
 
         comp_dirs = [c.local_path for c in self.third_party_components]
         for cdir in self.third_party_directories:
+            if cdir in ["src/third_party/wiredtiger"]:
+                continue
 
             if cdir not in comp_dirs:
                 _generate_report_missing_directory(self.mgr, cdir)
