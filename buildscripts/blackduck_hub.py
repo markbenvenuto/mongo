@@ -8,34 +8,74 @@ import logging
 import sys
 import datetime
 import tempfile
+import logging
 from json import JSONEncoder
+import time
+import requests
+import warnings
+import urllib3.util.retry as urllib3_retry
 import yaml
+from abc import ABCMeta, abstractmethod
+from typing import Dict, List, Optional
+
 
 from blackduck.HubRestApi import HubInstance
 #import blackduck
 
+LOGGER = logging.getLogger(__name__)
+
+############################################################################
+
 PROJECT = "mongodb/mongo"
 VERSION = "master"
+BLACKDUCK_TIMEOUT_SECS=600
 
 THIRD_PARTY_DIRECTORIES = [
     'src/third_party/wiredtiger/test/3rdparty',
     'src/third_party',
 ]
 
+    
+THIRD_PART_COMPONENTS_FILE = "etc/third_party_components.yml";
+
+
+############################################################################
+
+# Build Logger constants
+
+CREATE_BUILD_ENDPOINT = "/build"
+APPEND_GLOBAL_LOGS_ENDPOINT = "/build/%(build_id)s"
+CREATE_TEST_ENDPOINT = "/build/%(build_id)s/test"
+APPEND_TEST_LOGS_ENDPOINT = "/build/%(build_id)s/test/%(test_id)s"
+
+_TIMEOUT_SECS = 65
+
+############################################################################
 
 #https://github.com/blackducksoftware/hub-rest-api-python/blob/master/examples/get_bom_component_policy_violations.py
 # logging.basicConfig(format='%(asctime)s%(levelname)s:%(message)s', stream=sys.stderr, level=logging.DEBUG)
 # logging.getLogger("requests").setLevel(logging.WARNING)
 # logging.getLogger("urllib3").setLevel(logging.WARNING)
 
+# Use cases
+#
+# 1. A developer adds a new third party library
+#    Black Duck will detect the new component
+#    A BF will be generated since it is unknown library
+# 2. A new vulnerability is discovered in a third party library
+#    Black Duck will update their database
+#    We will query their database and a BF will be generated
+# 3. A third party library releases a new version
+#    Black Duck will update their database
+#    We will query their database and a BF will be generated
+# 4. A new third party library is added to src/third_party but not detected by Black Duck
+#    We will error on any files in src/third_party that are not in etc/third_party_components.yml
+# 5. A known third party library is removed but not from etc/third_party_components.yml or Black Duck
+# 6. Black Duck detects a new library that is not actually in product
+#    TODO
 
 
 #print(json.dumps(bom_components))
-
-import time
-import requests
-import warnings
-import urllib3.util.retry as urllib3_retry
 
 try:
     import requests.packages.urllib3.exceptions as urllib3_exceptions
@@ -50,12 +90,6 @@ def default_if_none(value, default):
 
 
 # TODO - load credentials
-CREATE_BUILD_ENDPOINT = "/build"
-APPEND_GLOBAL_LOGS_ENDPOINT = "/build/%(build_id)s"
-CREATE_TEST_ENDPOINT = "/build/%(build_id)s/test"
-APPEND_TEST_LOGS_ENDPOINT = "/build/%(build_id)s/test/%(test_id)s"
-
-_TIMEOUT_SECS = 65
 
 class HTTPHandler(object):
     """A class which sends data to a web server using POST requests."""
@@ -181,15 +215,6 @@ class BuildloggerServer(object):
 
         return response["id"]
 
-    # def get_global_handler(self, build_id, handler_info):
-    #     """Return the global handler."""
-    #     return BuildloggerGlobalHandler(self.config, build_id, **handler_info)
-
-    # def get_test_handler(self, build_id, test_id, handler_info):
-    #     """Return the test handler."""
-    #     return BuildloggerTestHandler(self.config, build_id, test_id, **handler_info)
-
-
     def post_new_file(self, build_id, test_name, lines):
         test_id = self.new_test_id(build_id, test_name, "foo")
         endpoint = APPEND_TEST_LOGS_ENDPOINT % {
@@ -214,30 +239,12 @@ class BuildloggerServer(object):
             raise ValueError("Encountered an error.")
 
 
-    # @staticmethod
-    # def get_build_log_url(build_id):
-    #     """Return the build log URL."""
-    #     base_url = _config.BUILDLOGGER_URL.rstrip("/")
-    #     endpoint = APPEND_GLOBAL_LOGS_ENDPOINT % {"build_id": build_id}
-    #     return "%s/%s" % (base_url, endpoint.strip("/"))
-
-    # @staticmethod
-    # def get_test_log_url(build_id, test_id):
-    #     """Return the test log URL."""
-    #     base_url = _config.BUILDLOGGER_URL.rstrip("/")
-    #     endpoint = APPEND_TEST_LOGS_ENDPOINT % {"build_id": build_id, "test_id": test_id}
-    #     return "%s/%s" % (base_url, endpoint.strip("/"))
-
-
-
-
 def _to_dict(items, func):
     dm = {}
     for i in items:
         tuple1 = func(i)
         dm[tuple1[0]] = tuple1[1]
     return dm
-
 
 #  'securityRiskProfile': {'counts': [{'countType': 'UNKNOWN', 'count': 0},
 #    {'countType': 'OK', 'count': 5},
@@ -273,18 +280,8 @@ class Component:
         cversion = component["componentVersionName"]
         licenses = ",".join([a.get("spdxId", a["licenseDisplay"])        for a in component["licenses"]])
 
-        # TODO - security risk
-    #  'securityRiskProfile': {'counts': [{'countType': 'UNKNOWN', 'count': 0},
-    #    {'countType': 'OK', 'count': 5},
-    #    {'countType': 'LOW', 'count': 0},
-    #    {'countType': 'MEDIUM', 'count': 0},
-    #    {'countType': 'HIGH', 'count': 0},
-    #    {'countType': 'CRITICAL', 'count': 0}]},
-
-
         policy_status =  component["policyStatus"]
         securityRisk = _compute_security_risk(component['securityRiskProfile'])
-
 
         policies = []
         if policy_status == "IN_VIOLATION":
@@ -333,7 +330,6 @@ class BlackDuckConfig:
         self.username = rc["username"]
         self.password = rc["password"]
 
-BLACKDUCK_TIMEOUT_SECS=600
 
 def run_scan():
     # Get user name and password from .restconfig.json
@@ -355,8 +351,11 @@ curl --retry 5 -s -L https://detect.synopsys.com/detect.sh  | bash -s -- --black
 
 #    subprocess.call(["/bin/sh", "-c", f"bash <(curl --retry 5 -s -L https://detect.synopsys.com/detect.sh) --blackduck.username={bdc.username} --blackduck.password={bdc.password} --detect.report.timeout={BLACKDUCK_TIMEOUT_SECS} --detect.wait.for.results=true"])
 
+def _scan_cmd_args(args):
+    LOGGER.info("Running BlackDuck Scan")
+    pass
 
-run_scan()
+#run_scan()
 
 def query_blackduck():
 
@@ -389,8 +388,6 @@ class TestResult:
         if status == "pass":
             self.exit_code = 0
 
-from abc import ABCMeta, abstractmethod
-from typing import Dict, List, Optional
 
 
 class ReportLogger(object, metaclass=ABCMeta):
@@ -445,29 +442,6 @@ class ReportManager:
         # self.logger.finish()
 
 
-def write_policy_report(c):
-
-    for p in c.policies:
-        pass
-
-
-def write_security_report(c):
-    pass
-
-def do_report():
-    components = query_blackduck()
-
-    print("Component List")
-    for c in components:
-        print("%s - %s - %s - %s - %s" % (c.name, c.version, c.licenses, c.policy_status, c.security_risk))
-
-    for c in components:
-        write_security_report(c)
-
-        write_policy_report(c)
-
-#do_report()
-
 def get_third_party_directories():
     third_party = []
     for tp in THIRD_PARTY_DIRECTORIES:
@@ -478,8 +452,6 @@ def get_third_party_directories():
     print(third_party)
 
     return sorted(third_party)
-
-get_third_party_directories()
 
 class ThirdPartyComponent:
 
@@ -501,10 +473,9 @@ def _get_field(name, ymap, field:str) :
 
     return ymap[field]
 
+
 def read_third_party_components():
-    
-    FILE = "etc/third_party_components.yml";
-    with open(FILE) as rfh:
+    with open(THIRD_PART_COMPONENTS_FILE) as rfh:
         yaml_file = yaml.load(rfh.read())
 
     print(yaml_file)
@@ -515,11 +486,70 @@ def read_third_party_components():
         cmap = components[comp]
 
         tp = ThirdPartyComponent(comp, _get_field(comp, cmap, 'homepage_url'),  _get_field(comp, cmap, 'local_directory_path'),  _get_field(comp, cmap, 'team_owner'))
+
+        tp.upgrade_suppression = cmap.get("upgrade_suppression", None)
+        tp.vulnerability_suppression = cmap.get("vulnerability_suppression", None)
+
         third_party.append(tp)
 
     return third_party
 
-read_third_party_components()
+
+def write_policy_report(c):
+
+    for p in c.policies:
+        pass
+
+
+def write_security_report(c):
+    pass
+
+def _do_reports(mgr):
+    components = query_blackduck()
+
+    print("Component List")
+    for c in components:
+        print("%s - %s - %s - %s - %s" % (c.name, c.version, c.licenses, c.policy_status, c.security_risk))
+
+    for c in components:
+        # 1. Validate if this is in the YAML file
+        verify_yaml_match(c)
+
+        # 2. Validate there are no security issues 
+        verify_vulnerability_status(c)
+
+        # 3. Check for upgrade issues
+        verify_upgrade_status(c)
+
+        #4. 
+        write_security_report(c)
+
+        write_policy_report(c)
+
+    # 4. Validate that each third_party directory is in the YAML file
+
+#do_report()
+
+
+def _generate_reports_args(args):
+    LOGGER.info("Generating Reports")
+
+    third_party_components = read_third_party_components()
+
+    third_party_directories = get_third_party_directories()
+
+    black_duck_components = query_blackduck()
+
+#     mgr = ReportManager(LocalReportLogger())
+
+    _do_reports(mgr)
+
+    pass
+
+def _scan_and_report_args(args):
+    LOGGER.info("Running BlackDuck Scan And Generating Reports")
+    pass
+
 
 # def do_report2():
 #     mgr = ReportManager(LocalReportLogger())
@@ -559,3 +589,36 @@ read_third_party_components()
 # server.post_new_file(build_id, "sample_test", test_file.split("\n"))
 
 # server.post_new_file(build_id, "sample_test2", test_file.split("\n"))
+
+def main() -> None:
+    """Execute Main entry point."""
+
+    parser = argparse.ArgumentParser(description='Black Duck hub controller.')
+
+    parser.add_argument('-v', "--verbose", action='store_true', help="Enable verbose logging")
+    parser.add_argument('-d', "--debug", action='store_true', help="Enable debug logging")
+
+    sub = parser.add_subparsers(title="Hub subcommands", help="sub-command help")
+
+    generate_reports_cmd = sub.add_parser('generate_reports', help='Generate reports from Black Duck')
+    generate_reports_cmd.set_defaults(func=_generate_reports_args)
+
+    scan_cmd = sub.add_parser('scan', help='Do Black Duck Scan')
+    scan_cmd.set_defaults(func=_scan_cmd_args)
+
+    scan_and_report_cmd = sub.add_parser('scan_and_report', help='Run scan and then generate reports')
+    scan_and_report_cmd.set_defaults(func=_scan_and_report_args)
+
+    args = parser.parse_args()
+
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG)
+    elif args.verbose:
+        logging.basicConfig(level=logging.INFO)
+
+
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()
