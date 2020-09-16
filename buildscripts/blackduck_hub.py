@@ -361,9 +361,13 @@ def query_blackduck():
 
     hub = HubInstance()
 
+    LOGGER.info("Fetching project %s from blackduck", PROJECT)
     project = hub.get_project_by_name(PROJECT)
+
+    LOGGER.info("Fetching project version %s from blackduck", VERSION)
     version = hub.get_version_by_name(project, VERSION)
 
+    LOGGER.info("Getting version components from blackduck")
     bom_components = hub.get_version_components(version)
 
     components = [Component.parse(hub, c) for c in bom_components["items"]]
@@ -425,14 +429,17 @@ class ReportManager:
         """
             status is a string of "pass" or "fail"
         """
-        name = name.replace(" ", "_")
+        name = name.replace(" ", "_").replace("/", "_")
 
         # TODO - write out to logger
+
+        LOGGER.info("Writing Report %s - %s", name, status)
 
         self.results.append( TestResult(name, status))
 
         self.logger.log_report(name, content)
 
+        
     
     def finish(self, reports_file : str):
 
@@ -448,8 +455,6 @@ def get_third_party_directories():
         for entry in os.scandir(tp):
             if entry.name not in ["scripts"] and entry.is_dir():
                 third_party.append(entry.path)
-
-    print(third_party)
 
     return sorted(third_party)
 
@@ -495,54 +500,101 @@ def read_third_party_components():
     return third_party
 
 
+
 def write_policy_report(c):
 
     for p in c.policies:
         pass
 
+def _generate_report_missing_component(mgr : ReportManager, comp : Component):
+    # TODO
+    mgr.write_report(f"{comp.name}_yaml_check", "fail", "Test Report TODO")
 
-def write_security_report(c):
-    pass
+def _generate_report_missing_directory(mgr : ReportManager, cdir: str):
+    # TODO
+    mgr.write_report(f"{cdir}_missing_comp_check", "fail", "Test Report TODO")
 
-def _do_reports(mgr):
-    components = query_blackduck()
+class Analyzer:
 
-    print("Component List")
-    for c in components:
-        print("%s - %s - %s - %s - %s" % (c.name, c.version, c.licenses, c.policy_status, c.security_risk))
+    def __init__(self):
+        self.third_party_components  = None
+        self.third_party_directories  = None
+        self.black_duck_components  = None
+        self.mgr  = None
 
-    for c in components:
-        # 1. Validate if this is in the YAML file
-        verify_yaml_match(c)
+    def _do_reports(self):
+        print("Component List")
+        for c in self.black_duck_components:
+            print("%s - %s - %s - %s - %s" % (c.name, c.version, c.licenses, c.policy_status, c.security_risk))
 
-        # 2. Validate there are no security issues 
-        verify_vulnerability_status(c)
+        for c in self.black_duck_components:
+            # 1. Validate if this is in the YAML file
+            self._verify_yaml_match(c)
 
-        # 3. Check for upgrade issues
-        verify_upgrade_status(c)
+            # 2. Validate there are no security issues
+            self._verify_vulnerability_status(c)
 
-        #4. 
-        write_security_report(c)
+            # 3. Check for upgrade issues
+            self._verify_upgrade_status(c)
 
-        write_policy_report(c)
+        # 4. Validate that each third_party directory is in the YAML file
+        self._verify_directories_in_yaml()
 
-    # 4. Validate that each third_party directory is in the YAML file
+    def _verify_yaml_match(self, comp: Component):
 
-#do_report()
+        if comp.name not in [c.name for c in self.third_party_components]:
+            _generate_report_missing_component(self.mgr, comp)
+        
+        # TODO - generate pass report 
+
+    def _verify_vulnerability_status(self, comp: Component):
+        pass
+
+
+    def _verify_upgrade_status(self, comp: Component):
+        pass
+
+    
+    def _verify_directories_in_yaml(self):
+
+
+        comp_dirs = [c.local_path for c in self.third_party_components]
+        for cdir in self.third_party_directories:
+
+            if cdir not in comp_dirs:
+                _generate_report_missing_directory(self.mgr, cdir)
+                
+
+    #do_report()
+
+
+    def run(self):
+
+        self.third_party_components = read_third_party_components()
+        # self.third_party_components_directories = [c.local_path for c in self.third_party_components]
+        # print(self.third_party_components_directories)
+
+        self.third_party_directories = get_third_party_directories()
+        self.third_party_directories_short = [os.path.basename(f) for f in self.third_party_directories]
+
+        print(self.third_party_directories)
+        print(self.third_party_directories_short)
+
+        self.black_duck_components = query_blackduck()
+
+        self.mgr = ReportManager(LocalReportLogger())
+
+        self._do_reports()
+
+        # TODO - take a file name
+        self.mgr.finish("reports.json")
 
 
 def _generate_reports_args(args):
     LOGGER.info("Generating Reports")
 
-    third_party_components = read_third_party_components()
-
-    third_party_directories = get_third_party_directories()
-
-    black_duck_components = query_blackduck()
-
-#     mgr = ReportManager(LocalReportLogger())
-
-    _do_reports(mgr)
+    analyzer = Analyzer()
+    analyzer.run()
 
     pass
 
