@@ -622,6 +622,7 @@ def _parse_feature_flag(ctxt, spec, name, node):
             "description": _RuleDesc('scalar', _RuleDesc.REQUIRED),
             "cpp_varname": _RuleDesc('scalar'),
             "default": _RuleDesc('scalar_or_mapping', mapping_parser_func=_parse_expression),
+            "version": _RuleDesc('scalar'),
         })
 
     spec.feature_flags.append(param)

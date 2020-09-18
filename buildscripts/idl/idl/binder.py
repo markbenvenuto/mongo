@@ -1014,10 +1014,15 @@ def _bind_feature_flags(param):
 
     ast_param.set_at = "ServerParameterType::kStartupOnly"
 
-    ast_param.cpp_vartype = "bool"
-    ast_param.default = _bind_expression(param.default)
-    ast_param.cpp_varname = param.cpp_varname
+    ast_param.cpp_vartype = "::mongo::FeatureFlag"
 
+    expr = syntax.Expression(param.default.file_name, param.default.line, param.default.column)
+    expr.expr = "%s, %s" % (param.default.literal, param.version if param.version else '""')
+    ast_param.default = _bind_expression(expr)
+    ast_param.default.export = False
+    ast_param.cpp_varname = param.cpp_varname
+    ast_param.feature_flag = True
+    
     return ast_param
 
 

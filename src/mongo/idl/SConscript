@@ -17,6 +17,7 @@ env.Library(
 env.Library(
     target='server_parameter',
     source=[
+        'feature_flag.cpp',
         'server_parameter.cpp',
         'server_parameter_with_storage.cpp',
     ],

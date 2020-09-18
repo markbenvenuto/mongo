@@ -57,7 +57,7 @@ ResourceConsumption::ScopedMetricsCollector::ScopedMetricsCollector(OperationCon
         return;
     }
 
-    if (!commandCollectsMetrics || !gMeasureOperationResourceConsumption) {
+    if (!commandCollectsMetrics || !gMeasureOperationResourceConsumption.isEnabledAndIgnoreFCV()) {
         metrics.beginScopedNotCollecting();
         return;
     }

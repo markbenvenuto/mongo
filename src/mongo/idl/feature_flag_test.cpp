@@ -48,11 +48,11 @@ ServerParameter* getServerParameter(const std::string& name) {
 
 TEST(IDLFeatureFlag, Basic) {
     // true is set by "default" attribute in the IDL file.
-    ASSERT_EQ(feature_flags::gFeatureFlagToaster, true);
+    ASSERT(feature_flags::gFeatureFlagToaster.isEnabledAndIgnoreFCV() == true);
 
     auto* featureFlagToaster = getServerParameter("featureFlagToaster");
     ASSERT_OK(featureFlagToaster->setFromString("false"));
-    ASSERT_EQ(feature_flags::gFeatureFlagToaster, false);
+    ASSERT(feature_flags::gFeatureFlagToaster.isEnabledAndIgnoreFCV() == false);
     ASSERT_NOT_OK(featureFlagToaster->setFromString("alpha"));
 }
 
