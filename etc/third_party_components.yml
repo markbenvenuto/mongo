@@ -35,7 +35,7 @@ components:
     release_monitoring_id: -1
     local_directory_path: [src/mongo/util/md5.h, src/mongo/util/md5.cpp]
     team_owner: service-architecture
-    # Not covered in blackduck
+    # Not covered in black duck
 
   abseil/abseil-cpp:
     homepage_url: https://abseil.io
@@ -178,7 +178,6 @@ components:
     local_directory_path: src/third_party/s2
     team_owner: service-architecture
     # Note: Code in MongoDB is based on early release here - https://code.google.com/archive/p/s2-geometry-library/
-    # Note: peglib exists in black duck, but not openhub
 
   SafeInt:
     homepage_url: https://github.com/dcleblanc/SafeInt
@@ -207,7 +206,7 @@ components:
     release_monitoring_id: -1
     local_directory_path: src/third_party/timelib-2018.01
     team_owner: service-architecture
-    # Note: Not in black 
+    # Note: Not in black duck
 
   tomcrypt:
     homepage_url: https://www.libtom.net/

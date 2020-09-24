@@ -19,6 +19,16 @@ from abc import ABCMeta, abstractmethod
 from typing import Dict, List, Optional
 
 
+# TODO
+# 1. Check upgrade-guidance
+#     - https://mongodb.app.blackduck.com/api-doc/public.html#_reading_a_component_version_s_upgrade_guidance
+#     - https://mongodb.app.blackduck.com/api/components/48190a0a-604d-41eb-aadc-9c942ecdb6fd/versions/ac208ec9-78fe-4723-be56-859e90fe9d94/origins/d365371b-e19b-4769-87d3-beae0c7b21e9/upgrade-guidance
+# 2. Add link back to blackduck so people can update the version in the manual
+# 3. Add table formatting
+# 4. Write sumnary o CSV
+# 5. Write third_party.md file
+#
+
 from blackduck.HubRestApi import HubInstance
 #import blackduck
 
@@ -30,12 +40,14 @@ PROJECT = "mongodb/mongo"
 VERSION = "master"
 BLACKDUCK_TIMEOUT_SECS=600
 
+PROJECT_URL="https://mongodb.app.blackduck.com/api/projects/0258c84e-bb6c-4e37-b104-49148547b027/versions/2b272c5d-6c5e-401d-95c4-6449c06377c4/components?sort=projectName%20ASC&offset=0&limit=100&filter=bomInclusion%3Atrue&filter=bomInclusion%3Afalse"
+
 THIRD_PARTY_DIRECTORIES = [
     'src/third_party/wiredtiger/test/3rdparty',
     'src/third_party',
 ]
 
-    
+
 THIRD_PART_COMPONENTS_FILE = "etc/third_party_components.yml";
 
 
@@ -254,7 +266,7 @@ def _to_dict(items, func):
 #    {'countType': 'CRITICAL', 'count': 0}]},
 def _compute_security_risk(securityRiskProfile):
     counts = securityRiskProfile["counts"]
-    
+
     cm = _to_dict(counts, lambda i : (i["countType"], int(i["count"])) )
 
 
@@ -267,18 +279,19 @@ def _compute_security_risk(securityRiskProfile):
     return "OK"
 
 class Component:
-    def __init__(self, name, version, licenses, policy_status, security_risk, policies):
+    def __init__(self, name, version, licenses, policy_status, security_risk, newer_releases, policies):
         self.name = name
         self.version = version
         self.licenses = licenses
         self.policy_status = policy_status
         self.security_risk = security_risk
         self.policies = policies
+        self.newer_releases = newer_releases
 
     def parse(hub, component):
         name = component["componentName"]
         cversion = component.get("componentVersionName", "unknown_version")
-        licenses = ",".join([a.get("spdxId", a["licenseDisplay"])        for a in component["licenses"]])
+        licenses = ",".join([a.get("spdxId", a["licenseDisplay"]) for a in component["licenses"]])
 
         policy_status =  component["policyStatus"]
         securityRisk = _compute_security_risk(component['securityRiskProfile'])
@@ -289,8 +302,13 @@ class Component:
             policies_dict = response.json()
 
             policies = [Policy.parse(p) for p in policies_dict["items"]]
-        
-        return Component(name, cversion, licenses, policy_status, securityRisk, policies)
+
+        newer_releases = component["activityData"].get("newerReleases", None)
+
+        if newer_releases > 0:
+
+
+        return Component(name, cversion, licenses, policy_status, securityRisk, newer_releases, policies)
 
 
 class Policy:
@@ -298,7 +316,7 @@ class Policy:
         self.name = name
         self.severity = severity
         self.status = status
-    
+
     def parse(policy):
         return Policy(policy["name"], policy["severity"], policy["policyApprovalStatus"])
 
@@ -346,7 +364,7 @@ curl --retry 5 -s -L https://detect.synopsys.com/detect.sh  | bash -s -- --black
 
         # subprocess.call(["ls", "-l", fp.name])
         # subprocess.call(["cat", fp.name])
-        
+
         subprocess.call(["/bin/sh", fp.name])
 
 #    subprocess.call(["/bin/sh", "-c", f"bash <(curl --retry 5 -s -L https://detect.synopsys.com/detect.sh) --blackduck.username={bdc.username} --blackduck.password={bdc.password} --detect.report.timeout={BLACKDUCK_TIMEOUT_SECS} --detect.wait.for.results=true"])
@@ -368,6 +386,10 @@ def query_blackduck():
     version = hub.get_version_by_name(project, VERSION)
 
     LOGGER.info("Getting version components from blackduck")
+    bom_components = hub.get_version_components(version)
+
+    project = hub.get_project_by_name(PROJECT)
+    version = hub.get_version_by_name(project, VERSION)
     bom_components = hub.get_version_components(version)
 
     components = [Component.parse(hub, c) for c in bom_components["items"]]
@@ -417,30 +439,63 @@ class LocalReportLogger(ReportLogger):
         with open( file_name, "w") as wfh:
             wfh.write(content)
 
-        
+class TableWriter:
+    def __init__(self, headers: [str])
+        self._headers = headers
+        self._rows = []
+
+    def add_row(self, row : [str])
+        self._rows.append(row)
+
+
+    def _write_row(self, col_size : [int], row : [str], writer : io.Writer):
+        for idx in range(len(row)):
+            writer.write(row[idx])
+            writer.write(" " * (col_sizes[idx] - len(row[idx])))
+            writer.write("|")
+
+    def print(self, writer : io.Writer):
+
+        cols = max([len(r) for r in self._rows])
+
+        col_sizes = []
+        for c in range(0, cols):
+            col_sizes = len(self._rows.get(c, ""))
+
+
+        self._write_row(col_sizes, self._headers, writer)
+
+        for r in self._rows:
+            _write_row(self, col_size, r, writer)
+
 
 class ReportManager:
 
     def __init__(self, logger: ReportLogger):
         self.logger = logger
         self.results = []
+        self.results_per_comp = []
 
-    def write_report(self, name :str, status : str, content : str):
+    def write_report(self, comp_name :str, report_name : str, status : str, content : str):
         """
             status is a string of "pass" or "fail"
         """
-        name = name.replace(" ", "_").replace("/", "_")
+        comp_name = comp_name.replace(" ", "_").replace("/", "_")
 
         # TODO - write out to logger
+
+        name = comp_name + "_" + report_name
 
         LOGGER.info("Writing Report %s - %s", name, status)
 
         self.results.append( TestResult(name, status))
 
+        self.results_per_comp[comp_name][name] = status
+
         self.logger.log_report(name, content)
 
-        
-    
+
+
     def finish(self, reports_file : str):
 
         with open( reports_file, "w") as wfh:
@@ -508,11 +563,21 @@ def write_policy_report(c):
 
 def _generate_report_missing_component(mgr : ReportManager, comp : Component):
     # TODO
-    mgr.write_report(f"{comp.name}_yaml_check", "fail", "Test Report TODO")
+    #mgr.write_report(f"{comp.name}_yaml_check", "fail", "Test Report TODO")
+    pass
 
 def _generate_report_missing_directory(mgr : ReportManager, cdir: str):
     # TODO
-    mgr.write_report(f"{cdir}_missing_comp_check", "fail", "Test Report TODO")
+    #mgr.write_report(f"{cdir}_missing_comp_check", "fail", "Test Report TODO")
+    pass
+
+def _generate_report_upgrade(mgr : ReportManager,comp : Component):
+    # TODO
+    mgr.write_report(f"{comp.name}_upgrade_check", "fail", "Test Report TODO")
+
+def _generate_report_vulnerability(mgr : ReportManager,comp : Component):
+    # TODO
+    mgr.write_report(f"{comp.name}_vulnerability_check", "fail", "Test Report TODO")
 
 class Analyzer:
 
@@ -525,7 +590,7 @@ class Analyzer:
     def _do_reports(self):
         print("Component List")
         for c in self.black_duck_components:
-            print("%s - %s - %s - %s - %s" % (c.name, c.version, c.licenses, c.policy_status, c.security_risk))
+            print("%s - %s - %s - %s - %s" % (c.name, c.version, c.licenses, c.newer_releases, c.security_risk))
 
         for c in self.black_duck_components:
             # 1. Validate if this is in the YAML file
@@ -544,17 +609,18 @@ class Analyzer:
 
         if comp.name not in [c.name for c in self.third_party_components]:
             _generate_report_missing_component(self.mgr, comp)
-        
-        # TODO - generate pass report 
+
+        # TODO - generate pass report
 
     def _verify_vulnerability_status(self, comp: Component):
-        pass
+        if comp.security_risk in ["HIGH", "CRITICAL"]:
+            _generate_report_vulnerability(self.mgr, comp)
 
 
     def _verify_upgrade_status(self, comp: Component):
-        pass
+        if comp.policies:
+            _generate_report_upgrade(self.mgr, comp)
 
-    
     def _verify_directories_in_yaml(self):
 
 
@@ -565,7 +631,7 @@ class Analyzer:
 
             if cdir not in comp_dirs:
                 _generate_report_missing_directory(self.mgr, cdir)
-                
+
 
     #do_report()
 
