@@ -6,6 +6,7 @@ import os
 import json
 import logging
 import sys
+import io
 import datetime
 import tempfile
 import logging
@@ -305,7 +306,8 @@ class Component:
 
         newer_releases = component["activityData"].get("newerReleases", None)
 
-        if newer_releases > 0:
+        # TODO - handle newer releases with some data cleaning
+        #if newer_releases > 0:
 
 
         return Component(name, cversion, licenses, policy_status, securityRisk, newer_releases, policies)
@@ -440,21 +442,21 @@ class LocalReportLogger(ReportLogger):
             wfh.write(content)
 
 class TableWriter:
-    def __init__(self, headers: [str])
+    def __init__(self, headers: [str]):
         self._headers = headers
         self._rows = []
 
-    def add_row(self, row : [str])
-        self._rows.append(row)
+    def add_row(self, row : [str]):
+        self._rows.append(row)  
 
 
-    def _write_row(self, col_size : [int], row : [str], writer : io.Writer):
+    def _write_row(self, col_size : [int], row : [str], writer : io.StringIO):
         for idx in range(len(row)):
             writer.write(row[idx])
             writer.write(" " * (col_sizes[idx] - len(row[idx])))
             writer.write("|")
 
-    def print(self, writer : io.Writer):
+    def print(self, writer : io.StringIO):
 
         cols = max([len(r) for r in self._rows])
 
@@ -474,7 +476,7 @@ class ReportManager:
     def __init__(self, logger: ReportLogger):
         self.logger = logger
         self.results = []
-        self.results_per_comp = []
+        self.results_per_comp = {}
 
     def write_report(self, comp_name :str, report_name : str, status : str, content : str):
         """
@@ -490,7 +492,7 @@ class ReportManager:
 
         self.results.append( TestResult(name, status))
 
-        self.results_per_comp[comp_name][name] = status
+        #TODO - self.results_per_comp[comp_name][name] = status
 
         self.logger.log_report(name, content)
 
@@ -573,11 +575,11 @@ def _generate_report_missing_directory(mgr : ReportManager, cdir: str):
 
 def _generate_report_upgrade(mgr : ReportManager,comp : Component):
     # TODO
-    mgr.write_report(f"{comp.name}_upgrade_check", "fail", "Test Report TODO")
+    mgr.write_report(comp.name, "upgrade_check", "fail", "Test Report TODO")
 
 def _generate_report_vulnerability(mgr : ReportManager,comp : Component):
     # TODO
-    mgr.write_report(f"{comp.name}_vulnerability_check", "fail", "Test Report TODO")
+    mgr.write_report(comp.name, "vulnerability_check", "fail", "Test Report TODO")
 
 class Analyzer:
 
