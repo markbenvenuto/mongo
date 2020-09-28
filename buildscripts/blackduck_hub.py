@@ -360,7 +360,7 @@ def run_scan():
     # TODO - set JAVA_HOME on machines?
     with tempfile.NamedTemporaryFile() as fp:
         fp.write(f"""#/!bin/sh
-curl --retry 5 -s -L https://detect.synopsys.com/detect.sh  | bash -s -- --blackduck.username={bdc.username} --blackduck.password={bdc.password} --detect.report.timeout={BLACKDUCK_TIMEOUT_SECS} --detect.wait.for.results=true
+curl --retry 5 -s -L https://detect.synopsys.com/detect.sh  | bash -s -- --blackduck.url={bdc.url} --blackduck.username={bdc.username} --blackduck.password={bdc.password} --detect.report.timeout={BLACKDUCK_TIMEOUT_SECS} --detect.wait.for.results=true
 """.encode())
         fp.flush()
 
@@ -373,6 +373,9 @@ curl --retry 5 -s -L https://detect.synopsys.com/detect.sh  | bash -s -- --black
 
 def _scan_cmd_args(args):
     LOGGER.info("Running BlackDuck Scan")
+
+    run_scan()
+    
     pass
 
 #run_scan()
