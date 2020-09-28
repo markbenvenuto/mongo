@@ -14,24 +14,21 @@ from json import JSONEncoder
 import time
 import requests
 import warnings
+import textwrap
 import urllib3.util.retry as urllib3_retry
 import yaml
 from abc import ABCMeta, abstractmethod
 from typing import Dict, List, Optional
-
+from blackduck.HubRestApi import HubInstance
 
 # TODO
 # 1. Check upgrade-guidance
 #     - https://mongodb.app.blackduck.com/api-doc/public.html#_reading_a_component_version_s_upgrade_guidance
 #     - https://mongodb.app.blackduck.com/api/components/48190a0a-604d-41eb-aadc-9c942ecdb6fd/versions/ac208ec9-78fe-4723-be56-859e90fe9d94/origins/d365371b-e19b-4769-87d3-beae0c7b21e9/upgrade-guidance
 # 2. Add link back to blackduck so people can update the version in the manual
-# 3. Add table formatting
 # 4. Write sumnary o CSV
 # 5. Write third_party.md file
 #
-
-from blackduck.HubRestApi import HubInstance
-#import blackduck
 
 LOGGER = logging.getLogger(__name__)
 
@@ -39,18 +36,16 @@ LOGGER = logging.getLogger(__name__)
 
 PROJECT = "mongodb/mongo"
 VERSION = "master"
-BLACKDUCK_TIMEOUT_SECS=600
+BLACKDUCK_TIMEOUT_SECS = 600
 
-PROJECT_URL="https://mongodb.app.blackduck.com/api/projects/0258c84e-bb6c-4e37-b104-49148547b027/versions/2b272c5d-6c5e-401d-95c4-6449c06377c4/components?sort=projectName%20ASC&offset=0&limit=100&filter=bomInclusion%3Atrue&filter=bomInclusion%3Afalse"
+PROJECT_URL = "https://mongodb.app.blackduck.com/api/projects/0258c84e-bb6c-4e37-b104-49148547b027/versions/2b272c5d-6c5e-401d-95c4-6449c06377c4/components?sort=projectName%20ASC&offset=0&limit=100&filter=bomInclusion%3Atrue&filter=bomInclusion%3Afalse"
 
 THIRD_PARTY_DIRECTORIES = [
     'src/third_party/wiredtiger/test/3rdparty',
     'src/third_party',
 ]
 
-
-THIRD_PART_COMPONENTS_FILE = "etc/third_party_components.yml";
-
+THIRD_PARTY_COMPONENTS_FILE = "etc/third_party_components.yml"
 
 ############################################################################
 
@@ -87,7 +82,6 @@ _TIMEOUT_SECS = 65
 # 6. Black Duck detects a new library that is not actually in product
 #    TODO
 
-
 #print(json.dumps(bom_components))
 
 try:
@@ -96,13 +90,14 @@ except ImportError:
     # Versions of the requests package prior to 1.2.0 did not vendor the urllib3 package.
     urllib3_exceptions = None
 
+
 def default_if_none(value, default):
     """Set default if value is 'None'."""
     return value if value is not None else default
 
 
-
 # TODO - load credentials
+
 
 class HTTPHandler(object):
     """A class which sends data to a web server using POST requests."""
@@ -195,10 +190,8 @@ class BuildloggerServer(object):
         self.url = url
         self.task_id = task_id
 
-        self.handler = HTTPHandler(url_root=self.url,
-                                       username=self.username,
-                                       password=self.password, should_retry=True)
-
+        self.handler = HTTPHandler(url_root=self.url, username=self.username,
+                                   password=self.password, should_retry=True)
 
     def new_build_id(self, suffix):
         """Return a new build id for sending global logs to."""
@@ -259,6 +252,7 @@ def _to_dict(items, func):
         dm[tuple1[0]] = tuple1[1]
     return dm
 
+
 #  'securityRiskProfile': {'counts': [{'countType': 'UNKNOWN', 'count': 0},
 #    {'countType': 'OK', 'count': 5},
 #    {'countType': 'LOW', 'count': 0},
@@ -268,8 +262,7 @@ def _to_dict(items, func):
 def _compute_security_risk(securityRiskProfile):
     counts = securityRiskProfile["counts"]
 
-    cm = _to_dict(counts, lambda i : (i["countType"], int(i["count"])) )
-
+    cm = _to_dict(counts, lambda i: (i["countType"], int(i["count"])))
 
     priorities = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'OK', 'UNKNOWN']
 
@@ -279,8 +272,10 @@ def _compute_security_risk(securityRiskProfile):
 
     return "OK"
 
+
 class Component:
-    def __init__(self, name, version, licenses, policy_status, security_risk, newer_releases, policies):
+    def __init__(self, name, version, licenses, policy_status, security_risk, newer_releases,
+                 policies):
         self.name = name
         self.version = version
         self.licenses = licenses
@@ -294,7 +289,7 @@ class Component:
         cversion = component.get("componentVersionName", "unknown_version")
         licenses = ",".join([a.get("spdxId", a["licenseDisplay"]) for a in component["licenses"]])
 
-        policy_status =  component["policyStatus"]
+        policy_status = component["policyStatus"]
         securityRisk = _compute_security_risk(component['securityRiskProfile'])
 
         policies = []
@@ -309,8 +304,8 @@ class Component:
         # TODO - handle newer releases with some data cleaning
         #if newer_releases > 0:
 
-
-        return Component(name, cversion, licenses, policy_status, securityRisk, newer_releases, policies)
+        return Component(name, cversion, licenses, policy_status, securityRisk, newer_releases,
+                         policies)
 
 
 class Policy:
@@ -338,6 +333,7 @@ class Policy:
 # nameSpace = {'title': 'Hello World Example', 'contents': 'Hello World!'}
 RESTCONFIG = ".restconfig.json"
 
+
 class BlackDuckConfig:
     def __init__(self):
         if not os.path.exists(RESTCONFIG):
@@ -355,7 +351,7 @@ def run_scan():
     # Get user name and password from .restconfig.json
     bdc = BlackDuckConfig()
 
-#    os.system(f"bash <(curl --retry 5 -s -L https://detect.synopsys.com/detect.sh) --blackduck.url={bdc.url} --blackduck.username={bdc.username} --blackduck.password={bdc.password} --detect.report.timeout=600 --detect.wait.for.results=true")
+    #    os.system(f"bash <(curl --retry 5 -s -L https://detect.synopsys.com/detect.sh) --blackduck.url={bdc.url} --blackduck.username={bdc.username} --blackduck.password={bdc.password} --detect.report.timeout=600 --detect.wait.for.results=true")
 
     # TODO - set JAVA_HOME on machines?
     with tempfile.NamedTemporaryFile() as fp:
@@ -369,16 +365,20 @@ curl --retry 5 -s -L https://detect.synopsys.com/detect.sh  | bash -s -- --black
 
         subprocess.call(["/bin/sh", fp.name])
 
+
 #    subprocess.call(["/bin/sh", "-c", f"bash <(curl --retry 5 -s -L https://detect.synopsys.com/detect.sh) --blackduck.username={bdc.username} --blackduck.password={bdc.password} --detect.report.timeout={BLACKDUCK_TIMEOUT_SECS} --detect.wait.for.results=true"])
+
 
 def _scan_cmd_args(args):
     LOGGER.info("Running BlackDuck Scan")
 
     run_scan()
-    
+
     pass
 
+
 #run_scan()
+
 
 def query_blackduck():
 
@@ -401,9 +401,11 @@ def query_blackduck():
 
     return components
 
+
 class TestResultEncoder(JSONEncoder):
     def default(self, o):
         return o.__dict__
+
 
 class TestResult:
     def __init__(self, name, status):
@@ -420,68 +422,76 @@ class TestResult:
             self.exit_code = 0
 
 
-
 class ReportLogger(object, metaclass=ABCMeta):
     """Base Class for all report loggers."""
 
     @abstractmethod
-    def log_report(self, name : str, content : str):
+    def log_report(self, name: str, content: str):
         """Get the command to run a linter."""
         pass
 
 
 REPORTS_DIR = "bd_reports"
 
-class LocalReportLogger(ReportLogger):
 
+class LocalReportLogger(ReportLogger):
     def __init__(self):
         if not os.path.exists(REPORTS_DIR):
             os.mkdir(REPORTS_DIR)
 
-    def log_report(self, name : str, content: str) :
+    def log_report(self, name: str, content: str):
         file_name = os.path.join(REPORTS_DIR, name + ".log")
 
-        with open( file_name, "w") as wfh:
+        with open(file_name, "w") as wfh:
             wfh.write(content)
+
+
+def _get_default(list1, idx, default):
+    if (idx + 1) < len(list1):
+        return list1[idx]
+    return default
+
 
 class TableWriter:
     def __init__(self, headers: [str]):
         self._headers = headers
         self._rows = []
 
-    def add_row(self, row : [str]):
-        self._rows.append(row)  
+    def add_row(self, row: [str]):
+        self._rows.append(row)
 
-
-    def _write_row(self, col_size : [int], row : [str], writer : io.StringIO):
+    def _write_row(self, col_sizes: [int], row: [str], writer: io.StringIO):
+        writer.write("|")
         for idx in range(len(row)):
             writer.write(row[idx])
             writer.write(" " * (col_sizes[idx] - len(row[idx])))
             writer.write("|")
+        writer.write("\n")
 
-    def print(self, writer : io.StringIO):
+    def print(self, writer: io.StringIO):
 
         cols = max([len(r) for r in self._rows])
 
         col_sizes = []
         for c in range(0, cols):
-            col_sizes = len(self._rows.get(c, ""))
-
+            col_sizes.append(
+                max([len(_get_default(r, c, [])) for r in self._rows] + [len(self._headers[c])]))
 
         self._write_row(col_sizes, self._headers, writer)
 
+        self._write_row(col_sizes, ["-" * c for c in col_sizes], writer)
+
         for r in self._rows:
-            _write_row(self, col_size, r, writer)
+            self._write_row(col_sizes, r, writer)
 
 
 class ReportManager:
-
     def __init__(self, logger: ReportLogger):
         self.logger = logger
         self.results = []
         self.results_per_comp = {}
 
-    def write_report(self, comp_name :str, report_name : str, status : str, content : str):
+    def write_report(self, comp_name: str, report_name: str, status: str, content: str):
         """
             status is a string of "pass" or "fail"
         """
@@ -493,18 +503,30 @@ class ReportManager:
 
         LOGGER.info("Writing Report %s - %s", name, status)
 
-        self.results.append( TestResult(name, status))
+        self.results.append(TestResult(name, status))
 
-        #TODO - self.results_per_comp[comp_name][name] = status
+        if comp_name not in self.results_per_comp:
+            self.results_per_comp[comp_name] = []
+
+        self.results_per_comp[comp_name].append(status)
+
+        content = textwrap.wrap(content, width=80)
 
         self.logger.log_report(name, content)
 
+    def finish(self, reports_file: str):
 
+        with open(reports_file, "w") as wfh:
+            wfh.write(json.dumps(self.results, cls=TestResultEncoder))
 
-    def finish(self, reports_file : str):
+        tw = TableWriter(["Component", "Vulnerability", "Upgrade"])
 
-        with open( reports_file, "w") as wfh:
-            wfh.write(json.dumps(self.results, cls = TestResultEncoder))
+        for comp in self.results_per_comp.keys():
+            tw.add_row([comp] + self.results_per_comp[comp])
+
+        stream = io.StringIO()
+        tw.print(stream)
+        print(stream.getvalue())
 
         # self.logger.finish()
 
@@ -518,8 +540,8 @@ def get_third_party_directories():
 
     return sorted(third_party)
 
-class ThirdPartyComponent:
 
+class ThirdPartyComponent:
     def __init__(self, name, homepage_url, local_path, team_owner):
         # Required fields
         self.name = name
@@ -532,7 +554,7 @@ class ThirdPartyComponent:
         self.vulnerability_suppression = None
 
 
-def _get_field(name, ymap, field:str) :
+def _get_field(name, ymap, field: str):
     if field not in ymap:
         raise ValueError("Missing field %s for component %s" % (field, name))
 
@@ -550,7 +572,9 @@ def read_third_party_components():
     for comp in components:
         cmap = components[comp]
 
-        tp = ThirdPartyComponent(comp, _get_field(comp, cmap, 'homepage_url'),  _get_field(comp, cmap, 'local_directory_path'),  _get_field(comp, cmap, 'team_owner'))
+        tp = ThirdPartyComponent(comp, _get_field(comp, cmap, 'homepage_url'),
+                                 _get_field(comp, cmap, 'local_directory_path'),
+                                 _get_field(comp, cmap, 'team_owner'))
 
         tp.upgrade_suppression = cmap.get("upgrade_suppression", None)
         tp.vulnerability_suppression = cmap.get("vulnerability_suppression", None)
@@ -560,42 +584,68 @@ def read_third_party_components():
     return third_party
 
 
-
-def write_policy_report(c):
-
-    for p in c.policies:
-        pass
-
-def _generate_report_missing_component(mgr : ReportManager, comp : Component):
+def _generate_report_missing_component(mgr: ReportManager, comp: Component, fail: bool):
     # TODO
     #mgr.write_report(f"{comp.name}_yaml_check", "fail", "Test Report TODO")
     pass
 
-def _generate_report_missing_directory(mgr : ReportManager, cdir: str):
+
+def _generate_report_missing_directory(mgr: ReportManager, cdir: str, fail: bool):
     # TODO
     #mgr.write_report(f"{cdir}_missing_comp_check", "fail", "Test Report TODO")
     pass
 
-def _generate_report_upgrade(mgr : ReportManager,comp : Component):
+
+def _generate_report_upgrade(mgr: ReportManager, comp: Component, fail: bool):
     # TODO
+    if not fail:
+        mgr.write_report(comp.name, "upgrade_check", "pass", "Blackduck run passed")
+
     mgr.write_report(comp.name, "upgrade_check", "fail", "Test Report TODO")
 
-def _generate_report_vulnerability(mgr : ReportManager,comp : Component):
-    # TODO
-    mgr.write_report(comp.name, "vulnerability_check", "fail", "Test Report TODO")
+
+def _generate_report_vulnerability(mgr: ReportManager, comp: Component, mcomp: ThirdPartyComponent,
+                                   fail: bool):
+    if not fail:
+        mgr.write_report(comp.name, "vulnerability_check", "pass", "Blackduck run passed")
+        return
+
+    mgr.write_report(
+        comp.name, "vulnerability_check", "fail", """
+A Black Duck scan was run and failed.
+
+The ${comp.name} library had HIGH and/or CRITICAL security issues. The current version in Black Duck is ${comp.version}.
+
+MongoDB policy requires all third-party software to be updated to a version clean of HIGH and CRITICAL vulnerabilities on the master branch.
+
+Next Steps:
+
+Build Baron:
+A BF ticket should be generated and assigned to ${mcomp.team_owner} with this text.
+
+Developer:
+To address this build failure, the next steps are as follows:
+1. File a SERVER ticket to update the software if one already does not exist.
+2. Add a “vulnerability_supression” to etc/third_party_components.yml with the SERVER ticket
+
+If you believe the library is already up-to-date but Black Duck has the wrong version, you will need to update the Black Duck configuration.
+
+Note that you do not need to immediately update the library. For more information, https://wiki.corp.mongodb.com/BlackDuck.
+""")
+
 
 class Analyzer:
-
     def __init__(self):
-        self.third_party_components  = None
-        self.third_party_directories  = None
-        self.black_duck_components  = None
-        self.mgr  = None
+        self.third_party_components = None
+        self.third_party_directories = None
+        self.black_duck_components = None
+        self.mgr = None
 
     def _do_reports(self):
         print("Component List")
         for c in self.black_duck_components:
-            print("%s - %s - %s - %s - %s" % (c.name, c.version, c.licenses, c.newer_releases, c.security_risk))
+            print("%s - %s - %s - %s - %s" % (c.name, c.version, c.licenses, c.newer_releases,
+                                              c.security_risk))
 
         for c in self.black_duck_components:
             # 1. Validate if this is in the YAML file
@@ -613,21 +663,23 @@ class Analyzer:
     def _verify_yaml_match(self, comp: Component):
 
         if comp.name not in [c.name for c in self.third_party_components]:
-            _generate_report_missing_component(self.mgr, comp)
+            _generate_report_missing_component(self.mgr, comp, True)
 
         # TODO - generate pass report
 
     def _verify_vulnerability_status(self, comp: Component):
         if comp.security_risk in ["HIGH", "CRITICAL"]:
-            _generate_report_vulnerability(self.mgr, comp)
-
+            _generate_report_vulnerability(self.mgr, comp, True)
+        else:
+            _generate_report_vulnerability(self.mgr, comp, False)
 
     def _verify_upgrade_status(self, comp: Component):
         if comp.policies:
-            _generate_report_upgrade(self.mgr, comp)
+            _generate_report_upgrade(self.mgr, comp, True)
+        else:
+            _generate_report_upgrade(self.mgr, comp, False)
 
     def _verify_directories_in_yaml(self):
-
 
         comp_dirs = [c.local_path for c in self.third_party_components]
         for cdir in self.third_party_directories:
@@ -635,11 +687,9 @@ class Analyzer:
                 continue
 
             if cdir not in comp_dirs:
-                _generate_report_missing_directory(self.mgr, cdir)
-
+                _generate_report_missing_directory(self.mgr, cdir, True)
 
     #do_report()
-
 
     def run(self):
 
@@ -648,13 +698,16 @@ class Analyzer:
         # print(self.third_party_components_directories)
 
         self.third_party_directories = get_third_party_directories()
-        self.third_party_directories_short = [os.path.basename(f) for f in self.third_party_directories]
+        self.third_party_directories_short = [
+            os.path.basename(f) for f in self.third_party_directories
+        ]
 
         print(self.third_party_directories)
         print(self.third_party_directories_short)
 
         self.black_duck_components = query_blackduck()
 
+        # TODO - configure BuildLogger report logger here
         self.mgr = ReportManager(LocalReportLogger())
 
         self._do_reports()
@@ -671,6 +724,7 @@ def _generate_reports_args(args):
 
     pass
 
+
 def _scan_and_report_args(args):
     LOGGER.info("Running BlackDuck Scan And Generating Reports")
     pass
@@ -682,11 +736,9 @@ def _scan_and_report_args(args):
 #     mgr.write_report("bd1_pass", "pass", "Test Report 1")
 #     mgr.write_report("bd2_fail", "pass", "Test Report 2")
 
-
 #     mgr.finish("reports.json")
 
 # do_report2()
-
 
 # component_name:
 # 	homepage_url:
@@ -694,7 +746,6 @@ def _scan_and_report_args(args):
 # 	upgrade_suppression: SERVER-12345
 # 	vulnerability_suppression: SERVER-12345
 # 	team_owner:
-
 
 # server = BuildloggerServer("fake", "oass", "123", "a_builder" , "456", "http://localhost:8080")
 
@@ -715,6 +766,7 @@ def _scan_and_report_args(args):
 
 # server.post_new_file(build_id, "sample_test2", test_file.split("\n"))
 
+
 def main() -> None:
     """Execute Main entry point."""
 
@@ -725,13 +777,15 @@ def main() -> None:
 
     sub = parser.add_subparsers(title="Hub subcommands", help="sub-command help")
 
-    generate_reports_cmd = sub.add_parser('generate_reports', help='Generate reports from Black Duck')
+    generate_reports_cmd = sub.add_parser('generate_reports',
+                                          help='Generate reports from Black Duck')
     generate_reports_cmd.set_defaults(func=_generate_reports_args)
 
     scan_cmd = sub.add_parser('scan', help='Do Black Duck Scan')
     scan_cmd.set_defaults(func=_scan_cmd_args)
 
-    scan_and_report_cmd = sub.add_parser('scan_and_report', help='Run scan and then generate reports')
+    scan_and_report_cmd = sub.add_parser('scan_and_report',
+                                         help='Run scan and then generate reports')
     scan_and_report_cmd.set_defaults(func=_scan_and_report_args)
 
     args = parser.parse_args()
@@ -740,7 +794,6 @@ def main() -> None:
         logging.basicConfig(level=logging.DEBUG)
     elif args.verbose:
         logging.basicConfig(level=logging.INFO)
-
 
     args.func(args)
 

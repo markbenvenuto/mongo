@@ -9621,15 +9621,15 @@ buildvariants:
   tasks:
   - name: lint_fuzzer_sanity_all
 
- - name: security-daily-cron
-   modules:
-   - enterprise
-   display_name: "~ Security Daily Cron"
-   run_on:
-   - rhel80-small
-   stepback: false
-   tasks:
-   - name: blackduck_scanner
+- name: security-daily-cron
+  modules:
+  - enterprise
+  display_name: "~ Security Daily Cron"
+  run_on:
+  - rhel80-small
+  stepback: false
+  tasks:
+  - name: blackduck_scanner
 
 ###########################################
 #         Windows buildvariants           #
