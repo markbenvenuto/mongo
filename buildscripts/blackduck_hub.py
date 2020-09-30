@@ -1,25 +1,27 @@
 #!/usr/bin/env python3
 
-import subprocess
 import argparse
-import os
+import datetime
+import io
 import json
 import logging
+import os
+import subprocess
 import sys
-import io
-import datetime
 import tempfile
-import logging
-from json import JSONEncoder
-import time
-import requests
-import warnings
 import textwrap
-import urllib3.util.retry as urllib3_retry
-import yaml
+import time
+import warnings
+
 from abc import ABCMeta, abstractmethod
 from typing import Dict, List, Optional
+
+import urllib3.util.retry as urllib3_retry
+import requests
+import yaml
+
 from blackduck.HubRestApi import HubInstance
+
 
 # TODO
 # 1. Check upgrade-guidance
@@ -34,11 +36,23 @@ LOGGER = logging.getLogger(__name__)
 
 ############################################################################
 
-PROJECT = "mongodb/mongo"
-VERSION = "master"
+# Name of project to upload to and query about
+BLACKDUCK_PROJECT = "mongodb/mongo"
+
+# Version of project to query about
+# BlackDuck automatically determines the version based on branch
+BLACKDUCK_PROJECT_VERSION = "master"
+
+# Timeout to wait for a Black Duck scan to complete
 BLACKDUCK_TIMEOUT_SECS = 600
 
+# BlackDuck hub api uses this file to get settings
+BLACKDUCK_RESTCONFIG = ".restconfig.json"
+
 PROJECT_URL = "https://mongodb.app.blackduck.com/api/projects/0258c84e-bb6c-4e37-b104-49148547b027/versions/2b272c5d-6c5e-401d-95c4-6449c06377c4/components?sort=projectName%20ASC&offset=0&limit=100&filter=bomInclusion%3Atrue&filter=bomInclusion%3Afalse"
+
+############################################################################
+
 
 THIRD_PARTY_DIRECTORIES = [
     'src/third_party/wiredtiger/test/3rdparty',
@@ -51,12 +65,12 @@ THIRD_PARTY_COMPONENTS_FILE = "etc/third_party_components.yml"
 
 # Build Logger constants
 
-CREATE_BUILD_ENDPOINT = "/build"
-APPEND_GLOBAL_LOGS_ENDPOINT = "/build/%(build_id)s"
-CREATE_TEST_ENDPOINT = "/build/%(build_id)s/test"
-APPEND_TEST_LOGS_ENDPOINT = "/build/%(build_id)s/test/%(test_id)s"
+BUILD_LOGGER_CREATE_BUILD_ENDPOINT = "/build"
+BUILD_LOGGER_APPEND_GLOBAL_LOGS_ENDPOINT = "/build/%(build_id)s"
+BUILD_LOGGER_CREATE_TEST_ENDPOINT = "/build/%(build_id)s/test"
+BUILD_LOGGER_APPEND_TEST_LOGS_ENDPOINT = "/build/%(build_id)s/test/%(test_id)s"
 
-_TIMEOUT_SECS = 65
+BUILD_LOGGER_TIMEOUT_SECS = 65
 
 ############################################################################
 
@@ -125,7 +139,7 @@ class HTTPHandler(object):
     def _make_url(self, endpoint):
         return "%s/%s/" % (self.url_root.rstrip("/"), endpoint.strip("/"))
 
-    def post(self, endpoint, data=None, headers=None, timeout_secs=_TIMEOUT_SECS):
+    def post(self, endpoint, data=None, headers=None, timeout_secs=BUILD_LOGGER_TIMEOUT_SECS):
         """Send a POST request to the specified endpoint with the supplied data.
 
         Return the response, either as a string or a JSON object based
@@ -199,7 +213,7 @@ class BuildloggerServer(object):
         build_num = int(self.build_num)
 
         response = self.handler.post(
-            CREATE_BUILD_ENDPOINT, data={
+            BUILD_LOGGER_CREATE_BUILD_ENDPOINT, data={
                 "builder": builder,
                 "buildnum": build_num,
                 "task_id": self.task_id,
@@ -209,7 +223,7 @@ class BuildloggerServer(object):
 
     def new_test_id(self, build_id, test_filename, test_command):
         """Return a new test id for sending test logs to."""
-        endpoint = CREATE_TEST_ENDPOINT % {"build_id": build_id}
+        endpoint = BUILD_LOGGER_CREATE_TEST_ENDPOINT % {"build_id": build_id}
 
         response = self.handler.post(
             endpoint, data={
@@ -223,24 +237,24 @@ class BuildloggerServer(object):
 
     def post_new_file(self, build_id, test_name, lines):
         test_id = self.new_test_id(build_id, test_name, "foo")
-        endpoint = APPEND_TEST_LOGS_ENDPOINT % {
+        endpoint = BUILD_LOGGER_APPEND_TEST_LOGS_ENDPOINT % {
             "build_id": build_id,
             "test_id": test_id,
         }
 
         dt = datetime.datetime.now().isoformat()
 
-        # dt = time.strftime("%Y-%m-%dT%H:%M:%S",  datetime.datetime.now())
+        # dt = time.strxftime("%Y-%m-%dT%H:%M:%S",  datetime.datetime.now())
         dlines = [(dt, line) for line in lines]
 
         try:
-            print("POSTING to %s" % (endpoint))
+            LOGGER.info("POSTING to %s", endpoint)
             self.handler.post(endpoint, data=dlines)
         except requests.HTTPError as err:
             # Handle the "Request Entity Too Large" error, set the max size and retry.
-            raise ValueError("Encountered an HTTP error: %s", err)
+            raise ValueError("Encountered an HTTP error: %s" % (err))
         except requests.RequestException as err:
-            raise ValueError("Encountered a network error: %s", err)
+            raise ValueError("Encountered a network error: %s" % (err))
         except:  # pylint: disable=bare-except
             raise ValueError("Encountered an error.")
 
@@ -259,8 +273,8 @@ def _to_dict(items, func):
 #    {'countType': 'MEDIUM', 'count': 0},
 #    {'countType': 'HIGH', 'count': 0},
 #    {'countType': 'CRITICAL', 'count': 0}]},
-def _compute_security_risk(securityRiskProfile):
-    counts = securityRiskProfile["counts"]
+def _compute_security_risk(security_risk_profile):
+    counts = security_risk_profile["counts"]
 
     cm = _to_dict(counts, lambda i: (i["countType"], int(i["count"])))
 
@@ -274,6 +288,10 @@ def _compute_security_risk(securityRiskProfile):
 
 
 class Component:
+    """BlackDuck Component
+
+    Contains a subset of information about a component extracted from BlackDuck for a given project and version
+    """
     def __init__(self, name, version, licenses, policy_status, security_risk, newer_releases,
                  policies):
         self.name = name
@@ -285,12 +303,13 @@ class Component:
         self.newer_releases = newer_releases
 
     def parse(hub, component):
+        """Parse a BlackDuck component from a dictionary."""
         name = component["componentName"]
         cversion = component.get("componentVersionName", "unknown_version")
         licenses = ",".join([a.get("spdxId", a["licenseDisplay"]) for a in component["licenses"]])
 
         policy_status = component["policyStatus"]
-        securityRisk = _compute_security_risk(component['securityRiskProfile'])
+        security_risk = _compute_security_risk(component['securityRiskProfile'])
 
         policies = []
         if policy_status == "IN_VIOLATION":
@@ -304,7 +323,7 @@ class Component:
         # TODO - handle newer releases with some data cleaning
         #if newer_releases > 0:
 
-        return Component(name, cversion, licenses, policy_status, securityRisk, newer_releases,
+        return Component(name, cversion, licenses, policy_status, security_risk, newer_releases,
                          policies)
 
 
@@ -317,29 +336,17 @@ class Policy:
     def parse(policy):
         return Policy(policy["name"], policy["severity"], policy["policyApprovalStatus"])
 
-
-# from Cheetah.Template import Template
-# templateDef = """
-# <HTML>
-# <HEAD><TITLE>$title</TITLE></HEAD>
-# <BODY>
-# $contents
-# ## this is a single-line Cheetah comment and won't appear in the output
-# #* This is a multi-line comment and won't appear in the output
-#    blah, blah, blah
-# *#
-# </BODY>
-# </HTML>"""
-# nameSpace = {'title': 'Hello World Example', 'contents': 'Hello World!'}
-RESTCONFIG = ".restconfig.json"
-
-
 class BlackDuckConfig:
-    def __init__(self):
-        if not os.path.exists(RESTCONFIG):
-            raise ValueError("Cannot find %s for blackduck configuration" % (RESTCONFIG))
+    """
+    BlackDuck configuration settings
 
-        with open(RESTCONFIG, "r") as rfh:
+    Format is defined by BlackDuck Python hub API.
+    """
+    def __init__(self):
+        if not os.path.exists(BLACKDUCK_RESTCONFIG):
+            raise ValueError("Cannot find %s for blackduck configuration" % (BLACKDUCK_RESTCONFIG))
+
+        with open(BLACKDUCK_RESTCONFIG, "r") as rfh:
             rc = json.loads(rfh.read())
 
         self.url = rc["baseurl"]
@@ -351,22 +358,13 @@ def run_scan():
     # Get user name and password from .restconfig.json
     bdc = BlackDuckConfig()
 
-    #    os.system(f"bash <(curl --retry 5 -s -L https://detect.synopsys.com/detect.sh) --blackduck.url={bdc.url} --blackduck.username={bdc.username} --blackduck.password={bdc.password} --detect.report.timeout=600 --detect.wait.for.results=true")
-
-    # TODO - set JAVA_HOME on machines?
     with tempfile.NamedTemporaryFile() as fp:
         fp.write(f"""#/!bin/sh
 curl --retry 5 -s -L https://detect.synopsys.com/detect.sh  | bash -s -- --blackduck.url={bdc.url} --blackduck.username={bdc.username} --blackduck.password={bdc.password} --detect.report.timeout={BLACKDUCK_TIMEOUT_SECS} --detect.wait.for.results=true
 """.encode())
         fp.flush()
 
-        # subprocess.call(["ls", "-l", fp.name])
-        # subprocess.call(["cat", fp.name])
-
         subprocess.call(["/bin/sh", fp.name])
-
-
-#    subprocess.call(["/bin/sh", "-c", f"bash <(curl --retry 5 -s -L https://detect.synopsys.com/detect.sh) --blackduck.username={bdc.username} --blackduck.password={bdc.password} --detect.report.timeout={BLACKDUCK_TIMEOUT_SECS} --detect.wait.for.results=true"])
 
 
 def _scan_cmd_args(args):
@@ -374,27 +372,22 @@ def _scan_cmd_args(args):
 
     run_scan()
 
-    pass
 
-
-#run_scan()
-
-
-def query_blackduck():
+def _query_blackduck():
 
     hub = HubInstance()
 
-    LOGGER.info("Fetching project %s from blackduck", PROJECT)
-    project = hub.get_project_by_name(PROJECT)
+    LOGGER.info("Fetching project %s from blackduck", BLACKDUCK_PROJECT)
+    project = hub.get_project_by_name(BLACKDUCK_PROJECT)
 
-    LOGGER.info("Fetching project version %s from blackduck", VERSION)
-    version = hub.get_version_by_name(project, VERSION)
+    LOGGER.info("Fetching project version %s from blackduck", BLACKDUCK_PROJECT_VERSION)
+    version = hub.get_version_by_name(project, BLACKDUCK_PROJECT_VERSION)
 
     LOGGER.info("Getting version components from blackduck")
     bom_components = hub.get_version_components(version)
 
-    project = hub.get_project_by_name(PROJECT)
-    version = hub.get_version_by_name(project, VERSION)
+    project = hub.get_project_by_name(BLACKDUCK_PROJECT)
+    version = hub.get_version_by_name(project, BLACKDUCK_PROJECT_VERSION)
     bom_components = hub.get_version_components(version)
 
     components = [Component.parse(hub, c) for c in bom_components["items"]]
@@ -402,12 +395,16 @@ def query_blackduck():
     return components
 
 
-class TestResultEncoder(JSONEncoder):
+class TestResultEncoder(json.JSONEncoder):
+    """JSONEncoder for TestResults"""
+
     def default(self, o):
+        # pylint: disable=method-hidden
         return o.__dict__
 
 
 class TestResult:
+    """Evergreen TestResult format for report.json"""
     def __init__(self, name, status):
         # This matches the report.json schema
         # See https://github.com/evergreen-ci/evergreen/blob/789bee107d3ffb9f0f82ae344d72502945bdc914/model/task/task.go#L264-L284
@@ -472,6 +469,9 @@ class TableWriter:
 
         cols = max([len(r) for r in self._rows])
 
+        print("Cols %d - Headers %d" % ( cols, len(self._headers))) 
+        assert cols == len(self._headers)
+
         col_sizes = []
         for c in range(0, cols):
             col_sizes.append(
@@ -510,7 +510,7 @@ class ReportManager:
 
         self.results_per_comp[comp_name].append(status)
 
-        content = textwrap.wrap(content, width=80)
+        content = '\n'.join(textwrap.wrap(content, width=80))
 
         self.logger.log_report(name, content)
 
@@ -562,7 +562,7 @@ def _get_field(name, ymap, field: str):
 
 
 def read_third_party_components():
-    with open(THIRD_PART_COMPONENTS_FILE) as rfh:
+    with open(THIRD_PARTY_COMPONENTS_FILE) as rfh:
         yaml_file = yaml.load(rfh.read())
 
     print(yaml_file)
@@ -600,6 +600,7 @@ def _generate_report_upgrade(mgr: ReportManager, comp: Component, fail: bool):
     # TODO
     if not fail:
         mgr.write_report(comp.name, "upgrade_check", "pass", "Blackduck run passed")
+        return
 
     mgr.write_report(comp.name, "upgrade_check", "fail", "Test Report TODO")
 
@@ -668,10 +669,12 @@ class Analyzer:
         # TODO - generate pass report
 
     def _verify_vulnerability_status(self, comp: Component):
+        mcomp  = self._get_mongo_component(comp)
+
         if comp.security_risk in ["HIGH", "CRITICAL"]:
-            _generate_report_vulnerability(self.mgr, comp, True)
+            _generate_report_vulnerability(self.mgr, comp, mcomp, True)
         else:
-            _generate_report_vulnerability(self.mgr, comp, False)
+            _generate_report_vulnerability(self.mgr, comp, mcomp, False)
 
     def _verify_upgrade_status(self, comp: Component):
         if comp.policies:
@@ -689,7 +692,13 @@ class Analyzer:
             if cdir not in comp_dirs:
                 _generate_report_missing_directory(self.mgr, cdir, True)
 
-    #do_report()
+    def _get_mongo_component(self, comp: Component):
+        mcomp = next((x for x in self.black_duck_components if x.name == comp.name), None)
+
+        if not mcomp:
+            raise ValueError()
+
+        return mcomp
 
     def run(self):
 
@@ -705,7 +714,7 @@ class Analyzer:
         print(self.third_party_directories)
         print(self.third_party_directories_short)
 
-        self.black_duck_components = query_blackduck()
+        self.black_duck_components = _query_blackduck()
 
         # TODO - configure BuildLogger report logger here
         self.mgr = ReportManager(LocalReportLogger())
