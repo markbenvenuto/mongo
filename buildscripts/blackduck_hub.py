@@ -370,10 +370,10 @@ class TestResults:
     def __init__(self):
         self.results = []
 
-    def add_result(result: TestResult):
+    def add_result(self, result: TestResult):
         self.results.append(result)
 
-    def write(filename: str):
+    def write(self, filename: str):
 
         with open(filename, "w") as wfh:
             wfh.write(json.dumps(self, cls=TestResultEncoder))
@@ -506,7 +506,7 @@ class ReportManager:
         """Generate final summary of all reports run."""
 
         if reports_file:
-            results.write(reports_file)
+            self.results.write(reports_file)
 
         tw = TableWriter(["Component", "Vulnerability"])
 
@@ -711,7 +711,7 @@ def main() -> None:
     generate_reports_cmd = sub.add_parser('generate_reports',
                                           help='Generate reports from Black Duck')
 
-    generate_reports_cmd.add_argument("--report-file", type=str,
+    generate_reports_cmd.add_argument("--report_file", type=str,
                                       help="report json file to write to")
     generate_reports_cmd.add_argument("--build_logger", type=str,
                                       help="Log to build logger with credentials")
@@ -729,7 +729,7 @@ def main() -> None:
 
     scan_and_report_cmd = sub.add_parser('scan_and_report',
                                          help='Run scan and then generate reports')
-    scan_and_report_cmd.add_argument("--report-file", type=str, help="report json file to write to")
+    scan_and_report_cmd.add_argument("--report_file", type=str, help="report json file to write to")
 
     scan_and_report_cmd.add_argument("--build_logger", type=str,
                                      help="Log to build logger with credentials")
