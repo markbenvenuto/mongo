@@ -7526,7 +7526,6 @@ tasks:
         }
         END_OF_CREDS
   - command: shell.exec
-    type: setup
     params:
       working_dir: src/
       script: |
