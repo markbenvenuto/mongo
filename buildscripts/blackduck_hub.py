@@ -250,7 +250,8 @@ def _compute_security_risk(security_risk_profile):
 
 @functools.total_ordering
 class VersionInfo:
-
+    """Parse and break apart version strings so they can be compared."""
+    
     # TODO - special case ESR - we only care about ESR releases, not regular FireFox releases
     def __init__(self, ver_str):
         self.ver_str = ver_str
