@@ -348,7 +348,7 @@ class TestResultEncoder(json.JSONEncoder):
 
 
 class TestResult:
-    """Evergreen TestResult format for report.json."""
+    """A single test result in the Evergreen report.json format"""
 
     def __init__(self, name, status):
         """Init test result."""
@@ -362,6 +362,21 @@ class TestResult:
 
         if status == "pass":
             self.exit_code = 0
+
+
+
+class TestResults:
+    """Evergreen TestResult format for report.json."""
+    def __init__(self):
+        self.results = []
+
+    def add_result(result: TestResult):
+        self.results.append(result)
+
+    def write(filename: str):
+
+        with open(filename, "w") as wfh:
+            wfh.write(json.dumps(self, cls=TestResultEncoder))
 
 
 class ReportLogger(object, metaclass=ABCMeta):
@@ -460,7 +475,7 @@ class ReportManager:
     def __init__(self, logger: ReportLogger):
         """Init report manager."""
         self.logger = logger
-        self.results = []
+        self.results = TestResults()
         self.results_per_comp = {}
 
     def write_report(self, comp_name: str, report_name: str, status: str, content: str):
@@ -475,7 +490,7 @@ class ReportManager:
 
         LOGGER.info("Writing Report %s - %s", name, status)
 
-        self.results.append(TestResult(name, status))
+        self.results.add_result(TestResult(name, status))
 
         if comp_name not in self.results_per_comp:
             self.results_per_comp[comp_name] = []
@@ -491,8 +506,7 @@ class ReportManager:
         """Generate final summary of all reports run."""
 
         if reports_file:
-            with open(reports_file, "w") as wfh:
-                wfh.write(json.dumps(self.results, cls=TestResultEncoder))
+            results.write(reports_file)
 
         tw = TableWriter(["Component", "Vulnerability"])
 
