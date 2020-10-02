@@ -7522,7 +7522,7 @@ tasks:
         "username": "${blackduck_username}",
         "password": "${blackduck_password}",
         "debug": false,
-        "insecure" : false,
+        "insecure" : false
         }
         END_OF_CREDS
   - command: shell.exec
@@ -7536,7 +7536,7 @@ tasks:
         # activate the virtualenv if it has been set up
         ${activate_virtualenv}
 
-        python buildscripts/blackduck_hub.py -v generate_reports --build_logger=mci.buildlogger --build_logger_url=http://localhost:8080 --build_logger_task_id=${task_id}
+        python buildscripts/blackduck_hub.py -v generate_reports --build_logger=mci.buildlogger --build_logger_url=http://localhost:8080 --build_logger_task_id=${task_id} --report-file=report.json
 
 - name: tla_plus
   commands:
