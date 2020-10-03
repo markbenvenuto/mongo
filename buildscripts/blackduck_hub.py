@@ -251,64 +251,73 @@ def _compute_security_risk(security_risk_profile):
 @functools.total_ordering
 class VersionInfo:
     """Parse and break apart version strings so they can be compared."""
-    
+
     # TODO - special case ESR - we only care about ESR releases, not regular FireFox releases
     def __init__(self, ver_str):
-        self.ver_str = ver_str
-        self.production_version = True
+        try:
+                
+            self.ver_str = ver_str
+            self.production_version = True
 
-        # Abseil has an empty string for one version
-        if self.ver_str == "":
-            self.production_version = False
-            return
+            # Abseil has an empty string for one version
+            if self.ver_str == "":
+                self.production_version = False
+                return
 
-        # Special case Intel's Decimal library since it is just too weird
-        if ver_str == "v2.0 U1":
-            self.ver_array = [2, 0]
-            return
+            # Special case Intel's Decimal library since it is just too weird
+            if ver_str == "v2.0 U1":
+                self.ver_array = [2, 0]
+                return
 
-        # "git" is an abseil version
-        # "unknown_version" comes from this script when components do not have versions
-        # icu has cldr, release, snv, milestone, latest
-        # zlib has alt and task
-        # boost has ubuntu, fc, old-boost, start, ....
-        # BlackDuck thinks boost 1.70.0 was released on 2007 which means we have to check hundreds of versions
-        bad_keywords = ["unknown_version", "rc", "alpha", "beta", "git", "release", "cldr" , "svn", "cvs", 
-                        "milestone", "latest", "alt", "task", "ubuntu", "fc", "old-boost", "start", "split", "unofficial", "(", "ctp", "before" , "review", "develop", "master", "filesystem", "geometry", "icl", "intrusive", "old", "optional", "super", "docs", "+b", "-b", "b1", ".0a" , "system", "html", "interprocess" ]
-        if [bad for bad in bad_keywords if bad in self.ver_str]:
-            self.production_version = False
-            return
+            # "git" is an abseil version
+            # "unknown_version" comes from this script when components do not have versions
+            # icu has cldr, release, snv, milestone, latest
+            # zlib has alt and task
+            # boost has ubuntu, fc, old-boost, start, ....
+            # BlackDuck thinks boost 1.70.0 was released on 2007 which means we have to check hundreds of versions
+            bad_keywords = ["unknown_version", "rc", "alpha", "beta", "git", "release", "cldr" , "svn", "cvs", 
+                            "milestone", "latest", "alt", "task", "ubuntu", "fc", "old-boost", "start", "split", "unofficial", "(", "ctp", "before" , "review", "develop", "master", "filesystem", "geometry", "icl", "intrusive", "old", "optional", "super", "docs", "+b", "-b", "b1", ".0a" , "system", "html", "interprocess" ]
+            if [bad for bad in bad_keywords if bad in self.ver_str]:
+                self.production_version = False
+                return
 
-        # Clean the version information
-        # Some versions start with 'v'. Some components have a mix of 'v' and not 'v' prefixed versions so trim the 'v'
-        # MongoDB versions start with 'r'
-        if ver_str[0] == 'v' or ver_str[0] == 'r':
-            self.ver_str = ver_str[1:]
+            # Clean the version information
+            # Some versions start with 'v'. Some components have a mix of 'v' and not 'v' prefixed versions so trim the 'v'
+            # MongoDB versions start with 'r'
+            if ver_str[0] == 'v' or ver_str[0] == 'r':
+                self.ver_str = ver_str[1:]
 
-        # Git hashes are not valid versions
-        if len(self.ver_str) == 40 and bytes.fromhex(self.ver_str):
-            self.production_version = False
-            return
+            # Git hashes are not valid versions
+            if len(self.ver_str) == 40 and bytes.fromhex(self.ver_str):
+                self.production_version = False
+                return
 
-        # Clean out Mozilla's suffix
-        self.ver_str = self.ver_str.replace("esr", "")
+            # Clean out Mozilla's suffix
+            self.ver_str = self.ver_str.replace("esr", "")
 
-        # Clean out GPerfTool's prefix
-        self.ver_str = self.ver_str.replace("gperftools-", "")
+            # Clean out GPerfTool's prefix
+            self.ver_str = self.ver_str.replace("gperftools-", "")
 
-        # Clean out Yaml Cpp's prefix
-        self.ver_str = self.ver_str.replace("yaml-cpp-", "")
+            # Clean out Yaml Cpp's prefix
+            self.ver_str = self.ver_str.replace("yaml-cpp-", "")
 
-        # Clean out Boosts's prefix
-        self.ver_str = self.ver_str.replace("boost-", "")
-        # Clean out Boosts's prefix
-        self.ver_str = self.ver_str.replace("asio-", "")
+            # Clean out Boosts's prefix
+            self.ver_str = self.ver_str.replace("boost-", "")
+            # Clean out Boosts's prefix
+            self.ver_str = self.ver_str.replace("asio-", "")
 
-        # Some versions end with "-\d", change the "-" since it just means a patch release
-        self.ver_str = self.ver_str.replace("-", ".")
+            if self.ver_str.endswith('-'):
+                self.ver_str = self.ver_str[0:-1]
 
-        # Versions are generally a multi-part integer tuple
-        self.ver_array = [int(part) for part in self.ver_str.split(".")]
+            # Some versions end with "-\d", change the "-" since it just means a patch release
+            self.ver_str = self.ver_str.replace("-", ".")
+
+            # Versions are generally a multi-part integer tuple
+            self.ver_array = [int(part) for part in self.ver_str.split(".")]
+        
+        except:
+            print(f"Failed to parse version '{ver_str}', exception")
+            raise
 
     def __repr__(self):
         return self.__str__()
@@ -329,6 +338,7 @@ class VersionInfo:
 
 def test_version_info():
     VersionInfo("v2.0 U1")
+    VersionInfo("60.7.0-esr")
     VersionInfo("v1.1")
     VersionInfo("0.4.2-1")
     VersionInfo("7.0.2")
@@ -1216,7 +1226,7 @@ class Component:
     Contains a subset of information about a component extracted from Black Duck for a given project and version
     """
 
-    def __init__(self, name, version, licenses, policy_status, security_risk, newer_releases):
+    def __init__(self, name, version, licenses, policy_status, security_risk, newer_release):
         # pylint: disable=too-many-arguments
         """Initialize Black Duck component."""
         self.name = name
@@ -1224,7 +1234,7 @@ class Component:
         self.licenses = licenses
         self.policy_status = policy_status
         self.security_risk = security_risk
-        self.newer_releases = newer_releases
+        self.newer_release = newer_release
 
     @staticmethod
     def parse(hub, component):
@@ -1240,6 +1250,8 @@ class Component:
 
         print(f"Comp {name} - {cversion}   Releases {newer_releases}")
         cver = VersionInfo(cversion)
+        newer_release = None
+
         # Blackduck's newerReleases is based on "releasedOn" date. This means that if a upstream component releases a beta or rc, it counts as newer but we do not consider those newer for our purposes
         # Missing newerReleases means we do not have to upgrade
         # TODO - remove skip of FireFox since it has soooo many versions
@@ -1248,24 +1260,35 @@ class Component:
             print(f"Comp {name} - {cversion}   Releases {newer_releases}")
             limit = newer_releases + 1
             versions_url = component["component"] + f"/versions?sort=releasedon%20desc&limit={limit}"
+
+            LOGGER.info("Retrieving version information via %s", versions_url)
             vjson = hub.execute_get(versions_url).json()
+
+    
 
             versions = [(ver["versionName"], ver["releasedOn"]) for ver in vjson["items"]]
 
       
             print(versions)
 
+            versions = [ver["versionName"] for ver in vjson["items"]]
+
+            if name == "Mozilla Firefox":
+                versions = [ver for ver in versions if "esr" in ver]
             
-            ver_info = [VersionInfo(ver["versionName"]) for ver in vjson["items"]]
+            ver_info = [VersionInfo(ver) for ver in versions]
             ver_info = [ver for ver in ver_info if ver.production_version == True]
             print(ver_info)
 
             ver_info = sorted([ver for ver in ver_info if ver.production_version == True and ver > cver])
             print(ver_info)
+            if ver_info:
+                newer_release = ver_info[0]
+      
         # else:
         #     LOGGER.warn(f"Missing version upgrade information for {name}")
 
-        return Component(name, cversion, licenses, policy_status, security_risk, newer_releases)
+        return Component(name, cversion, licenses, policy_status, security_risk, newer_release)
 
 
 class BlackDuckConfig:
@@ -1549,7 +1572,7 @@ def _read_third_party_components():
     return third_party
 
 def _generate_report_upgrade(mgr: ReportManager, comp: Component, mcomp: ThirdPartyComponent, fail: bool):
-    # TODO
+    # TODO - write upgrade report with URL to website, current version and newer version
     if not fail:
         mgr.write_report(comp.name, "upgrade_check", "pass", "Blackduck run passed")
         return
@@ -1611,7 +1634,7 @@ class Analyzer:
     def _verify_upgrade_status(self, comp: Component):
         mcomp = self._get_mongo_component(comp)
 
-        if comp.newer_releases:
+        if comp.newer_release:
             _generate_report_upgrade(self.mgr, comp, mcomp,  True)
         else:
             _generate_report_upgrade(self.mgr, comp, mcomp,  False)
