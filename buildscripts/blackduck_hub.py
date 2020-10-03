@@ -248,6 +248,7 @@ def _compute_security_risk(security_risk_profile):
 
     return "OK"
 
+
 @functools.total_ordering
 class VersionInfo:
     """Parse and break apart version strings so they can be compared."""
@@ -255,7 +256,7 @@ class VersionInfo:
     # TODO - special case ESR - we only care about ESR releases, not regular FireFox releases
     def __init__(self, ver_str):
         try:
-                
+
             self.ver_str = ver_str
             self.production_version = True
 
@@ -275,8 +276,13 @@ class VersionInfo:
             # zlib has alt and task
             # boost has ubuntu, fc, old-boost, start, ....
             # BlackDuck thinks boost 1.70.0 was released on 2007 which means we have to check hundreds of versions
-            bad_keywords = ["unknown_version", "rc", "alpha", "beta", "git", "release", "cldr" , "svn", "cvs", 
-                            "milestone", "latest", "alt", "task", "ubuntu", "fc", "old-boost", "start", "split", "unofficial", "(", "ctp", "before" , "review", "develop", "master", "filesystem", "geometry", "icl", "intrusive", "old", "optional", "super", "docs", "+b", "-b", "b1", ".0a" , "system", "html", "interprocess" ]
+            bad_keywords = [
+                "unknown_version", "rc", "alpha", "beta", "git", "release", "cldr", "svn", "cvs",
+                "milestone", "latest", "alt", "task", "ubuntu", "fc", "old-boost", "start", "split",
+                "unofficial", "(", "ctp", "before", "review", "develop", "master", "filesystem",
+                "geometry", "icl", "intrusive", "old", "optional", "super", "docs", "+b", "-b",
+                "b1", ".0a", "system", "html", "interprocess"
+            ]
             if [bad for bad in bad_keywords if bad in self.ver_str]:
                 self.production_version = False
                 return
@@ -314,7 +320,7 @@ class VersionInfo:
 
             # Versions are generally a multi-part integer tuple
             self.ver_array = [int(part) for part in self.ver_str.split(".")]
-        
+
         except:
             print(f"Failed to parse version '{ver_str}', exception")
             raise
@@ -325,9 +331,9 @@ class VersionInfo:
     def __str__(self):
         return ".".join([str(val) for val in self.ver_array])
 
-
     def __eq__(self, other):
-        return (self.production_version, self.ver_array) == (other.production_version, other.ver_array)
+        return (self.production_version, self.ver_array) == (other.production_version,
+                                                             other.ver_array)
 
     def __gt__(self, other):
         if self.production_version != other.production_version:
@@ -387,12 +393,10 @@ def test_version_info():
     VersionInfo('1.1.4-1')
     VersionInfo('1.2.11')
 
-
     assert VersionInfo('7.0.2.2') > VersionInfo('7.0.0.1')
     assert VersionInfo('7.0.2.2') > VersionInfo('7.0.2')
     assert VersionInfo('7.0.2.2') > VersionInfo('3.1')
     assert not VersionInfo('7.0.2.2') > VersionInfo('8.0.2')
-
 
     VersionInfo('v1.7.0')
     VersionInfo('v1.6.1')
@@ -847,8 +851,6 @@ def test_version_info():
     VersionInfo('boost-1_33_1-14_fc7')
     VersionInfo('1.68.0')
 
-
-
     ('60.4.0')
     ('60.4.0esr')
     ('60.5.0')
@@ -1219,6 +1221,7 @@ def test_version_info():
     ('imports/c7/firefox-60.6.0-3.el7_6')
     ('imports/c7/firefox-60.6.1-1.el7_6')
 
+
 class Component:
     """
     Black Duck Component description.
@@ -1252,7 +1255,8 @@ class Component:
         cver = VersionInfo(cversion)
         newer_release = None
 
-        # Blackduck's newerReleases is based on "releasedOn" date. This means that if a upstream component releases a beta or rc, it counts as newer but we do not consider those newer for our purposes
+        # Blackduck's newerReleases is based on "releasedOn" date. This means that if a upstream component releases a beta or rc, 
+        # it counts as newer but we do not consider those newer for our purposes
         # Missing newerReleases means we do not have to upgrade
         # TODO - remove skip of FireFox since it has soooo many versions
         #if newer_releases > 0 and name not in ("Mozilla Firefox", "Boost C++ Libraries - boost"):
@@ -1264,27 +1268,25 @@ class Component:
             LOGGER.info("Retrieving version information via %s", versions_url)
             vjson = hub.execute_get(versions_url).json()
 
-    
-
             versions = [(ver["versionName"], ver["releasedOn"]) for ver in vjson["items"]]
 
-      
             print(versions)
 
             versions = [ver["versionName"] for ver in vjson["items"]]
 
             if name == "Mozilla Firefox":
                 versions = [ver for ver in versions if "esr" in ver]
-            
+
             ver_info = [VersionInfo(ver) for ver in versions]
             ver_info = [ver for ver in ver_info if ver.production_version == True]
             print(ver_info)
 
-            ver_info = sorted([ver for ver in ver_info if ver.production_version == True and ver > cver])
+            ver_info = sorted(
+                [ver for ver in ver_info if ver.production_version == True and ver > cver])
             print(ver_info)
             if ver_info:
                 newer_release = ver_info[0]
-      
+
         # else:
         #     LOGGER.warn(f"Missing version upgrade information for {name}")
 
@@ -1375,9 +1377,9 @@ class TestResult:
             self.exit_code = 0
 
 
-
 class TestResults:
     """Evergreen TestResult format for report.json."""
+
     def __init__(self):
         self.results = []
 
@@ -1544,6 +1546,7 @@ class ThirdPartyComponent:
         self.vulnerability_suppression = None
         self.upgrade_suppression = None
 
+
 def _get_field(name, ymap, field: str):
     if field not in ymap:
         raise ValueError("Missing field %s for component %s" % (field, name))
@@ -1571,13 +1574,16 @@ def _read_third_party_components():
 
     return third_party
 
-def _generate_report_upgrade(mgr: ReportManager, comp: Component, mcomp: ThirdPartyComponent, fail: bool):
+
+def _generate_report_upgrade(mgr: ReportManager, comp: Component, mcomp: ThirdPartyComponent,
+                             fail: bool):
     # TODO - write upgrade report with URL to website, current version and newer version
     if not fail:
         mgr.write_report(comp.name, "upgrade_check", "pass", "Blackduck run passed")
         return
 
     mgr.write_report(comp.name, "upgrade_check", "fail", "Test Report TODO")
+
 
 def _generate_report_vulnerability(mgr: ReportManager, comp: Component, mcomp: ThirdPartyComponent,
                                    fail: bool):
@@ -1635,9 +1641,9 @@ class Analyzer:
         mcomp = self._get_mongo_component(comp)
 
         if comp.newer_release:
-            _generate_report_upgrade(self.mgr, comp, mcomp,  True)
+            _generate_report_upgrade(self.mgr, comp, mcomp, True)
         else:
-            _generate_report_upgrade(self.mgr, comp, mcomp,  False)
+            _generate_report_upgrade(self.mgr, comp, mcomp, False)
 
     def _verify_vulnerability_status(self, comp: Component):
         mcomp = self._get_mongo_component(comp)
