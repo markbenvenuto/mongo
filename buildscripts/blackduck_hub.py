@@ -1229,7 +1229,7 @@ class Component:
     Contains a subset of information about a component extracted from Black Duck for a given project and version
     """
 
-    def __init__(self, name, version, licenses, policy_status, security_risk, newer_release):
+    def __init__(self, name, version, licenses, policy_status, security_risk, newest_release):
         # pylint: disable=too-many-arguments
         """Initialize Black Duck component."""
         self.name = name
@@ -1237,7 +1237,7 @@ class Component:
         self.licenses = licenses
         self.policy_status = policy_status
         self.security_risk = security_risk
-        self.newer_release = newer_release
+        self.newest_release = newest_release
 
     @staticmethod
     def parse(hub, component):
@@ -1253,7 +1253,7 @@ class Component:
 
         print(f"Comp {name} - {cversion}   Releases {newer_releases}")
         cver = VersionInfo(cversion)
-        newer_release = None
+        newest_release = None
 
         # Blackduck's newerReleases is based on "releasedOn" date. This means that if a upstream component releases a beta or rc, 
         # it counts as newer but we do not consider those newer for our purposes
@@ -1285,12 +1285,9 @@ class Component:
                 [ver for ver in ver_info if ver.production_version == True and ver > cver])
             print(ver_info)
             if ver_info:
-                newer_release = ver_info[0]
+                newest_release = ver_info[0]
 
-        # else:
-        #     LOGGER.warn(f"Missing version upgrade information for {name}")
-
-        return Component(name, cversion, licenses, policy_status, security_risk, newer_release)
+        return Component(name, cversion, licenses, policy_status, security_risk, newest_release)
 
 
 class BlackDuckConfig:
@@ -1522,6 +1519,7 @@ class ReportManager:
             self.results.write(reports_file)
 
         tw = TableWriter(["Component", "Vulnerability", "Upgrade"])
+        #tw = TableWriter(["Component", "Vulnerability", "Upgrade" ,"Current Version", "Newest Version"])
 
         for comp in self.results_per_comp:
             tw.add_row([comp] + self.results_per_comp[comp])
@@ -1582,7 +1580,24 @@ def _generate_report_upgrade(mgr: ReportManager, comp: Component, mcomp: ThirdPa
         mgr.write_report(comp.name, "upgrade_check", "pass", "Blackduck run passed")
         return
 
-    mgr.write_report(comp.name, "upgrade_check", "fail", "Test Report TODO")
+    mgr.write_report(comp.name, "upgrade_check", "fail", f"""A Black Duck scan was run and failed.
+
+The ${comp.name} library at ${mcomp.local_path} is out of date. The newest version is ${comp.newest_release} according to Black Duck.
+
+MongoDB policy requires all third-party software to be updated to the latest version on the master branch.
+
+Next Steps:
+
+Build Baron:
+A BF ticket should be generated and assigned to Backlog-Owner-Of-Component (Note this is a placeholder for this example) with this text.
+
+Developer:
+To address this build failure, the next steps are as follows:
+File a SERVER ticket to update the software if one already does not exist.
+Add a “upgrade_supression” to etc/third_party_components.yml with the SERVER ticket
+
+Note that you do not need to immediately update the library. For more information, https://wiki.corp.mongodb.com/BlackDuck.
+""")
 
 
 def _generate_report_vulnerability(mgr: ReportManager, comp: Component, mcomp: ThirdPartyComponent,
@@ -1640,7 +1655,7 @@ class Analyzer:
     def _verify_upgrade_status(self, comp: Component):
         mcomp = self._get_mongo_component(comp)
 
-        if comp.newer_release:
+        if comp.newest_release:
             _generate_report_upgrade(self.mgr, comp, mcomp, True)
         else:
             _generate_report_upgrade(self.mgr, comp, mcomp, False)
