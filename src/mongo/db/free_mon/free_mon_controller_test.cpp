@@ -1556,6 +1556,37 @@ TEST_F(FreeMonControllerRSTest, SecondaryStopOnDocumentDrop) {
     ASSERT_GTE(controller.metricsCollector->count(), 2UL);
 }
 
+
+// Positive: Test Metrics works on secondary after opObserver delete of document
+TEST_F(FreeMonControllerRSTest, SecondaryStopOnDocumentDrop) {
+    ControllerHolder controller(_mockThreadPool.get(), FreeMonNetworkInterfaceMock::Options());
+
+    FreeMonStorage::replace(_opCtx.get(), initStorage(StorageStateEnum::enabled));
+
+    // Now become a secondary
+    ASSERT_OK(_getReplCoord()->setFollowerMode(repl::MemberState::RS_SECONDARY));
+
+    controller.start(RegistrationType::RegisterAfterOnTransitionToPrimary);
+
+    controller->turnCrankForTest(Turner().registerServer().registerCommand().collect(1));
+
+    ASSERT_EQ(controller.metricsCollector->count(), 1UL);
+
+    controller->notifyOnDelete();
+
+    // There is a race condition where sometimes metrics send sneaks in
+    controller->turnCrankForTest(Turner().notifyDelete().collect(3));
+
+    ASSERT_TRUE(FreeMonStorage::read(_opCtx.get()).is_initialized());
+
+    // Since there is no local write, it remains enabled
+    ASSERT_TRUE(FreeMonStorage::read(_opCtx.get()).get().getState() == StorageStateEnum::enabled);
+
+    ASSERT_EQ(controller.registerCollector->count(), 1UL);
+    ASSERT_GTE(controller.metricsCollector->count(), 2UL);
+}
+
+
 // Negative: Test nice shutdown on bad update
 TEST_F(FreeMonControllerRSTest, SecondaryStartOnBadUpdate) {
     ControllerHolder controller(_mockThreadPool.get(), FreeMonNetworkInterfaceMock::Options());

@@ -26,6 +26,7 @@
  *    exception statement from all source files in the program, then also delete
  *    it in the license file.
  */
+#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kControl
 
 #include "mongo/platform/basic.h"
 
@@ -35,6 +36,7 @@
 
 #include "mongo/util/concurrency/idle_thread_block.h"
 #include "mongo/util/duration.h"
+#include "mongo/logv2/log.h"
 
 namespace mongo {
 
@@ -87,6 +89,8 @@ void FreeMonMessageQueue::enqueue(std::shared_ptr<FreeMonMessage> msg) {
         if (msg->getType() == FreeMonMessageType::MetricsSend) {
             _queue.eraseByType(FreeMonMessageType::MetricsSend);
         }
+
+            logd("ENQUEING, message {}", static_cast<int>(msg->getType()));
 
         _queue.push(msg);
 

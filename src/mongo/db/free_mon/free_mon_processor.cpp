@@ -38,6 +38,7 @@
 #include <snappy.h>
 #include <tuple>
 #include <utility>
+#include <random>
 
 #include "mongo/base/data_range.h"
 #include "mongo/base/status.h"
@@ -132,9 +133,14 @@ FreeMonProcessor::FreeMonProcessor(FreeMonCollectorCollection& registration,
       _registrationRetry(RegistrationRetryCounter(_random)),
       _metricsRetry(MetricsRetryCounter(_random)),
       _metricsGatherInterval(metricsGatherInterval),
-      _queue(useCrankForTest) {
+      _queue(useCrankForTest) ,
+      _rng(_dev()),
+      _dist10(1,10)
+      {
     _registrationRetry->reset();
     _metricsRetry->reset();
+
+
 }
 
 void FreeMonProcessor::enqueue(std::shared_ptr<FreeMonMessage> msg) {
@@ -167,6 +173,20 @@ void FreeMonProcessor::run() {
             }
 
             auto msg = item.get();
+
+            // int sleep_chance = _dist10(_rng);
+            // if  (sleep_chance  == 1 ) {
+            //     logd("SLEEPING for 1 sec, message {}", static_cast<int>(msg->getType()));
+            //     sleepsecs(1);
+            // } else if (sleep_chance  == 2 ) {
+            //     logd("SLEEPING for 2 sec, message {}", static_cast<int>(msg->getType()));
+            //     sleepsecs(2);
+            // } else if (sleep_chance  == 3 ) {
+            //     logd("SLEEPING for 3 sec, message {}", static_cast<int>(msg->getType()));
+            //     sleepsecs(3);
+            // }
+
+            logd("PROCESSING, message {}", static_cast<int>(msg->getType()));
 
             // Do work here
             switch (msg->getType()) {
@@ -954,6 +974,8 @@ void FreeMonProcessor::doNotifyOnUpsert(
     try {
         const BSONObj& doc = msg->getPayload();
         auto newState = FreeMonStorageState::parse(IDLParserErrorContext("free_mon_storage"), doc);
+
+        logd("UPSERT, doc={}", doc);
 
         // Likely, the update changed something
         if (newState != _state) {

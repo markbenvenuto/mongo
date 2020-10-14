@@ -49,67 +49,67 @@ enum class FreeMonMessageType {
     /**
      * Register server from command-line/config.
      */
-    RegisterServer,
+    RegisterServer  = 0,
 
     /**
      * Register server from server command.
      */
-    RegisterCommand,
+    RegisterCommand = 1,
 
     /**
      * Internal: Generated when an async registration HTTP request completes succesfully.
      */
-    AsyncRegisterComplete,
+    AsyncRegisterComplete = 2,
 
     /**
      * Internal: Generated when an async registration HTTP request completes with an error.
      */
-    AsyncRegisterFail,
+    AsyncRegisterFail = 3,
 
     /**
-     * Unregister server from server command.
-     */
-    UnregisterCommand,
+    * Unregister server from server command.
+    */
+    UnregisterCommand = 4,
 
     /**
      * Internal: Collect metrics and buffer them in-memory
      */
-    MetricsCollect,
+    MetricsCollect = 5,
 
     /**
      * Internal: Send metrics to the cloud endpoint by beginning an async HTTP request.
      */
-    MetricsSend,
+    MetricsSend = 6,
 
     /**
      * Internal: Generated when an async metrics HTTP request completes succesfully.
      */
-    AsyncMetricsComplete,
+    AsyncMetricsComplete = 7,
 
     /**
      * Internal: Generated when an async metrics HTTP request completes with an error.
      */
-    AsyncMetricsFail,
+    AsyncMetricsFail = 8,
 
     /**
      * Notify that the node has been made a primary replica.
      */
-    OnTransitionToPrimary,
+    OnTransitionToPrimary = 9,
 
     /**
      * Notify that storage has received an insert or update.
      */
-    NotifyOnUpsert,
+    NotifyOnUpsert = 10,
 
     /**
      * Notify that storage has received a delete or drop collection.
      */
-    NotifyOnDelete,
+    NotifyOnDelete = 11,
 
     /**
      * Notify that storage has been rolled back.
      */
-    NotifyOnRollback,
+    NotifyOnRollback = 12,
 };
 
 /**
@@ -151,6 +151,9 @@ public:
      * Create a message that should processed immediately.
      */
     static std::shared_ptr<FreeMonMessage> createNow(FreeMonMessageType type) {
+        if(type == FreeMonMessageType::AsyncMetricsComplete || type == FreeMonMessageType::AsyncMetricsFail){ 
+                 return std::make_shared<FreeMonMessage>(type, Date_t() + Seconds(10));
+        }
         return std::make_shared<FreeMonMessage>(type, Date_t());
     }
 
