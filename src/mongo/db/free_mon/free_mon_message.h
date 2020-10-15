@@ -151,14 +151,14 @@ public:
      * Create a message that should processed immediately.
      */
     static std::shared_ptr<FreeMonMessage> createNow(FreeMonMessageType type) {
-        if(type == FreeMonMessageType::AsyncMetricsComplete || type == FreeMonMessageType::AsyncMetricsFail){ 
-                 return std::make_shared<FreeMonMessage>(type, Date_t() + Seconds(10));
-        }
+        // if(type == FreeMonMessageType::AsyncMetricsComplete || type == FreeMonMessageType::AsyncMetricsFail){ 
+        //          return std::make_shared<FreeMonMessage>(type, Date_t() + Seconds(10));
+        // }
         return std::make_shared<FreeMonMessage>(type, Date_t());
     }
 
     /**
-     * Create a message that should processed after the specified deadline.
+     * Create /a message that should processed after the specified deadline.
      */
     static std::shared_ptr<FreeMonMessage> createWithDeadline(FreeMonMessageType type,
                                                               Date_t deadline) {

@@ -204,6 +204,19 @@ void FreeMonController::turnCrankForTest(size_t countMessagesToIgnore) {
     _processor->turnCrankForTest(countMessagesToIgnore);
 }
 
+void FreeMonController::deprioritizeFirstMessageForTest(FreeMonMessageType type) {
+    {
+        stdx::lock_guard<Latch> lock(_mutex);
+        invariant(_state == State::kStarted);
+    }
+
+    LOGV2(1,
+          "Deprioritize message",
+          "countMessagesToIgnore"_attr = static_cast<int>(type));
+
+    _processor->deprioritizeFirstMessageForTest(type);
+}
+
 void FreeMonController::getStatus(OperationContext* opCtx, BSONObjBuilder* status) {
     {
         stdx::lock_guard<Latch> lock(_mutex);

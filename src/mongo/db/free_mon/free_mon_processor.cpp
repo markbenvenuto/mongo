@@ -159,6 +159,11 @@ void FreeMonProcessor::turnCrankForTest(size_t countMessagesToIgnore) {
     _countdown.wait();
 }
 
+    void FreeMonProcessor::deprioritizeFirstMessageForTest(FreeMonMessageType type) {
+        _queue.deprioritizeFirstMessageForTest(type);
+    }
+
+
 void FreeMonProcessor::run() {
     try {
 

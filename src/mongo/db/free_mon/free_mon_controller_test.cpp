@@ -1557,14 +1557,13 @@ TEST_F(FreeMonControllerRSTest, SecondaryStopOnDocumentDrop) {
 }
 
 
-// Positive: Test Metrics works on secondary after opObserver delete of document
-TEST_F(FreeMonControllerRSTest, SecondaryStopOnDocumentDrop) {
+// Positive: Test Metrics works on secondary after opObserver delete of document before metrics async complete
+TEST_F(FreeMonControllerRSTest, SecondaryStopOnDocumentDropDuringCollect) {
     ControllerHolder controller(_mockThreadPool.get(), FreeMonNetworkInterfaceMock::Options());
 
-    FreeMonStorage::replace(_opCtx.get(), initStorage(StorageStateEnum::enabled));
 
-    // Now become a secondary
-    ASSERT_OK(_getReplCoord()->setFollowerMode(repl::MemberState::RS_SECONDARY));
+    // Now become a secondary, then primary, and try what happens when we become primary
+    ASSERT_OK(_getReplCoord()->setFollowerMode(repl::MemberState::RS_PRIMARY));
 
     controller.start(RegistrationType::RegisterAfterOnTransitionToPrimary);
 
@@ -1572,18 +1571,26 @@ TEST_F(FreeMonControllerRSTest, SecondaryStopOnDocumentDrop) {
 
     ASSERT_EQ(controller.metricsCollector->count(), 1UL);
 
+    controller->turnCrankForTest(Turner().collect(1));
+
     controller->notifyOnDelete();
 
-    // There is a race condition where sometimes metrics send sneaks in
-    controller->turnCrankForTest(Turner().notifyDelete().collect(3));
+    controller->deprioritizeFirstMessageForTest(FreeMonMessageType::AsyncMetricsComplete);
+    
+    /////// There is a race condition where sometimes metrics send sneaks in
+    controller->turnCrankForTest(Turner().notifyDelete().collect(1));
 
     ASSERT_TRUE(FreeMonStorage::read(_opCtx.get()).is_initialized());
 
     // Since there is no local write, it remains enabled
     ASSERT_TRUE(FreeMonStorage::read(_opCtx.get()).get().getState() == StorageStateEnum::enabled);
 
+    BSONObjBuilder builder;
+    controller->getServerStatus(_opCtx.get(), &builder);
+    logd("OBJ {}", builder.obj());
+
     ASSERT_EQ(controller.registerCollector->count(), 1UL);
-    ASSERT_GTE(controller.metricsCollector->count(), 2UL);
+    ASSERT_EQ(controller.metricsCollector->count(), 3UL);
 }
 
 
