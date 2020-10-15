@@ -1567,9 +1567,14 @@ TEST_F(FreeMonControllerRSTest, SecondaryStopOnDocumentDropDuringCollect) {
 
     controller.start(RegistrationType::RegisterAfterOnTransitionToPrimary);
 
-    controller->turnCrankForTest(Turner().registerServer().registerCommand().collect(1));
+    controller->turnCrankForTest(Turner().registerServer().collect(2));
 
-    ASSERT_EQ(controller.metricsCollector->count(), 1UL);
+    controller->notifyOnTransitionToPrimary();
+
+    controller->turnCrankForTest(Turner().onTransitionToPrimary().registerCommand());
+
+    ASSERT_TRUE(FreeMonStorage::read(_opCtx.get()).is_initialized());
+    ASSERT_EQ(controller.metricsCollector->count(), 2UL);
 
     controller->turnCrankForTest(Turner().collect(1));
 
@@ -1579,6 +1584,9 @@ TEST_F(FreeMonControllerRSTest, SecondaryStopOnDocumentDropDuringCollect) {
     
     /////// There is a race condition where sometimes metrics send sneaks in
     controller->turnCrankForTest(Turner().notifyDelete().collect(1));
+
+    controller->turnCrankForTest(
+        Turner().metricsSend().collect(2));
 
     ASSERT_TRUE(FreeMonStorage::read(_opCtx.get()).is_initialized());
 
