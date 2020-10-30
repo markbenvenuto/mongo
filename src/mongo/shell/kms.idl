@@ -39,6 +39,7 @@ enums:
         values:
             aws: "aws"
             local: "local"
+            kmip: "kmip"
 
 structs:
     awsKMSError:
@@ -69,6 +70,16 @@ structs:
         fields:
           key: bindata_generic
 
+    # Options passed to Mongo() javascript constructor
+    kmipKMS:
+        description: "KMIP KMS config"
+        fields:
+          keyid: string
+          mackeyid: string
+          url:
+            type: string
+            optional: true
+
     kmsProviders:
       description: "Supported KMS Providers"
       strict: true
@@ -78,6 +89,9 @@ structs:
           optional: true
         local:
           type: localKMS
+          optional: true
+        kmip:
+          type: kmipKMS
           optional: true
 
     clientSideFLEOptions:
@@ -151,6 +165,28 @@ structs:
             type: bindata_generic
           masterKey:
             type: localMasterKey
+
+    kmipMasterKey:
+        description: "KMIP KMS Key Store Description"
+        fields:
+          provider:
+            type: string
+            default: '"kmip"'
+          keyid:
+            type: string
+          mackeyid:
+            type: string
+          endpoint:
+            type: string
+            optional: true
+
+    kmipMasterKeyAndMaterial:
+        description: "KMIP KMS Key Material Description"
+        fields:
+          keyMaterial:
+            type: bindata_generic
+          masterKey:
+            type: kmipMasterKey
 
     keyStoreRecord:
         description: "A V0 Key Store Record"
