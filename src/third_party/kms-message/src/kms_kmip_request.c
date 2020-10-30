@@ -52,6 +52,9 @@
 #endif
 #endif
 
+#define BSON_UINT32_SWAP_LE_BE(v) __builtin_bswap32 ((uint32_t) v)
+#define BSON_UINT64_SWAP_LE_BE(v) __builtin_bswap64 ((uint64_t) v)
+#define BSON_UINT16_SWAP_LE_BE(v) __builtin_bswap16 ((uint32_t) v)
 
 #if 1 // BSON_BYTE_ORDER == BSON_LITTLE_ENDIAN
 #define BSON_UINT16_FROM_LE(v) ((uint16_t) v)
@@ -713,15 +716,18 @@ kmip_reader_destroy (kmip_reader_t *reader)
 }
 
 bool
-kmip_reader_in_place (kmip_reader_t *reader, size_t pos, size_t len, kmip_reader_t *out_reader)
+kmip_reader_in_place (kmip_reader_t *reader,
+                      size_t pos,
+                      size_t len,
+                      kmip_reader_t *out_reader)
 {
    // Everything should be padding to 8 byte boundaries
-   len = compute_padding(len);
-   if((pos + len) > reader->len){
+   len = compute_padding (len);
+   if ((pos + len) > reader->len) {
       return false;
    }
 
-   memset(out_reader, 0, sizeof(kmip_reader_t));
+   memset (out_reader, 0, sizeof (kmip_reader_t));
    out_reader->ptr = reader->ptr + reader->pos;
    out_reader->len = len;
    return true;
@@ -729,20 +735,22 @@ kmip_reader_in_place (kmip_reader_t *reader, size_t pos, size_t len, kmip_reader
 
 
 size_t
-kmip_reader_save_position(kmip_reader_t *reader){
+kmip_reader_save_position (kmip_reader_t *reader)
+{
    return reader->pos;
 }
 
 void
-kmip_reader_restore_position(kmip_reader_t *reader, size_t pos){
+kmip_reader_restore_position (kmip_reader_t *reader, size_t pos)
+{
    reader->pos = pos;
 }
 
 bool
-kmip_reader_has_data(kmip_reader_t *reader){
+kmip_reader_has_data (kmip_reader_t *reader)
+{
    return reader->pos < reader->len;
 }
-
 
 
 #define CHECK_REMAINING_BUFFER_AND_RET(read_size)   \
@@ -755,7 +763,7 @@ _kmip_reader_read_u8 (kmip_reader_t *reader, uint8_t *value)
 {
    CHECK_REMAINING_BUFFER_AND_RET (sizeof (uint8_t));
 
-   *value = *(reader->ptr+reader->pos);
+   *value = *(reader->ptr + reader->pos);
    reader->pos += sizeof (uint8_t);
 
    return true;
@@ -767,7 +775,7 @@ _kmip_reader_read_u16 (kmip_reader_t *reader, uint16_t *value)
    CHECK_REMAINING_BUFFER_AND_RET (sizeof (uint16_t));
 
    uint16_t temp;
-   memcpy (&temp, reader->ptr+reader->pos, sizeof (uint16_t));
+   memcpy (&temp, reader->ptr + reader->pos, sizeof (uint16_t));
    *value = BSON_UINT16_FROM_BE (temp);
    reader->pos += sizeof (uint16_t);
 
@@ -780,7 +788,7 @@ _kmip_reader_read_u32 (kmip_reader_t *reader, uint32_t *value)
    CHECK_REMAINING_BUFFER_AND_RET (sizeof (uint32_t));
 
    uint32_t temp;
-   memcpy (&temp, reader->ptr+reader->pos, sizeof (uint32_t));
+   memcpy (&temp, reader->ptr + reader->pos, sizeof (uint32_t));
    *value = BSON_UINT32_FROM_BE (temp);
    reader->pos += sizeof (uint32_t);
 
@@ -793,7 +801,7 @@ _kmip_reader_read_u64 (kmip_reader_t *reader, uint64_t *value)
    CHECK_REMAINING_BUFFER_AND_RET (sizeof (uint64_t));
 
    uint64_t temp;
-   memcpy (&temp, reader->ptr+reader->pos, sizeof (uint64_t));
+   memcpy (&temp, reader->ptr + reader->pos, sizeof (uint64_t));
    *value = BSON_UINT64_FROM_BE (temp);
    reader->pos += sizeof (uint64_t);
 
@@ -801,12 +809,12 @@ _kmip_reader_read_u64 (kmip_reader_t *reader, uint64_t *value)
 }
 
 bool
-_kmip_reader_read_bytes (kmip_reader_t *reader, uint8_t** ptr, size_t length)
+_kmip_reader_read_bytes (kmip_reader_t *reader, uint8_t **ptr, size_t length)
 {
-   size_t advance_length = compute_padding(length);
+   size_t advance_length = compute_padding (length);
    CHECK_REMAINING_BUFFER_AND_RET (advance_length);
 
-   *ptr = reader->ptr+reader->pos;
+   *ptr = reader->ptr + reader->pos;
    reader->pos += advance_length;
 
    return true;
@@ -852,7 +860,7 @@ kmip_reader_read_type (kmip_reader_t *reader, uint8_t *type)
 bool
 kmip_reader_read_enumeration (kmip_reader_t *reader, uint32_t *enum_value)
 {
-    READER_CHECK_AND_RET (_kmip_reader_read_u32 (reader, enum_value));
+   READER_CHECK_AND_RET (_kmip_reader_read_u32 (reader, enum_value));
 
    // Skip 4 bytes becase enums are padded
    uint32_t ignored;
@@ -864,7 +872,7 @@ kmip_reader_read_enumeration (kmip_reader_t *reader, uint32_t *enum_value)
 bool
 kmip_reader_read_integer (kmip_reader_t *reader, uint32_t *value)
 {
-    READER_CHECK_AND_RET (_kmip_reader_read_u32 (reader, value));
+   READER_CHECK_AND_RET (_kmip_reader_read_u32 (reader, value));
 
    // Skip 4 bytes becase integers are padded
    uint32_t ignored;
@@ -881,13 +889,13 @@ kmip_reader_read_long_integer (kmip_reader_t *reader, uint64_t *value)
 
 
 bool
-kmip_reader_read_bytes (kmip_reader_t *reader, uint8_t** ptr, size_t length)
+kmip_reader_read_bytes (kmip_reader_t *reader, uint8_t **ptr, size_t length)
 {
    return _kmip_reader_read_bytes (reader, ptr, length);
 }
 
 bool
-kmip_reader_read_string (kmip_reader_t *reader, uint8_t** ptr, size_t length)
+kmip_reader_read_string (kmip_reader_t *reader, uint8_t **ptr, size_t length)
 {
    return _kmip_reader_read_bytes (reader, ptr, length);
 }
@@ -904,44 +912,50 @@ kmip_reader_read_string (kmip_reader_t *reader, uint8_t** ptr, size_t length)
 //    va_end (ap);
 // }
 
+// kmip_reader_restore_position(reader, saved_pos);
+
 #define FIND_CHECK_AND_RET(x) \
-   if (!(x)) {  \
-      kmip_reader_restore_position(reader, saved_pos);     \
-      return false;             \
+   if (!(x)) {                \
+      return false;           \
    }
 
 // Note: does not descend structures
 bool
-kmip_reader_find (kmip_reader_t *reader, size_t search_tag, uint8_t type, size_t* pos, size_t* length)
+kmip_reader_find (kmip_reader_t *reader,
+                  size_t search_tag,
+                  uint8_t type,
+                  size_t *pos,
+                  size_t *length)
 {
-   size_t saved_pos = kmip_reader_save_position(reader);
-   
-   while(kmip_reader_has_data(reader)) {
+   reader->pos = 0;
+   // size_t saved_pos = kmip_reader_save_position(reader);
+
+   while (kmip_reader_has_data (reader)) {
       uint32_t read_tag;
-      FIND_CHECK_AND_RET(kmip_reader_read_tag(reader, &read_tag));
+      FIND_CHECK_AND_RET (kmip_reader_read_tag (reader, &read_tag));
 
       uint8_t read_type;
-      FIND_CHECK_AND_RET(kmip_reader_read_type(reader, &read_type));
+      FIND_CHECK_AND_RET (kmip_reader_read_type (reader, &read_type));
 
       uint32_t read_length;
-      FIND_CHECK_AND_RET(kmip_reader_read_length(reader, &read_length));
+      FIND_CHECK_AND_RET (kmip_reader_read_length (reader, &read_length));
 
 
-
-      if(read_tag == search_tag && read_type == type) {
+      if (read_tag == search_tag && read_type == type) {
          *pos = reader->pos;
          *length = read_length;
          return true;
       }
 
       size_t advance_length = read_length;
-      if(read_type == ITEM_TYPE_ByteString || read_type == ITEM_TYPE_TextString ) {
-         advance_length = compute_padding(advance_length);
-      }
+      // if(read_type == ITEM_TYPE_ByteString || read_type ==
+      // ITEM_TYPE_TextString ) {
+      advance_length = compute_padding (advance_length);
+      //}
 
-      CHECK_REMAINING_BUFFER_AND_RET(advance_length);
+      CHECK_REMAINING_BUFFER_AND_RET (advance_length);
 
-      // Skip to the next type, 
+      // Skip to the next type,
       reader->pos += advance_length;
    }
 
@@ -949,14 +963,13 @@ kmip_reader_find (kmip_reader_t *reader, size_t search_tag, uint8_t type, size_t
 }
 
 
-
-kmip_reader_t*
+kmip_reader_t *
 kmip_reader_find_and_get_struct_reader (kmip_reader_t *reader, size_t tag)
 {
    size_t pos;
    size_t length;
 
-   if(!kmip_reader_find(reader, tag, ITEM_TYPE_Structure, &pos, &length)) {
+   if (!kmip_reader_find (reader, tag, ITEM_TYPE_Structure, &pos, &length)) {
       return NULL;
    }
 
@@ -965,38 +978,43 @@ kmip_reader_find_and_get_struct_reader (kmip_reader_t *reader, size_t tag)
 
 
 bool
-kmip_reader_find_and_read_enum (kmip_reader_t *reader, size_t tag, uint32_t *value)
+kmip_reader_find_and_read_enum (kmip_reader_t *reader,
+                                size_t tag,
+                                uint32_t *value)
 {
    size_t pos;
    size_t length;
 
-   if(!kmip_reader_find(reader, tag, ITEM_TYPE_Enumeration, &pos, &length)) {
+   if (!kmip_reader_find (reader, tag, ITEM_TYPE_Enumeration, &pos, &length)) {
       return NULL;
    }
 
    kmip_reader_t temp_reader;
-   if(!kmip_reader_in_place(reader, pos, length, &temp_reader)) {
+   if (!kmip_reader_in_place (reader, pos, length, &temp_reader)) {
       return false;
    }
 
-   return kmip_reader_read_enumeration(&temp_reader, value);
+   return kmip_reader_read_enumeration (&temp_reader, value);
 }
 
 bool
-kmip_reader_find_and_read_bytes (kmip_reader_t *reader, size_t tag, uint8_t** out_ptr, size_t* out_len)
+kmip_reader_find_and_read_bytes (kmip_reader_t *reader,
+                                 size_t tag,
+                                 uint8_t **out_ptr,
+                                 size_t *out_len)
 {
    size_t pos;
 
-   if(!kmip_reader_find(reader, tag, ITEM_TYPE_ByteString, &pos, out_len)) {
+   if (!kmip_reader_find (reader, tag, ITEM_TYPE_ByteString, &pos, out_len)) {
       return NULL;
    }
 
    kmip_reader_t temp_reader;
-   if(!kmip_reader_in_place(reader, pos, *out_len, &temp_reader)) {
+   if (!kmip_reader_in_place (reader, pos, *out_len, &temp_reader)) {
       return false;
    }
 
-   return kmip_reader_read_bytes(&temp_reader, out_ptr, *out_len);
+   return kmip_reader_read_bytes (&temp_reader, out_ptr, *out_len);
 }
 
 // size_t
@@ -1120,55 +1138,61 @@ kms_kmip_response_get_response (kms_kmip_response_parser_t *parser,
 }
 
 
-
 kms_request_t *
-kms_kmip_request_parse_encrypt_resp (
-                              const uint8_t *resp,
-                              size_t resp_len,
-                              const kms_request_opt_t *opt){
-
-                                    kms_request_t *req;
+kms_kmip_request_parse_encrypt_resp (const uint8_t *resp,
+                                     size_t resp_len,
+                                     const kms_request_opt_t *opt)
+{
+   kms_request_t *req;
    req = kms_request_new ("POST", "IGNORE", opt);
 
-      kmip_reader_t *reader = kmip_reader_new (
-         (uint8_t *) resp, resp_len);
-kmip_reader_t* response_message;
-      kmip_reader_t* batch_item ;
-kmip_reader_t* response_payload;
+   kmip_reader_t *reader = kmip_reader_new ((uint8_t *) resp, resp_len);
+   kmip_reader_t *response_message;
+   kmip_reader_t *batch_item;
+   kmip_reader_t *response_payload;
 
-    response_message = kmip_reader_find_and_get_struct_reader(reader, TAG_ResponseMessage);
-    if(!response_message){
-         KMS_ERROR (req, "TAG_ResponseMessage not found");
-         goto done;
-      }
-      batch_item = kmip_reader_find_and_get_struct_reader(response_message,TAG_BatchItem);
+   response_message =
+      kmip_reader_find_and_get_struct_reader (reader, TAG_ResponseMessage);
+   if (!response_message) {
+      KMS_ERROR (req, "TAG_ResponseMessage not found");
+      goto done;
+   }
+   batch_item =
+      kmip_reader_find_and_get_struct_reader (response_message, TAG_BatchItem);
 
-      uint32_t result_status;
-      if(!kmip_reader_find_and_read_enum(batch_item, TAG_ResultStatus, &result_status)) {
-         KMS_ERROR (req, "Expected KMS request with provider type: KMIP");
-         goto done;
-      }
+   uint32_t result_status;
+   if (!kmip_reader_find_and_read_enum (
+          batch_item, TAG_ResultStatus, &result_status)) {
+      KMS_ERROR (req, "Expected TAG_ResultStatus");
+      goto done;
+   }
 
-      if(result_status != 0) {
-         // TODO - better error
-                  KMS_ERROR (req, "Bad result status from KMIP");
-         goto done;
-      }
+   if (result_status != 0) {
+      // TODO - better error
+      KMS_ERROR (req, "Bad result status from KMIP");
+      goto done;
+   }
 
-       response_payload = kmip_reader_find_and_get_struct_reader(batch_item, TAG_ResponsePayload);
+   response_payload =
+      kmip_reader_find_and_get_struct_reader (batch_item, TAG_ResponsePayload);
+   if (!response_payload) {
+      KMS_ERROR (req, "TAG_ResponsePayload not found");
+      goto done;
+   }
 
+   uint8_t *ptr;
+   size_t len;
 
-      uint8_t *ptr;
-      size_t len;
+   if (!kmip_reader_find_and_read_bytes (
+          response_payload, TAG_Data, &ptr, &len)) {
+      KMS_ERROR (req, "Failed to read Data in response");
+      goto done;
+   }
 
-      if(!kmip_reader_find_and_read_bytes(response_payload, TAG_Data, &ptr, &len)){
-                  KMS_ERROR (req, "Failed to read Data in response");
-         goto done;
-      }
-
+   kms_request_str_append_chars (req->payload, (char *) ptr, len);
 
 done:
-      kmip_reader_destroy (reader);
+   kmip_reader_destroy (reader);
 
-return req;
-                              }
+   return req;
+}

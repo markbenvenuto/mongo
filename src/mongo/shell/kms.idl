@@ -74,8 +74,6 @@ structs:
     kmipKMS:
         description: "KMIP KMS config"
         fields:
-          keyid: string
-          mackeyid: string
           url:
             type: string
             optional: true

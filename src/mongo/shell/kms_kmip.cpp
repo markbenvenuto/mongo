@@ -29,6 +29,7 @@
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kControl
 
+#include <kms_message/kms_kmip_request.h>
 #include <kms_message/kms_message.h>
 
 #include <stdlib.h>
@@ -63,10 +64,10 @@ public:
     KMIPConnection(SSLManagerInterface* ssl)
         : _sslManager(ssl), _socket(std::make_unique<Socket>(10, logv2::LogSeverity::Info())) {}
 
-    UniqueKmsResponse makeOneRequest(const HostAndPort& host, ConstDataRange request);
+    std::vector<uint8_t> makeOneRequest(const HostAndPort& host, ConstDataRange request);
 
 private:
-    UniqueKmsResponse sendRequest(ConstDataRange request);
+    std::vector<uint8_t> sendRequest(ConstDataRange request);
 
     void connect(const HostAndPort& host);
 
@@ -104,7 +105,7 @@ private:
 void uassertKmsRequestInternal(kms_request_t* request, bool ok) {
     if (!ok) {
         const char* msg = kms_request_get_error(request);
-        uasserted(51135, str::stream() << "Internal KMIP KMS Error: " << msg);
+        uasserted(5113501, str::stream() << "Internal KMIP KMS Error: " << msg);
     }
 }
 
@@ -138,46 +139,46 @@ std::vector<uint8_t> KMIPKMSService::encrypt(ConstDataRange cdr, StringData kmsK
                                                  kmsKeyId.toString().c_str(),
                                                  NULL));
 
-    auto buffer = UniqueKmsCharBuffer(kms_request_get_signed(request.get()));
-    auto buffer_len = strlen(buffer.get());
+    kms_request_opt_t* opt;
+    kms_request_t* req;
+
+    opt = kms_request_opt_new();
+    kms_request_opt_set_connection_close(opt, true);
+    kms_request_opt_set_provider(opt, KMS_REQUEST_PROVIDER_KMIP);
+    req = kms_kmip_request_encrypt_new(kmsKeyId.toString().c_str(),
+                                       reinterpret_cast<const uint8_t*>(cdr.data()),
+                                       cdr.length(),
+                                       opt);
+
 
     KMIPConnection connection(_sslManager.get());
-    auto response = connection.makeOneRequest(_server, ConstDataRange(buffer.get(), buffer_len));
+    char* req_raw_buffer;
+    size_t req_raw_length;
+    kms_request_to_binary(req, &req_raw_buffer, &req_raw_length);
 
-    auto body = kms_response_get_body(response.get(), nullptr);
+    auto response =
+        connection.makeOneRequest(_server, ConstDataRange(req_raw_buffer, req_raw_length));
 
-    BSONObj obj = fromjson(body);
+    kms_request_t* resp =
+        kms_kmip_request_parse_encrypt_resp(response.data(), response.size(), NULL);
 
-    auto field = obj["__type"];
+    char* resp_raw_buffer;
+    size_t resp_raw_length;
+    kms_request_to_binary(resp, &resp_raw_buffer, &resp_raw_length);
 
-    if (!field.eoo()) {
-        KmipKMSError kmipResponse;
-        try {
-            kmipResponse = KmipKMSError::parse(IDLParserErrorContext("kmipEncryptError"), obj);
-        } catch (DBException& dbe) {
-            uasserted(51274,
-                      str::stream() << "KMIP KMS failed to parse error message: " << dbe.toString()
-                                    << ", Response : " << obj);
-        }
+    std::vector<uint8_t> vec;
+    vec.reserve(resp_raw_length);
+    std::copy(resp_raw_buffer, resp_raw_buffer + resp_raw_length, std::back_inserter(vec));
 
-        uasserted(51224,
-                  str::stream() << "KMIP KMS failed to encrypt: " << kmipResponse.getType() << " : "
-                                << kmipResponse.getMessage());
-    }
-
-    auto kmipResponse = KmipEncryptResponse::parse(IDLParserErrorContext("kmipEncryptResponse"), obj);
-
-    auto blobStr = base64::decode(kmipResponse.getCiphertextBlob().toString());
-
-    return toVector(blobStr);
+    return vec;
 }
 
 BSONObj KMIPKMSService::encryptDataKey(ConstDataRange cdr, StringData keyId) {
     auto dataKey = encrypt(cdr, keyId);
 
     KmipMasterKey masterKey;
-    masterKey.setKey(keyId);
-    masterKey.setRegion(parseCMK(keyId));
+    masterKey.setKeyid(keyId);
+    masterKey.setMackeyid(keyId);
     masterKey.setEndpoint(boost::optional<StringData>(_server.toString()));
 
     KmipMasterKeyAndMaterial keyAndMaterial;
@@ -194,49 +195,18 @@ SecureVector<uint8_t> KMIPKMSService::decrypt(ConstDataRange cdr, BSONObj master
     auto request = UniqueKmsRequest(kms_decrypt_request_new(
         reinterpret_cast<const uint8_t*>(cdr.data()), cdr.length(), nullptr));
 
-    if (_server.empty()) {
-        _server = getDefaultHost(kmipMasterKey.getRegion());
-    }
-
-    initRequest(request.get(), _server.host(), kmipMasterKey.getRegion());
-
     auto buffer = UniqueKmsCharBuffer(kms_request_get_signed(request.get()));
     auto buffer_len = strlen(buffer.get());
     KMIPConnection connection(_sslManager.get());
     auto response = connection.makeOneRequest(_server, ConstDataRange(buffer.get(), buffer_len));
 
-    auto body = kms_response_get_body(response.get(), nullptr);
-
-    BSONObj obj = fromjson(body);
-
-    auto field = obj["__type"];
-
-    if (!field.eoo()) {
-        KmipKMSError kmipResponse;
-        try {
-            kmipResponse = KmipKMSError::parse(IDLParserErrorContext("kmipDecryptError"), obj);
-        } catch (DBException& dbe) {
-            uasserted(51275,
-                      str::stream() << "KMIP KMS failed to parse error message: " << dbe.toString()
-                                    << ", Response : " << obj);
-        }
-
-        uasserted(51225,
-                  str::stream() << "KMIP KMS failed to decrypt: " << kmipResponse.getType() << " : "
-                                << kmipResponse.getMessage());
-    }
-
-    auto kmipResponse = KmipDecryptResponse::parse(IDLParserErrorContext("kmipDecryptResponse"), obj);
-
-    auto blobStr = base64::decode(kmipResponse.getPlaintext().toString());
-
-    return toSecureVector(blobStr);
+    return toSecureVector("TODO");
 }
 
 void KMIPConnection::connect(const HostAndPort& host) {
     SockAddr server(host.host().c_str(), host.port(), AF_UNSPEC);
 
-    uassert(51136,
+    uassert(5113601,
             str::stream() << "KMIP KMS server address " << host.host() << " is invalid.",
             server.isValid());
 
@@ -246,42 +216,54 @@ void KMIPConnection::connect(const HostAndPort& host) {
         connected = _socket->connect(server);
         attempt++;
     }
-    uassert(51137,
+    uassert(5113701,
             str::stream() << "Could not connect to KMIP KMS server " << server.toString(),
             connected);
 
-    uassert(51138,
+    uassert(5113801,
             str::stream() << "Failed to perform SSL handshake with the KMIP KMS server "
                           << host.toString(),
             _socket->secure(_sslManager, host.host()));
 }
 
+using UniqueKmsKmipResponseParser =
+    kms_message_support_detail::kms_message_unique_ptr<kms_kmip_response_parser_t,
+                                                       kms_kmip_response_parser_destroy>;
+
+
 // Sends a request message to the KMIP KMS server and creates a KMS Response.
-UniqueKmsResponse KMIPConnection::sendRequest(ConstDataRange request) {
+std::vector<uint8_t> KMIPConnection::sendRequest(ConstDataRange request) {
     std::array<char, 512> resp;
 
     _socket->send(
         reinterpret_cast<const char*>(request.data()), request.length(), "KMIP KMS request");
 
-    auto parser = UniqueKmsResponseParser(kms_response_parser_new());
+    auto parser = UniqueKmsKmipResponseParser(kms_kmip_response_parser_new());
     int bytes_to_read = 0;
 
-    while ((bytes_to_read = kms_response_parser_wants_bytes(parser.get(), resp.size())) > 0) {
+    while ((bytes_to_read = kms_kmip_response_parser_wants_bytes(parser.get(), resp.size())) > 0) {
         bytes_to_read = std::min(bytes_to_read, static_cast<int>(resp.size()));
         bytes_to_read = _socket->unsafe_recv(resp.data(), bytes_to_read);
 
-        uassert(51139,
+        uassert(5113901,
                 "kms_response_parser_feed failed",
-                kms_response_parser_feed(
+                kms_kmip_response_parser_feed(
                     parser.get(), reinterpret_cast<uint8_t*>(resp.data()), bytes_to_read));
     }
 
-    auto response = UniqueKmsResponse(kms_response_parser_get_response(parser.get()));
+    uint8_t* resp_buffer;
+    size_t resp_length;
+    kms_kmip_response_get_response(parser.get(), &resp_buffer, &resp_length);
 
-    return response;
+    std::vector<uint8_t> vec;
+    vec.reserve(resp_length);
+    std::copy(resp_buffer, resp_buffer + resp_length, std::back_inserter(vec));
+
+    return vec;
 }
 
-UniqueKmsResponse KMIPConnection::makeOneRequest(const HostAndPort& host, ConstDataRange request) {
+std::vector<uint8_t> KMIPConnection::makeOneRequest(const HostAndPort& host,
+                                                    ConstDataRange request) {
     connect(host);
 
     auto resp = sendRequest(request);
@@ -329,12 +311,6 @@ std::unique_ptr<KMSService> KMIPKMSService::create(const KmipKMS& config) {
 
     kmipKMS->_sslManager = SSLManagerInterface::create(params, false);
 
-    kmipKMS->_config.accessKeyId = config.getAccessKeyId().toString();
-
-    kmipKMS->_config.secretAccessKey = config.getSecretAccessKey().toString();
-
-    kmipKMS->_config.sessionToken = toString(config.getSessionToken());
-
     return kmipKMS;
 }
 
@@ -358,7 +334,7 @@ public:
 
 }  // namespace
 
-MONGO_INITIALIZER(KMSRegister)(::mongo::InitializerContext* context) {
+MONGO_INITIALIZER(KmipKMSRegister)(::mongo::InitializerContext* context) {
     kms_message_init();
     KMSServiceController::registerFactory(KMSProviderEnum::kmip,
                                           std::make_unique<KMIPKMSServiceFactory>());
