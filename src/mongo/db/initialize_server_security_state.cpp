@@ -62,10 +62,7 @@ bool initializeServerSecurityGlobalState(ServiceContext* service) {
 #ifdef MONGO_CONFIG_SSL
     if (clusterAuthMode == ServerGlobalParams::ClusterAuthMode_x509 ||
         clusterAuthMode == ServerGlobalParams::ClusterAuthMode_sendX509) {
-        auth::setInternalUserAuthParams(BSON(saslCommandMechanismFieldName
-                                             << "MONGODB-X509" << saslCommandUserDBFieldName
-                                             << "$external" << saslCommandUserFieldName
-                                             << SSLManagerCoordinator::get()
+        auth::setInternalUserAuthParams(auth::createInternalX509AuthDocument(SSLManagerCoordinator::get()
                                                     ->getSSLManager()
                                                     ->getSSLConfiguration()
                                                     .clientSubjectName.toString()));

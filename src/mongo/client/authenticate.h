@@ -29,6 +29,7 @@
 
 #pragma once
 
+#include "mongo/bson/bsonobjbuilder.h"
 #include <functional>
 #include <memory>
 #include <string>
@@ -187,5 +188,7 @@ SpeculativeAuthType speculateAuth(BSONObjBuilder* isMasterRequest,
 SpeculativeAuthType speculateInternalAuth(BSONObjBuilder* isMasterRequest,
                                           std::shared_ptr<SaslClientSession>* saslClientSession);
 
+
+BSONObj createInternalX509AuthDocument(boost::optional<StringData> userName = boost::none);
 }  // namespace auth
 }  // namespace mongo

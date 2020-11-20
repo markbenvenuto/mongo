@@ -63,6 +63,18 @@ namespace {
 const char* const kUserSourceFieldName = "userSource";
 const BSONObj kGetNonceCmd = BSON("getnonce" << 1);
 
+BSONObj createInternalX509AuthDocument(boost::optional<StringData> userName) {
+    BSONObjBuilder builder;
+    builder.append(saslCommandMechanismFieldName, "MONGODB-X509");
+    builder.append(saslCommandUserDBFieldName, "$external");
+    
+    if (userName) {
+        builder.append(saslCommandUserFieldName, userName.get());
+    }
+
+    return builder.obj();
+}
+
 StatusWith<std::string> extractDBField(const BSONObj& params) {
     std::string db;
     if (params.hasField(kUserSourceFieldName)) {

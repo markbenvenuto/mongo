@@ -165,8 +165,8 @@ void TLConnection::cancelTimeout() {
 
 class TLConnectionSetupHook : public executor::NetworkConnectionHook {
 public:
-    explicit TLConnectionSetupHook(executor::NetworkConnectionHook* hookToWrap)
-        : _wrappedHook(hookToWrap) {}
+    explicit TLConnectionSetupHook(executor::NetworkConnectionHook* hookToWrap, bool x509AuthOnly)
+        : _wrappedHook(hookToWrap), _x509AuthOnly(x509AuthOnly) {}
 
     BSONObj augmentIsMasterRequest(BSONObj cmdObj) override {
         BSONObjBuilder bob(std::move(cmdObj));
@@ -174,8 +174,13 @@ public:
         if (internalSecurity.user) {
             bob.append("saslSupportedMechs", internalSecurity.user->getName().getUnambiguousName());
         }
+
         _speculativeAuthType = auth::speculateInternalAuth(&bob, &_session);
 
+        if(_x509AuthOnly) {
+            _speculativeAuthType = auth::SpeculativeAuthType::kAuthenticate;
+        }
+        
         return bob.obj();
     }
 
@@ -190,6 +195,12 @@ public:
             for (const auto& elem : array) {
                 _saslMechsForInternalAuth.push_back(elem.checkAndGetStringData().toString());
             }
+        }
+
+        // X.509 auth only means we only want to use a single mechanism regards of what hello says
+        if(_x509AuthOnly) {
+            _saslMechsForInternalAuth.clear();
+            _saslMechsForInternalAuth.push_back("MONGODB-X509");
         }
 
         const auto specAuth = reply.getField(auth::kSpeculativeAuthenticate);
@@ -245,6 +256,7 @@ private:
     auth::SpeculativeAuthType _speculativeAuthType;
     BSONObj _speculativeAuthenticate;
     executor::NetworkConnectionHook* const _wrappedHook = nullptr;
+    bool _x509AuthOnly;
 };
 
 void TLConnection::setup(Milliseconds timeout, SetupCallback cb) {
@@ -269,7 +281,7 @@ void TLConnection::setup(Milliseconds timeout, SetupCallback cb) {
         }
     });
 
-    auto isMasterHook = std::make_shared<TLConnectionSetupHook>(_onConnectHook);
+    auto isMasterHook = std::make_shared<TLConnectionSetupHook>(_onConnectHook, _transientSSLContext->targetClusterURI);
 
     AsyncDBClient::connect(
         _peer, _sslMode, _serviceContext, _reactor, timeout, _transientSSLContext)
@@ -299,7 +311,8 @@ void TLConnection::setup(Milliseconds timeout, SetupCallback cb) {
             boost::optional<std::string> mechanism;
             if (!isMasterHook->saslMechsForInternalAuth().empty())
                 mechanism = isMasterHook->saslMechsForInternalAuth().front();
-            return _client->authenticateInternal(std::move(mechanism));
+            #error - choose a credentials provider to pass in depending on whether transient is set
+            return _client->authenticateInternal(std::move(mechanism), internalCredentialsProvider());
         })
         .then([this] {
             if (!_onConnectHook) {
