@@ -27,6 +27,9 @@
  *    it in the license file.
  */
 
+#include "mongo/bson/bsonobj.h"
+#include "mongo/client/internal_auth.h"
+#include <memory>
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kAccessControl
 
 #include "mongo/platform/basic.h"
@@ -62,18 +65,6 @@ namespace {
 
 const char* const kUserSourceFieldName = "userSource";
 const BSONObj kGetNonceCmd = BSON("getnonce" << 1);
-
-BSONObj createInternalX509AuthDocument(boost::optional<StringData> userName) {
-    BSONObjBuilder builder;
-    builder.append(saslCommandMechanismFieldName, "MONGODB-X509");
-    builder.append(saslCommandUserDBFieldName, "$external");
-    
-    if (userName) {
-        builder.append(saslCommandUserFieldName, userName.get());
-    }
-
-    return builder.obj();
-}
 
 StatusWith<std::string> extractDBField(const BSONObj& params) {
     std::string db;
@@ -150,7 +141,22 @@ Future<void> authX509(RunCommandHook runCommand, const BSONObj& params, StringDa
     return runCommand(authRequest.getValue()).ignoreValue();
 }
 
+class DefaultInternalAuthParametersProvider : public InternalAuthParametersProvider {
+    public:
+    ~DefaultInternalAuthParametersProvider() = default;
+
+  BSONObj get(size_t index, StringData mechanism) final {
+      return getInternalAuthParams(index,  mechanism);
+  }
+};
+
 }  // namespace
+
+std::shared_ptr<InternalAuthParametersProvider> createDefaultInternalAuthProvider() {
+    return std::make_shared<DefaultInternalAuthParametersProvider>();
+}
+
+
 //
 // General Auth
 //
@@ -244,19 +250,20 @@ Future<std::string> negotiateSaslMechanism(RunCommandHook runCommand,
 Future<void> authenticateInternalClient(const std::string& clientSubjectName,
                                         boost::optional<std::string> mechanismHint,
                                         StepDownBehavior stepDownBehavior,
-                                        RunCommandHook runCommand) {
+                                        RunCommandHook runCommand,
+                                        std::shared_ptr<InternalAuthParametersProvider> internalParamsProvider) {
     return negotiateSaslMechanism(
                runCommand, internalSecurity.user->getName(), mechanismHint, stepDownBehavior)
-        .then([runCommand, clientSubjectName](std::string mechanism) -> Future<void> {
-            auto params = getInternalAuthParams(0, mechanism);
+        .then([runCommand, clientSubjectName, internalParamsProvider](std::string mechanism) -> Future<void> {
+            auto params = internalParamsProvider->get(0, mechanism);
             if (params.isEmpty()) {
                 return Status(ErrorCodes::BadValue,
                               "Missing authentication parameters for internal user auth");
             }
             return authenticateClient(params, HostAndPort(), clientSubjectName, runCommand)
                 .onError<ErrorCodes::AuthenticationFailed>(
-                    [runCommand, clientSubjectName, mechanism](Status status) -> Future<void> {
-                        auto altCreds = getInternalAuthParams(1, mechanism);
+                    [runCommand, clientSubjectName, mechanism, internalParamsProvider](Status status) -> Future<void> {
+                        auto altCreds = internalParamsProvider->get(1, mechanism);
                         if (!altCreds.isEmpty()) {
                             return authenticateClient(
                                 altCreds, HostAndPort(), clientSubjectName, runCommand);

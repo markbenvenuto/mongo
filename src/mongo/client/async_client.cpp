@@ -165,7 +165,7 @@ Future<void> AsyncDBClient::authenticate(const BSONObj& params) {
     return auth::authenticateClient(params, remote(), clientName, _makeAuthRunCommandHook());
 }
 
-Future<void> AsyncDBClient::authenticateInternal(boost::optional<std::string> mechanismHint) {
+Future<void> AsyncDBClient::authenticateInternal(boost::optional<std::string> mechanismHint, std::shared_ptr<auth::InternalAuthParametersProvider>authProvider) {
     // If no internal auth information is set, don't bother trying to authenticate.
     if (!auth::isInternalAuthSet()) {
         return Future<void>::makeReady();
@@ -182,7 +182,7 @@ Future<void> AsyncDBClient::authenticateInternal(boost::optional<std::string> me
     return auth::authenticateInternalClient(clientName,
                                             mechanismHint,
                                             auth::StepDownBehavior::kKillConnection,
-                                            _makeAuthRunCommandHook());
+                                            _makeAuthRunCommandHook(), authProvider);
 }
 
 Future<bool> AsyncDBClient::completeSpeculativeAuth(std::shared_ptr<SaslClientSession> session,

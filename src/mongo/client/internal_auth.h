@@ -69,7 +69,13 @@ bool isInternalAuthSet();
  */
 std::string getInternalAuthDB();
 
-BSONObj getInternalAuthParams(size_t idx, const std::string& mechanism);
+/**
+ * Returns the internal auth sasl parameters.
+ */
+BSONObj getInternalAuthParams(size_t idx, StringData mechanism);
+
+
+BSONObj createInternalX509AuthDocument(boost::optional<StringData> userName = boost::none);
 
 }  // namespace auth
 }  // namespace mongo

@@ -38,12 +38,37 @@
 #include "mongo/unittest/integration_test.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/assert_util.h"
+#include "mongo/util/net/ssl_options.h"
+#include "mongo/client/authenticate.h"
+
+#include "mongo/base/init.h"
+#include "mongo/base/shim.h"
+#include "mongo/base/status.h"
+#include "mongo/bson/util/bson_extract.h"
+#include "mongo/config.h"
+#include "mongo/crypto/mechanism_scram.h"
+#include "mongo/db/auth/address_restriction.h"
+#include "mongo/db/auth/authorization_manager_global_parameters_gen.h"
+#include "mongo/db/auth/authorization_manager_impl_parameters_gen.h"
+#include "mongo/db/auth/authorization_session_impl.h"
+#include "mongo/db/auth/authz_manager_external_state.h"
+#include "mongo/db/auth/sasl_options.h"
+#include "mongo/db/auth/user_document_parser.h"
+#include "mongo/db/auth/user_management_commands_parser.h"
+#include "mongo/db/global_settings.h"
+#include "mongo/db/mongod_options.h"
+#include "mongo/util/assert_util.h"
+#include "mongo/util/fail_point.h"
+#include "mongo/util/net/ssl_peer_info.h"
+#include "mongo/util/net/ssl_types.h"
+#include "mongo/util/str.h"
+
 
 namespace mongo {
 namespace executor {
 namespace {
 
-std::string LoadFile(const std::string& name) {
+std::string loadFile(const std::string& name) {
     std::ifstream input(name);
     std::string str((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
     return str;
@@ -52,10 +77,28 @@ std::string LoadFile(const std::string& name) {
 class NetworkInterfaceSSLFixture : public NetworkInterfaceIntegrationFixture {
 public:
     void setUp() final {
+
+
+        UserHandle user(User(UserName("__system", "local")));
+
+        ActionSet allActions;
+        allActions.addAllActions();
+        PrivilegeVector privileges;
+        auth::generateUniversalPrivileges(&privileges);
+        user->addPrivileges(privileges);
+
+        internalSecurity.user = user;
+
+
+            // Force all connections to use SSL for outgoing
+        sslGlobalParams.sslMode.store(static_cast<int>(SSLParams::SSLModes::SSLMode_requireSSL));
+        sslGlobalParams.sslCAFile = "jstests/libs/ca.pem";
+              auth::setInternalUserAuthParams(auth::createInternalX509AuthDocument(boost::optional<StringData>("FAKE")));
+
         ConnectionPool::Options options;
         options.transientSSLParams.emplace([] {
             TransientSSLParams params;
-            params.sslClusterPEMPayload = LoadFile("jstests/libs/client.pem");
+            params.sslClusterPEMPayload = loadFile("jstests/libs/client.pem");
             params.targetedClusterConnectionString = ConnectionString::forLocal();
             return params;
         }());

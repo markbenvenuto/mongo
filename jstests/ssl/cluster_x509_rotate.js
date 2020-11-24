@@ -17,9 +17,9 @@ copyCertificateFile("jstests/libs/server.pem", dbPath + "/server-test.pem");
 const rst = new ReplSetTest({nodes: 2});
 rst.startSet({
     sslMode: "requireSSL",
-    sslPEMKeyFile: dbPath + "/server-test.pem",
-    sslCAFile: dbPath + "/ca-test.pem",
-    sslClusterFile: dbPath + "/client-test.pem",
+    sslPEMKeyFile: "jstests/libs/server.pem",
+    sslCAFile: "jstests/libs/ca.pem",
+    sslClusterFile: "jstests/libs/client.pem",
     sslAllowInvalidHostnames: "",
 });
 

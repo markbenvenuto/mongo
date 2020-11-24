@@ -1330,6 +1330,9 @@ Future<void> ExecCommandDatabase::_initiateCommand() try {
         }
     });
 
+
+    logd( "FOO COMMAND {}", request.body);
+
     rpc::readRequestMetadata(opCtx, request.body, command->requiresAuth());
     rpc::TrackingMetadata::get(opCtx).initWithOperName(command->getName());
 
