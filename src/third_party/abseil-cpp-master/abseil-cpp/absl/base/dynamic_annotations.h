@@ -366,6 +366,7 @@ inline T ANNOTATE_UNPROTECTED_READ(const volatile T &x) { /* NOLINT */
 #endif /* DYNAMIC_ANNOTATIONS_ENABLED */
 
 #ifdef ADDRESS_SANITIZER
+#ifndef _MSC_VER 
 /* Describe the current state of a contiguous container such as e.g.
  * std::vector or std::string. For more details see
  * sanitizer/common_interface_defs.h, which is provided by the compiler. */
@@ -377,6 +378,7 @@ inline T ANNOTATE_UNPROTECTED_READ(const volatile T &x) { /* NOLINT */
 #else
 #define ANNOTATE_CONTIGUOUS_CONTAINER(beg, end, old_mid, new_mid)
 #define ADDRESS_SANITIZER_REDZONE(name)
+#endif  // MSVC
 #endif  // ADDRESS_SANITIZER
 
 /* Undefine the macros intended only in this file. */

@@ -3043,7 +3043,7 @@ def doConfigure(myenv):
 
     if has_option('sanitize'):
 
-        if not myenv.ToolchainIs('clang', 'gcc'):
+        if not myenv.ToolchainIs('clang', 'gcc', 'msvc'):
             env.FatalError('sanitize is only supported with clang or gcc')
 
         if myenv.ToolchainIs('gcc'):
@@ -3065,6 +3065,9 @@ def doConfigure(myenv):
             # There are multiply defined symbols between the sanitizer and
             # our vendorized tcmalloc.
             env.FatalError("Cannot use --sanitize=address with tcmalloc")
+
+        if using_asan and myenv.ToolchainIs('msvc') and get_option('msvc-debugging-format') == "codeview":
+            env.FatalError("Cannot use --sanitize=address with msvc-debugging-format=codeview, must use pdb instead")
 
         if using_fsan:
             def CheckForFuzzerCompilerSupport(context):
@@ -3109,9 +3112,15 @@ def doConfigure(myenv):
 
         sanitizer_option = '-fsanitize=' + ','.join(sanitizer_list)
 
-        if AddToCCFLAGSIfSupported(myenv, sanitizer_option):
+        if not env.ToolchainIs('msvc') and AddToCCFLAGSIfSupported(myenv, sanitizer_option):
             myenv.Append(LINKFLAGS=[sanitizer_option])
             myenv.Append(CCFLAGS=['-fno-omit-frame-pointer'])
+        elif env.ToolchainIs('msvc'):
+            # TODO - fix hacks
+#            myenv.Append(CCFLAGS=['"/IC:/Program Files (x86)/Microsoft Visual Studio/2019/Professional/VC/Tools/MSVC/14.28.29333/crt/src"'])
+            myenv.Append(CCFLAGS=['"/Iz:/tmp/san"'])
+            #set _LINK_= /debug -incremental:no /wholearchive: %MyVS%\lib\x64\clang_rt.asan_dynamic-x86_64.lib /wholearchive: %MyVS%\lib\x64\clang_rt.asan_dynamic_runtime_thunk-x86_64.lib
+            myenv.Append(LINKFLAGS=['/wholearchive:clang_rt.asan_dynamic-x86_64.lib' ,'/wholearchive:clang_rt.asan_dynamic_runtime_thunk-x86_64.lib'])
         else:
             myenv.ConfError('Failed to enable sanitizers with flag: {0}', sanitizer_option )
 

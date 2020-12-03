@@ -412,10 +412,10 @@ class FixedArray {
       return reinterpret_cast<StorageElement*>(inlined_storage_.data());
     }
 
-#ifdef ADDRESS_SANITIZER
+#ifdef ADDRESS_SANITIZER1
     void* RedzoneBegin() { return &redzone_begin_; }
     void* RedzoneEnd() { return &redzone_end_ + 1; }
-#endif  // ADDRESS_SANITIZER
+#endif  // ADDRESS_SANITIZER1
 
     void AnnotateConstruct(size_type);
     void AnnotateDestruct(size_type);
@@ -496,22 +496,22 @@ constexpr typename FixedArray<T, N, A>::size_type
 template <typename T, size_t N, typename A>
 void FixedArray<T, N, A>::NonEmptyInlinedStorage::AnnotateConstruct(
     typename FixedArray<T, N, A>::size_type n) {
-#ifdef ADDRESS_SANITIZER
+#ifdef ADDRESS_SANITIZER1
   if (!n) return;
   ANNOTATE_CONTIGUOUS_CONTAINER(data(), RedzoneEnd(), RedzoneEnd(), data() + n);
   ANNOTATE_CONTIGUOUS_CONTAINER(RedzoneBegin(), data(), data(), RedzoneBegin());
-#endif                   // ADDRESS_SANITIZER
+#endif                   // ADDRESS_SANITIZER1
   static_cast<void>(n);  // Mark used when not in asan mode
 }
 
 template <typename T, size_t N, typename A>
 void FixedArray<T, N, A>::NonEmptyInlinedStorage::AnnotateDestruct(
     typename FixedArray<T, N, A>::size_type n) {
-#ifdef ADDRESS_SANITIZER
+#ifdef ADDRESS_SANITIZER1
   if (!n) return;
   ANNOTATE_CONTIGUOUS_CONTAINER(data(), RedzoneEnd(), data() + n, RedzoneEnd());
   ANNOTATE_CONTIGUOUS_CONTAINER(RedzoneBegin(), data(), RedzoneBegin(), data());
-#endif                   // ADDRESS_SANITIZER
+#endif                   // ADDRESS_SANITIZER1
   static_cast<void>(n);  // Mark used when not in asan mode
 }
 }  // namespace absl
