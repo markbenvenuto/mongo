@@ -3117,8 +3117,19 @@ def doConfigure(myenv):
             myenv.Append(CCFLAGS=['-fno-omit-frame-pointer'])
         elif env.ToolchainIs('msvc'):
             # TODO - fix hacks
-#            myenv.Append(CCFLAGS=['"/IC:/Program Files (x86)/Microsoft Visual Studio/2019/Professional/VC/Tools/MSVC/14.28.29333/crt/src"'])
-            myenv.Append(CCFLAGS=['"/Iz:/tmp/san"'])
+            # for k in myenv.items():
+            #     print(str(k))
+            #myenv.Append(CCFLAGS=['\"/IC:/Program Files (x86)/Microsoft Visual Studio/2019/Professional/VC/Tools/MSVC/14.28.29333/crt/src\"'])
+
+              #myenv.Append(CCFLAGS=['\\"/IC:/Program Files (x86)/Microsoft Visual Studio/2019/Professional/VC/Tools/MSVC/14.28.29333/crt/src\\"'])
+           
+            # This works with scons but not ninja
+            sanitizer_headers_root = "C:/Program Files (x86)/Microsoft Visual Studio/2019/Professional/VC/Tools/MSVC/14.28.29333/crt/src"
+            if not os.path.exists(sanitizer_headers_root):
+                raise ValueError("Update the path for the sanitizer headers")
+            myenv.Append(CCFLAGS=['/I' + sanitizer_headers_root])
+            #myenv.Append(CCFLAGS=['"/Iz:/tmp/san"'])
+            # TODO - make sure 
             #set _LINK_= /debug -incremental:no /wholearchive: %MyVS%\lib\x64\clang_rt.asan_dynamic-x86_64.lib /wholearchive: %MyVS%\lib\x64\clang_rt.asan_dynamic_runtime_thunk-x86_64.lib
             myenv.Append(LINKFLAGS=['/wholearchive:clang_rt.asan_dynamic-x86_64.lib' ,'/wholearchive:clang_rt.asan_dynamic_runtime_thunk-x86_64.lib'])
         else:

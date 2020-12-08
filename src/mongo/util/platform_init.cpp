@@ -91,9 +91,11 @@ MONGO_INITIALIZER(Behaviors_Win32)(InitializerContext*) {
     // hook the C runtime's error display
     _CrtSetReportHook(&crtDebugCallback);
 
+#ifndef ADDRESS_SANITIZER
     if (_setmaxstdio(2048) == -1) {
         LOGV2_WARNING(23326, "Failed to increase max open files limit from default of 512 to 2048");
     }
+#endif
 
     // Let's try to set minimum Windows Kernel quantum length to smallest viable timer resolution in
     // order to allow sleepmillis() to support waiting periods below Windows default quantum length
