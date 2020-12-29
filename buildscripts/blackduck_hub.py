@@ -457,34 +457,34 @@ class Component:
         # Blackduck's newerReleases is based on "releasedOn" date. This means that if a upstream component releases a beta or rc,
         # it counts as newer but we do not consider those newer for our purposes
         # Missing newerReleases means we do not have to upgrade
-        # if newer_releases > 0:
-        #     limit = newer_releases + 1
-        #     versions_url = component["component"] + f"/versions?sort=releasedon%20desc&limit={limit}"
+        if newer_releases > 0:
+            limit = newer_releases + 1
+            versions_url = component["component"] + f"/versions?sort=releasedon%20desc&limit={limit}"
 
-        #     LOGGER.info("Retrieving version information via %s", versions_url)
-        #     vjson = hub.execute_get(versions_url).json()
+            LOGGER.info("Retrieving version information via %s", versions_url)
+            vjson = hub.execute_get(versions_url).json()
 
-        #     versions = [(ver["versionName"], ver["releasedOn"]) for ver in vjson["items"]]
+            versions = [(ver["versionName"], ver["releasedOn"]) for ver in vjson["items"]]
 
-        #     LOGGER.info("Known versions: %s ", versions)
+            LOGGER.info("Known versions: %s ", versions)
 
-        #     versions = [ver["versionName"] for ver in vjson["items"]]
+            versions = [ver["versionName"] for ver in vjson["items"]]
 
-        #     # For Firefox, only examine Extended Service Releases (i.e. esr), their long term support releases
-        #     if name == "Mozilla Firefox":
-        #         versions = [ver for ver in versions if "esr" in ver]
+            # For Firefox, only examine Extended Service Releases (i.e. esr), their long term support releases
+            if name == "Mozilla Firefox":
+                versions = [ver for ver in versions if "esr" in ver]
 
-        #     ver_info = [VersionInfo(ver) for ver in versions]
-        #     ver_info = [ver for ver in ver_info if ver.production_version]
-        #     LOGGER.info("Filtered versions: %s ", ver_info)
+            ver_info = [VersionInfo(ver) for ver in versions]
+            ver_info = [ver for ver in ver_info if ver.production_version]
+            LOGGER.info("Filtered versions: %s ", ver_info)
 
-        #     ver_info = sorted([ver for ver in ver_info if ver.production_version and ver > cver],
-        #                       reverse=True)
+            ver_info = sorted([ver for ver in ver_info if ver.production_version and ver > cver],
+                              reverse=True)
 
-        #     LOGGER.info("Sorted versions: %s ", ver_info)
+            LOGGER.info("Sorted versions: %s ", ver_info)
 
-        #     if ver_info:
-        #         newest_release = ver_info[0]
+            if ver_info:
+                newest_release = ver_info[0]
 
         return Component(name, cversion, licenses, policy_status, security_risk, newest_release, is_manually_added)
 
@@ -918,7 +918,14 @@ def _generate_report_upgrade(mgr: ReportManager, comp: Component, mcomp: ThirdPa
         mgr.write_report(comp.name, "upgrade_check", "pass", "Blackduck run passed")
     else:
 
-TODO - update code to describe how to handle manual components
+        if comp.is_manually_added:
+            component_explanation = f"""This commponent was manually added to Black Duck and it requires manual work to update in the
+Black Duck database.  After the update to the third-party library is committed, please update the
+version information for this component at {BLACKDUCK_PROJECT_URL}."""
+        else:
+            component_explanation = f"""This commponent was automatically detected by Black Duck. Black Duck should automatically detect
+the new version after the library is updated and the daily scanner task runs again."""
+
         mgr.write_report(
             comp.name, "upgrade_check", "fail", f"""{BLACKDUCK_FAILED_PREFIX}
 
@@ -940,8 +947,7 @@ To address this build failure, the next steps are as follows:
 2. Add a “upgrade_supression” to {THIRD_PARTY_COMPONENTS_FILE} with the SERVER ticket to acknowledge
    this report. Note that you do not need to immediately update the library, just file a ticket.
 
-If you believe the library is already up-to-date but Black Duck has the wrong version, please update
-version information for this component at {BLACKDUCK_PROJECT_URL}.
+{component_explanation}
 
 If the "{BLACKDUCK_DEFAULT_TEAM}" cannot do this work for any reason, the BF should be assigned to
 the component owner team "{mcomp.team_owner}".
