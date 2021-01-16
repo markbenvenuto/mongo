@@ -1775,14 +1775,11 @@ Future<void> executeCommand(std::shared_ptr<HandleRequest::ExecutionContext> exe
                 }
 
                 Command* c = execContext->getCommand();
-                LOGV2_DEBUG(
-                    21965,
-                    2,
-                    "Run command {db}.$cmd {commandArgs}",
-                    "About to run the command",
-                    "db"_attr = request.getDatabase(),
-                    "commandArgs"_attr = redact(
-                        ServiceEntryPointCommon::getRedactedCopyForLogging(c, request.body)));
+                LOGV2(21965,
+                      "Run command {db}.$cmd {commandArgs}",
+                      "About to run the command",
+                      "db"_attr = request.getDatabase(),
+                      "commandArgs"_attr = request.body);
 
                 {
                     // Try to set this as early as possible, as soon as we have figured out the

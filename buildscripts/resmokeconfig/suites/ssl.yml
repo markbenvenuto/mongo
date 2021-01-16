@@ -13,7 +13,8 @@ executor:
       ssl: ''
       sslAllowInvalidCertificates: ''
       sslCAFile: jstests/libs/ca.pem
-      sslPEMKeyFile: jstests/libs/client.pem
+      # sslPEMKeyFile: jstests/libs/client.pem
+      sslPEMKeyFile: jstests/libs/server.pem
       readMode: commands
       global_vars:
         TestData:

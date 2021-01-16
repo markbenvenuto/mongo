@@ -81,13 +81,14 @@ authutil.assertAuthenticateFails = function(conns, dbName, authParams) {
 authutil.asCluster = function(conn, keyfile, action) {
     var ex;
 
-    const connOptions = conn.fullOptions || {};
-    const authMode = connOptions.clusterAuthMode || jsTest.options().clusterAuthMode;
-
     // put a connection in an array for uniform processing.
     let connArray = conn;
     if (conn.length == null)
         connArray = [conn];
+
+    const connOptions = connArray[0].fullOptions || {};
+    const authMode = connOptions.clusterAuthMode || connArray[0].clusterAuthMode ||
+        jsTest.options().clusterAuthMode;
 
     let clusterTimes = connArray.map(connElem => {
         const connClusterTime = connElem.getClusterTime();
@@ -109,7 +110,9 @@ authutil.asCluster = function(conn, keyfile, action) {
             pwd: cat(keyfile).replace(/[\011-\015\040]/g, '')
         });
     } else if (authMode === 'x509') {
-        authDB = '$external';
+        // When we login as __system, it gets registered internally as __system@local as the user
+        // name
+        authDB = 'local';
         authutil.assertAuthenticate(conn, '$external', {
             mechanism: 'MONGODB-X509',
         });

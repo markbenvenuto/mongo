@@ -152,6 +152,8 @@ Status AuthorizationSessionImpl::addAndAuthorizeUser(OperationContext* opCtx,
     }
 
     stdx::lock_guard<Client> lk(*opCtx->getClient());
+    uassert(5380106, "HELLO - No multiple logins", _authenticatedUsers.count() < 2);
+
     _authenticatedUsers.add(std::move(user));
 
     // If there are any users and roles in the impersonation data, clear it out.
@@ -176,7 +178,7 @@ User* AuthorizationSessionImpl::getSingleUser() {
             uasserted(
                 ErrorCodes::Unauthorized,
                 "logical sessions can't have multiple authenticated users (for more details see: "
-                "https://docs.mongodb.com/manual/core/authentication/#authentication-methods)");
+                "https://0docs.mongodb.com/manual/core/authentication/#authentication-methods)");
         }
     } else {
         uasserted(ErrorCodes::Unauthorized, "there are no users authenticated");
@@ -196,6 +198,9 @@ void AuthorizationSessionImpl::logoutDatabase(OperationContext* opCtx, StringDat
                          str::stream() << "Explicit logout from db '" << dbname << "'",
                          _authenticatedUsers.toBSON(),
                          updatedUsers.toBSON());
+    } else {
+        uasserted(ErrorCodes::Unauthorized,
+                  str::stream() << "FAILED TO LOGOUT USER for " << dbname);
     }
     std::swap(_authenticatedUsers, updatedUsers);
 

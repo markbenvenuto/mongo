@@ -45,8 +45,8 @@ function runInitialSyncTest() {
 
     print("2. Create a root user.");
     admin.createUser({user: "root", pwd: "pass", roles: ["root"]});
-    admin.auth("root", "pass");
-    admin_s1.auth("root", "pass");
+    // admin.auth("root", "pass");
+    // admin_s1.auth("root", "pass");
 
     print("3. Insert some data");
     var bulk = foo.bar.initializeUnorderedBulkOp();
@@ -68,7 +68,9 @@ function runInitialSyncTest() {
     assert.commandWorked(bulk.execute());
 
     print("6. Everyone happy eventually");
-    replTest.awaitReplication(300000);
+    admin.logout();
+    admin_s1.logout();
+    // replTest.awaitReplication(300000);
 
     replTest.stopSet();
 }

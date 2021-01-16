@@ -137,6 +137,7 @@ var ReplSetTest = function(opts) {
         self._primary = null;
         self._secondaries = [];
 
+        let replies = [];
         var twoPrimaries = false;
         let canAcceptWrites = false;
         // Ensure that only one node is in primary state.
@@ -147,12 +148,18 @@ var ReplSetTest = function(opts) {
                 self._liveNodes.push(node);
                 // We verify that the node has a valid config by checking if n.me exists. Then, we
                 // check to see if the node is in primary state.
+                replies.push(n);
                 if (n.me && n.me == n.primary) {
                     if (self._primary) {
+                        print("HELLO: - found two primaries, second:" + n);
+
                         twoPrimaries = true;
                     } else {
                         self._primary = node;
                         canAcceptWrites = n.ismaster;
+                        if (!canAcceptWrites) {
+                            print("HELLO: - canAcceptWrites" + n)
+                        }
                     }
                 } else {
                     self._secondaries.push(node);
@@ -163,6 +170,9 @@ var ReplSetTest = function(opts) {
             }
         });
         if (twoPrimaries || !self._primary || !canAcceptWrites) {
+            if (!self._primary) {
+                print("HELLO: - no primary found - " + tojson(replies));
+            }
             return false;
         }
 
@@ -181,7 +191,22 @@ var ReplSetTest = function(opts) {
     }
 
     function asCluster(conn, fn, keyFileParam = self.keyFile) {
-        if (keyFileParam) {
+        jsTestLog("FOOOO:" + self.clusterAuthMode);
+
+        let connArray = conn;
+        if (conn.length == null)
+            connArray = [conn];
+
+        const connOptions = connArray[0].fullOptions || {};
+        const authMode = connOptions.clusterAuthMode || connArray[0].clusterAuthMode ||
+            jsTest.options().clusterAuthMode;
+
+        // const connOptions = conn.fullOptions || {};
+        // const authMode = connOptions.clusterAuthMode || jsTest.options().clusterAuthMode;
+
+        jsTestLog("FOOOO2:" + tojson(connOptions) + '||||||||||' + authMode);
+
+        if (keyFileParam || authMode === "x509") {
             return authutil.asCluster(conn, keyFileParam, fn);
         } else {
             return fn();
@@ -1503,8 +1528,12 @@ var ReplSetTest = function(opts) {
             }
         }
 
+        // print("FOOOO:"+ tojson(self));
+        // throw "abc";
         // Setup authentication if running test with authentication
-        if ((jsTestOptions().keyFile) && cmdKey == 'replSetInitiate') {
+        if ((jsTestOptions().keyFile || self.clusterAuthMode === "x509") &&
+            cmdKey === 'replSetInitiate') {
+            // throw "abc";
             primary = this.getPrimary();
             jsTest.authenticateNodes(this.nodes);
         }
@@ -1793,30 +1822,30 @@ var ReplSetTest = function(opts) {
         const options =
             (primaryOptions === {} || !self.startOptions) ? primaryOptions : self.startOptions;
         const authMode = options.clusterAuthMode;
-        if (authMode === "x509") {
-            print(fnName + ": authenticating on separate shell with x509 for " + self.name);
-            const caFile = options.sslCAFile ? options.sslCAFile : options.tlsCAFile;
-            const keyFile =
-                options.sslPEMKeyFile ? options.sslPEMKeyFile : options.tlsCertificateKeyFile;
-            const subShellArgs = [
-                'mongo',
-                '--ssl',
-                '--sslCAFile=' + caFile,
-                '--sslPEMKeyFile=' + keyFile,
-                '--sslAllowInvalidHostnames',
-                '--authenticationDatabase=$external',
-                '--authenticationMechanism=MONGODB-X509',
-                primary.host,
-                '--eval',
-                `(${fn.toString()})();`
-            ];
+        // if (authMode === "x509") {
+        //     print(fnName + ": authenticating on separate shell with x509 for " + self.name);
+        //     const caFile = options.sslCAFile ? options.sslCAFile : options.tlsCAFile;
+        //     const keyFile =
+        //         options.sslPEMKeyFile ? options.sslPEMKeyFile : options.tlsCertificateKeyFile;
+        //     const subShellArgs = [
+        //         'mongo',
+        //         '--ssl',
+        //         '--sslCAFile=' + caFile,
+        //         '--sslPEMKeyFile=' + keyFile,
+        //         '--sslAllowInvalidHostnames',
+        //         '--authenticationDatabase=$external',
+        //         '--authenticationMechanism=MONGODB-X509',
+        //         primary.host,
+        //         '--eval',
+        //         `(${fn.toString()})();`
+        //     ];
 
-            const retVal = _runMongoProgram(...subShellArgs);
-            assert.eq(retVal, 0, 'mongo shell did not succeed with exit code 0');
-        } else {
-            print(fnName + ": authenticating with authMode '" + authMode + "' for " + self.name);
-            asCluster(primary, fn, primaryOptions.keyFile);
-        }
+        //     const retVal = _runMongoProgram(...subShellArgs);
+        //     assert.eq(retVal, 0, 'mongo shell did not succeed with exit code 0');
+        // } else {
+        print(fnName + ": authenticating with authMode '" + authMode + "' for " + self.name);
+        asCluster(primary, fn, primaryOptions.keyFile);
+        // }
     }
 
     /**
@@ -3136,6 +3165,14 @@ var ReplSetTest = function(opts) {
         self.oplogSize = opts.oplogSize || 40;
         self.useSeedList = opts.useSeedList || false;
         self.keyFile = opts.keyFile;
+
+        self.clusterAuthMode = undefined;
+        if (opts.clusterAuthMode) {
+            opts.clusterAuthMode = opts.clusterAuthMode
+        } else if (self.keyFile) {
+            opts.clusterAuthMode = "keyFile";
+        }
+
         self.protocolVersion = opts.protocolVersion;
         self.waitForKeys = opts.waitForKeys;
 
@@ -3180,6 +3217,15 @@ var ReplSetTest = function(opts) {
             }
 
             numNodes = opts.nodes;
+        }
+
+        print("Nodes:" + tojson(self.nodeOptions));
+        for (let i = 0; i < numNodes; i++) {
+            print("Nodes:" + tojson(self.nodeOptions["n" + i]));
+            if (self.nodeOptions["n" + i].clusterAuthMode == "x509") {
+                jsTestLog("FOOOO: found clusterAuthMode x509")
+                self.clusterAuthMode = "x509";
+            }
         }
 
         if (_useBridge) {
