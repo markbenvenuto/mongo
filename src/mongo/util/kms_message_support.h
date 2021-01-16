@@ -67,4 +67,5 @@ using UniqueKmsResponse =
 using UniqueKmsCharBuffer =
     kms_message_support_detail::kms_message_unique_ptr<char, kms_request_free_string>;
 
+
 }  // namespace mongo

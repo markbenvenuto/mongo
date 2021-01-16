@@ -149,6 +149,7 @@ if get_option('ssl') == 'on':
         source=[
             "kms.cpp",
             "kms_aws.cpp",
+            "kms_azure.cpp",
             "kms_gcp.cpp",
             "kms_local.cpp",
             "kms_network.cpp",
@@ -338,7 +339,7 @@ if not has_option('noshell') and usemozjs:
     )
 
 
-env.CppUnitTest(
+kmsEnv.CppUnitTest(
     target='shell_test',
     source=[
         'kms_test.cpp' if get_option('ssl') == 'on' else [],

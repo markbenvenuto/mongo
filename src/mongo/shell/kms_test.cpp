@@ -28,7 +28,7 @@
  */
 
 #include "mongo/platform/basic.h"
-
+#include <kms_message/kms_b64.h>
 #include "kms.h"
 
 #include "mongo/base/data_range.h"
@@ -84,6 +84,23 @@ TEST(KmsTest, TestGoodKey) {
 
     ASSERT_TRUE(isEquals(myKey.toString(), *plaintext));
 }
+
+
+TEST(KmsTest, Test1) {
+const char* str1 = "MDBTRUNSRVQ1WWxjVTJsQlZqMGhmbjFHd3U3WkNGekt3cnpfMVlxc2FyV08yOWktbi01T3BzcTFSdThaQ1c0bV80N3pqY2h5NTNQOU15d19kRWtJampKczZZRW80Z1E1UkdDN1lYOVc5WFFhY1dBemNER0tmeFB2WGtzeTlmSU12REMxU3YwZA==";
+
+
+    size_t raw_len;
+    std::unique_ptr<uint8_t,  decltype(std::free)*> raw_str(kms_message_b64url_to_raw(str1, &raw_len), std::free);
+
+
+    size_t raw_len2 = raw_len;
+    std::unique_ptr<char,  decltype(std::free)*> base64str(kms_message_raw_to_b64url(raw_str.get(), raw_len2), std::free);
+
+ASSERT(strcmp(str1,base64str.get() )==0);
+
+}
+
 
 }  // namespace
 }  // namespace mongo
