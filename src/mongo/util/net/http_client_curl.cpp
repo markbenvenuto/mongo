@@ -263,7 +263,7 @@ public:
 
         // TODO: CURLOPT_EXPECT_100_TIMEOUT_MS?
         // TODO: consider making this configurable
-        // curl_easy_setopt(_handle.get(), CURLOPT_VERBOSE, 1);
+        curl_easy_setopt(_handle.get(), CURLOPT_VERBOSE, 1);
         // curl_easy_setopt(_handle.get(), CURLOPT_DEBUGFUNCTION , ???);
     }
 
