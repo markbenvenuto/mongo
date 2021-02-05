@@ -32,6 +32,7 @@
 #include <cstddef>
 #include <curl/curl.h>
 #include <curl/easy.h>
+#include <memory>
 #include <string>
 
 #include "mongo/base/data_builder.h"
@@ -62,9 +63,6 @@ public:
 
     CurlLibraryManager() = default;
     ~CurlLibraryManager() {
-        if (_share) {
-            curl_share_cleanup(_share);
-        }
         // Ordering matters: curl_global_cleanup() must happen last.
         if (_initialized) {
             curl_global_cleanup();
@@ -83,10 +81,6 @@ public:
         }
 
         return Status::OK();
-    }
-
-    CURLSH* getShareHandle() const {
-        return _share;
     }
 
 private:
@@ -112,71 +106,12 @@ private:
 
     Status _initializeShare() {
         invariant(_initialized);
-        if (_share) {
-            return Status::OK();
-        }
-
-        _share = curl_share_init();
-        curl_share_setopt(_share, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
-        curl_share_setopt(_share, CURLSHOPT_SHARE, CURL_LOCK_DATA_CONNECT);
-        curl_share_setopt(_share, CURLSHOPT_SHARE, CURL_LOCK_DATA_SSL_SESSION);
-        curl_share_setopt(_share, CURLSHOPT_USERDATA, this);
-        curl_share_setopt(_share, CURLSHOPT_LOCKFUNC, _lockShare);
-        curl_share_setopt(_share, CURLSHOPT_UNLOCKFUNC, _unlockShare);
 
         return Status::OK();
     }
 
-    static void _lockShare(CURL*, curl_lock_data lock_data, curl_lock_access, void* ctx) {
-        // curl_lock_access maps to shared and single access, i.e. a read and exclusive lock
-        // except the unlock method does not have curl_lock_access as a parameter so we map
-        // all lock requests to regular mutexes
-        switch (lock_data) {
-            case CURL_LOCK_DATA_SHARE:
-                reinterpret_cast<CurlLibraryManager*>(ctx)->_mutexShare.lock();
-                break;
-            case CURL_LOCK_DATA_DNS:
-                reinterpret_cast<CurlLibraryManager*>(ctx)->_mutexDns.lock();
-                break;
-            case CURL_LOCK_DATA_SSL_SESSION:
-                reinterpret_cast<CurlLibraryManager*>(ctx)->_mutexSSLSession.lock();
-                break;
-            case CURL_LOCK_DATA_CONNECT:
-                reinterpret_cast<CurlLibraryManager*>(ctx)->_mutexConnect.lock();
-                break;
-            default:
-                fassert(5185801, "Unsupported curl lock type");
-        }
-    }
-
-
-    static void _unlockShare(CURL*, curl_lock_data lock_data, void* ctx) {
-        switch (lock_data) {
-            case CURL_LOCK_DATA_SHARE:
-                reinterpret_cast<CurlLibraryManager*>(ctx)->_mutexShare.unlock();
-                break;
-            case CURL_LOCK_DATA_DNS:
-                reinterpret_cast<CurlLibraryManager*>(ctx)->_mutexDns.unlock();
-                break;
-            case CURL_LOCK_DATA_SSL_SESSION:
-                reinterpret_cast<CurlLibraryManager*>(ctx)->_mutexSSLSession.unlock();
-                break;
-            case CURL_LOCK_DATA_CONNECT:
-                reinterpret_cast<CurlLibraryManager*>(ctx)->_mutexConnect.unlock();
-                break;
-            default:
-                fassert(5185802, "Unsupported curl unlock type");
-        }
-    }
-
 private:
     bool _initialized = false;
-    CURLSH* _share = nullptr;
-
-    Mutex _mutexDns = MONGO_MAKE_LATCH("CurlLibraryManager::ShareDns");
-    Mutex _mutexConnect = MONGO_MAKE_LATCH("CurlLibraryManager::ShareConnect");
-    Mutex _mutexSSLSession = MONGO_MAKE_LATCH("CurlLibraryManager::ShareSSLSession");
-    Mutex _mutexShare = MONGO_MAKE_LATCH("CurlLibraryManager::ShareLock");
 
 } curlLibraryManager;
 
@@ -235,12 +170,25 @@ struct CurlSlistFreeAll {
 };
 using CurlSlist = std::unique_ptr<curl_slist, CurlSlistFreeAll>;
 
-class CurlHttpClient final : public HttpClient {
+
+// class HandleFactory {
+//     public:
+
+//     HandleFactory
+
+// private:
+//     std::map<std::string, CurlHandle> _handles;
+// };
+
+// HandleFactory factory;
+    long longSeconds(Seconds tm) {
+        return static_cast<long>(durationCount<Seconds>(tm));
+    }
+
+struct HandleSingleton{
 public:
-    CurlHttpClient() {
-        // Initialize a base handle with common settings.
-        // Methods like requireHTTPS() will operate on this
-        // base handle.
+    CurlHandle get() {
+        if(!_handle) {
         _handle.reset(curl_easy_init());
         uassert(ErrorCodes::InternalError, "Curl initialization failed", _handle);
 
@@ -264,7 +212,35 @@ public:
         // TODO: CURLOPT_EXPECT_100_TIMEOUT_MS?
         // TODO: consider making this configurable
         curl_easy_setopt(_handle.get(), CURLOPT_VERBOSE, 1);
+
+
+        }
+             return std::move(_handle);
+    }
+
+    void returnHandle(CurlHandle h) {
+        _handle = std::move(h);
+    }
+private:
+    CurlHandle _handle;
+};
+
+HandleSingleton _singleton;
+
+class CurlHttpClient final : public HttpClient {
+public:
+    CurlHttpClient() {
+        // Initialize a base handle with common settings.
+        // Methods like requireHTTPS() will operate on this
+        // base handle.
+
         // curl_easy_setopt(_handle.get(), CURLOPT_DEBUGFUNCTION , ???);
+        _handle = _singleton.get();
+
+    }
+
+    ~CurlHttpClient() {
+        _singleton.returnHandle(std::move(_handle));
     }
 
     void allowInsecureHTTP(bool allow) final {
@@ -292,8 +268,8 @@ public:
     HttpReply request(HttpMethod method,
                       StringData url,
                       ConstDataRange cdr = {nullptr, 0}) const final {
-        CurlHandle myHandle(curl_easy_duphandle(_handle.get()));
-        uassert(ErrorCodes::InternalError, "Curl initialization failed", myHandle);
+        // CurlHandle _handle(curl_easy_duphandle(_handle.get()));
+        uassert(ErrorCodes::InternalError, "Curl initialization failed", _handle);
 
         ConstDataRangeCursor cdrc(cdr);
         switch (method) {
@@ -303,46 +279,45 @@ public:
                         cdr.length() == 0);
                 break;
             case HttpMethod::kPOST:
-                curl_easy_setopt(myHandle.get(), CURLOPT_POST, 1);
+                curl_easy_setopt(_handle.get(), CURLOPT_POST, 1);
 
-                curl_easy_setopt(myHandle.get(), CURLOPT_READFUNCTION, ReadMemoryCallback);
-                curl_easy_setopt(myHandle.get(), CURLOPT_READDATA, &cdrc);
-                curl_easy_setopt(myHandle.get(), CURLOPT_POSTFIELDSIZE, (long)cdrc.length());
+                curl_easy_setopt(_handle.get(), CURLOPT_READFUNCTION, ReadMemoryCallback);
+                curl_easy_setopt(_handle.get(), CURLOPT_READDATA, &cdrc);
+                curl_easy_setopt(_handle.get(), CURLOPT_POSTFIELDSIZE, (long)cdrc.length());
                 break;
             case HttpMethod::kPUT:
-                curl_easy_setopt(myHandle.get(), CURLOPT_PUT, 1);
+                curl_easy_setopt(_handle.get(), CURLOPT_PUT, 1);
 
-                curl_easy_setopt(myHandle.get(), CURLOPT_READFUNCTION, ReadMemoryCallback);
-                curl_easy_setopt(myHandle.get(), CURLOPT_READDATA, &cdrc);
-                curl_easy_setopt(myHandle.get(), CURLOPT_INFILESIZE_LARGE, (long)cdrc.length());
+                curl_easy_setopt(_handle.get(), CURLOPT_READFUNCTION, ReadMemoryCallback);
+                curl_easy_setopt(_handle.get(), CURLOPT_READDATA, &cdrc);
+                curl_easy_setopt(_handle.get(), CURLOPT_INFILESIZE_LARGE, (long)cdrc.length());
                 break;
             default:
                 MONGO_UNREACHABLE;
         }
 
         const auto urlString = url.toString();
-        curl_easy_setopt(myHandle.get(), CURLOPT_URL, urlString.c_str());
-        curl_easy_setopt(myHandle.get(), CURLOPT_SHARE, curlLibraryManager.getShareHandle());
+        curl_easy_setopt(_handle.get(), CURLOPT_URL, urlString.c_str());
 
         DataBuilder dataBuilder(4096), headerBuilder(4096);
-        curl_easy_setopt(myHandle.get(), CURLOPT_WRITEDATA, &dataBuilder);
-        curl_easy_setopt(myHandle.get(), CURLOPT_HEADERDATA, &headerBuilder);
+        curl_easy_setopt(_handle.get(), CURLOPT_WRITEDATA, &dataBuilder);
+        curl_easy_setopt(_handle.get(), CURLOPT_HEADERDATA, &headerBuilder);
 
         curl_slist* chunk = curl_slist_append(nullptr, "Connection: keep-alive");
         for (const auto& header : _headers) {
             chunk = curl_slist_append(chunk, header.c_str());
         }
-        curl_easy_setopt(myHandle.get(), CURLOPT_HTTPHEADER, chunk);
+        curl_easy_setopt(_handle.get(), CURLOPT_HTTPHEADER, chunk);
         CurlSlist _headers(chunk);
 
-        CURLcode result = curl_easy_perform(myHandle.get());
+        CURLcode result = curl_easy_perform(_handle.get());
         uassert(ErrorCodes::OperationFailed,
                 str::stream() << "Bad HTTP response from API server: "
                               << curl_easy_strerror(result),
                 result == CURLE_OK);
 
         long statusCode;
-        result = curl_easy_getinfo(myHandle.get(), CURLINFO_RESPONSE_CODE, &statusCode);
+        result = curl_easy_getinfo(_handle.get(), CURLINFO_RESPONSE_CODE, &statusCode);
         uassert(ErrorCodes::OperationFailed,
                 str::stream() << "Unexpected error retrieving response: "
                               << curl_easy_strerror(result),
