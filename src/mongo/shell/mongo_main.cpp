@@ -753,6 +753,11 @@ int mongo_main(int argc, char* argv[]) {
 
         boost::log::core::get()->add_sink(std::move(consoleSink));
 
+
+        auto c = HttpClient::create(HttpClient::Protocols::kHttpOrHttps);
+        c->request(HttpClient::HttpMethod::kGET, "http://localhost:8080/hi");
+
+
         // Get the URL passed to the shell
         std::string& cmdlineURI = shellGlobalParams.url;
 

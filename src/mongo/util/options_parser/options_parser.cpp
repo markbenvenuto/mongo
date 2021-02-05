@@ -525,9 +525,7 @@ private:
 
 std::string runYAMLRestExpansion(StringData url, Seconds timeout) {
 
-    auto client = HttpClient::create();
-    uassert(
-        ErrorCodes::OperationFailed, "No HTTP Client available in this build of MongoDB", client);
+    bool allowHttp = false;
 
     // Expect https:// URLs unless we can be sure we're talking to localhost.
     if (!url.startsWith("https://")) {
@@ -540,8 +538,13 @@ std::string runYAMLRestExpansion(StringData url, Seconds timeout) {
             end = url.size();
         }
         HostAndPort hp(url.substr(start, end - start));
-        client->allowInsecureHTTP(hp.isLocalHost());
+        allowHttp = hp.isLocalHost();
     }
+
+    auto client = HttpClient::create(allowHttp ? HttpClient::Protocols::kHttpOrHttps : HttpClient::Protocols::kHttpsOnly);
+    uassert(
+        ErrorCodes::OperationFailed, "No HTTP Client available in this build of MongoDB", client);
+
 
     client->setConnectTimeout(timeout);
     client->setTimeout(timeout);

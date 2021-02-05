@@ -194,6 +194,7 @@ else:
         ],
         LIBDEPS=[
             '$BUILD_DIR/mongo/base',
+            '$BUILD_DIR/mongo/util/alarm',
         ],
         SYSLIBDEPS=[
             'winhttp' if env.TargetOSIs('windows') else 'curl',

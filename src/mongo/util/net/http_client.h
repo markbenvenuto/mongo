@@ -55,6 +55,11 @@ public:
         kPUT,
     };
 
+    enum class Protocols {
+        kHttpOrHttps,
+        kHttpsOnly,
+    };
+
     struct HttpReply {
         std::uint16_t code;
         DataBuilder header;
@@ -65,12 +70,6 @@ public:
     };
 
     virtual ~HttpClient() = default;
-
-    /**
-     * Configure all future requests on this client to allow insecure http:// urls.
-     * By default, only https:// is allowed.
-     */
-    virtual void allowInsecureHTTP(bool allow) = 0;
 
     /**
      * Assign a set of headers for this request.
@@ -121,7 +120,7 @@ public:
     /**
      * Factory method provided by client implementation.
      */
-    static std::unique_ptr<HttpClient> create();
+    static std::unique_ptr<HttpClient> create(Protocols protocols = Protocols::kHttpsOnly);
 
     /**
      * Content for ServerStatus http_client section.

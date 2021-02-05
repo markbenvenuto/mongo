@@ -74,18 +74,16 @@ void OCSPManager::shutdown(ServiceContext* service) {
 OCSPManager::OCSPManager() {
     _pool = makeTaskExecutor();
 
-    this->_tlsServerHttp = HttpClient::create();
-    this->_tlsClientHttp = HttpClient::create();
+    this->_tlsServerHttp = HttpClient::create(HttpClient::Protocols::kHttpOrHttps);
+    this->_tlsClientHttp = HttpClient::create(HttpClient::Protocols::kHttpOrHttps);
 
     if (!this->_tlsServerHttp) {
         return;
     }
 
-    this->_tlsClientHttp->allowInsecureHTTP(true);
     this->_tlsClientHttp->setTimeout(Seconds(gTLSOCSPVerifyTimeoutSecs));
     this->_tlsClientHttp->setHeaders({"Content-Type: application/ocsp-request"});
 
-    this->_tlsServerHttp->allowInsecureHTTP(true);
     if (gTLSOCSPStaplingTimeoutSecs < 0) {
         this->_tlsServerHttp->setTimeout(Seconds(gTLSOCSPVerifyTimeoutSecs));
     } else {
