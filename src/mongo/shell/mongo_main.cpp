@@ -754,7 +754,8 @@ int mongo_main(int argc, char* argv[]) {
         boost::log::core::get()->add_sink(std::move(consoleSink));
 
 
-        auto c = HttpClient::create(HttpClient::Protocols::kHttpOrHttps);
+        auto c = HttpClient::create();
+        c->allowInsecureHTTP(true);
         c->request(HttpClient::HttpMethod::kGET, "http://localhost:8080/hi");
 
         c->request(HttpClient::HttpMethod::kGET, "http://localhost:8080/bye");

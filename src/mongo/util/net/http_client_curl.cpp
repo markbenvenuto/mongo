@@ -66,6 +66,16 @@ namespace mongo {
 
 namespace {
 
+/**
+ * 
+ */
+     enum class Protocols {
+         kHttpOrHttps,
+         kHttpsOnly,
+     };
+
+
+
 class CurlLibraryManager {
 public:
     // No copying and no moving because we give libcurl the address of our members.
@@ -311,7 +321,7 @@ public:
                 return;
             }
 
-            fassert(51052, status);
+            fassert(5413901, status);
             cb();
         });
     }
@@ -408,14 +418,14 @@ private:
 };
 
 
-transport::ConnectSSLMode mapProtocolToSSLMode(HttpClient::Protocols protocol) {
-    return (protocol == HttpClient::Protocols::kHttpsOnly) ? transport::kEnableSSL
+transport::ConnectSSLMode mapProtocolToSSLMode(Protocols protocol) {
+    return (protocol == Protocols::kHttpsOnly) ? transport::kEnableSSL
                                                            : transport::kDisableSSL;
 }
 
-HttpClient::Protocols mapSSLModeToProtocol(transport::ConnectSSLMode sslMode) {
-    return (sslMode == transport::kEnableSSL) ? HttpClient::Protocols::kHttpsOnly
-                                              : HttpClient::Protocols::kHttpOrHttps;
+Protocols mapSSLModeToProtocol(transport::ConnectSSLMode sslMode) {
+    return (sslMode == transport::kEnableSSL) ? Protocols::kHttpsOnly
+                                              : Protocols::kHttpOrHttps;
 }
 
 class PooledCurlHandle : public ConnectionPool::ConnectionInterface,
@@ -425,7 +435,7 @@ public:
                      ClockSource* clockSource,
                      const std::shared_ptr<AlarmScheduler>& alarmScheduler,
                      const HostAndPort& host,
-                     HttpClient::Protocols protocol,
+                     Protocols protocol,
                      size_t generation)
         : ConnectionInterface(generation),
           _executor(std::move(executor)),
@@ -480,7 +490,7 @@ private:
 
             _handle = createCurlHandle();
 
-            if (_protocol == HttpClient::Protocols::kHttpOrHttps) {
+            if (_protocol == Protocols::kHttpOrHttps) {
                 curl_easy_setopt(
                     _handle.get(), CURLOPT_PROTOCOLS, CURLPROTO_HTTPS | CURLPROTO_HTTP);
             } else {
@@ -513,7 +523,7 @@ private:
     CurlHandleTimer _timer;
     HostAndPort _target;
 
-    HttpClient::Protocols _protocol;
+    Protocols _protocol;
     CurlHandle _handle;
 };
 
@@ -561,7 +571,7 @@ public:
           _pool(std::make_shared<executor::ConnectionPool>(
               _typeFactory, "Curl", makePoolOptions(Seconds(60)))) {}
 
-    CurlFactoryHandle get(HostAndPort server, HttpClient::Protocols protocol) {
+    CurlFactoryHandle get(HostAndPort server, Protocols protocol) {
 
         auto sslMode = mapProtocolToSSLMode(protocol);
 
@@ -605,25 +615,9 @@ HostAndPort exactHostAndPortFromUrl(StringData url) {
 
 class CurlHttpClient final : public HttpClient {
 public:
-    CurlHttpClient(Protocols protocol) {
-        // Initialize a base handle with common settings.
-        // Methods like requireHTTPS() will operate on this
-        // base handle.
-
-        // curl_easy_setopt(_handle.get(), CURLOPT_DEBUGFUNCTION , ???);
+    void allowInsecureHTTP(bool allow) final {
+_allowInsecure = allow;
     }
-
-    ~CurlHttpClient() {
-        // _singleton.returnHandle(std::move(_handle));
-    }
-
-    // void allowInsecureHTTP(bool allow) final {
-    //     if (allow) {
-    //         curl_easy_setopt(_handle.get(), CURLOPT_PROTOCOLS, CURLPROTO_HTTPS | CURLPROTO_HTTP);
-    //     } else {
-    //         curl_easy_setopt(_handle.get(), CURLOPT_PROTOCOLS, CURLPROTO_HTTPS);
-    //     }
-    // }
 
     void setHeaders(const std::vector<std::string>& headers) final {
         // Can't set on base handle because cURL doesn't deep-dup this field
@@ -645,7 +639,7 @@ public:
                       ConstDataRange cdr = {nullptr, 0}) const final {
 
         auto hp = exactHostAndPortFromUrl(url);
-        CurlFactoryHandle _handle(factory.get(hp, HttpClient::Protocols::kHttpOrHttps));
+        CurlFactoryHandle _handle(factory.get(hp, Protocols::kHttpOrHttps));
 
 
         // CurlHandle _handle(curl_easy_duphandle(_handle.get()));
@@ -715,6 +709,7 @@ public:
 private:
     std::vector<std::string> _headers;
 
+    bool _allowInsecure{false};
     Seconds _timeout;
     Seconds _connectTimeout;
 };
@@ -727,9 +722,9 @@ Status curlLibraryManager_initialize() {
     return curlLibraryManager.initialize();
 }
 
-std::unique_ptr<HttpClient> HttpClient::create(Protocols protocol) {
+std::unique_ptr<HttpClient> HttpClient::create() {
     uassertStatusOK(curlLibraryManager.initialize());
-    return std::make_unique<CurlHttpClient>(protocol);
+    return std::make_unique<CurlHttpClient>();
 }
 
 BSONObj HttpClient::getServerStatus() {

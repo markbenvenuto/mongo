@@ -67,6 +67,12 @@ public:
     virtual ~HttpClient() = default;
 
     /**
+     * Configure all future requests on this client to allow insecure http:// urls.
+     * By default, only https:// is allowed.
+     */
+    virtual void allowInsecureHTTP(bool allow) = 0;
+
+    /**
      * Assign a set of headers for this request.
      */
     virtual void setHeaders(const std::vector<std::string>& headers) = 0;
@@ -115,7 +121,7 @@ public:
     /**
      * Factory method provided by client implementation.
      */
-    static std::unique_ptr<HttpClient> create(Protocols protocols = Protocols::kHttpsOnly);
+    static std::unique_ptr<HttpClient> create();
 
     /**
      * Content for ServerStatus http_client section.
