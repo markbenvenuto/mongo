@@ -90,11 +90,6 @@ public:
             return status;
         }
 
-        status = _initializeShare();
-        if (!status.isOK()) {
-            return status;
-        }
-
         return Status::OK();
     }
 
@@ -116,12 +111,6 @@ private:
         }
 
         _initialized = true;
-        return Status::OK();
-    }
-
-    Status _initializeShare() {
-        invariant(_initialized);
-
         return Status::OK();
     }
 
@@ -192,32 +181,31 @@ long longSeconds(Seconds tm) {
 
 
 CurlHandle createCurlHandle() {
-            CurlHandle handle(curl_easy_init());
-            uassert(ErrorCodes::InternalError, "Curl initialization failed", handle);
+    CurlHandle handle(curl_easy_init());
+    uassert(ErrorCodes::InternalError, "Curl initialization failed", handle);
 
-            curl_easy_setopt(
-                handle.get(), CURLOPT_CONNECTTIMEOUT, longSeconds(kConnectionTimeout));
-            curl_easy_setopt(handle.get(), CURLOPT_FOLLOWLOCATION, 0);
-            curl_easy_setopt(handle.get(), CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
-            curl_easy_setopt(handle.get(), CURLOPT_NOSIGNAL, 1);
-            curl_easy_setopt(handle.get(), CURLOPT_PROTOCOLS, CURLPROTO_HTTPS);
+    curl_easy_setopt(handle.get(), CURLOPT_CONNECTTIMEOUT, longSeconds(kConnectionTimeout));
+    curl_easy_setopt(handle.get(), CURLOPT_FOLLOWLOCATION, 0);
+    curl_easy_setopt(handle.get(), CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+    curl_easy_setopt(handle.get(), CURLOPT_NOSIGNAL, 1);
+    curl_easy_setopt(handle.get(), CURLOPT_PROTOCOLS, CURLPROTO_HTTPS);
 #ifdef CURLOPT_TCP_KEEPALIVE
-            curl_easy_setopt(handle.get(), CURLOPT_TCP_KEEPALIVE, 1);
+    curl_easy_setopt(handle.get(), CURLOPT_TCP_KEEPALIVE, 1);
 #endif
-            curl_easy_setopt(handle.get(), CURLOPT_TIMEOUT, longSeconds(kTotalRequestTimeout));
+    curl_easy_setopt(handle.get(), CURLOPT_TIMEOUT, longSeconds(kTotalRequestTimeout));
 
 #if LIBCURL_VERSION_NUM > 0x072200
-            // Requires >= 7.34.0
-            curl_easy_setopt(handle.get(), CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
+    // Requires >= 7.34.0
+    curl_easy_setopt(handle.get(), CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
 #endif
-            curl_easy_setopt(handle.get(), CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
-            curl_easy_setopt(handle.get(), CURLOPT_HEADERFUNCTION, WriteMemoryCallback);
+    curl_easy_setopt(handle.get(), CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
+    curl_easy_setopt(handle.get(), CURLOPT_HEADERFUNCTION, WriteMemoryCallback);
 
-            // TODO: CURLOPT_EXPECT_100_TIMEOUT_MS?
-            // TODO: consider making this configurable
-            curl_easy_setopt(handle.get(), CURLOPT_VERBOSE, 1);
+    // TODO: CURLOPT_EXPECT_100_TIMEOUT_MS?
+    // TODO: consider making this configurable
+    curl_easy_setopt(handle.get(), CURLOPT_VERBOSE, 1);
 
-            return handle;
+    return handle;
 }
 
 // struct HandleSingleton {
@@ -438,14 +426,13 @@ public:
                      const std::shared_ptr<AlarmScheduler>& alarmScheduler,
                      const HostAndPort& host,
                      HttpClient::Protocols protocol,
-                              size_t generation)
-                         : ConnectionInterface(generation),
-      _executor(std::move(executor)),
-      _alarmScheduler(alarmScheduler),
-      _timer(clockSource, alarmScheduler),
-      _target(host),
-      _protocol(protocol)
-      {}
+                     size_t generation)
+        : ConnectionInterface(generation),
+          _executor(std::move(executor)),
+          _alarmScheduler(alarmScheduler),
+          _timer(clockSource, alarmScheduler),
+          _target(host),
+          _protocol(protocol) {}
 
 
     virtual ~PooledCurlHandle() = default;
@@ -493,11 +480,12 @@ private:
 
             _handle = createCurlHandle();
 
-            if(_protocol == HttpClient::Protocols::kHttpOrHttps) {
-            curl_easy_setopt(_handle.get(), CURLOPT_PROTOCOLS, CURLPROTO_HTTPS | CURLPROTO_HTTP);
-        } else {
-            curl_easy_setopt(_handle.get(), CURLOPT_PROTOCOLS, CURLPROTO_HTTPS);
-        }
+            if (_protocol == HttpClient::Protocols::kHttpOrHttps) {
+                curl_easy_setopt(
+                    _handle.get(), CURLOPT_PROTOCOLS, CURLPROTO_HTTPS | CURLPROTO_HTTP);
+            } else {
+                curl_easy_setopt(_handle.get(), CURLOPT_PROTOCOLS, CURLPROTO_HTTPS);
+            }
 
             cb(this, Status::OK());
         });
@@ -536,36 +524,58 @@ CurlHandleTypeFactory::makeConnection(const HostAndPort& host,
                                       size_t generation) {
     _start();
 
-    return std::make_shared<PooledCurlHandle>(_executor,
-                                              _clockSource,
-                                              _timerScheduler,
-                                              host,
-                                              mapSSLModeToProtocol(sslMode),
-                                              generation
-                                              );
+    return std::make_shared<PooledCurlHandle>(
+        _executor, _clockSource, _timerScheduler, host, mapSSLModeToProtocol(sslMode), generation);
 }
 
+class CurlFactoryHandle {
+public:
+    CurlFactoryHandle(executor::ConnectionPool::ConnectionHandle handle, CURL* curlHandle)
+        : _poolHandle(std::move(handle)), _handle(curlHandle) {}
+
+~CurlFactoryHandle() {
+    if(!_success) {
+        _poolHandle->indicateFailure(Status(ErrorCodes::HostUnreachable, "unknown curl handle failure"));
+    }
+}
+
+    CURL* get() {
+        return _handle;
+    }
+
+    void indicateSuccess() {
+        _poolHandle->indicateSuccess();
+        _success = true;
+    }
+
+private:
+    executor::ConnectionPool::ConnectionHandle _poolHandle;
+    bool _success = false;
+    CURL* _handle;
+};
 
 class CurlHandleFactory {
 public:
     CurlHandleFactory()
         : _typeFactory(std::make_shared<CurlHandleTypeFactory>()),
-        _pool(std::make_shared<executor::ConnectionPool>(
+          _pool(std::make_shared<executor::ConnectionPool>(
               _typeFactory, "Curl", makePoolOptions(Seconds(60)))) {}
 
-    std::unique_ptr<PooledCurlHandle> get(HostAndPort server, HttpClient::Protocols protocol) {
+    CurlFactoryHandle get(HostAndPort server, HttpClient::Protocols protocol) {
 
         auto sslMode = mapProtocolToSSLMode(protocol);
 
         auto semi = _pool->get(server, sslMode, Seconds(60));
         // invariant(semi.isReady());
 
-        StatusWith<executor::ConnectionPool::ConnectionHandle> swHandle =  std::move(semi).getNoThrow();
+        StatusWith<executor::ConnectionPool::ConnectionHandle> swHandle =
+            std::move(semi).getNoThrow();
         invariant(swHandle.isOK());
+        // auto handle = std::move(swHandle.getValue());
+        auto curlHandle = static_cast<PooledCurlHandle*>(swHandle.getValue().get())->get();
 
-        auto implPtr = static_cast<PooledCurlHandle*>(swHandle.getValue().get());
-
-        return std::unique_ptr<PooledCurlHandle>{implPtr};
+        // return CurlFactoryHandle{implPtr};
+        return CurlFactoryHandle(std::move(swHandle.getValue()), curlHandle);
     }
 
 private:
@@ -634,12 +644,12 @@ public:
                       StringData url,
                       ConstDataRange cdr = {nullptr, 0}) const final {
 
-        auto hp= exactHostAndPortFromUrl(url);
-    std::unique_ptr<PooledCurlHandle> _handle(factory.get(hp, HttpClient::Protocols::kHttpsOnly));
+        auto hp = exactHostAndPortFromUrl(url);
+        CurlFactoryHandle _handle(factory.get(hp, HttpClient::Protocols::kHttpOrHttps));
 
 
         // CurlHandle _handle(curl_easy_duphandle(_handle.get()));
-        uassert(ErrorCodes::InternalError, "Curl initialization failed", _handle);
+        uassert(ErrorCodes::InternalError, "Curl initialization failed", _handle.get());
 
         curl_easy_setopt(_handle.get(), CURLOPT_TIMEOUT, longSeconds(_timeout));
 
@@ -697,21 +707,12 @@ public:
                               << curl_easy_strerror(result),
                 result == CURLE_OK);
 
+        _handle.indicateSuccess();
+
         return HttpReply(statusCode, std::move(headerBuilder), std::move(dataBuilder));
     }
 
 private:
-    // /**
-    //  * Helper for use with curl_easy_setopt which takes a vararg list,
-    //  * and expects a long, not the long long durationCount() returns.
-    //  */
-    // long longSeconds(Seconds tm) {
-    //     return static_cast<long>(durationCount<Seconds>(tm));
-    // }
-
-
-private:
-    // CurlHandle _handle;
     std::vector<std::string> _headers;
 
     Seconds _timeout;

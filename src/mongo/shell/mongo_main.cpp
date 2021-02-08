@@ -757,6 +757,8 @@ int mongo_main(int argc, char* argv[]) {
         auto c = HttpClient::create(HttpClient::Protocols::kHttpOrHttps);
         c->request(HttpClient::HttpMethod::kGET, "http://localhost:8080/hi");
 
+        c->request(HttpClient::HttpMethod::kGET, "http://localhost:8080/bye");
+
 
         // Get the URL passed to the shell
         std::string& cmdlineURI = shellGlobalParams.url;
