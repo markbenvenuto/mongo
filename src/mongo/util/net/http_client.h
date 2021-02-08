@@ -55,11 +55,6 @@ public:
         kPUT,
     };
 
-    enum class Protocols {
-        kHttpOrHttps,
-        kHttpsOnly,
-    };
-
     struct HttpReply {
         std::uint16_t code;
         DataBuilder header;

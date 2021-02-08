@@ -103,7 +103,8 @@ public:
                     "URI must reference localhost, 127.0.0.1, or ::1",
                     isLocalhost);
 
-            auto client = HttpClient::create(HttpClient::Protocols::kHttpOrHttps);
+            auto client = HttpClient::create();
+            client->allowInsecureHTTP(isLocalhost);
             auto timeoutSecs = cmd.getTimeoutSecs();
             if (timeoutSecs) {
                 client->setTimeout(Seconds(timeoutSecs.get()));

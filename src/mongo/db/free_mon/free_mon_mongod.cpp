@@ -89,7 +89,8 @@ public:
     explicit FreeMonNetworkHttp(ServiceContext* serviceContext) {
         _executor = makeTaskExecutor(serviceContext);
         _executor->startup();
-        _client = HttpClient::create( TestingProctor::instance().isEnabled() ?  HttpClient::Protocols::kHttpOrHttps : HttpClient::Protocols::kHttpsOnly);
+        _client = HttpClient::create();
+        _client->allowInsecureHTTP(TestingProctor::instance().isEnabled());
         _client->setHeaders({"Content-Type: application/octet-stream",
                              "Accept: application/octet-stream",
                              "Expect:"});

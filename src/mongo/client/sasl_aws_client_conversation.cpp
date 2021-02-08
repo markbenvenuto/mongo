@@ -119,8 +119,11 @@ awsIam::AWSCredentials SaslAWSClientConversation::_getLocalAWSCredentials() cons
 
 awsIam::AWSCredentials SaslAWSClientConversation::_getEc2Credentials() const {
     try {
+
+        std::unique_ptr<HttpClient> httpClient = HttpClient::create();
+
         // The local web server is just a normal HTTP server
-        std::unique_ptr<HttpClient> httpClient = HttpClient::create(HttpClient::Protocols::kHttpOrHttps);
+        httpClient->allowInsecureHTTP(true);
 
         // Get the token for authenticating with Instance Metadata Version 2
         // Set a lifetime of 30 seconds since we are only going to use this token for one set of
@@ -165,8 +168,11 @@ awsIam::AWSCredentials SaslAWSClientConversation::_getEc2Credentials() const {
 
 awsIam::AWSCredentials SaslAWSClientConversation::_getEcsCredentials(StringData relativeUri) const {
     try {
+
+        std::unique_ptr<HttpClient> httpClient = HttpClient::create();
+
         // The local web server is just a normal HTTP server
-        std::unique_ptr<HttpClient> httpClient = HttpClient::create(HttpClient::Protocols::kHttpOrHttps);
+        httpClient->allowInsecureHTTP(true);
 
         // Retrieve the security token attached to the ECS task
         DataBuilder getRoleResult = httpClient->get(getDefaultECSHost() + relativeUri);
