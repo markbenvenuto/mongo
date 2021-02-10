@@ -823,6 +823,10 @@ void ConnectionPool::SpecificPool::returnConnection(ConnectionInterface* connPtr
                   "constraints; {numOpenConns} connections to that host remain open",
                   "Ending idle connection because the pool meets constraints",
                   "hostAndPort"_attr = _hostAndPort,
+                  "readyPoolSize"_attr = _readyPool.size(),
+                  "processingPoolSize"_attr = _processingPool.size(),
+                  "checkedOutSize"_attr = _checkedOutPool.size(),
+                  "target"_attr = controls.targetConnections,
                   "numOpenConns"_attr = openConnections());
             return;
         }

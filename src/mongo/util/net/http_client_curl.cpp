@@ -65,16 +65,28 @@
 namespace mongo {
 
 namespace {
+using namespace executor;
 
 /**
- * 
+ * Curl Protocol configuration supported by HttpClient
  */
-     enum class Protocols {
-         kHttpOrHttps,
-         kHttpsOnly,
-     };
+enum class Protocols {
+    // Allow either http or https, unsafe
+    kHttpOrHttps,
 
+    // Allow https only
+    kHttpsOnly,
+};
 
+// Connection pool talk in terms of Mongo's SSL configuration.
+// These functions provide a way to map back and forth between them.
+transport::ConnectSSLMode mapProtocolToSSLMode(Protocols protocol) {
+    return (protocol == Protocols::kHttpsOnly) ? transport::kEnableSSL : transport::kDisableSSL;
+}
+
+Protocols mapSSLModeToProtocol(transport::ConnectSSLMode sslMode) {
+    return (sslMode == transport::kEnableSSL) ? Protocols::kHttpsOnly : Protocols::kHttpOrHttps;
+}
 
 class CurlLibraryManager {
 public:
@@ -189,7 +201,6 @@ long longSeconds(Seconds tm) {
     return static_cast<long>(durationCount<Seconds>(tm));
 }
 
-
 CurlHandle createCurlHandle() {
     CurlHandle handle(curl_easy_init());
     uassert(ErrorCodes::InternalError, "Curl initialization failed", handle);
@@ -213,88 +224,23 @@ CurlHandle createCurlHandle() {
 
     // TODO: CURLOPT_EXPECT_100_TIMEOUT_MS?
     // TODO: consider making this configurable
-    curl_easy_setopt(handle.get(), CURLOPT_VERBOSE, 1);
+    // defaults to stdout
+    // curl_easy_setopt(handle.get(), CURLOPT_VERBOSE, 1);
 
     return handle;
 }
 
-// struct HandleSingleton {
-// public:
-//     CurlHandle get() {
-//         if (!_handle) {
-//             _handle = createCurlHandle();
-//         }
-//         return std::move(_handle);
-//     }
-
-//     void returnHandle(CurlHandle h) {
-//         _handle = std::move(h);
-//     }
-
-// private:
-//     CurlHandle _handle;
-// };
-
-// HandleSingleton _singleton;
-
-using namespace executor;
 
 ConnectionPool::Options makePoolOptions(Seconds timeout) {
     ConnectionPool::Options opts;
     opts.refreshTimeout = timeout;
     opts.minConnections = 1;
-    opts.maxConnections = 10;
-    opts.maxConnecting = 4;
+    opts.maxConnections = 20;
+    opts.maxConnecting = 10;
     opts.refreshRequirement = Seconds(60);
     opts.hostTimeout = Seconds(300);
     return opts;
 }
-
-
-// class CurlHostTimingData {
-// public:
-//     void markFailed() {
-//         stdx::lock_guard<Latch> lk(_mutex);
-//         _failed = true;
-//     }
-
-//     void updateLatency(Milliseconds millis) {
-//         stdx::lock_guard<Latch> lk(_mutex);
-//         if (_failed) {
-//             _latency = millis;
-//             _failed = false;
-//         } else {
-//             // This calculates a moving average of the round trip time - this formula was taken
-//             from
-//             //
-//             https://github.com/mongodb/specifications/blob/master/source/server-selection/server-selection.rst#calculation-of-average-round-trip-times
-//             constexpr double alpha = 0.2;
-//             double newLatency = alpha * millis.count() + (1 - alpha) * _latency.count();
-//             _latency = Milliseconds(static_cast<int64_t>(std::nearbyint(newLatency)));
-//         }
-//     }
-
-//     Milliseconds getLatency() const {
-//         stdx::lock_guard<Latch> lk(_mutex);
-//         return _failed ? Milliseconds::max() : _latency;
-//     }
-
-//     AtomicWord<int64_t>& uses() {
-//         return _uses;
-//     }
-
-// private:
-//     mutable Mutex _mutex = MONGO_MAKE_LATCH("CurlHostTimingData::_mutex");
-//     Milliseconds _latency{0};
-//     bool _failed = true;
-//     AtomicWord<int64_t> _uses{0};
-// };
-
-// struct CurlHandlePoolTimingData {
-//     Mutex mutex = MONGO_MAKE_LATCH("CurlHandlePoolTimingData::mutex");
-//     stdx::unordered_map<HostAndPort, std::shared_ptr<CurlHostTimingData>> timingData;
-// };
-
 
 /*
  * This implements the timer interface for the ConnectionPool.
@@ -343,15 +289,16 @@ private:
     AlarmScheduler::SharedHandle _handle;
 };
 
+/**
+ * Type factory that manages the curl connection pool
+ */
 class CurlHandleTypeFactory : public executor::ConnectionPool::DependentTypeFactoryInterface {
 public:
     CurlHandleTypeFactory()
         : _clockSource(SystemClockSource::get()),
           _executor(std::make_shared<ThreadPool>(_makeThreadPoolOptions())),
           _timerScheduler(std::make_shared<AlarmSchedulerPrecise>(_clockSource)),
-          _timerRunner({_timerScheduler})
-    //   ,_timingData(std::make_shared<CurlHandlePoolTimingData>())
-    {}
+          _timerRunner({_timerScheduler}) {}
 
     std::shared_ptr<ConnectionPool::ConnectionInterface> makeConnection(const HostAndPort&,
                                                                         transport::ConnectSSLMode,
@@ -381,13 +328,6 @@ public:
         pool->join();
     }
 
-    // protected:
-
-    //     ThreadPool::Stats getThreadPoolStats() const {
-    //         auto threadPool = static_cast<ThreadPool*>(_executor.get());
-    //         return threadPool->getStats();
-    //     }
-
 private:
     void _start() {
         if (_running)
@@ -414,20 +354,15 @@ private:
     std::shared_ptr<AlarmScheduler> _timerScheduler;
     bool _running = false;
     AlarmRunnerBackgroundThread _timerRunner;
-    // std::shared_ptr<CurlHandlePoolTimingData> _timingData;
 };
 
 
-transport::ConnectSSLMode mapProtocolToSSLMode(Protocols protocol) {
-    return (protocol == Protocols::kHttpsOnly) ? transport::kEnableSSL
-                                                           : transport::kDisableSSL;
-}
-
-Protocols mapSSLModeToProtocol(transport::ConnectSSLMode sslMode) {
-    return (sslMode == transport::kEnableSSL) ? Protocols::kHttpsOnly
-                                              : Protocols::kHttpOrHttps;
-}
-
+/**
+ * Curl handle that is managed by a connection pool
+ *
+ * The connection pool does not manage actual connections, just handles. Curl has automatica
+ * reconnect logic if it gets disconnected. Also, HTTP connections are cheaper then MongoDB.
+ */
 class PooledCurlHandle : public ConnectionPool::ConnectionInterface,
                          public std::enable_shared_from_this<PooledCurlHandle> {
 public:
@@ -474,7 +409,6 @@ public:
         return mapProtocolToSSLMode(_protocol);
     }
 
-
     CURL* get() {
         return _handle.get();
     }
@@ -512,6 +446,7 @@ private:
             // We lie because curl will automatically reconnect for us
             // We just want the connection pool to prune handles on a timer for us.
             indicateSuccess();
+            indicateUsed();
 
             cb(this, Status::OK());
         });
@@ -538,16 +473,23 @@ CurlHandleTypeFactory::makeConnection(const HostAndPort& host,
         _executor, _clockSource, _timerScheduler, host, mapSSLModeToProtocol(sslMode), generation);
 }
 
+/**
+ * Handle that manages connection pool semantics and returns handle to connection pool in
+ * destructor.
+ *
+ * Caller must call indiciateSuccess if they want handle to be reused.
+ */
 class CurlFactoryHandle {
 public:
     CurlFactoryHandle(executor::ConnectionPool::ConnectionHandle handle, CURL* curlHandle)
         : _poolHandle(std::move(handle)), _handle(curlHandle) {}
 
-~CurlFactoryHandle() {
-    if(!_success) {
-        _poolHandle->indicateFailure(Status(ErrorCodes::HostUnreachable, "unknown curl handle failure"));
+    ~CurlFactoryHandle() {
+        if (!_success) {
+            _poolHandle->indicateFailure(
+                Status(ErrorCodes::HostUnreachable, "unknown curl handle failure"));
+        }
     }
-}
 
     CURL* get() {
         return _handle;
@@ -555,6 +497,7 @@ public:
 
     void indicateSuccess() {
         _poolHandle->indicateSuccess();
+        // TODO -    _poolHandle->indicateUsed();
         _success = true;
     }
 
@@ -564,6 +507,9 @@ private:
     CURL* _handle;
 };
 
+/**
+ * Factory that returns curl handles managed in connection pool
+ */
 class CurlHandleFactory {
 public:
     CurlHandleFactory()
@@ -576,20 +522,17 @@ public:
         auto sslMode = mapProtocolToSSLMode(protocol);
 
         auto semi = _pool->get(server, sslMode, Seconds(60));
-        // invariant(semi.isReady());
 
         StatusWith<executor::ConnectionPool::ConnectionHandle> swHandle =
             std::move(semi).getNoThrow();
         invariant(swHandle.isOK());
-        // auto handle = std::move(swHandle.getValue());
+
         auto curlHandle = static_cast<PooledCurlHandle*>(swHandle.getValue().get())->get();
 
-        // return CurlFactoryHandle{implPtr};
         return CurlFactoryHandle(std::move(swHandle.getValue()), curlHandle);
     }
 
 private:
-    // std::map<std::string, CurlHandle> _handles;
     std::shared_ptr<CurlHandleTypeFactory> _typeFactory;
     std::shared_ptr<executor::ConnectionPool> _pool;
 };
@@ -598,25 +541,24 @@ CurlHandleFactory factory;
 
 HostAndPort exactHostAndPortFromUrl(StringData url) {
     // Treat the URL as a host and port
-    // URL: https://(host):(port)
+    // URL: https://(host):(port)/...
     //
     constexpr StringData slashes = "//"_sd;
     auto slashesIndex = url.find(slashes);
     uassert(5413902, str::stream() << "//, URL: " << url, slashesIndex != std::string::npos);
 
     url = url.substr(slashesIndex + slashes.size());
-    if (url.find("/") != std::string::npos) {
+    if (url.find('/') != std::string::npos) {
         url = url.substr(0, url.find("/"));
     }
 
     return HostAndPort(url);
 }
 
-
 class CurlHttpClient final : public HttpClient {
 public:
     void allowInsecureHTTP(bool allow) final {
-_allowInsecure = allow;
+        _allowInsecure = allow;
     }
 
     void setHeaders(const std::vector<std::string>& headers) final {
@@ -633,21 +575,19 @@ _allowInsecure = allow;
         _connectTimeout = timeout;
     }
 
-
     HttpReply request(HttpMethod method,
                       StringData url,
                       ConstDataRange cdr = {nullptr, 0}) const final {
 
-        auto hp = exactHostAndPortFromUrl(url);
-        CurlFactoryHandle _handle(factory.get(hp, Protocols::kHttpOrHttps));
+        auto server = exactHostAndPortFromUrl(url);
 
+        CurlFactoryHandle handle(factory.get(server, Protocols::kHttpOrHttps));
 
-        // CurlHandle _handle(curl_easy_duphandle(_handle.get()));
-        uassert(ErrorCodes::InternalError, "Curl initialization failed", _handle.get());
+        uassert(ErrorCodes::InternalError, "Curl initialization failed", handle.get());
 
-        curl_easy_setopt(_handle.get(), CURLOPT_TIMEOUT, longSeconds(_timeout));
+        curl_easy_setopt(handle.get(), CURLOPT_TIMEOUT, longSeconds(_timeout));
 
-        curl_easy_setopt(_handle.get(), CURLOPT_CONNECTTIMEOUT, longSeconds(_connectTimeout));
+        curl_easy_setopt(handle.get(), CURLOPT_CONNECTTIMEOUT, longSeconds(_connectTimeout));
 
         ConstDataRangeCursor cdrc(cdr);
         switch (method) {
@@ -655,53 +595,58 @@ _allowInsecure = allow;
                 uassert(ErrorCodes::BadValue,
                         "Request body not permitted with GET requests",
                         cdr.length() == 0);
+                // Per https://curl.se/libcurl/c/CURLOPT_POST.html
+                // We need to reset the type of request we want to make when reusing the request
+                curl_easy_setopt(handle.get(), CURLOPT_HTTPGET, 1);
                 break;
             case HttpMethod::kPOST:
-                curl_easy_setopt(_handle.get(), CURLOPT_POST, 1);
+                curl_easy_setopt(handle.get(), CURLOPT_PUT, 0);
+                curl_easy_setopt(handle.get(), CURLOPT_POST, 1);
 
-                curl_easy_setopt(_handle.get(), CURLOPT_READFUNCTION, ReadMemoryCallback);
-                curl_easy_setopt(_handle.get(), CURLOPT_READDATA, &cdrc);
-                curl_easy_setopt(_handle.get(), CURLOPT_POSTFIELDSIZE, (long)cdrc.length());
+                curl_easy_setopt(handle.get(), CURLOPT_READFUNCTION, ReadMemoryCallback);
+                curl_easy_setopt(handle.get(), CURLOPT_READDATA, &cdrc);
+                curl_easy_setopt(handle.get(), CURLOPT_POSTFIELDSIZE, (long)cdrc.length());
                 break;
             case HttpMethod::kPUT:
-                curl_easy_setopt(_handle.get(), CURLOPT_PUT, 1);
+                curl_easy_setopt(handle.get(), CURLOPT_POST, 0);
+                curl_easy_setopt(handle.get(), CURLOPT_PUT, 1);
 
-                curl_easy_setopt(_handle.get(), CURLOPT_READFUNCTION, ReadMemoryCallback);
-                curl_easy_setopt(_handle.get(), CURLOPT_READDATA, &cdrc);
-                curl_easy_setopt(_handle.get(), CURLOPT_INFILESIZE_LARGE, (long)cdrc.length());
+                curl_easy_setopt(handle.get(), CURLOPT_READFUNCTION, ReadMemoryCallback);
+                curl_easy_setopt(handle.get(), CURLOPT_READDATA, &cdrc);
+                curl_easy_setopt(handle.get(), CURLOPT_INFILESIZE_LARGE, (long)cdrc.length());
                 break;
             default:
                 MONGO_UNREACHABLE;
         }
 
         const auto urlString = url.toString();
-        curl_easy_setopt(_handle.get(), CURLOPT_URL, urlString.c_str());
+        curl_easy_setopt(handle.get(), CURLOPT_URL, urlString.c_str());
 
         DataBuilder dataBuilder(4096), headerBuilder(4096);
-        curl_easy_setopt(_handle.get(), CURLOPT_WRITEDATA, &dataBuilder);
-        curl_easy_setopt(_handle.get(), CURLOPT_HEADERDATA, &headerBuilder);
+        curl_easy_setopt(handle.get(), CURLOPT_WRITEDATA, &dataBuilder);
+        curl_easy_setopt(handle.get(), CURLOPT_HEADERDATA, &headerBuilder);
 
         curl_slist* chunk = curl_slist_append(nullptr, "Connection: keep-alive");
         for (const auto& header : _headers) {
             chunk = curl_slist_append(chunk, header.c_str());
         }
-        curl_easy_setopt(_handle.get(), CURLOPT_HTTPHEADER, chunk);
+        curl_easy_setopt(handle.get(), CURLOPT_HTTPHEADER, chunk);
         CurlSlist _headers(chunk);
 
-        CURLcode result = curl_easy_perform(_handle.get());
+        CURLcode result = curl_easy_perform(handle.get());
         uassert(ErrorCodes::OperationFailed,
                 str::stream() << "Bad HTTP response from API server: "
                               << curl_easy_strerror(result),
                 result == CURLE_OK);
 
         long statusCode;
-        result = curl_easy_getinfo(_handle.get(), CURLINFO_RESPONSE_CODE, &statusCode);
+        result = curl_easy_getinfo(handle.get(), CURLINFO_RESPONSE_CODE, &statusCode);
         uassert(ErrorCodes::OperationFailed,
                 str::stream() << "Unexpected error retrieving response: "
                               << curl_easy_strerror(result),
                 result == CURLE_OK);
 
-        _handle.indicateSuccess();
+        handle.indicateSuccess();
 
         return HttpReply(statusCode, std::move(headerBuilder), std::move(dataBuilder));
     }
