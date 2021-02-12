@@ -1,0 +1,59 @@
+Implementation Plan (Number = # of estimated days for work) First item almost complete at time of writing
+Simplify AuthorizationSessionImpl
+- Currently the infrastructure to check access and the access rules for commands in the same class. The access rules should be separate. 
+
+4- Encode action type information into IDL
+- Encode a list of supported action types into IDL. These could be either duplicated from action_types.h (to save time) or encoded into IDL so there is one source of truth for action types. 
+In the later case, we should convert them to YAML, have IDL understand how to read them, use a non-IDL generator to generate them today (IDL is heavier weight for a one-off like action types), and then have IDL read from the YAML
+- IDL would get a new top-level action_types sequence
+- This will enable IDL to validate users only choose supported action types
+- resource_pattern will not be generated since it has not changed in 6+ years and will be hard-coded
+
+4- Write AuthorizationContract class
+- Add enum of access_checks
+- Constructor(initializer_list<acess_checks>, initializer_list<privileges>)
+- Stores a std::vector<Privilege>
+- Stores a bool for each access check in AuthorizationSession except for privilege checks
+-- Exception is isAuthorizedForAnyActionOnAnyResourceInDB - counts as simple check
+-- Has getters/setters
+-- Add a method to verify a contract is a subset of another
+-- Naive O(N^2) algo should be fine since number of checks is usually 1-3 except for agg
+
+3- Extend IDL for new access_check field and none value and generate code when api_version != “”
+- Add support for access_check to IDL
+- Add support for none
+- Generate empty function when api_version != “” for InvocationBaseGen::doCheckAuthorization
+
+2- Extend access_check for simple and privileges and generate code when api_version != “”
+- Validate action_types are correct in binder.py
+
+3- Extend access_check for simple and access_checks
+Add list of access_checks: isAuthenticated, isAuthorizedForAnyActionOnAnyResourceInDB, isCoauthorizedWith
+Use snake_case in IDL, not camel
+These will be hard coded like bsontypes.py
+
+4- Extend access_check for complex with checks and generate IDL contract
+
+3- Extend Authorization Session to record all access checks and privilege checks. 
+- Add method to method to verify contract. Call verification method after commands finish running in server_entry_point_common.cpp. 
+- Can not just do it after priv check since listDatabases (and likely others) check during run(). Ensure sync and async commands are hooked.
+- Add AuthorizationContract as a member variable that is reset on AuthorizationSession::startRequest
+- Instrument each public member with call to record privilege or access check
+- Add private member functions that store access_check/priv after check of testingProctor - split function so it can be inlined for perf with fast and slow paths
+
+2- Add access_check: none to existing commands that have api_version == 1 and have no permission check
+- some of the commands include ping, startSasl ...
+
+2- Add access_check: simple to existing commands
+- some of the commands include createIndex, dropDatabase, ...
+
+2- Add access_check: complex to existing commands that are not aggregate
+- some of commands include find, insert, update, delete
+
+3- Add access_check: complex to the aggregate command
+- aggregate is expected to take more time to test and audit the checks for correctness
+
+3- Extend buildscripts/idl/idl_check_compatibility.py to check for changes between access_check types and for changes in simple
+
+3-Extend buildscripts/idl/idl_check_compatibility.py to check for additions and changes in complex
+3-Final step, add error in IDL that all commands with api_version != “” have access_check
