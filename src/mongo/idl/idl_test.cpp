@@ -35,6 +35,7 @@
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/bsontypes.h"
+#include "mongo/db/auth/resource_pattern.h"
 #include "mongo/bson/oid.h"
 #include "mongo/db/auth/authorization_contract.h"
 #include "mongo/idl/unittest_gen.h"
@@ -3683,6 +3684,14 @@ TEST(IDLAccessCheck, TestSimpleAccessCheck) {
     ac.addAccessCheck(AccessCheckEnum::kIsAuthenticated);
 
     verifyContract(ac, AccessCheckSimpleAccessCheck::kAuthorizationContract);
+}
+
+TEST(IDLAccessCheck, TestSimplePrivilegeAccessCheck) {
+    AuthorizationContract ac;
+    ac.addPrivilege(Privilege(ResourcePattern::forClusterResource(), ActionType::addShard));
+    ac.addPrivilege(Privilege(ResourcePattern::forClusterResource(), ActionType::serverStatus));
+
+    verifyContract(ac, AccessCheckSimplePrivilege::kAuthorizationContract);
 }
 
 

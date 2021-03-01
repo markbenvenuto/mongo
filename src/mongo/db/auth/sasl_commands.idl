@@ -33,6 +33,7 @@ global:
 imports:
     - "mongo/idl/basic_types.idl"
     - "mongo/db/auth/access_checks.idl"
+    - "mongo/db/auth/action_type.idl"
 
 types:
     SaslPayload:
@@ -91,6 +92,11 @@ commands:
         namespace: ignored
         cpp_name: SaslContinueCommand
         reply_type: SaslReply
+        access_check:
+            simple:
+                privilege:
+                    resource_pattern: cluster
+                    action_type: [addShard, serverStatus]
         strict: true
         fields:
             conversationId:

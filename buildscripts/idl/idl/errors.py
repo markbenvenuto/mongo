@@ -124,6 +124,7 @@ ERROR_ID_VARIANT_STRUCTS = "ID0081"
 ERROR_ID_NO_VARIANT_ENUM = "ID0082"
 ERROR_ID_COMMAND_DUPLICATES_NAME_AND_ALIAS = "ID0083"
 ERROR_ID_UNKOWN_ENUM_VALUE = "ID0084"
+ERROR_ID_EITHER_CHECK_OR_PRIVILEGE = "ID0085"
 
 
 class IDLError(Exception):
@@ -922,6 +923,13 @@ class ParserContext(object):
         # pylint: disable=invalid-name
         self._add_error(location, ERROR_ID_UNKOWN_ENUM_VALUE,
                         "Cannot find enum value '%s' in enum '%s'." % (enum_value, enum_name))
+
+    def add_either_check_or_privilege(self, location):
+        # type: (common.SourceLocation) -> None
+        """Add an error about specifing both a check and a privilege."""
+        # pylint: disable=invalid-name
+        self._add_error(location, ERROR_ID_EITHER_CHECK_OR_PRIVILEGE,
+                        "Cannot specify both a 'check' and a 'privilege' in the same access_check")
 
 
 def _assert_unique_error_messages():

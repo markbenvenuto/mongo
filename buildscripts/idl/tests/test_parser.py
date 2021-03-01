@@ -1746,6 +1746,24 @@ class TestParser(testcase.IDLTestcase):
                 reply_type: foo_reply_struct
             """))
 
+        self.assert_parse(
+            textwrap.dedent("""
+        commands:
+            foo:
+                description: foo
+                command_name: foo
+                api_version: 1
+                namespace: ignored
+                access_check:
+                    simple:
+                        privilege:
+                            resource_pattern: foo
+                            action_type: foo
+                fields:
+                    foo: bar
+                reply_type: foo_reply_struct
+            """))
+
 
     def test_access_checks_negative(self):
         # type: () -> None
@@ -1770,6 +1788,25 @@ class TestParser(testcase.IDLTestcase):
                 reply_type: foo_reply_struct
             """), idl.errors.ERROR_ID_IS_NODE_TYPE)
 
+        # check and privilege are missing
+        self.assert_parse_fail(
+            textwrap.dedent("""
+        commands:
+            foo:
+                description: foo
+                command_name: foo
+                api_version: 1
+                namespace: ignored
+                access_check:
+                    simple:
+                        check: foo
+                        privilege:
+                            resource_pattern: foo
+                            action_type: foo
+                fields:
+                    foo: bar
+                reply_type: foo_reply_struct
+            """), idl.errors.ERROR_ID_EITHER_CHECK_OR_PRIVILEGE)
 
 
 if __name__ == '__main__':
